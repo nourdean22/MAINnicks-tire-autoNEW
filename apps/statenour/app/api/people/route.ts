@@ -23,14 +23,10 @@ import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
-import { latestJournalByPerson, type LatestJournal } from "@/lib/services/people/journal-link";
+import { journalExcerpt, type LatestJournal } from "@/lib/services/people/journal-link";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/people");
-
-/** Newest journal entries read to find each person's latest one. */
-// shortcut: a person last named before the newest JOURNAL_LOOKBACK linked entries reads null; widen or query per person if that shows up.
-const JOURNAL_LOOKBACK = 200;
 
 /** Newest ledger rows read per person; the first CONTACT row among them is the note shown on the list. */
 const NOTE_LOOKBACK = 5;
@@ -106,13 +102,17 @@ export const GET = apiHandler(
     let journalRead: "ok" | "failed" = "ok";
     if (rows.length > 0) {
       try {
-        journal = latestJournalByPerson(
-          await prisma.brainDump.findMany({
-            where: { deletedAt: null, personIds: { hasSome: rows.map((r) => r.id) } },
-            orderBy: { createdAt: "desc" },
-            take: JOURNAL_LOOKBACK,
-            select: { id: true, createdAt: true, rawThoughts: true, personIds: true },
-          }),
+        // ONE query, the newest live entry PER listed person however old (Prisma has no DISTINCT ON over an array).
+        const latest = await prisma.$queryRaw<Array<{ person_id: string; id: string; created_at: Date; raw_thoughts: string }>>`
+          SELECT DISTINCT ON (pid) pid AS person_id, d.id, d.created_at, d.raw_thoughts
+          FROM brain_dumps d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
+          WHERE d.deleted_at IS NULL AND pid = ANY(${rows.map((r) => r.id)}::text[])
+          ORDER BY pid, d.created_at DESC`;
+        journal = new Map(
+          latest.map((l) => [
+            l.person_id,
+            { at: new Date(l.created_at).toISOString(), excerpt: journalExcerpt(l.raw_thoughts), dumpId: l.id },
+          ]),
         );
       } catch (err) {
         journalRead = "failed";

@@ -70,6 +70,7 @@ import {
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
 import { etDaysBetween } from "@/lib/brain/goal-pace";
+import { JournalReadStatus, PersonJournalLine } from "@/components/people/journal-line";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
@@ -433,11 +434,7 @@ function RelationshipsPageInner() {
               </button>
             </p>
           )}
-          {data.reads?.journal === "failed" && (
-            <p role="status" className="mt-2 text-[13px] text-amber-200">
-              Journal lines couldn&apos;t load. What you wrote about people is unknown here, not empty.
-            </p>
-          )}
+          <JournalReadStatus reads={data.reads} />
         </section>
       )}
 
@@ -673,12 +670,7 @@ function RelationshipsPageInner() {
                       </p>
                     )}
                     {/* W4 2026-11-02: the newest journal entry that names this person (brain_dumps.person_ids). */}
-                    {p.latestJournal && (
-                      <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
-                        Journal, {relativeTime(Math.max(0, etDaysBetween(Date.parse(p.latestJournal.at), Date.now())))}:{" "}
-                        {p.latestJournal.excerpt}
-                      </p>
-                    )}
+                    <PersonJournalLine latestJournal={p.latestJournal} formatDays={relativeTime} />
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-mono text-[11px] text-fg-tertiary">

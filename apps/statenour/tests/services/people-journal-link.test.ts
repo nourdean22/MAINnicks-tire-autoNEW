@@ -11,21 +11,26 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type P = { id: string; name: string };
+type P = { id: string; name: string; deletedAt?: Date | null };
 const h = vi.hoisted(() => {
   const people: P[] = [];
   const ci = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  // The fake honours deletedAt the way Postgres would: a query that omits the filter sees soft-deleted rows too.
+  const live = (where: { deletedAt?: null }) => people.filter((p) => !("deletedAt" in where) || !p.deletedAt);
   return {
     people,
-    findFirst: vi.fn(async ({ where }: { where: { name: string | { equals: string } } }) => {
+    findFirst: vi.fn(async ({ where }: { where: { name: string | { equals: string }; deletedAt?: null } }) => {
       const w = where.name;
-      return people.find((p) => (typeof w === "string" ? p.name === w : ci(p.name, w.equals))) ?? null;
+      return live(where).find((p) => (typeof w === "string" ? p.name === w : ci(p.name, w.equals))) ?? null;
     }),
-    count: vi.fn(async ({ where }: { where: { name: { equals: string } } }) => people.filter((p) => ci(p.name, where.name.equals)).length),
-    findMany: vi.fn(async () => people),
+    count: vi.fn(async ({ where }: { where: { name: { equals: string }; deletedAt?: null } }) =>
+      live(where).filter((p) => ci(p.name, where.name.equals)).length,
+    ),
+    findMany: vi.fn(async ({ where }: { where: { deletedAt?: null } }) => live(where)),
     findUnique: vi.fn(async () => people[0] ?? null),
     dumpUpdate: vi.fn(async () => ({ id: "d1" })),
     once: vi.fn(),
+    recordError: vi.fn(),
   };
 });
 
@@ -36,12 +41,20 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: { create: vi.fn(async () => null) },
   },
 }));
+vi.mock("@/lib/errors/record-error", () => ({ recordError: h.recordError }));
 vi.mock("@/lib/services/people/record-interaction", async (orig) => ({
   ...(await orig<typeof import("@/lib/services/people/record-interaction")>()),
   recordInteractionOnce: h.once,
 }));
 
-import { JOURNAL_LEDGER_NOTE_CHARS, linkJournalPeople, normalizeJournalPeople } from "@/lib/services/people/journal-link";
+import {
+  JOURNAL_CONTACT_WINDOW_MS,
+  JOURNAL_EXCERPT_CHARS,
+  JOURNAL_LEDGER_NOTE_CHARS,
+  journalExcerpt,
+  linkJournalPeople,
+  normalizeJournalPeople,
+} from "@/lib/services/people/journal-link";
 import { LEDGER_SOURCES, PersonNotFoundError } from "@/lib/services/people/record-interaction";
 
 const createdAt = new Date("2026-11-02T14:00:00Z");
@@ -78,6 +91,8 @@ describe("linkJournalPeople · the resolver gate", () => {
       at: createdAt,
       // once per (person, entry): the window opens AT the entry, so a re-process sees its own row and skips.
       noRowSince: createdAt,
+      // Bounded (second reader P3-1): only a contact inside the entry day blocks it; a later gmail or manual row does not.
+      noRowBefore: new Date(createdAt.getTime() + JOURNAL_CONTACT_WINDOW_MS),
       creditXp: false,
       metadata: { auto: true, via: "journal_ingest", dumpId: "d1", matchTier: "exact" },
     });
@@ -200,5 +215,62 @@ describe("normalizeJournalPeople · the model's list", () => {
 describe("LEDGER_SOURCES", () => {
   it("carries 'journal' so a journal contact is not mislabelled as chat", () => {
     expect(LEDGER_SOURCES).toContain("journal");
+  });
+});
+
+describe("second readers on PR 3522", () => {
+  it("P2-1: a rejected ledger write reaches recordError once, naming the entry and the person", async () => {
+    h.once.mockRejectedValueOnce(new Error("connection reset"));
+    const r = await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Dania", interacted: true }] });
+    expect(r.failed).toBe(1);
+    expect(h.recordError).toHaveBeenCalledTimes(1);
+    const [domain, err, ctx] = h.recordError.mock.calls[0];
+    expect(domain).toBe("brain:journal-ingest");
+    expect(String((err as Error).message)).toContain("connection reset");
+    expect(ctx).toMatchObject({ phase: "people-contact", brainDumpId: "d1", failed: 1, personIdSuffixes: ["_dania"] });
+  });
+
+  it("control: a clean run calls recordError zero times", async () => {
+    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Dania", interacted: true }] });
+    expect(h.recordError).not.toHaveBeenCalled();
+  });
+
+  it("P2-2: lost_race is retried once; a second try that wins is one contact", async () => {
+    h.once
+      .mockResolvedValueOnce({ skipped: true, reason: "lost_race", recorded: null })
+      .mockResolvedValueOnce({ skipped: false, recorded: { ledgerId: "l2" } });
+    const r = await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Dania", interacted: true }] });
+    expect(h.once).toHaveBeenCalledTimes(2);
+    expect(r).toMatchObject({ recorded: 1, skipped: 0, failed: 0 });
+  });
+
+  it("P2-2: two lost races count as failed and reach recordError", async () => {
+    h.once.mockResolvedValue({ skipped: true, reason: "lost_race", recorded: null });
+    const r = await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Dania", interacted: true }] });
+    expect(h.once).toHaveBeenCalledTimes(2);
+    expect(r).toMatchObject({ recorded: 0, skipped: 0, failed: 1 });
+    expect(h.recordError).toHaveBeenCalledTimes(1);
+  });
+
+  it("gap 2: a live 'samir' beside a soft-deleted 'Samir' links the live one; the count filters deletedAt", async () => {
+    setPeople([
+      { id: "p_sam_live", name: "samir" },
+      { id: "p_sam_gone", name: "Samir", deletedAt: new Date("2026-10-01T00:00:00Z") },
+    ]);
+    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Samir", interacted: true }] });
+    expect(writtenIds()).toEqual(["p_sam_live"]);
+    expect(h.count.mock.calls[0][0].where).toMatchObject({ deletedAt: null });
+  });
+});
+
+describe("journalExcerpt · the /people card line (gap 3)", () => {
+  it("exactly JOURNAL_EXCERPT_CHARS is returned whole, no ellipsis", () => {
+    const t = "a".repeat(JOURNAL_EXCERPT_CHARS);
+    expect(journalExcerpt(t)).toBe(t);
+  });
+  it("one over, with a space at index 119: the trimmed 120-char prefix plus the ellipsis", () => {
+    const t = `${"a".repeat(119)} b`;
+    expect(t.length).toBe(JOURNAL_EXCERPT_CHARS + 1);
+    expect(journalExcerpt(t)).toBe(`${"a".repeat(119)}…`);
   });
 });

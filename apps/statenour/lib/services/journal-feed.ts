@@ -271,7 +271,7 @@ export async function buildJournalFeed(args: {
       linkConfidence: d.linkConfidence,
       people: [],
     });
-    // Rows read before the person_ids migration (and test fixtures) have no column: no people.
+    // The cast serves test fixtures built without the field; a real row always has it (default '{}').
     const ids = (d as { personIds?: string[] }).personIds ?? [];
     if (ids.length) dumpPersonIds.set(d.id, ids);
   }

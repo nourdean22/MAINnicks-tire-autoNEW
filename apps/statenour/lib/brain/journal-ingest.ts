@@ -79,6 +79,8 @@ interface JournalResult {
   reflectionId?: string;
   /** Set when the dump was classified `decision` and promoted to a silo row. */
   decisionReplayId?: string;
+  /** W4 · people the entry named: ids linked, contact rows written, contact writes that failed. Absent = link did not run. */
+  peopleLinked?: { linked: number; contacts: number; failed: number };
 }
 
 // ─── v10.0.232 · entryType-based extraction gates ──────────────────
@@ -174,6 +176,7 @@ export async function ingestJournal(
   let tasksCreated = 0;
   let insightsStored = 0;
   let commitmentsFound = 0;
+  let peopleLinked: JournalResult["peopleLinked"];
   let summary = "";
   // 2026-09-18 · free-form arena for a `situation` entry ("pricing", "supplier").
   // `situation_logs.context` is a free string in the schema, not an enum, so the
@@ -429,12 +432,14 @@ ${rawText}`,
       // entry, and a reported contact becomes one ledger row through the one writer. Never fatal to the ingest.
       try {
         const { linkJournalPeople, normalizeJournalPeople } = await import("@/lib/services/people/journal-link");
-        await linkJournalPeople({
+        const linked = await linkJournalPeople({
           dumpId: brainDump.id,
           createdAt: brainDump.createdAt,
           rawText,
           people: normalizeJournalPeople(data.people),
         });
+        // A failed contact write already reached recordError inside the link; the result says so too.
+        peopleLinked = { linked: linked.personIds.length, contacts: linked.recorded, failed: linked.failed };
       } catch (err) {
         recordError("brain:journal-ingest", err, { phase: "people-link", brainDumpId: brainDump.id });
       }
@@ -832,6 +837,7 @@ ${rawText}`,
     summary,
     reflectionId: derived.reflectionId,
     decisionReplayId: derived.decisionReplayId,
+    peopleLinked,
   };
 }
 

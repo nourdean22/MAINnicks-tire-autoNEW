@@ -13,14 +13,16 @@
  *   · a mention is not a contact (the 2026-09-16 rule in lib/brain/conversation-memory.ts): every resolved person is
  *     linked, but only one he reports interacting with gets a ledger row.
  *
- * Once per (person, entry): `at` and `noRowSince` are both the entry's createdAt, so a re-process of the same entry
- * finds its own row inside recordInteractionOnce's locked count and skips.
+ * Once per (person, entry): `at` and `noRowSince` are both the entry's createdAt and the window closes 24 h later, so a
+ * re-process of the same entry finds its own row inside recordInteractionOnce's locked count and skips, while a contact
+ * he logs days later (gmail, manual) never locks the journal line out.
  */
 import { prisma } from "@/lib/prisma";
 import { resolvePersonByName } from "@/lib/brain/person-profile-fuzzy";
 import { PersonNotFoundError, recordInteractionOnce } from "@/lib/services/people/record-interaction";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordError } from "@/lib/errors/record-error";
 
 const log = rootLogger.withSurface("services/people/journal-link");
 
@@ -30,6 +32,8 @@ export const JOURNAL_LEDGER_NOTE_CHARS = 160;
 export const JOURNAL_EXCERPT_CHARS = 120;
 /** At most this many names per entry (the extraction prompt asks for the same cap). */
 export const JOURNAL_PEOPLE_MAX = 6;
+/** A contact row already inside [entry, entry + this) means the journal line adds no new contact. */
+export const JOURNAL_CONTACT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface JournalPersonMention {
   name: string;
@@ -99,32 +103,51 @@ export async function linkJournalPeople(args: {
 
   let recorded = 0;
   let skipped = 0;
-  let failed = 0;
+  const failedIds: string[] = [];
+  let firstError: unknown = null;
   // The note is embedded and read back into prompts, so it is fenced like every other journal-derived string.
   const note = sanitizeForPrompt(args.rawText.trim()).slice(0, JOURNAL_LEDGER_NOTE_CHARS).trimEnd();
   for (const [personId, r] of resolved) {
     if (!r.interacted) continue;
-    try {
-      const outcome = await recordInteractionOnce({
+    const write = () =>
+      recordInteractionOnce({
         personId,
         amount: 1,
         note,
         source: "journal",
         at: args.createdAt,
+        // Bounded: a contact already logged inside the entry's day wins; a later gmail or manual row does not block.
         noRowSince: args.createdAt,
+        noRowBefore: new Date(args.createdAt.getTime() + JOURNAL_CONTACT_WINDOW_MS),
         creditXp: false,
         metadata: { auto: true, via: "journal_ingest", dumpId: args.dumpId, matchTier: r.tier },
       });
+    try {
+      let outcome = await write();
+      // The journal has no later compile to retry a deadlock abort, so it retries once here.
+      if (outcome.skipped && outcome.reason === "lost_race") outcome = await write();
+      if (outcome.skipped && outcome.reason === "lost_race") throw new Error("journal contact lost the race twice");
       if (outcome.skipped) skipped++;
       else recorded++;
     } catch (err) {
-      failed++;
+      failedIds.push(personId);
+      firstError ??= err;
       log.warn(err instanceof PersonNotFoundError ? "journal_person_gone" : "journal_contact_failed", {
         dumpId: args.dumpId,
         personId,
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+  const failed = failedIds.length;
+  // Ids written but a contact row not: never a quiet success.
+  if (failed > 0) {
+    recordError("brain:journal-ingest", firstError, {
+      phase: "people-contact",
+      brainDumpId: args.dumpId,
+      failed,
+      personIdSuffixes: failedIds.map((id) => id.slice(-6)),
+    });
   }
   log.info("journal_people_linked", { dumpId: args.dumpId, linked: personIds.length, recorded, skipped, failed, rejected });
   return { personIds, recorded, skipped, failed, rejected };
@@ -136,21 +159,8 @@ export interface LatestJournal {
   dumpId: string;
 }
 
-/** Newest-first rows in; the newest entry naming each person out (absent = no entry names them in the rows read). */
-export function latestJournalByPerson(
-  rows: ReadonlyArray<{ id: string; createdAt: Date; rawThoughts: string; personIds: string[] }>,
-): Map<string, LatestJournal> {
-  const out = new Map<string, LatestJournal>();
-  for (const row of rows) {
-    for (const pid of row.personIds) {
-      if (out.has(pid)) continue;
-      const t = row.rawThoughts.trim();
-      out.set(pid, {
-        at: row.createdAt.toISOString(),
-        excerpt: t.length > JOURNAL_EXCERPT_CHARS ? `${t.slice(0, JOURNAL_EXCERPT_CHARS).trimEnd()}…` : t,
-        dumpId: row.id,
-      });
-    }
-  }
-  return out;
+/** The card excerpt: whole up to JOURNAL_EXCERPT_CHARS, else that prefix (trailing space trimmed) plus an ellipsis. */
+export function journalExcerpt(raw: string): string {
+  const t = raw.trim();
+  return t.length > JOURNAL_EXCERPT_CHARS ? `${t.slice(0, JOURNAL_EXCERPT_CHARS).trimEnd()}…` : t;
 }

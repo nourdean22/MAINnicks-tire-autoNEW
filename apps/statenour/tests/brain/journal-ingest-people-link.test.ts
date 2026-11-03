@@ -66,6 +66,12 @@ describe("ingestJournal · links the people the entry names", () => {
     expect(h.link).toHaveBeenCalledWith({ dumpId: "dNew", createdAt, rawText: text, people: [{ name: "Dania", interacted: true }] });
   });
 
+  it("P2-1: the ingest result carries peopleLinked (linked, contacts, failed), so a failed contact is not reported as success", async () => {
+    h.link.mockResolvedValue({ personIds: ["p_dania", "p_sam"], recorded: 1, skipped: 0, failed: 1, rejected: 0 });
+    const r = await ingestJournal(text, "manual");
+    expect(r.peopleLinked).toEqual({ linked: 2, contacts: 1, failed: 1 });
+  });
+
   it("a re-process (reuseDumpId) links against the ORIGINAL entry and its original createdAt", async () => {
     await ingestJournal(text, "chat", { reuseDumpId: "dOld" });
     expect(h.link.mock.calls[0][0]).toMatchObject({ dumpId: "dOld", createdAt });
