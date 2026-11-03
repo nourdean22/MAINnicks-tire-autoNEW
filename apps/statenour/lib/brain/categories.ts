@@ -331,11 +331,12 @@ export const BRAIN_CATEGORIES = {
    *  committed to. Tim Challies' "Do More Better" framework
    *  (Get Clear → Get Current → Get Set → Get Going + Serve & Surprise). */
   WEEKLY_REVIEW: "weekly_review",
-  /** Once-per-ISO-week claim for the "Weekly review ready" web push.
-   *  Key shape `YYYY-WNN` (the review's ET Monday). Written by
-   *  cron:weekly-review (app/api/cron/weekly-review/route.ts, R2a
-   *  2026-11-03): create -> P2002 = another run took the week. Defined
-   *  2026-05-27 for a Telegram nudge cron that never shipped a writer. */
+  /** Once-per-ISO-week claim for the "Weekly review is ready" line on
+   *  the morning brief push. Key shape `YYYY-WNN` (the review's ET
+   *  Monday). Written by inngest/morning-brief (claimWeeklyReviewLine,
+   *  R2a 2026-11-03): create -> P2002 = an earlier brief this week took
+   *  it. Defined 2026-05-27 for a Telegram nudge cron that never shipped
+   *  a writer. */
   WEEKLY_REVIEW_NUDGE: "weekly_review_nudge",
 
   // ── Power Atlas · 2026-05-27 ──
@@ -891,7 +892,7 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // the event lives in metadata. Prod 11-01: an os-drift title had been rewritten into LLM prose,
   // and coach rows were soft-deleted inside the merge's 03:00-04:15Z window (one 81s after write).
   BRAIN_CATEGORIES.COACH_EVENT,
-  // 2026-11-03 · R2a · the once-per-week "Weekly review ready" push claim, read by key (P2002): a merge
+  // 2026-11-03 · R2a · the once-per-week "Weekly review is ready" brief-line claim, read by key (P2002): a merge
   // would rewrite one week's marker into prose and soft-delete the rest.
   BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
 ];

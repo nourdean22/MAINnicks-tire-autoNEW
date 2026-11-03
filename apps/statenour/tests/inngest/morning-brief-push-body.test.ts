@@ -85,6 +85,19 @@ describe("pushBodyFromBrief · the check-in count line (R2a, 2026-11-03)", () =>
     expect(body.endsWith(" · 3 goals need a check-in")).toBe(true);
   });
 
+  it("the weekly review line goes after the count line, and alone when nothing is due", () => {
+    expect(pushBodyFromBrief(BRIEF, 3, true)).toBe(
+      "Brief · 2026-11-03 · Drift: LOW · Open tasks: 12 · 3 goals need a check-in · Weekly review is ready",
+    );
+    expect(pushBodyFromBrief(BRIEF, 0, true)).toBe("Brief · 2026-11-03 · Drift: LOW · Open tasks: 12 · Weekly review is ready");
+  });
+
+  it("a long brief keeps both lines whole inside the 200-char cap", () => {
+    const body = pushBodyFromBrief("x".repeat(400), 3, true);
+    expect(body.length).toBeLessThanOrEqual(200);
+    expect(body.endsWith(" · 3 goals need a check-in · Weekly review is ready")).toBe(true);
+  });
+
   it("GUARD: a goal title in the Goals section never reaches the body, the count does", () => {
     const body = pushBodyFromBrief(
       [BRIEF, "<b>Goals</b> · 3 active · 1 with a next step", "Check in on: Planted goal title · 9d overdue"].join("\n"),

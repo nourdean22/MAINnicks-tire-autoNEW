@@ -19,10 +19,17 @@ const h = vi.hoisted(() => ({
   logError: vi.fn(),
   lifeGoalFindMany: vi.fn(),
   goalEventFindMany: vi.fn(),
+  memFindMany: vi.fn(),
+  memCreate: vi.fn(),
+  memDeleteMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { lifeGoal: { findMany: h.lifeGoalFindMany }, goalEvent: { findMany: h.goalEventFindMany } },
+  prisma: {
+    lifeGoal: { findMany: h.lifeGoalFindMany },
+    goalEvent: { findMany: h.goalEventFindMany },
+    brainMemory: { findMany: h.memFindMany, create: h.memCreate, deleteMany: h.memDeleteMany },
+  },
 }));
 vi.mock("@/lib/inngest/client", () => ({
   getInngest: () => ({ createFunction: (_cfg: unknown, handler: unknown) => ({ handler }) }),
@@ -52,6 +59,79 @@ beforeEach(() => {
   h.setShownSurface.mockResolvedValue(true);
   h.lifeGoalFindMany.mockResolvedValue([]);
   h.goalEventFindMany.mockResolvedValue([]);
+  h.memFindMany.mockResolvedValue([]);
+  h.memCreate.mockResolvedValue({ id: "nudge-1" });
+  h.memDeleteMany.mockResolvedValue({ count: 1 });
+});
+
+describe("deliverMorningBrief · 'Weekly review is ready' rides the morning push once per ISO week (R2a ruling, 2026-11-03)", () => {
+  // The review cron writes Sunday ~22:00 ET with key weekly:<that week's Monday>. 2026-11-09 is a Monday.
+  const MONDAY = { date: "2026-11-09", text: "Drift: LOW\nOpen tasks: 3", sectionCount: 2 };
+  const TUESDAY = { ...MONDAY, date: "2026-11-10" };
+  const REVIEW_ROW = [{ key: "weekly:2026-11-02" }];
+  const bodies = () => h.sendPush.mock.calls.map((c) => (c[0] as { body: string }).body);
+  const p2002 = () => Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+
+  it("Monday after a written review: the line is in the push once, after the count line, claimed for the review's week", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.lifeGoalFindMany.mockResolvedValue([{ id: "g1", horizon: "WEEK", createdAt: new Date(Date.now() - 40 * 86_400_000) }]);
+    await deliverMorningBrief(MONDAY);
+    expect(bodies()[0]).toBe("Drift: LOW · Open tasks: 3 · 1 goal needs a check-in · Weekly review is ready");
+    const data = (h.memCreate.mock.calls[0][0] as { data: { category: string; key: string } }).data;
+    expect(data).toMatchObject({ category: "weekly_review_nudge", key: "2026-W45" });
+    expect(h.memDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("Monday then Tuesday in one week: the line appears once (Tuesday's claim hits P2002)", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.memCreate.mockResolvedValueOnce({ id: "nudge-1" }).mockRejectedValueOnce(p2002());
+    await deliverMorningBrief(MONDAY);
+    await deliverMorningBrief(TUESDAY);
+    expect(bodies().filter((b) => b.includes("Weekly review is ready"))).toHaveLength(1);
+    expect(bodies()[1]).toBe("Drift: LOW · Open tasks: 3");
+  });
+
+  it("no review row for this week or the one just ended: no line and no claim", async () => {
+    await deliverMorningBrief(MONDAY);
+    expect(bodies()[0]).not.toContain("Weekly review");
+    expect(h.memCreate).not.toHaveBeenCalled();
+    const where = (h.memFindMany.mock.calls[0][0] as { where: { category: string; key: { in: string[] } } }).where;
+    expect(where.category).toBe("weekly_review");
+    expect(where.key.in.sort()).toEqual(["weekly:2026-11-02", "weekly:2026-11-09"]);
+  });
+
+  it("a brief that reached nobody releases the claim by its id, so tomorrow's brief can carry the line", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+    h.sendTelegram.mockResolvedValue(false);
+    const result = await deliverMorningBrief(MONDAY);
+    expect(result.status).toBe("undelivered");
+    expect(h.memDeleteMany).toHaveBeenCalledWith({ where: { id: "nudge-1", category: "weekly_review_nudge", key: "2026-W45" } });
+  });
+
+  it("a push that throws releases the claim and still throws (the step retries)", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.sendPush.mockRejectedValue(new Error("vapid down"));
+    await expect(deliverMorningBrief(MONDAY)).rejects.toThrow("vapid down");
+    expect(h.memDeleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("a brief the Telegram fallback delivered keeps the claim and carries the line", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+    await deliverMorningBrief(MONDAY);
+    expect(String(h.sendTelegram.mock.calls[0][0])).toContain("Weekly review is ready");
+    expect(h.memDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("GUARD: the review read selects the key only, so review text and goal titles never reach the body", async () => {
+    h.memFindMany.mockResolvedValue(REVIEW_ROW);
+    h.lifeGoalFindMany.mockResolvedValue([{ id: "g1", title: "Planted goal title", horizon: "WEEK", createdAt: new Date(Date.now() - 40 * 86_400_000) }]);
+    await deliverMorningBrief({ ...MONDAY, text: `${MONDAY.text}\n<b>Goals</b> · 1 active\nCheck in on: Planted goal title` });
+    expect((h.memFindMany.mock.calls[0][0] as { select: Record<string, boolean> }).select).toEqual({ key: true });
+    expect(bodies()[0]).not.toContain("Planted goal title");
+    expect(bodies()[0].endsWith("Weekly review is ready")).toBe(true);
+  });
 });
 
 describe("deliverMorningBrief · the check-in count reaches the push (R2a, 2026-11-03)", () => {

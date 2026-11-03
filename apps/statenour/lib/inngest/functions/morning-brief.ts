@@ -43,6 +43,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 import { GOALS_HEADER, NOT_SEEING_HEADER } from "@/lib/services/brief-private";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("inngest/morning-brief");
 const inngest = getInngest();
@@ -139,7 +140,7 @@ async function composeBrief(): Promise<ComposedBrief> {
  * `<b>` tags on the phone. Strip FIRST, then trim: slicing before
  * stripping could also cut a tag in half mid-notification.
  */
-export function pushBodyFromBrief(text: string, checkInsDue = 0): string {
+export function pushBodyFromBrief(text: string, checkInsDue = 0, weeklyReviewReady = false): string {
   // The weekly gap and Monday Goals sections are private: a lock screen never shows any of
   // them (PR #3221 review; goals-system W2). Cut at whichever comes first.
   const cuts = [NOT_SEEING_HEADER, GOALS_HEADER].map((h) => text.indexOf(h)).filter((i) => i >= 0);
@@ -150,11 +151,78 @@ export function pushBodyFromBrief(text: string, checkInsDue = 0): string {
     .replace(/\s+/g, " ")
     .trim();
   // R2a (2026-11-03): goals due a check-in, as a COUNT after the cut; a title never goes on a
-  // lock screen. Room is kept for the whole line so the 200-char cap cannot cut it off.
-  if (checkInsDue <= 0) return body.slice(0, 200);
-  const line = `${checkInsDue} ${checkInsDue === 1 ? "goal needs" : "goals need"} a check-in`;
-  const head = body.slice(0, 200 - line.length - 3).replace(/[\s·]+$/, "");
-  return head ? `${head} · ${line}` : line;
+  // lock screen. Then "Weekly review is ready" (claimed once per ISO week by deliverMorningBrief). Room
+  // is kept for the whole tail so the 200-char cap cannot cut it off.
+  const tail = [
+    checkInsDue > 0 ? `${checkInsDue} ${checkInsDue === 1 ? "goal needs" : "goals need"} a check-in` : "",
+    weeklyReviewReady ? "Weekly review is ready" : "",
+  ].filter(Boolean).join(" · ");
+  if (!tail) return body.slice(0, 200);
+  const head = body.slice(0, 200 - tail.length - 3).replace(/[\s·]+$/, "");
+  return head ? `${head} · ${tail}` : tail;
+}
+
+/** "YYYY-WNN" of a Monday "YYYY-MM-DD", in pure date math (no clock, no zone). */
+function isoWeekOfMonday(monday: string): string {
+  const thursday = new Date(`${monday}T00:00:00Z`);
+  thursday.setUTCDate(thursday.getUTCDate() + 3); // the week's Thursday names its ISO year
+  const year = thursday.getUTCFullYear();
+  const dayOfYear = Math.round((thursday.getTime() - Date.UTC(year, 0, 1)) / 86_400_000);
+  return `${year}-W${String(Math.floor(dayOfYear / 7) + 1).padStart(2, "0")}`;
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * R2a manager ruling (2026-11-03) · claim the "Weekly review is ready" line for the first brief after a
+ * review is written. The weekly-review cron runs Sunday ~22:00-23:00 ET (inside sendPush's quiet hours)
+ * and keys its row weekly:<that week's Monday>, so a Monday brief looks for this week's Monday or the
+ * one just ended; the newest wins. The claim is a weekly_review_nudge create keyed by the review's ISO
+ * week (claim-before-act: P2002 = an earlier brief this week took it, so no line). Any read or create
+ * failure = no line. The caller releases the claim when the brief reached nobody.
+ */
+async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week: string } | null> {
+  const thisMonday = addDaysYmd(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const rows = await prisma.brainMemory.findMany({
+      where: { category: "weekly_review", key: { in: [`weekly:${thisMonday}`, `weekly:${addDaysYmd(thisMonday, -7)}`] }, deletedAt: null },
+      select: { key: true },
+    });
+    if (rows.length === 0) return null;
+    const weekStart = rows.map((r) => r.key.slice("weekly:".length)).sort().at(-1)!;
+    const week = isoWeekOfMonday(weekStart);
+    // brain-memory-direct-write: a once-per-week send marker (the claim), not a semantic memory. No
+    // expiresAt and confidence 1.0, so pruneNoise and data-cleanup never reach it; excluded from merge.
+    const row = await prisma.brainMemory.create({
+      data: {
+        category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+        key: week,
+        content: `Weekly review is ready line, morning brief of ${today}`,
+        confidence: 1.0,
+        source: "inngest/morning-brief",
+        metadata: { weekStart, briefDate: today } as never,
+      },
+      select: { id: true },
+    });
+    return { id: row.id, week };
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code === "P2002") return null;
+    log.warn("weekly_review_claim_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  }
+}
+
+/** Release a claim whose brief reached nobody, by its own id, so the next brief can carry the line. */
+async function releaseWeeklyReviewLine(claim: { id: string; week: string }): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  await prisma.brainMemory
+    .deleteMany({ where: { id: claim.id, category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: claim.week } })
+    .catch((err) => log.error("weekly_review_release_failed", { week: claim.week, err: err instanceof Error ? err.message : String(err) }));
 }
 
 /** Active goals past their check-in cadence (lib/brain/goal-pace.ts), the read Home's
@@ -200,6 +268,7 @@ async function briefTelegramFallback(
   push: { sent: number; failed: number },
   ledgerId: string | null,
   checkInsDue = 0,
+  weeklyReviewReady = false,
 ): Promise<{ status: "skipped_push_ok" | "sent" | "failed" }> {
   if (push.sent > 0) return { status: "skipped_push_ok" };
   const { sendTelegram, sendTelegramWithButtons } = await import("@/lib/services/telegram");
@@ -210,7 +279,7 @@ async function briefTelegramFallback(
       : "no live web-push subscription";
   const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
-    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text, checkInsDue)}\n\n` +
+    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text, checkInsDue, weeklyReviewReady)}\n\n` +
     `There is no brief page. Ask Nick on the home screen for the full brief: https://bdnick.info/`;
   // 2026-10-02 · this is the path the brief takes when push reaches no device,
   // and it was the one delivery of a ledgered brief with no way to rate it.
@@ -222,7 +291,7 @@ async function briefTelegramFallback(
   return { status: ok ? "sent" : "failed" };
 }
 
-async function sendBriefPush(brief: ComposedBrief, checkInsDue: number): Promise<{
+async function sendBriefPush(brief: ComposedBrief, checkInsDue: number, weeklyReviewReady: boolean): Promise<{
   sent: number;
   failed: number;
   /** The ledger row the rating buttons point at; null when ledgering failed. */
@@ -263,7 +332,7 @@ async function sendBriefPush(brief: ComposedBrief, checkInsDue: number): Promise
     title: "Morning brief",
     // Trim aggressively · push body has a hard limit ~120 chars on
     // most platforms before the OS truncates with "…".
-    body: pushBodyFromBrief(brief.text, checkInsDue),
+    body: pushBodyFromBrief(brief.text, checkInsDue, weeklyReviewReady),
     level: "high",
     // `chatSeed` below OVERRIDES this, so it is the no-seed fallback only. It
     // pointed at the retired /command route (which redirects home — a hop, not
@@ -303,18 +372,28 @@ export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
   push: { sent: number; failed: number };
 }> {
   const checkInsDue = (await countCheckInsDue()) ?? 0;
-  const push = await sendBriefPush(brief, checkInsDue);
+  const review = await claimWeeklyReviewLine(brief.date);
+  let push: Awaited<ReturnType<typeof sendBriefPush>>;
+  try {
+    push = await sendBriefPush(brief, checkInsDue, review !== null);
+  } catch (err) {
+    // The step retries on a throw; give the line back so the retry can claim it again.
+    if (review) await releaseWeeklyReviewLine(review);
+    throw err;
+  }
   const counts = { sent: push.sent, failed: push.failed };
   const { setShownSurface } = await import("@/lib/services/outcome-ledger");
   if (push.sent > 0) {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "web-push");
     return { status: "sent", push: counts };
   }
-  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue);
+  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue, review !== null);
   if (fallback.status === "sent") {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "telegram-fallback");
     return { status: "telegram_fallback", push: counts };
   }
+  // The brief reached nobody, so the review line did not either: release the claim.
+  if (review) await releaseWeeklyReviewLine(review);
   const { logError } = await import("@/lib/utils/error-log");
   logError(
     "inngest/morning-brief",
