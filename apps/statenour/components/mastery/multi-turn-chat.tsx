@@ -57,6 +57,8 @@ interface MultiTurnChatProps {
   data?: unknown;
   /** Optional focus line that biases the analysis. */
   focus?: string;
+  /** A prompt waiting from the open-nick event, for a chat mounted after the event fired (pane was closed). */
+  initialInput?: string;
   /** Pre-set quick-question pills · click fires immediately. */
   presets?: string[];
 }
@@ -100,9 +102,9 @@ function writeStored(page: string, turns: ChatTurn[]): void {
   }
 }
 
-export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps) {
+export function MultiTurnChat({ page, data, focus, presets, initialInput }: MultiTurnChatProps) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput ?? "");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);

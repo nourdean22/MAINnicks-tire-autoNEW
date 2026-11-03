@@ -111,6 +111,8 @@ export function NickSidePane({
   coachSurface,
 }: NickSidePaneProps) {
   const [open, setOpen] = useState(false);
+  // W5 2026-11-02: a prefilled question that arrived while the pane was closed (its chat unmounted).
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   // lg+ keeps the non-modal right pane; below lg the pane is a modal sheet (audit 09-F4).
   const isDesktop = useMinWidth(1024);
   const fabRef = useRef<HTMLButtonElement>(null);
@@ -155,7 +157,9 @@ export function NickSidePane({
 
   // Listen for the custom "statenour:open-nick" event to automatically open the side pane.
   useEffect(() => {
-    function handleOpenNick() {
+    function handleOpenNick(e: Event) {
+      const prompt = (e as CustomEvent<{ pendingPrompt?: string } | null>).detail?.pendingPrompt;
+      if (prompt) setPendingPrompt(prompt);
       setOpen(true);
       try {
         localStorage.setItem(STORAGE_KEY, "1");
@@ -168,6 +172,7 @@ export function NickSidePane({
   }, []);
 
   const toggle = useCallback(() => {
+    setPendingPrompt(null); // a pane opened or closed by hand never re-seeds an old question
     setOpen((prev) => {
       const next = !prev;
       try {
@@ -180,6 +185,7 @@ export function NickSidePane({
   }, []);
 
   const close = useCallback(() => {
+    setPendingPrompt(null);
     setOpen(false);
     try {
       localStorage.setItem(STORAGE_KEY, "0");
@@ -279,6 +285,7 @@ export function NickSidePane({
           data={data}
           focus={focus}
           presets={presets ?? DEFAULT_PRESETS}
+          initialInput={pendingPrompt ?? undefined}
         />
       </div>
 

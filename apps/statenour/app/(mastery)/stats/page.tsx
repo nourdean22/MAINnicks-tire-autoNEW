@@ -46,7 +46,7 @@
  * there is covered too.
  */
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { STATS_TABS, STATS_TAB_ALIASES, resolveStatsTab } from "@/lib/stats/resolve-tab";
 import { StatsStateBlock, StatsVerdict } from "@/components/stats/stats-verdict";
 import { scrollBehavior } from "@/lib/ui/scroll-behavior";
@@ -107,7 +107,7 @@ function StatsBodyFallback() {
   return <StatsStateBlock state="loading" message="Reading your stats." />;
 }
 
-function StatsContent() {
+function StatsContent({ onFocusGoal }: { onFocusGoal: (goal: FocusGoal | null) => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -217,10 +217,10 @@ function StatsContent() {
             <CoachEventBanner surface="goals" showReadState />
             <MissionBreadcrumb />
 
-            {/* Where you're going: the interactive GoalBoard. */}
+            {/* Where you're going: the GoalBoard, led by its hero (W5). The open goal goes to Nick's pane. */}
             <section id="goals" className="space-y-3">
               <MasterySectionLabel label="Goals · what you're climbing toward" />
-              <GoalBoard />
+              <GoalBoard onFocusGoal={onFocusGoal} />
             </section>
             {/* Calibration (W4: folded under Goals). Wave E2: the Brain calibration and prediction
                 streak cards lead it; the section's reviewed-predictions card stays (different rows and formula). */}
@@ -259,12 +259,17 @@ function StatsContent() {
   );
 }
 
+type FocusGoal = { id: string; title: string };
+
 export default function StatsPage() {
+  // W5: the goal Nour has open (else the hero goal) rides to Nick as the focus line, with its id, so a
+  // question about "this goal" lands on the right LifeGoal (page data already lists ids, PR 3521).
+  const [focusGoal, setFocusGoal] = useState<FocusGoal | null>(null);
   return (
     <>
       <StandardPage eyebrow="Who you are · where you're going" title="Stats">
         <Suspense fallback={<StatsBodyFallback />}>
-          <StatsContent />
+          <StatsContent onFocusGoal={setFocusGoal} />
         </Suspense>
       </StandardPage>
 
@@ -274,7 +279,9 @@ export default function StatsPage() {
         <NickSidePane
           page="goals"
           coachSurface="goals"
+          focus={focusGoal ? `Nour has this goal open: "${focusGoal.title}" [id:${focusGoal.id}]` : undefined}
           presets={[
+            "What's the one move on the goal I have open?",
             "Which stat am I closest to leveling up?",
             "What's the fastest way to level up today?",
             "Which goal needs my attention most?",

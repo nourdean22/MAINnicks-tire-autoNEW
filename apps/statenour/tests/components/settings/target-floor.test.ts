@@ -87,6 +87,7 @@ const CASES: Case[] = [
  */
 const TAB_FILES = [
   "components/goals/goal-board.tsx",
+  "components/goals/goals-hero.tsx",
   "components/goals/execution-coach-sandbox.tsx",
   "components/stats/calibration-section.tsx",
   "components/stats/calibration-tile.tsx",

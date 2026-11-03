@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import { 
-  Play, Timer, AlertTriangle, ArrowRight, CheckCircle2, 
+  Play, Timer, AlertTriangle, CheckCircle2, 
   RotateCcw, Sparkles, ShieldAlert, Check, Loader2, ArrowUpRight,
   BookOpen
 } from "lucide-react";
@@ -12,15 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { learnReviewRow } from "@/lib/brain/fsrs-schedule";
-
-interface CoachEntry {
-  at: string;
-  read: string;
-  nextAction: string;
-  blocker: string | null;
-  risks: string[];
-  progressPct: number;
-}
 
 interface LifeGoal {
   id: string;
@@ -33,13 +24,11 @@ interface LifeGoal {
   progress: number;
   status: string;
   why: string | null;
-  coachLog: CoachEntry[] | null;
   nextMove?: { id: string; title: string; status: string } | null;
 }
 
 interface ExecutionCoachSandboxProps {
   goal: LifeGoal;
-  latestCoach: CoachEntry | null;
   onRefresh: () => void;
 }
 
@@ -82,7 +71,7 @@ function resolveGoalStat(domain: string): string | null {
   return GOAL_DOMAIN_TO_STAT[d] || null;
 }
 
-export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: ExecutionCoachSandboxProps) {
+export function ExecutionCoachSandbox({ goal, onRefresh }: ExecutionCoachSandboxProps) {
   const [step, setStep] = useState<Step>("BRIEFING");
   
   // Clarity Gate states
@@ -164,19 +153,16 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
     (m: any) => m.metadata && typeof m.metadata === "object" && m.metadata.goalId === goal.id
   );
   
-  // Initialize mission title based on nextMove or coach advice
+  // Initialize mission title from the goal's next move (W5: the coachLog fallback went with its panel)
   useEffect(() => {
     if (goal.nextMove) {
       setMissionTitle(goal.nextMove.title);
       setActiveTaskId(goal.nextMove.id);
-    } else if (latestCoach?.nextAction) {
-      setMissionTitle(latestCoach.nextAction);
-      setActiveTaskId(null);
     } else {
       setMissionTitle("");
       setActiveTaskId(null);
     }
-  }, [goal.nextMove, latestCoach]);
+  }, [goal.nextMove]);
 
   // Timer logic
   useEffect(() => {
@@ -625,16 +611,6 @@ export function ExecutionCoachSandbox({ goal, latestCoach, onRefresh }: Executio
                 Deconstruct
               </Button>
             </div>
-            {latestCoach?.nextAction && latestCoach.nextAction !== missionTitle && (
-              <button
-                type="button"
-                onClick={() => setMissionTitle(latestCoach.nextAction)}
-                className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg flex items-center gap-1 mt-1 transition-colors"
-              >
-                <span>Suggest: &ldquo;{latestCoach.nextAction}&rdquo;</span>
-                <ArrowRight size={8} />
-              </button>
-            )}
           </div>
 
           {/* AI Micro-steps Display */}

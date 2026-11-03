@@ -136,7 +136,6 @@ describe("GoalBoard · edit a goal in place", () => {
 
   it("the expanded panel's Archive asks first; nothing is written on one tap", async () => {
     await click(container.querySelector('[role="button"]')!); // expand the card
-    await click(buttons(/^Show legacy details$/i)[0]);
     await click(buttons(/^Archive$/)[0]);
     expect(h.update, "one tap must not archive").not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('Archive "Lose 20 lbs"?');
@@ -144,7 +143,6 @@ describe("GoalBoard · edit a goal in place", () => {
 
   const openArchiveConfirm = async () => {
     await click(container.querySelector('[role="button"]')!);
-    await click(buttons(/^Show legacy details$/i)[0]);
     await click(buttons(/^Archive$/)[0]);
     const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
     expect(dialog, "the in-DOM confirm opened").toBeTruthy();
