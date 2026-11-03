@@ -325,6 +325,8 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // W5 · the clock the hero and the maxims read, stamped when the goals load (never read during render).
+  const [loadedAt, setLoadedAt] = useState(0);
   // task.* tRPC for the goals CRUD. scattered-components slice
   // (2026-05-22) · the AI suggest call migrated to `trpc.ai.suggestGoals`, so the
   // `authedFetch` import is gone (W5 removed the coach call with its panel). load()
@@ -411,6 +413,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
       // TS2589 "excessively deep" instantiation guard.
       const list = (d?.goals ?? []) as unknown as LifeGoal[];
       setGoals(list.filter((g) => g.status === "active"));
+      setLoadedAt(Date.now());
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof Error && err.message ? err.message : "no reason returned");
@@ -779,10 +782,10 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
   // W5 · the hero: the one goal that matters today (lib/stats/goals-page.ts pickHeroGoal), its maxim
   // when the goal is at a moment, and the pulse of the rest. Recomputed when the goals reload.
   const hero = useMemo(() => {
-    const now = Date.now();
+    const now = loadedAt;
     const pick = pickHeroGoal(goals, now);
     return pick ? { ...pick, now, maxim: maximForGoalMoment(momentInput(pick.goal, now), MAXIM_POOL, etDay(now)), pulse: goalsPulse(goals, now) } : null;
-  }, [goals]);
+  }, [goals, loadedAt]);
 
   const openGoal = useCallback((goalId: string) => {
     setHorizonFilter("ALL");
@@ -1694,7 +1697,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                     {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
                     {/* W5 · the maxim at this goal's moment (W6 contract; the pool is not yet skip-filtered on this page). */}
                     {(() => {
-                      const m = maximForGoalMoment(momentInput(g, Date.now()), MAXIM_POOL);
+                      const m = maximForGoalMoment(momentInput(g, loadedAt), MAXIM_POOL, etDay(loadedAt));
                       return m ? (
                         <figure className="mt-2 space-y-0.5 border-l border-edge-default pl-3">
                           <blockquote className="text-[13px] leading-relaxed text-fg-secondary">{m.text}</blockquote>
