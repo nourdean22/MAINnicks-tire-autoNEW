@@ -41,7 +41,7 @@ interface StalenessInput {
   status: string;              // active, achieved, paused, etc
   linkedActiveCount?: number;  // open tasks linked to this goal
   linkedDoneCount?: number;    // completed tasks linked
-  loopsThisWeek?: number;      // recent completion velocity
+  loopsThisWeek?: number | null; // recent completion velocity; null = the read failed (unknown)
   /** Most recent ISO string a related event happened — typically
    *  the freshest of: updatedAt, last GoalEvent, last linked task
    *  touch. The caller computes this; we just consume it. */
@@ -69,7 +69,8 @@ export function classifyStaleness(g: StalenessInput): StalenessVerdict {
   const noProgress = g.progress === 0 && g.currentValue === 0;
   const totalLinked = (g.linkedActiveCount ?? 0) + (g.linkedDoneCount ?? 0);
   const noLinkedActivity = totalLinked === 0;
-  const noWeeklyLoops = (g.loopsThisWeek ?? 0) === 0;
+  // Round 1 P1-6: null means the weekly read failed; unknown never proves "no loops" (an absent field keeps 0).
+  const noWeeklyLoops = g.loopsThisWeek === null ? false : (g.loopsThisWeek ?? 0) === 0;
 
   // STALE — total zombie. No progress, no linked tasks, old enough
   // that "I just made it" doesn't apply.

@@ -47,7 +47,7 @@ async function mount() {
   await act(async () => root!.render(<WeeklyReview />));
   await flush();
 }
-const stored = () => JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY) ?? "null") as null | { reviewId: string; week: string; notes: Record<string, string>; actions: Record<string, string | null> };
+const stored = () => JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY) ?? "null") as null | { reviewId: string; week: string; notes: Record<string, string>; actions: Record<string, string | null>; healths?: Record<string, string | null> };
 function type(el: HTMLTextAreaElement, value: string) {
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
@@ -68,14 +68,16 @@ afterEach(() => {
 });
 
 describe("weekly review draft", () => {
-  it("typing persists the week note, the goal note, the action and the reviewId; a reload restores all four", async () => {
+  it("typing persists the week note, the goal note, the health chip, the action and the reviewId; a reload restores all five", async () => {
     await mount();
     const [goalBox, weekBox] = Array.from(host.querySelectorAll("textarea")) as HTMLTextAreaElement[];
     type(goalBox, "moved the shelving");
     type(weekBox, "a slow week");
-    act(() => (host.querySelector('button[aria-pressed="false"]') as HTMLButtonElement).click());
+    const button = (label: string) => Array.from(host.querySelectorAll("button")).find((b) => b.textContent === label) as HTMLButtonElement;
+    act(() => button("At risk").click());
+    act(() => button("Extend a week").click());
     const d = stored();
-    expect(d).toMatchObject({ week: "a slow week", notes: { g1: "moved the shelving" }, actions: { g1: "extend" } });
+    expect(d).toMatchObject({ week: "a slow week", notes: { g1: "moved the shelving" }, healths: { g1: "at_risk" }, actions: { g1: "extend" } });
     expect(d!.reviewId).toMatch(/[0-9a-f-]{20,}/);
     const firstId = d!.reviewId;
 
@@ -85,13 +87,13 @@ describe("weekly review draft", () => {
     await mount();
     const boxes = Array.from(host.querySelectorAll("textarea")) as HTMLTextAreaElement[];
     expect(boxes.map((b) => b.value)).toEqual(["moved the shelving", "a slow week"]);
-    expect(host.querySelector('button[aria-pressed="true"]')?.textContent).toBe("Extend a week");
+    expect(Array.from(host.querySelectorAll('button[aria-pressed="true"]')).map((b) => b.textContent)).toEqual(["At risk", "Extend a week"]);
     expect(stored()!.reviewId).toBe(firstId);
   });
 
   it("a saved review clears the draft; the server got the restored reviewId", async () => {
     localStorage.setItem(REVIEW_DRAFT_KEY, JSON.stringify({ reviewId: "rev-restored-0001", week: "w", notes: {}, actions: {} }));
-    h.mutateAsync.mockResolvedValue({ saved: ["d1"], extended: [], closed: [], skipped: [], failed: [], ungrounded: [], replayed: false, goalActions: "applied", people: { names: [] } });
+    h.mutateAsync.mockResolvedValue({ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], replayed: false, goalActions: "applied", people: { names: [] } });
     await mount();
     await act(async () => (Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "Save the review") as HTMLButtonElement).click());
     await flush();
@@ -110,7 +112,7 @@ describe("weekly review draft", () => {
 });
 
 describe("ReviewSavedView · replay honesty", () => {
-  const base = { saved: ["a"], extended: [], closed: [], skipped: [], failed: [], ungrounded: [], people: null };
+  const base = { saved: ["a"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], people: null };
   it("a replay says the goal changes are unknown and points at Goals; a fresh save says what it did", () => {
     const replay = renderToStaticMarkup(<ReviewSavedView result={{ ...base, replayed: true, goalActions: "unknown" }} titles={new Map()} />);
     expect(replay).toContain("already saved");

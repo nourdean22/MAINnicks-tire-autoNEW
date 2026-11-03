@@ -299,6 +299,22 @@
     }
   },
   {
+    "name": "archiveTask",
+    "description": "Archive a task Nour no longer wants (soft delete: the row stays for the brain's abandoned-task patterns, recoverable by the operator). Use when he says drop / kill / remove / archive / delete a task. Not for done work (completeTask) or later work (snoozeTask). Example: {\"taskId\":\"142\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "arsenalDeepResearch",
     "description": "Multi-round autonomous research with citations.",
     "inputSchema": {
@@ -679,10 +695,15 @@
   },
   {
     "name": "completeTask",
-    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
+    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE; finishing the last task of a plan phase creates the next phase's tasks (nextPhaseSpawned). For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "completedOn": {
+          "description": "DAILY habits only: the past ET day (YYYY-MM-DD) the habit was actually done. Omit for today.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string"
+        },
         "taskId": {
           "type": "string"
         }
@@ -893,7 +914,7 @@
   },
   {
     "name": "createTask",
-    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
+    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` (from getGoals): completing the task counts it on that goal's card; for a milestone or narrative goal it is one step of the goal's task %, for a metric goal it is logged (the number moves only through a check-in or an edit). A task under a goal-linked mission counts for that goal without a goalId. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -927,7 +948,7 @@
           "type": "string"
         },
         "goalId": {
-          "description": "Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue",
+          "description": "The goal this task serves (id from getGoals). An unknown id is dropped and said. Omit under a goal-linked mission: the task inherits the mission's goal.",
           "type": "string"
         },
         "loopKind": {
@@ -1470,7 +1491,7 @@
   },
   {
     "name": "getMissions",
-    "description": "Get active missions",
+    "description": "Get active missions with the goal each one serves (lifeGoalId + goal title, null when none): a task under a goal-linked mission counts for that goal.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -1954,6 +1975,113 @@
     }
   },
   {
+    "name": "logBodyEntry",
+    "description": "Log today's (or a given ET day's) body numbers: weight (lb), body fat %, waist (in), sleep hours, workout done, energy 1-5, stress 1-5, a note. Only the fields given change; the rest of that day's row stays. Example: {\"weight\":212.4,\"sleep_hours\":6.5,\"workout_done\":true}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "body_fat_pct": {
+          "anyOf": [
+            {
+              "maximum": 80,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string"
+        },
+        "energy": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_hours": {
+          "anyOf": [
+            {
+              "maximum": 16,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stress": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "waist_inches": {
+          "anyOf": [
+            {
+              "maximum": 80,
+              "minimum": 15,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "maximum": 700,
+              "minimum": 50,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workout_done": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
     "name": "logGoalCheckIn",
     "description": "Log a goal check-in: health (on_track, at_risk, off_track) and a short note, plus the current value for a metric goal. One per goal per day. goalId must come from getGoals.",
     "inputSchema": {
@@ -1986,6 +2114,39 @@
         "goalId",
         "health",
         "note"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "logJournalEntry",
+    "description": "Write a journal entry in Nour's own words (the same path as the /journal capture). Pass his text verbatim, never a paraphrase. The entry is classified, linked to people it names, and may spawn tasks or insights; the result says what it did. Does NOT check off the journal habit; use completeTask for that. Example: {\"text\":\"Long day. Manny covered the counter while I did the Honda...\",\"kind\":\"reflection\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "kind": {
+          "description": "What kind of entry Nour said it is. Omit to let the classifier decide.",
+          "enum": [
+            "raw",
+            "thinking",
+            "reasoning",
+            "insight",
+            "decision",
+            "reflection",
+            "planning",
+            "venting"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "description": "The entry, verbatim",
+          "maxLength": 20000,
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
       ],
       "type": "object"
     }
@@ -2090,7 +2251,7 @@
   },
   {
     "name": "pinMemory",
-    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'.",
+    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'. Pass goalId (from getGoals) or personId when the fact is about a goal or a person, so the /brain goal and person filters find it.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -2104,8 +2265,16 @@
           "description": "The fact or note to pin · plain English · 1-2 sentences ideal",
           "type": "string"
         },
+        "goalId": {
+          "description": "The goal this fact is about (id from getGoals); an unknown id is dropped and said",
+          "type": "string"
+        },
         "key": {
           "description": "Optional dedup key · defaults to slug of content first 60 chars",
+          "type": "string"
+        },
+        "personId": {
+          "description": "The person this fact is about (id from getRelated / the people list); an unknown id is dropped and said",
           "type": "string"
         }
       },
@@ -3203,6 +3372,27 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "uncheckTask",
+    "description": "Take back a DAILY habit check-off for one ET day (a mis-tap, or a backfill that was wrong). Removes that day's completion and rewinds the streak; XP already credited for the day stays (it never double-credits). Defaults to today. Example: {\"taskId\":\"142\",\"date\":\"2026-11-01\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "date": {
+          "description": "ET day (YYYY-MM-DD) to uncheck. Omit for today.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId"
+      ],
       "type": "object"
     }
   },

@@ -153,6 +153,12 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "completeCommitment",           category: "personal_write", cost: "free" },
   { name: "answerOpenLoop",               category: "personal_write", cost: "free" },
   { name: "completeTask",                 category: "personal_write", cost: "free" },
+  // 2026-11-03 · chat write gaps: dated habit check-off lives on completeTask (completedOn);
+  // these four were UI-only until then.
+  { name: "uncheckTask",                  category: "personal_write", cost: "free" },
+  { name: "archiveTask",                  category: "personal_write", cost: "free" },
+  { name: "logJournalEntry",              category: "personal_write", cost: "cheap" },
+  { name: "logBodyEntry",                 category: "personal_write", cost: "free" },
   { name: "createCommitment",             category: "personal_write", cost: "free" },
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },
   { name: "queueMissionExecution",        category: "personal_write", sideEffecting: true, cost: "medium", riskClass: "medium" },

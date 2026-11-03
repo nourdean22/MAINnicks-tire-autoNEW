@@ -2394,7 +2394,7 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Cost:** about 40 minutes across six refusals and one wrong Serena one-liner handed to Nour.
 - **Proposed edit:** in the local rules: "Install a skill by copying its SKILL.md (and references/scripts) at a pinned sha with gh api, never through its installer; binaries, MCP servers and plugins are one-liners for Nour, and an MCP with `--` args goes through `claude mcp add-json`." Point to `superpower-installs-2026-10-18` memory for the receipts.
 - **Confidence:** high (recurred 6x in one session)
-- **Status:** approved 2026-10-21 · owner operator-machine · due 2026-10-28 (the find-skills skill is machine-global under ~/.claude/skills, not a repo file; the lane may not edit ~/.claude)
+- **Status:** approved 2026-10-21 · owner operator-machine · due 2026-10-28 · not applied (find-skills was machine-global under ~/.claude/skills when this was approved and the lane may not edit ~/.claude; since 2026-11-03 it has a repo copy at .claude/skills/find-skills, so a repo lane can carry the edit; its "Local rules" section does not hold this wording yet)
 
 ### P2 · guard-red-team (step 5, hook wiring on every platform) and positive-control-first
 - **Trigger (witnessed):** PR 3150's `session-surface.mjs` treated only exit 1 from `command -v` as MISSING; Linux CI's `/bin/sh` is dash, which exits 127, so the path segment read `UNKNOWN (lookup exit 127)` and two canaries went red (run 39157575666). The lane had labelled the POSIX branch NOT CHECKED yet shipped a test that assumed bash semantics. Fix 95462f05f: an exported `classifyLookup({status, signal, error})` with a unit test on 0 / 1 / 127 / 2 / ENOENT / SIGTERM, so a Windows machine pins the Linux behaviour.

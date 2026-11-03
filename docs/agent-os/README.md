@@ -208,6 +208,16 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   another machine), prints nothing. Fails open: `[memory-recall] off: <reason>`, exit 0. Canary `memoryRecall.test.mjs`
   (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
   no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
+- **UserPromptSubmit** (`graph-recall.mjs`, 2026-11-03, right after memory-recall) prints, for the symbols a prompt names
+  (backticked words, paths, file names, camelCase, snake_case; 1 to 6), one `[graph-recall] <fn|file|sym> <symbol> ->
+  <file:line> · community <name> · callers: a, b, c` line each, from the graphify MCP over HTTP (one initialize, get_node per symbol,
+  get_neighbors per hit; 10-30 ms a call, measured; `graphify query` on the CLI takes 14 s). Caps in one block: a prompt
+  under 12 chars or a bare slash command prints nothing, 6 symbols, 1.5 s budget (a slow answer is dropped, never
+  waited for). Only real symbols print (manager probe 2026-11-03: `updatedAt` resolved to a degree-1 node in a random
+  test file): the server's own `Ambiguous: matches N nodes` answer, a node with Degree under 3, and a test-file node the
+  prompt did not name as a file are dropped. Silent when nothing resolves and when the MCP is down; one `[graph-recall] mcp down, next: <command>` line
+  only when graph-ensure-mcp recorded a real DOWN this session. Fails open: `[graph-recall] off: <reason>`, exit 0.
+  Canary `graphRecall.test.mjs` (stub MCP in a child process, configured command verbatim, three mutants: cap, budget, floor).
 - **UserPromptSubmit** (`prompt-sharpen.mjs`, 2026-10-31, after `operator-asks.mjs --refresh`) prints one `[sharpen]` block for a
   short, open-ended ask ("what about the rest", "?", "improve"): likely intent, deliverable, this session's last 3 asks as
   referents, other active sessions, unknowns, a rewrite. Deterministic, no model call; private-tagged asks print nothing.
@@ -237,6 +247,18 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     the MAIN checkout; Serena was trialled and rejected, `docs/UPSTREAMS.md`), `scripts/register-local-mcp-task.ps1`
     (AtLogOn task NOURCITY-Local-MCP), `scripts/graphify-sync-launcher.ps1` and `scripts/register-graphify-sync-task.ps1`
     (daily 04:00; brain ingest only with `-IngestBrain`).
+- **SessionStart** (`graph-ensure-mcp.mjs`, 2026-11-03, every source, right after session-health; 3 s budget inside a 15 s
+  hook timeout: in a real session the probe took 35 ms and the process 7.2 s wall under startup load) probes the graphify MCP with session-health's own initialize and, when it is DOWN, launches it through
+  `scripts/local-mcp-servers.ps1 -Start` (Start-Process, hidden, its own console: a powershell spawned `detached` from
+  node reports exit 0 after 0.7 s while its script runs on, measured), re-probing every 250 ms. One line: `[graph] mcp up
+  (<ms>)` | `mcp started (<ms>)` | `mcp started (not answering yet ...; graphify listens in about 20 s)` | `mcp DOWN:
+  launcher exited N, next: <command>` | `mcp UNKNOWN (no answer in 1 s)` (something holds the port; never launches a
+  second) | `mcp: not expected on host X; fallback: GRAPH_REPORT.md + graphify query`. Exit 0 always; `[graph] off:`
+  on an own error. Writes its verdict to `%LOCALAPPDATA%/nourcity/graph-mcp.json` for graph-recall. Seen live
+  2026-11-03: the server process was alive while its listener had died (asyncio accept loop, WinError 64, during a
+  rebuild); `-Start` now ends a recorded pid that is alive but not listening before starting a fresh one. Canary
+  `graphEnsureMcp.test.mjs` (stub MCP + stub launcher: up, started, launcher fails, launcher missing, wrong service,
+  budget, host gate, broken config, configured command verbatim).
 - **Session workflow (2026-10-16, job session-workflow-upgrade PR 1).** All machine-local state lives in
   `%LOCALAPPDATA%/nourcity/`, outside the repo. Tested, not live until merged: hooks load from the primary checkout.
   - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the
@@ -392,6 +414,26 @@ missing section by name and `FIX: ... gh pr edit <n> --body-file <file>` (a body
 `is_bot: true`). `--body-fixture <file.json>` judges `{body, author, files}` without calling gh (probes, and a check
 before `gh pr create`). Canaries: the bar arms of `mergeGate.test.mjs`, including a stubbed-check pair.
 
+**Kill reads have a reader (2026-11-03, slice R2c).** The dates the bar forces into PR bodies sat unread: `ledger-render
+--open` hides MERGED rows and HEARTBEAT checks 1-10 skip them. `scripts/agent-os/kill-reads.mjs` lists every dated read,
+sorted, as `date  source  text` (`pr #N`, `ledger <job>`, `ship <file>`), with `[due]` on dates on or before today in
+America/New_York; `--due` prints `N due, T today` on line 1 (HEARTBEAT check 11, optional, never lowers the state), or
+`UNKNOWN (>= N due, T today; <source> failed)` when any source could not be read, never a bare number from part of them;
+`--json` carries the same plus `complete`. Sources: merged PR bodies since 2026-10-29 (the first merged bodies carrying the section) through
+`gh pr list --state merged --search "kill in:body merged:<month>"`, one capped call per calendar month and one
+`search/issues` count to compare with the joined list (a window at the 500 cap, a count above the list or an incomplete
+search is UNKNOWN), read with
+`merge-gate.mjs`'s own `bodySections` (one heading parser, exported; a bold label or a fenced heading is not a section); ledger
+"Next action or blocker" cells of rows not LIVE-VERIFIED or CANCELLED, a date counting only when a cue word (owed, due,
+check, kill, ...) leads it in its clause, or `by` directly before it; ship-record lines naming a kill criterion or live check
+and the list items under such a label line until the next blank line or label. A source that cannot be read prints
+`<source>: UNKNOWN (reason)` (a failed or capped gh is never "no PRs"; a ledger file the tooling cannot parse, or one
+unreadable ship file, is named and the rest still list) and the others still list; one read per source and date. A date inside a
+job id (`2026-10-12-parked-reel-lane`) is not a read. Limit: nothing records that a read was RUN, so a run read stays listed
+and due; the count measures dated reads at or past their day, not unrun ones. Canary: `killReads.test.mjs` (planted dated
+body listed, the same body undated not; yesterday, today and tomorrow count 2; a failing gh is UNKNOWN with the local
+sources still listed; the HEARTBEAT row's own command run verbatim).
+
 Canaries: `scripts/agent-os/worktreeSweep.test.mjs` (real fixture repos: a bare origin, a primary, worktrees; fake `gh`,
 lease and clock; one arm runs the real teardown script) and the sweep arms of `mergeGate.test.mjs`.
 
@@ -420,8 +462,10 @@ Job 2026-10-26-always-on-hardening. Four pieces:
    refreshes, from the repo: the two machine hooks, their `~/.claude/settings.json` registrations (found by script
    name, only the command string replaced), the always-on skills that have a repo copy, and the marked block in
    `~/.claude/CLAUDE.md`. It backs a file up to `~/.claude/bootstrap-backup/` before changing it; a second run changes
-   nothing; `--check` only reports. `find-skills` and `steal-like-an-artist` have no repo copy yet: the script cannot
-   install them and reads MISSING on a machine that lacks them. An existing machine SKILL.md keeps its own
+   nothing; `--check` only reports. `find-skills` (vendored from skills.sh, with SOURCE.md and LICENSE) and
+   `steal-like-an-artist` (house-authored) have had a repo copy since 2026-11-03, so the script installs them like the
+   rest. A name in `SKILLS` with no repo copy still reads MISSING, and the script cannot install it.
+   An existing machine SKILL.md keeps its own
    `description:`. An always-on registration whose matcher misses a source reads DRIFT and is moved to a full group.
    Every path honours `CLAUDE_CONFIG_DIR`. Canary: `bootstrapMachine.test.mjs`.
 4. **Health.** SessionStart startup runs `bootstrap-machine.mjs --check --hook`: one `[health] machine` line, on every
@@ -433,6 +477,36 @@ Job 2026-10-26-always-on-hardening. Four pieces:
 Required plugins (each with its reason and enable line in the JSON): agentic-council, receipts-check, desktop-commander
 (account plugins), avoid-ai-writing, pr-review-toolkit, hookify (machine installs). Not live until the primary checkout
 is fast-forwarded, because hooks load from there.
+
+### Graph always on: fresh to the last merge, in every program (2026-11-03)
+
+Nour, 2026-11-03: "update the hooks to always use graphify launch the mcp whenever working and to always query the graph
+and make it global so no matter what account or program i use no context is lost". Job 2026-11-03-graphify-always-on.
+The two hooks above (launch, query) plus:
+
+1. **Rebuild on every merge.** `merge-gate.mjs` step 6 calls `graph-rebuild.mjs` once a PR reads MERGED: it spawns,
+   detached and unreferenced, `heavy.mjs run --max-wait 1800s -- powershell ... graphify-obsidian-sync.ps1 -GraphOnly`
+   on the PRIMARY checkout (steps 0, 1 and the governance receipt: fast-forward, `graphify update .` under the 45 min
+   watchdog, receipt; no labels, render, vault, rotation or ingest). A fresh `.sync-running` lock (under 90 min) means a
+   rebuild is already running: nothing is spawned. Measured 2026-11-03 on 80,993 nodes: `graphify update .` re-extracts
+   every code file (7,381, "uncached"), 8 min 40 s, 4.0 GB peak RSS (python): `detect_incremental` returns the whole
+   corpus as changed AND unchanged, and the per-file AST cache (`graphify-out/cache/ast/`) holds entries for about a
+   third of the code files (3,169; a 400-file sample hits 110), so the "incremental" update is a near-full pass (graphify
+   0.9.80; why `save_cached` skips the rest is unread). Manager ruling: the merge rebuild runs only with free RAM at or
+   above 5,000 MB and no heavy.mjs lease file (holder or waiter); otherwise one `GRAPH REBUILD deferred to the daily task
+   (RAM N MB...)` line and the daily task carries it (the graph lags one day instead of one merge). The MCP hot-reloads
+   graph.json by mtime (graphify serve.py), so no restart; the daily NOURCITY-Graphify-Sync task stays the fallback and
+   the only path that relabels communities. The SessionStart graph line adds `- rebuild queued (sync lock held N min,
+   pid P)` while the lock is fresh. heavy's lines: `graphify-out/.sync.log`; the sync's: `graphify-out/obsidian-sync.log`.
+   Canaries: `graphRebuild.test.mjs`, the rebuild arms in `mergeGate.test.mjs`, the lock arm in `graphifySyncWatchdog.test.mjs`.
+2. **Every program, every account.** `scripts/agent-os/mcp-adapters.mjs --write` generates `.mcp.json` (Claude Code
+   project scope, approved once per user interactively), `.codex/config.toml` (trusted projects), `.cursor/mcp.json`,
+   `.gemini/settings.json` (`httpUrl`) and `.vscode/mcp.json` (`servers`) from `config/agent-os/local-services.json`;
+   `check-adapters.mjs` section 7 (`pnpm agent:parity`, lefthook, CI) fails on a hand edit. `bootstrap-machine.mjs`
+   mirrors it at user level: `~/.claude.json mcpServers.graphify` and the two graph hooks with `--scope global` (silent
+   where the project runs them). Canaries: `mcpAdapters.test.mjs`, the graph arms in `bootstrapMachine.test.mjs`.
+3. **Policy, one line each.** AGENTS.md > Context routing, every `.claude/agents/lane-*.md`, the operating profile's
+   SUBAGENT POLICY rule 8, the brief template's `GRAPH:` line, GEMINI.md and `.cursor/rules/repo-core.mdc`.
 
 ## MCP and native-runner coverage (2026-10-15)
 

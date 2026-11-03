@@ -182,21 +182,34 @@ try {
     }
 
     Write-Output '=== CODE GRAPH (graphify) ==='
-    Write-Output ($verdict + $via)
     # A sync lock held 90+ min means the nightly sync hung (2026-11-01: 5 h with task result 0; a normal run is 8 min).
+    # A FRESH lock is a rebuild underway (the daily task, or merge-gate.mjs after a merge since 2026-11-03): say so on the
+    # freshness line, so "N commits ahead" is read as "being fixed", not as a reason to start another.
     $syncLock = Join-Path (Split-Path -Parent $report) '.sync-running'
     $lockItem = Get-Item $syncLock -ErrorAction SilentlyContinue
-    if ($lockItem) {
-        $lockMin = [int]((Get-Date) - $lockItem.LastWriteTime).TotalMinutes
-        if ($lockMin -ge 90) {
-            $lockText = "$(Get-Content $syncLock -Raw -ErrorAction SilentlyContinue)".Trim()
-            $lockPid = if ($lockText -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
-            $holder = if ($lockPid) { Get-Process -Id $lockPid -ErrorAction SilentlyContinue } else { $null }
-            if ($holder -and $holder.ProcessName -match 'powershell|pwsh') {
-                Write-Output "graph sync: HUNG - lock held $lockMin min ($lockText); read graphify-out/obsidian-sync.log, end that pid, rerun scripts/graphify-sync-launcher.ps1"
-            } else {
-                Write-Output "graph sync: STALE LOCK - the sync died $lockMin min ago without releasing ($lockText); delete graphify-out/.sync-running, rerun scripts/graphify-sync-launcher.ps1"
-            }
+    $lockMin = if ($lockItem) { [int]((Get-Date) - $lockItem.LastWriteTime).TotalMinutes } else { -1 }
+    $lockText = if ($lockItem) { "$(Get-Content $syncLock -Raw -ErrorAction SilentlyContinue)".Trim() } else { '' }
+    $lockPid = if ($lockText -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
+    $lockHolder = if ($lockPid) { Get-Process -Id $lockPid -ErrorAction SilentlyContinue } else { $null }
+    $lockAlive = [bool]($lockHolder -and $lockHolder.ProcessName -match 'powershell|pwsh')
+    # Fresh AND its pid alive: a rebuild is underway. A fresh lock with a dead pid is a sync a reboot killed: STALE below.
+    if ($lockItem -and $lockMin -lt 90 -and $lockAlive) {
+        $verdict += " - rebuild queued (sync lock held $lockMin min, pid $lockPid)"
+    }
+    # The last sync's result (graphify-obsidian-sync.ps1 writes .sync-last.json): a failed rebuild is said here.
+    $lastFile = Join-Path (Split-Path -Parent $report) '.sync-last.json'
+    if (Test-Path $lastFile) {
+        try {
+            $last = Get-Content $lastFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([int]$last.exit -ne 0) { $verdict += " - last rebuild FAILED ($($last.at): $($last.error); read graphify-out/obsidian-sync.log)" }
+        } catch { $verdict += " - last rebuild result unreadable ($($_.Exception.Message))" }
+    }
+    Write-Output ($verdict + $via)
+    if ($lockItem -and -not ($lockMin -lt 90 -and $lockAlive)) {
+        if ($lockAlive) {
+            Write-Output "graph sync: HUNG - lock held $lockMin min ($lockText); read graphify-out/obsidian-sync.log, end that pid, rerun scripts/graphify-sync-launcher.ps1"
+        } else {
+            Write-Output "graph sync: STALE LOCK - the sync died $lockMin min ago without releasing ($lockText); delete graphify-out/.sync-running, rerun scripts/graphify-sync-launcher.ps1"
         }
     }
     if ($summary) { $summary | Where-Object { $_ -match '^- ' } | Select-Object -First 1 | Write-Output }

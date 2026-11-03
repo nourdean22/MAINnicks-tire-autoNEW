@@ -25,6 +25,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
+vi.mock("@/lib/services/goal-checkin", () => ({ logGoalCheckIn: vi.fn(async () => ({ logged: true })) }));
 vi.mock("@/lib/services/people/journal-link", async (orig) => ({
   ...(await orig<typeof import("@/lib/services/people/journal-link")>()),
   linkNamedPeople: h.link,
@@ -69,7 +70,7 @@ describe("readWeeklyReview · reflections", () => {
 describe("saveWeeklyReview · people", () => {
   it("every saved row runs the save-time name link with its own id, instant and text; the names come back", async () => {
     const r = await saveWeeklyReview(
-      { reviewId: RID, week: "Saw Dania twice.", notes: [{ goalId: "g1", text: "Nothing on this one." }], extend: [], close: [] },
+      { reviewId: RID, week: "Saw Dania twice.", notes: [{ goalId: "g1", text: "Nothing on this one." }], extend: [], achieved: [], missed: [] },
       NOW,
     );
     expect(h.link).toHaveBeenCalledTimes(2);
@@ -84,16 +85,24 @@ describe("saveWeeklyReview · people", () => {
     expect(r.goalActions).toBe("applied");
   });
 
+  it("a chips-only review links no one: its stand-in row lists goal titles, not people he talked to", async () => {
+    h.goals.mockResolvedValue([{ ...goal("g1"), title: "Call Dania back" }]);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g1", text: "", health: "at_risk" }], extend: [], achieved: [], missed: [] }, NOW);
+    expect(r.saved).toEqual(["d-week"]);
+    expect(h.link).not.toHaveBeenCalled();
+    expect(r.people).toEqual({ names: [] });
+  });
+
   it("a failed link never fails the save: people is null (unknown), the rows are saved", async () => {
     h.link.mockRejectedValue(new Error("down"));
-    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: [], close: [] }, NOW);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: [], achieved: [], missed: [] }, NOW);
     expect(r.saved).toEqual(["d-week"]);
     expect(r.people).toBeNull();
   });
 
   it("a replay links nothing again and says its goal actions are unknown, not 'not repeated'", async () => {
     h.prior.mockResolvedValue([{ id: "d-old1" }]);
-    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: ["g1"], close: [] }, NOW);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: ["g1"], achieved: [], missed: [] }, NOW);
     expect(h.link).not.toHaveBeenCalled();
     expect(h.updateGoal).not.toHaveBeenCalled();
     expect(r).toMatchObject({ replayed: true, goalActions: "unknown", people: null });

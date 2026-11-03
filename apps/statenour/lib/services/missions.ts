@@ -107,7 +107,8 @@ export async function listMissions() {
         }
       },
       // 2026-11-02 · the goal a mission was planned from, for the card and the edit drawer.
-      lifeGoal: { select: { id: true, title: true } }
+      // W8a: deletedAt rides along so an archived goal reads as none (mapped below).
+      lifeGoal: { select: { id: true, title: true, deletedAt: true } }
     },
     orderBy: [
       {
@@ -119,7 +120,10 @@ export async function listMissions() {
     ]
   });
 
-  return decorateMissions(missions);
+  // W8a: an archived goal is no goal on the board or in the drawer.
+  return decorateMissions(
+    missions.map((m) => ({ ...m, lifeGoal: m.lifeGoal && !m.lifeGoal.deletedAt ? { id: m.lifeGoal.id, title: m.lifeGoal.title } : null })),
+  );
 }
 
 export async function getMissionById(id: string) {

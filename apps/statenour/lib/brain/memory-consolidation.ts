@@ -69,7 +69,7 @@ export async function mergeMemories(): Promise<{ merged: number }> {
 
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
-    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] }, ...CURATED_GUARD },
+    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] }, deletedAt: null, ...CURATED_GUARD },
     _count: { id: true },
     having: { id: { _count: { gt: 3 } } },
   });
@@ -731,7 +731,7 @@ export async function systemHealthCheck(): Promise<Record<string, unknown>> {
     // don't trigger false "we have memories" green checks.
     prisma.brainMemory.count({ where: { deletedAt: null } }),
     prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null } }),
-    prisma.contradiction.count({ where: { resolved: false } }),
+    prisma.contradiction.count({ where: { resolved: false, deletedAt: null } }),
     prisma.prediction.count({ where: { status: "pending" } }),
     prisma.reflection.count({ where: { deletedAt: null } }),
     prisma.memoryEdge.count(),
@@ -743,7 +743,7 @@ export async function systemHealthCheck(): Promise<Record<string, unknown>> {
     prisma.identitySnapshot.count({ where: { deletedAt: null } }),
     prisma.causalChain.count(),
     Promise.resolve(0),
-    prisma.personProfile.count(),
+    prisma.personProfile.count({ where: { deletedAt: null } }),
   ]);
 
   const avgConfidence = await prisma.brainMemory.aggregate({

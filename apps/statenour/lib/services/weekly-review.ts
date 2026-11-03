@@ -14,6 +14,10 @@
 import { prisma } from "@/lib/prisma";
 import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
+import { logGoalCheckIn } from "@/lib/services/goal-checkin";
+import type { CheckInHealth } from "@/lib/brain/goal-pace";
+import { clip } from "@/lib/utils/clip";
 import { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -45,11 +49,6 @@ export interface WeeklyReviewRead {
   /** A side read filled REVIEW_ROWS_CAP: older rows in the window are not shown. */
   truncated: boolean;
 }
-
-const clip = (s: string, n = 160) => {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > n ? `${t.slice(0, n).trimEnd()}…` : t;
-};
 
 async function activeGoals() {
   return prisma.lifeGoal.findMany({
@@ -112,7 +111,7 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
       },
       orderBy: { createdAt: "desc" },
       take: REVIEW_ROWS_CAP,
-      select: { createdAt: true, task: { select: { id: true, title: true, goalId: true, mission: { select: { lifeGoalId: true } } } } },
+      select: { createdAt: true, task: { select: { id: true, title: true, ...TASK_GOAL_SELECT } } },
     }),
     prisma.brainDump.findMany({
       where: { goalId: { in: ids }, deletedAt: null, createdAt: { gt: since } },
@@ -134,8 +133,8 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
   if (events.status === "fulfilled") {
     if (events.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const e of events.value) {
-      // The task's own goal overrides its mission's (lib/missions/task-goal.ts taskGoal).
-      const gid = e.task?.goalId ?? e.task?.mission?.lifeGoalId ?? null;
+      // The ONE task-goal rule (lib/services/task-goal-server.ts): own live goal, else the mission's.
+      const gid = e.task ? (taskGoalServer(e.task)?.id ?? null) : null;
       const row = gid ? rows.get(gid) : undefined;
       if (!row || !e.task || row.doneTasks.some((t) => t.taskId === e.task!.id)) continue;
       row.doneTasks.push({ taskId: e.task.id, title: e.task.title, at: e.createdAt.toISOString() });
@@ -146,7 +145,7 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
     if (dumps.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const d of dumps.value) {
       const row = d.goalId ? rows.get(d.goalId) : undefined;
-      if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts), at: d.createdAt.toISOString() });
+      if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts, 160), at: d.createdAt.toISOString() });
     }
   } else warn("entries", dumps.reason);
 
@@ -168,16 +167,23 @@ export interface SaveWeeklyReviewInput {
   reviewId: string;
   /** The week's reflection; saved ungrounded. */
   week: string;
-  /** One note per goal; each is saved grounded to its goal. */
-  notes: { goalId: string; text: string }[];
+  /** One note per goal; each is saved grounded to its goal. With a health chip it is also that goal's check-in (W8a, S3). */
+  notes: { goalId: string; text: string; health?: CheckInHealth }[];
   extend: string[];
-  close: string[];
+  /** W8a (S4): "Close" split in two. Each sets the goal's status, so updateGoal emits the event and the brain moment. */
+  achieved: string[];
+  missed: string[];
 }
 
 export interface SaveWeeklyReviewResult {
   saved: string[];
   extended: string[];
-  closed: string[];
+  achieved: string[];
+  missed: string[];
+  /** Goals whose note landed as a check-in (logGoalCheckIn, source weekly-review); a same-day duplicate counts. */
+  checkedIn: string[];
+  /** Round 1 P0-1: a check-in already existed today (one per goal per day); this review's health was NOT saved. */
+  alreadyCheckedIn: string[];
   /** Ids that are not active goals (or not WEEK goals, for extend/close): never acted on. */
   skipped: string[];
   /** Goal actions that threw; the entries were already saved. */
@@ -197,7 +203,8 @@ export interface SaveWeeklyReviewResult {
 
 export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date = new Date()): Promise<SaveWeeklyReviewResult> {
   const week = input.week.trim();
-  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim() })).filter((n) => n.text);
+  // Round 1 P1-8: a goal with a health chip and no words is still a check-in; only words become a journal row.
+  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim(), health: n.health })).filter((n) => n.text || n.health);
   if (!week && notes.length === 0) throw new Error("Write one line before saving the review.");
 
   const goals = new Map((await activeGoals()).map((g) => [g.id, g]));
@@ -206,9 +213,17 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
 
   const date = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   // A note whose goal left the active list is saved ungrounded, never dropped: his words outlive the goal.
-  const ungrounded = notes.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
-  const rows = [...notes.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const), ...(week ? [[week, null] as const] : [])];
-  if (rows.length === 0) throw new Error("Write one line before saving the review.");
+  const worded = notes.filter((n) => n.text);
+  const ungrounded = worded.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
+  const rows: (readonly [string, string | null])[] = [
+    ...worded.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const),
+    ...(week ? [[week, null] as const] : []),
+  ];
+  const chipped = notes.filter((n) => n.health && goals.has(n.goalId));
+  if (rows.length === 0 && chipped.length === 0) throw new Error("Write one line before saving the review.");
+  // Round 2: a chips-only review still writes ONE row. It is the reviewId's claim (a retry after a lost response finds
+  // it and replays: no second extend, no false "not saved") and the next review's `since`.
+  if (rows.length === 0) rows.push([`Weekly review: checked in on ${chipped.map((n) => goals.get(n.goalId)!.title).join(", ")}`, null]);
 
   // One serializable transaction keyed by the form's reviewId: a failure saves nothing, and a retry after a commit
   // whose response was lost (a phone dropping signal) finds its own rows and writes nothing twice. Two concurrent
@@ -246,7 +261,9 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     },
     { isolationLevel: "Serializable" },
   );
-  if (replayed) return { saved, extended: [], closed: [], skipped, failed: [], ungrounded, replayed, goalActions: "unknown", people: null };
+  if (replayed) {
+    return { saved, extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped, failed: [], ungrounded, replayed, goalActions: "unknown", people: null };
+  }
 
   // W8b: every saved row reaches People the way the composer's does (exact whole-word names, a mention, no model).
   // A failed link is unknown, never a failed save: the rows are committed already.
@@ -254,7 +271,8 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   try {
     const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
     const names = new Set<string>();
-    for (const [i, [rawText]] of rows.entries()) {
+    // Only his words: a chips-only review's stand-in row lists goal titles, which name no one he talked to.
+    for (const [i, [rawText]] of rows.slice(0, worded.length + (week ? 1 : 0)).entries()) {
       const r = await linkNamedPeople({ silo: "brain_dump", dumpId: saved[i], createdAt: new Date(now.getTime() + i), rawText });
       for (const n of r.names) names.add(n);
     }
@@ -264,7 +282,10 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   }
 
   const extended: string[] = [];
-  const closed: string[] = [];
+  const achieved: string[] = [];
+  const missed: string[] = [];
+  const checkedIn: string[] = [];
+  const alreadyCheckedIn: string[] = [];
   const failed: string[] = [];
   const act = async (id: string, run: () => Promise<unknown>, done: string[]) => {
     try {
@@ -275,11 +296,42 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
       failed.push(id);
     }
   };
-  const close = new Set(input.close);
-  for (const id of close) {
-    if (!isWeek(id)) skipped.push(id);
-    else await act(id, () => updateGoal({ id, status: "completed" }), closed);
+  // W8a (S3): a grounded note with a health chip IS the goal's check-in (one per goal per day; the goal card and
+  // Nick's tool write the same row). The note is already saved above, so a failed check-in loses nothing written.
+  // Round 1 P0-1: logGoalCheckIn reports a failed write and a same-day duplicate in its RETURN value, it does not throw;
+  // only a returned logged:true is a logged check-in.
+  for (const n of notes) {
+    if (!n.health || !goals.has(n.goalId)) continue;
+    try {
+      const r = (await logGoalCheckIn({ goalId: n.goalId, health: n.health, note: n.text, source: "weekly-review" })) as {
+        logged: boolean;
+        duplicate?: boolean;
+        reason?: string;
+      };
+      if (r.logged) checkedIn.push(n.goalId);
+      else if (r.duplicate) alreadyCheckedIn.push(n.goalId);
+      else {
+        log.warn("review_check_in_not_logged", { goalId: n.goalId, reason: r.reason ?? "no reason returned" });
+        failed.push(n.goalId);
+      }
+    } catch (err) {
+      log.warn("review_goal_action_failed", { goalId: n.goalId, err: err instanceof Error ? err.message : String(err) });
+      failed.push(n.goalId);
+    }
   }
+  // W8a (S4): "Close" is two words now. Achieved and missed set the status, so updateGoal emits the GoalEvent
+  // (achieved / missed) and the brain moment; the old "completed" wrote neither. Achieved wins over missed.
+  const achievedIds = new Set(input.achieved);
+  const missedIds = new Set(input.missed.filter((id) => !achievedIds.has(id)));
+  for (const id of achievedIds) {
+    if (!isWeek(id)) skipped.push(id);
+    else await act(id, () => updateGoal({ id, status: "achieved" }), achieved);
+  }
+  for (const id of missedIds) {
+    if (!isWeek(id)) skipped.push(id);
+    else await act(id, () => updateGoal({ id, status: "missed" }), missed);
+  }
+  const close = new Set([...achievedIds, ...missedIds]);
   for (const id of new Set(input.extend)) {
     if (close.has(id) && isWeek(id)) continue;
     if (!isWeek(id)) {
@@ -292,5 +344,5 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     await act(id, () => updateGoal({ id, deadline }), extended);
   }
 
-  return { saved, extended, closed, skipped, failed, ungrounded, replayed: false, goalActions: "applied", people };
+  return { saved, extended, achieved, missed, checkedIn, alreadyCheckedIn, skipped, failed, ungrounded, replayed: false, goalActions: "applied", people };
 }

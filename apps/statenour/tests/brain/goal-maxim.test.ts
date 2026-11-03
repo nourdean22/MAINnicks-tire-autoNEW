@@ -32,6 +32,12 @@ describe("goalMomentState", () => {
     expect(goalMomentState({ status: "active", health: "at_risk", pace: { kind: "on-track" } })).toBe("at_risk");
     expect(goalMomentState({ status: "active", health: "no_check_in", pace: null })).toBe("check_in_due");
   });
+  it("W8a (audit C10): with no check-in the pace is a guess from a frozen value, so a due check-in beats behind pace", () => {
+    expect(goalMomentState({ status: "active", health: "no_check_in", pace: { kind: "behind" } })).toBe("check_in_due");
+    // A missed date and an off-track check-in still outrank it.
+    expect(goalMomentState({ status: "active", health: "no_check_in", pace: { kind: "missed" } })).toBe("off_track");
+    expect(goalMomentState({ status: "active", health: "off_track", pace: { kind: "behind" } })).toBe("off_track");
+  });
   it("on track or an unreadable health is no moment: unknown never earns a maxim", () => {
     expect(goalMomentState({ status: "active", health: "on_track", pace: { kind: "ahead" } })).toBeNull();
     expect(goalMomentState({ status: "active", health: "unknown", pace: null })).toBeNull();

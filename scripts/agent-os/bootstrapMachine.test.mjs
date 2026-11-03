@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SKILLS } from "./always-on-skills.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -41,9 +42,16 @@ function makeHome(label) {
   return home;
 }
 
-/** The always-on skills that have no repo copy, present on the machine the way the operator installed them. */
-function seedMachineOnly(home) {
-  for (const s of ["find-skills", "steal-like-an-artist"]) write(join(home, ".claude", "skills", s, "SKILL.md"), `---\nname: ${s}\ndescription: machine-only\n---\n`);
+/** The always-on skills that used to be machine-only; both now have a repo copy in .claude/skills (job 2026-11-03-vendor-always-on-skills). */
+const VENDORED_PAIR = ["find-skills", "steal-like-an-artist"];
+
+/** A throwaway repo holding only what bootstrap-machine.mjs reads, with NO .claude/skills: every always-on skill is "no repo copy". */
+function bareRepoScript(label) {
+  const repo = join(SCRATCH, label);
+  for (const f of ["bootstrap-machine.mjs", "always-on-skills.mjs", "plugin-index.mjs", "find-skills-turn.mjs"]) write(join(repo, "scripts", "agent-os", f), readFileSync(join(HERE, f)));
+  for (const f of ["global-claude-md-block.md", "local-services.json"]) write(join(repo, "config", "agent-os", f), readFileSync(join(ROOT, "config", "agent-os", f)));
+  mkdirSync(join(repo, ".claude", "skills"), { recursive: true });
+  return { repo, script: join(repo, "scripts", "agent-os", "bootstrap-machine.mjs") };
 }
 
 /** Enable every required plugin in the fixture the way the harness records it. */
@@ -64,7 +72,9 @@ function enableRequired(home) {
   }
   write(join(home, ".claude", "plugins", "installed_plugins.json"), JSON.stringify(installed));
   write(join(home, ".claude", "settings.json"), JSON.stringify(enabled, null, 2));
-  write(join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "acct", organizationUuid: "org" } }));
+  // Merge: apply may already have written mcpServers.graphify here (2026-11-03); the harness itself keeps every key.
+  const cj = existsSync(join(home, ".claude.json")) ? JSON.parse(readFileSync(join(home, ".claude.json"), "utf8")) : {};
+  write(join(home, ".claude.json"), JSON.stringify({ ...cj, oauthAccount: { accountUuid: "acct", organizationUuid: "org" } }));
 }
 
 test("--check on a bare home reports every missing item, changes nothing, exits 1", () => {
@@ -80,10 +90,13 @@ test("--check on a bare home reports every missing item, changes nothing, exits 
 
 test("apply installs each item with a receipt; a second run changes nothing; --check is then clean", () => {
   const home = makeHome("apply");
-  seedMachineOnly(home);
   const r1 = run(home);
   assert.equal(r1.code, 0, r1.out);
   assert.match(r1.out, /installed .*always-on-skills\.mjs/);
+  for (const s of VENDORED_PAIR) {
+    assert.match(r1.out, new RegExp(`installed +~/\\.claude/skills/${s}\\n`), `${s} was not installed from the repo copy:\n${r1.out}`);
+    assert.ok(readFileSync(join(home, ".claude", "skills", s, "SKILL.md")).equals(readFileSync(join(ROOT, ".claude", "skills", s, "SKILL.md"))), `${s}/SKILL.md differs from the repo copy`);
+  }
   assert.equal(readFileSync(join(home, ".claude", "hooks", "always-on-skills.mjs"), "utf8"), readFileSync(join(HERE, "always-on-skills.mjs"), "utf8"));
   assert.equal(readFileSync(join(home, ".claude", "skills", "prompt-gallery", "SKILL.md"), "utf8"),
     readFileSync(join(ROOT, ".claude", "skills", "prompt-gallery", "SKILL.md"), "utf8"));
@@ -97,7 +110,6 @@ test("apply installs each item with a receipt; a second run changes nothing; --c
 
 test("an existing machine SKILL.md keeps its own description; everything else (the triggers line) comes from the repo", () => {
   const home = makeHome("keep-desc");
-  seedMachineOnly(home);
   const file = join(home, ".claude", "skills", "prompt-gallery", "SKILL.md");
   const machineDesc = "description: Always on (machine wording). On EVERY operator request, check the gallery.";
   write(file, `---\nname: prompt-gallery\n${machineDesc}\n---\n\n# machine body\n`);
@@ -110,15 +122,50 @@ test("an existing machine SKILL.md keeps its own description; everything else (t
   assert.equal(run(home, "--check").code, 0, "a kept description must read ok, not DRIFT forever");
 });
 
-test("a skill with no repo copy reads MISSING when the machine has none either, and apply says it cannot install it (Codex 4380254390)", () => {
-  const home = makeHome("machine-only");
+test("find-skills and steal-like-an-artist have a repo copy: a bare home reads MISSING (installable), apply installs the whole folder byte-for-byte, then --check is clean", () => {
+  const home = makeHome("vendored-pair");
   const c = run(home, "--check");
-  for (const s of ["find-skills", "steal-like-an-artist"]) assert.match(c.out, new RegExp(`MISSING [^\\n]*skills/${s}`), c.out);
+  for (const s of VENDORED_PAIR) assert.match(c.out, new RegExp(`MISSING +~/\\.claude/skills/${s}\\n`), `${s} is not installable from the repo:\n${c.out}`);
+  assert.doesNotMatch(c.out, /no repo copy/, c.out);
   const a = run(home);
-  assert.match(a.out, /MISSING[^\n]*steal-like-an-artist[^\n]*no repo copy/);
-  assert.doesNotMatch(a.out, /installed [^\n]*steal-like-an-artist/);
-  seedMachineOnly(home);
-  assert.doesNotMatch(run(home, "--check").out, /MISSING [^\n]*(find-skills|steal-like-an-artist)/);
+  assert.equal(a.code, 0, a.out);
+  assert.doesNotMatch(a.out, /no repo copy/, a.out);
+  for (const s of VENDORED_PAIR) {
+    const src = join(ROOT, ".claude", "skills", s);
+    assert.match(a.out, new RegExp(`installed +~/\\.claude/skills/${s}\\n`), a.out);
+    for (const f of files(src)) assert.ok(readFileSync(join(home, ".claude", "skills", s, f)).equals(readFileSync(join(src, f))), `${s}/${f} differs from the repo copy`);
+  }
+  assert.equal(run(home, "--check").code, 0, "a second --check must be clean");
+});
+
+/** Always-on names with no SKILL.md under skillsDir. On NATTYNOUR the machine copy hides the gap, so this runs on the repo alone. */
+const withoutRepoCopy = (names, skillsDir) => names.filter((n) => !existsSync(join(skillsDir, n, "SKILL.md")));
+
+test("every skill the always-on hook names has a repo copy, so a fresh clone is never told to invoke a skill it lacks", () => {
+  const names = SKILLS.map((s) => s.split(" ")[0]);
+  assert.ok(names.length >= 8 && names.includes("find-skills"), `only ${names.length} always-on names read`);
+  assert.deepEqual(withoutRepoCopy(names, join(ROOT, ".claude", "skills")), []);
+  const partial = join(SCRATCH, "always-on-partial-skills");
+  for (const n of names.filter((x) => x !== "steal-like-an-artist")) write(join(partial, n, "SKILL.md"), "x");
+  assert.deepEqual(withoutRepoCopy(names, partial), ["steal-like-an-artist"], "the check must name a planted gap");
+});
+
+// The "no repo copy" branch (Codex 4380254390) has no real subject now that every always-on skill is vendored, so it runs
+// against a throwaway repo with an empty .claude/skills: a machine without the skill reads MISSING, never ok.
+test("a skill with no repo copy reads MISSING when the machine lacks it, ok when the machine has it, and apply says it cannot install it (Codex 4380254390)", () => {
+  const home = makeHome("machine-only");
+  const { repo, script } = bareRepoScript("bare-repo");
+  const go = (...args) => {
+    const r = spawnSync(process.execPath, [script, "--home", home, ...args], { encoding: "utf8", cwd: repo, env: env(home), timeout: 30000 });
+    return `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  };
+  const check = go("--check");
+  for (const s of VENDORED_PAIR) assert.match(check, new RegExp(`MISSING +~/\\.claude/skills/${s} \\(no repo copy`), check);
+  const apply = go();
+  assert.match(apply, /MISSING[^\n]*steal-like-an-artist[^\n]*no repo copy/, apply);
+  assert.doesNotMatch(apply, /installed [^\n]*steal-like-an-artist/, apply);
+  for (const s of VENDORED_PAIR) write(join(home, ".claude", "skills", s, "SKILL.md"), `---\nname: ${s}\ndescription: machine-only\n---\n`);
+  assert.doesNotMatch(go("--check"), /MISSING +~\/\.claude\/skills\/(find-skills|steal-like-an-artist)/);
 });
 
 test("a machine always-on registration that covers only startup reads DRIFT; apply moves it to startup|resume|clear|compact (Codex 4380254400)", () => {
@@ -151,7 +198,6 @@ test("CLAUDE_CONFIG_DIR without --home: apply writes under the config dir, not <
 // profile. The decoy stands in for that profile (a temp dir, never the real one): nothing may appear in it.
 test("an explicit --home wins over CLAUDE_CONFIG_DIR: apply writes under <home>/.claude only, and --check reads it there", () => {
   const home = makeHome("home-wins");
-  seedMachineOnly(home);
   const decoy = join(SCRATCH, "home-wins-decoy-profile");
   const e = { ...env(home), CLAUDE_CONFIG_DIR: decoy };
   const r = spawnSync(process.execPath, [SCRIPT, "--home", home], { encoding: "utf8", cwd: ROOT, env: e, timeout: 30000 });
@@ -174,7 +220,7 @@ test("apply touches nothing else: unrelated settings, hooks, skills and CLAUDE.m
   assert.equal(s.hooks.SessionStart.filter((g) => JSON.stringify(g).includes("always-on-skills.mjs")).length, 1);
   assert.match(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), /^# my rules\n\nkeep this line\n/);
   assert.ok(existsSync(join(home, ".claude", "skills", "mine", "SKILL.md")));
-  const unexpected = files(home).filter((f) => !/^\.claude\/(settings\.json|CLAUDE\.md|hooks\/|skills\/|bootstrap-backup\/)/.test(f));
+  const unexpected = files(home).filter((f) => !/^\.claude\/(settings\.json|CLAUDE\.md|hooks\/|skills\/|bootstrap-backup\/)|^\.claude\.json$/.test(f));
   assert.deepEqual(unexpected, []);
 });
 
@@ -200,7 +246,6 @@ test("health line on a bare home: [health] machine with FIX FIRST naming the boo
 
 test("health line when everything is in place: ok, no FIX FIRST", () => {
   const home = makeHome("health-ok");
-  seedMachineOnly(home);
   run(home);
   enableRequired(home);
   const r = run(home, "--check", "--hook");
@@ -210,7 +255,6 @@ test("health line when everything is in place: ok, no FIX FIRST", () => {
 
 test("one required plugin missing: only that one is named", () => {
   const home = makeHome("health-one");
-  seedMachineOnly(home);
   run(home);
   enableRequired(home);
   const p = REQUIRED.find((x) => x.source === "installed");
@@ -236,4 +280,78 @@ test("settings: the configured SessionStart startup command runs verbatim and pr
 test("the shell wrappers exist and call the node script with their arguments", () => {
   assert.match(readFileSync(join(HERE, "bootstrap-machine.ps1"), "utf8"), /bootstrap-machine\.mjs/);
   assert.match(readFileSync(join(HERE, "bootstrap-machine.sh"), "utf8"), /bootstrap-machine\.mjs" "\$@"/);
+});
+
+// Graph MCP everywhere (job 2026-11-03-graphify-always-on): the user-level mirror of the repo's .mcp.json and the two
+// graph hooks, so every other repo on this machine, and every account that runs the bootstrap, gets the same graph.
+const GRAPH_URL = (() => {
+  const s = JSON.parse(readFileSync(join(ROOT, "config", "agent-os", "local-services.json"), "utf8")).servers.find((x) => x.name === "graphify");
+  return `http://127.0.0.1:${s.port}${s.path}`;
+})();
+
+test("graph: --check on a bare home names the user-scope MCP entry and both graph hooks as MISSING", () => {
+  const r = run(makeHome("graph-bare"), "--check");
+  assert.match(r.out, /MISSING\s+~\/\.claude\.json mcpServers graphify/, r.out);
+  assert.match(r.out, /MISSING\s+~\/\.claude\/settings\.json SessionStart graph-ensure-mcp\.mjs/, r.out);
+  assert.match(r.out, /MISSING\s+~\/\.claude\/settings\.json UserPromptSubmit graph-recall\.mjs/, r.out);
+});
+
+test("graph: apply writes the user-scope MCP entry into ~/.claude.json, keeps every other key, registers both hooks with --scope global; a wrong URL reads DRIFT", () => {
+  const home = makeHome("graph-apply");
+  write(join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "a" }, mcpServers: { other: { type: "http", url: "http://x/mcp" } }, projects: { "/p": { allowedTools: [] } } }));
+  assert.equal(run(home).code, 0);
+  const j = JSON.parse(readFileSync(join(home, ".claude.json"), "utf8"));
+  assert.deepEqual(j.mcpServers.graphify, { type: "http", url: GRAPH_URL });
+  assert.deepEqual(j.mcpServers.other, { type: "http", url: "http://x/mcp" });
+  assert.deepEqual(j.oauthAccount, { accountUuid: "a" });
+  assert.deepEqual(j.projects, { "/p": { allowedTools: [] } });
+  const s = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  const ensure = s.hooks.SessionStart.flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-ensure-mcp.mjs"));
+  const recall = s.hooks.UserPromptSubmit.flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-recall.mjs"));
+  assert.ok(ensure && / --scope global$/.test(ensure.command) && ensure.timeout === 15, JSON.stringify(ensure));
+  assert.ok(recall && / --scope global$/.test(recall.command) && recall.timeout === 5, JSON.stringify(recall));
+  assert.equal(run(home, "--check").code, 0);
+  j.mcpServers.graphify.url = "http://127.0.0.1:9/mcp";
+  write(join(home, ".claude.json"), JSON.stringify(j));
+  assert.match(run(home, "--check").out, /DRIFT\s+~\/\.claude\.json mcpServers graphify/);
+});
+
+test("graph: with CLAUDE_CONFIG_DIR holding its own .claude.json, the MCP entry lands THERE (where plugin-index.globalConfigFile reads), not in <home>/.claude.json", () => {
+  const home = makeHome("graph-cfgdir");
+  const cfg = join(SCRATCH, "graph-cfgdir-target");
+  write(join(cfg, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "c" } }));
+  const r = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_CONFIG_DIR: cfg }, timeout: 30000 });
+  assert.equal(r.status, 0, r.stdout);
+  const there = JSON.parse(readFileSync(join(cfg, ".claude.json"), "utf8"));
+  assert.deepEqual(there.mcpServers.graphify, { type: "http", url: GRAPH_URL });
+  assert.deepEqual(there.oauthAccount, { accountUuid: "c" });
+  assert.ok(!existsSync(join(home, ".claude.json")), "nothing written beside the home dir when the config dir holds the file");
+});
+
+test("graph: the two user-level `--scope global` commands bootstrap writes run verbatim through a shell (ensure: a [graph] mcp line; recall: the off line on garbage stdin)", () => {
+  const home = makeHome("graph-verbatim");
+  assert.equal(run(home).code, 0);
+  const s = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  const cmdOf = (event, key) => s.hooks[event].flatMap((g) => g.hooks ?? []).find((h) => h.command.includes(key)).command;
+  // The commands name the PRIMARY checkout's scripts; until this branch merges that checkout has no graph-*.mjs, so the
+  // path is swapped for this checkout's root (same relative path): the proof is the command string's shape and run.
+  const primary = /node "([^"]+)\/scripts\/agent-os\/graph-ensure-mcp\.mjs"/.exec(cmdOf("SessionStart", "graph-ensure-mcp.mjs"))[1];
+  const here = ROOT.replaceAll("\\", "/");
+  const shell = (cmd, input, extraEnv) => spawnSync(cmd.replaceAll(primary, here), { shell: process.platform === "win32" ? true : "/bin/sh", input, encoding: "utf8", cwd: ROOT, env: { ...env(home), CLAUDE_PROJECT_DIR: join(SCRATCH, "not-a-repo"), NOURCITY_STATE_DIR: join(SCRATCH, "verbatim-state"), GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, "-e", "process.exit(0)"]), ...extraEnv }, timeout: 30000 });
+  mkdirSync(join(SCRATCH, "not-a-repo"), { recursive: true });
+  const e = shell(cmdOf("SessionStart", "graph-ensure-mcp.mjs"), JSON.stringify({ source: "startup" }));
+  assert.equal(e.status, 0, e.stderr);
+  assert.match(e.stdout.trim(), /^\[graph\] mcp/, `ensure: ${e.stdout}${e.stderr}`);
+  const r = shell(cmdOf("UserPromptSubmit", "graph-recall.mjs"), "not json");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "", "recall in global scope outside this repo prints nothing, even its off line, before it reads the prompt");
+});
+
+test("graph: a ~/.claude.json that is not valid JSON is never overwritten; the item reads DRIFT with the fix-by-hand note", () => {
+  const home = makeHome("graph-badjson");
+  write(join(home, ".claude.json"), "{ broken");
+  const c = run(home, "--check");
+  assert.match(c.out, /DRIFT\s+~\/\.claude\.json mcpServers graphify \(.*not valid JSON/);
+  run(home);
+  assert.equal(readFileSync(join(home, ".claude.json"), "utf8"), "{ broken");
 });

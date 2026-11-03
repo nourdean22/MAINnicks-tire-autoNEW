@@ -132,9 +132,13 @@ export const journalRouter = router({
         // The form's own id (crypto.randomUUID): the retry key, matched exactly, never parsed.
         reviewId: z.string().regex(/^[A-Za-z0-9-]{8,64}$/),
         week: z.string().max(4000),
-        notes: z.array(z.object({ goalId: z.string().min(1).max(64), text: z.string().max(4000) })).max(20),
+        // W8a: a note may carry a health chip (it is then the goal's check-in); Close is Achieved / Missed.
+        notes: z
+          .array(z.object({ goalId: z.string().min(1).max(64), text: z.string().max(4000), health: z.enum(["on_track", "at_risk", "off_track"]).optional() }))
+          .max(20),
         extend: z.array(z.string().min(1).max(64)).max(20),
-        close: z.array(z.string().min(1).max(64)).max(20),
+        achieved: z.array(z.string().min(1).max(64)).max(20),
+        missed: z.array(z.string().min(1).max(64)).max(20),
       }),
     )
     .mutation(async ({ input }) => {

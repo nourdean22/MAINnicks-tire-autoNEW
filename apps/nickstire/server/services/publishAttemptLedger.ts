@@ -172,6 +172,51 @@ export async function recordPublishOutcome(
 }
 
 /**
+ * Facebook video ids of the reels this ledger recorded as LIVE on the Page in the last `sinceDays` days,
+ * newest first, each once. The nightly Facebook reel numbers lane reads its candidates here, because a
+ * reel's `post_id` cannot be read back (Meta #12) and the video id is kept only in `platformResults`
+ * (the `publishToSocial` results array every publish door stores unchanged in its outcome row).
+ *
+ * Only a Facebook result with `success: true` AND a `videoId` counts: an ambiguous finish may not be live,
+ * and a row written before the id was kept has nothing readable (never guessed from `postId`). Rows whose
+ * context is not JSON, or whose `platformResults` is not the results array (the operator-handoff object),
+ * are skipped.
+ *
+ * THROWS when the ledger cannot be read, so an unreadable ledger is not mistaken for "no reels".
+ */
+export async function findPublishedFacebookReelVideoIds(sinceDays: number): Promise<string[]> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) throw new Error("no database");
+  const { autonomyAuditEvents } = await import("../../drizzle/schema");
+  const { eq, gte, and, desc } = await import("drizzle-orm");
+
+  const since = new Date(Date.now() - sinceDays * 86_400_000);
+  const rows = await d
+    .select({ contextJson: autonomyAuditEvents.contextJson })
+    .from(autonomyAuditEvents)
+    .where(and(eq(autonomyAuditEvents.actionType, OUTCOME_ACTION), gte(autonomyAuditEvents.occurredAt, since)))
+    .orderBy(desc(autonomyAuditEvents.occurredAt))
+    .limit(200);
+
+  const ids = new Set<string>();
+  for (const row of rows) {
+    let context: { platformResults?: unknown } | null;
+    try {
+      context = JSON.parse(String(row.contextJson ?? ""));
+    } catch {
+      continue;
+    }
+    const results = context?.platformResults;
+    if (!Array.isArray(results)) continue;
+    for (const r of results as Array<{ platform?: unknown; success?: unknown; videoId?: unknown }>) {
+      if (r?.platform === "facebook" && r.success === true && typeof r.videoId === "string" && r.videoId) ids.add(r.videoId);
+    }
+  }
+  return [...ids];
+}
+
+/**
  * Close every still-open attempt for one scheduled post (operator
  * reconciliation). Resolving an ambiguity only on the inventory row left the
  * attempt ledger open and the reconciler still nagging about a decision the

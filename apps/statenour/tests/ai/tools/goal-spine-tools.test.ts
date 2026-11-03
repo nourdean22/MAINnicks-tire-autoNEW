@@ -186,12 +186,20 @@ describe("logGoalCheckIn", () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
-  it("an existing check-in today is reported, and nothing else is written", async () => {
+  it("an existing check-in today is reported; no second row, but a metric value still moves (W8a, audit A7)", async () => {
     h.eventFindFirst.mockResolvedValue({ id: "ge0", payload: { health: "on_track" }, createdAt: new Date(NOW - 60_000) });
     const r = await run("logGoalCheckIn", { goalId: "g1", health: "off_track", value: 1, note: "again" });
     expect(h.eventCreate).not.toHaveBeenCalled();
+    expect(h.updateGoal).toHaveBeenCalledWith({ id: "g1", currentValue: 1 });
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: true, existing: { health: "on_track" } });
+  });
+
+  it("an existing check-in today with no value writes nothing else", async () => {
+    h.eventFindFirst.mockResolvedValue({ id: "ge0", payload: { health: "on_track" }, createdAt: new Date(NOW - 60_000) });
+    const r = await run("logGoalCheckIn", { goalId: "g1", health: "off_track", note: "again" });
+    expect(h.eventCreate).not.toHaveBeenCalled();
     expect(h.updateGoal).not.toHaveBeenCalled();
-    expect(r).toMatchObject({ logged: false, duplicate: true, existing: { health: "on_track" } });
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: false });
   });
 
   it("a value on a non-metric goal is not written as currentValue", async () => {

@@ -278,6 +278,12 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   pinMemory: { family: "personal-write", description: "Pin a fact to long-term memory - creates a BrainMemory(category=pinned_user) row - surfaces in the brain's..." },
   snoozeTask: { family: "personal-write", description: "Snooze a task until a future date. Status flips to WAITING + snoozedUntil set - the task-resurface cron fli..." },
   updateTask: { family: "personal-write", description: "Update task fields - partial mutate (only provided fields change). Covers reframe (title / finishCondition)..." },
+
+  // ── 2026-11-03 · chat write gaps (habit backfill rides on completeTask.completedOn) ──
+  uncheckTask: { family: "personal-write", description: "Take back a DAILY habit check-off for one ET day; removes that day's completion and rewinds the streak." },
+  archiveTask: { family: "personal-write", description: "Archive (soft-delete) a task Nour no longer wants; recoverable, keeps the row for abandoned-task patterns." },
+  logJournalEntry: { family: "personal-write", description: "Write a journal entry verbatim through the same ingest the /journal capture uses (classified, people-linked)." },
+  logBodyEntry: { family: "personal-write", description: "Log a day's body numbers (weight, sleep, workout, energy, stress, note); partial update of that day's row." },
 };
 
 /**

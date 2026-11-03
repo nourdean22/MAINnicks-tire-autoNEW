@@ -2,20 +2,25 @@
 
 /**
  * The weekly review on /journal?review=week (W7, Sunsama S3/S4). One goal per block: what got done, what he wrote,
- * a note box, and for a WEEK goal "Extend a week" / "Close". Save writes the notes as journal entries grounded to
- * their goals (lib/services/weekly-review.ts) and applies the goal actions. Nothing is written until Save.
+ * a health chip (on track / at risk / off track: the note then saves as that goal's check-in, W8a S3), a note box,
+ * and for a WEEK goal "Extend a week" / "Achieved" / "Missed" (W8a S4: each sets the status, so the goal's events
+ * and brain moment fire). Save writes the notes as journal entries grounded to their goals
+ * (lib/services/weekly-review.ts) and applies the goal actions. Nothing is written until Save.
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { trpc } from "@/lib/trpc/client";
 import type { ReviewGoal, SaveWeeklyReviewResult } from "@/lib/services/weekly-review";
+import { CHECK_IN_HEALTH, type CheckInHealth } from "@/lib/brain/goal-pace";
 
-type GoalAction = "extend" | "close" | null;
+type GoalAction = "extend" | "achieved" | "missed" | null;
+
+const HEALTH_LABEL: Record<CheckInHealth, string> = { on_track: "On track", at_risk: "At risk", off_track: "Off track" };
 
 /**
  * W8b (audit B11): the form's draft, the reflect composer's DRAFT_KEY shape. An iOS PWA reload mid-review used to
- * lose every note; now it restores the notes, the actions AND the reviewId, so the save after a reload is the same
+ * lose every note; now it restores the notes, the health chips, the actions AND the reviewId, so the save after a reload is the same
  * review to the server (no double write). Every localStorage call is wrapped: a blocked store never breaks the form.
  */
 export const REVIEW_DRAFT_KEY = "ultron:review:draft";
@@ -23,6 +28,7 @@ interface ReviewDraft {
   reviewId: string;
   week: string;
   notes: Record<string, string>;
+  healths: Record<string, CheckInHealth | null>;
   actions: Record<string, GoalAction>;
 }
 function readDraft(): ReviewDraft | null {
@@ -31,7 +37,7 @@ function readDraft(): ReviewDraft | null {
     if (!raw) return null;
     const d = JSON.parse(raw) as Partial<ReviewDraft>;
     return typeof d.reviewId === "string" && d.reviewId
-      ? { reviewId: d.reviewId, week: typeof d.week === "string" ? d.week : "", notes: d.notes ?? {}, actions: d.actions ?? {} }
+      ? { reviewId: d.reviewId, week: typeof d.week === "string" ? d.week : "", notes: d.notes ?? {}, healths: d.healths ?? {}, actions: d.actions ?? {} }
       : null;
   } catch {
     return null;
@@ -58,16 +64,20 @@ export function WeeklyReviewGoalView({
   failed = [],
   note,
   action,
+  health = null,
   onNote,
   onAction,
+  onHealth,
 }: {
   row: ReviewGoal;
   /** The review read's failed side reads: a failed one is named here, never "nothing done". */
   failed?: string[];
   note: string;
   action: GoalAction;
+  health?: CheckInHealth | null;
   onNote: (text: string) => void;
   onAction: (a: GoalAction) => void;
+  onHealth?: (h: CheckInHealth | null) => void;
 }) {
   const { goal, doneTasks, entries } = row;
   const toggle = (a: Exclude<GoalAction, null>, label: string) => (
@@ -114,14 +124,28 @@ export function WeeklyReviewGoalView({
           ))}
         </ul>
       )}
-      <label className="mt-3 block text-[12px] text-fg-secondary">
-        Note on this goal
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={`Health of ${goal.title}`}>
+        {CHECK_IN_HEALTH.map((h) => (
+          <button
+            key={h}
+            type="button"
+            aria-pressed={health === h}
+            onClick={() => onHealth?.(health === h ? null : h)}
+            className={`${TOGGLE} ${health === h ? "border-accent text-fg" : "border-edge-default text-fg-secondary hover:text-fg"}`}
+          >
+            {HEALTH_LABEL[h]}
+          </button>
+        ))}
+      </div>
+      <label className="mt-2 block text-[12px] text-fg-secondary">
+        {health ? "Note on this goal (saved as its check-in)" : "Note on this goal"}
         <textarea rows={2} value={note} onChange={(e) => onNote(e.target.value)} className={TEXTAREA} placeholder="What moved, what stuck" />
       </label>
       {goal.canExtendOrClose && (
         <div className="mt-2 flex flex-wrap gap-2">
           {toggle("extend", "Extend a week")}
-          {toggle("close", "Close")}
+          {toggle("achieved", "Achieved")}
+          {toggle("missed", "Missed")}
         </div>
       )}
     </section>
@@ -144,12 +168,19 @@ export function ReviewSavedView({ result, titles }: { result: SaveWeeklyReviewRe
         <p>
           Saved {result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}
           {result.extended.length ? `, extended ${result.extended.length}` : ""}
-          {result.closed.length ? `, closed ${result.closed.length}` : ""}.
+          {result.achieved.length ? `, ${result.achieved.length} achieved` : ""}
+          {result.missed.length ? `, ${result.missed.length} missed` : ""}
+          {result.checkedIn.length ? `, ${result.checkedIn.length} check-in${result.checkedIn.length === 1 ? "" : "s"} logged` : ""}.
         </p>
       )}
       {result.failed.length > 0 && (
         <p role="status" className="mt-1 text-[13px] text-amber-300">
           Not changed: {titleList(result.failed, titles)}. Open Goals to retry.
+        </p>
+      )}
+      {result.alreadyCheckedIn.length > 0 && (
+        <p role="status" className="mt-1 text-[13px] text-amber-300">
+          Already checked in today on {titleList(result.alreadyCheckedIn, titles)}; this health was not saved.
         </p>
       )}
       {result.ungrounded.length > 0 && (
@@ -175,6 +206,7 @@ export function WeeklyReview() {
   const save = trpc.journal.saveWeeklyReview.useMutation();
   const [week, setWeek] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [healths, setHealths] = useState<Record<string, CheckInHealth | null>>({});
   const [actions, setActions] = useState<Record<string, GoalAction>>({});
   const [result, setResult] = useState<SaveWeeklyReviewResult | null>(null);
   // One id per review form: a retry after a lost response is recognised by the server and not saved twice.
@@ -187,14 +219,15 @@ export function WeeklyReview() {
       setReviewId(d.reviewId);
       setWeek(d.week);
       setNotes(d.notes);
+      setHealths(d.healths);
       setActions(d.actions);
     }
     setHydrated(true);
   }, []);
   useEffect(() => {
     if (!hydrated || result) return;
-    writeDraft({ reviewId, week, notes, actions });
-  }, [hydrated, result, reviewId, week, notes, actions]);
+    writeDraft({ reviewId, week, notes, healths, actions });
+  }, [hydrated, result, reviewId, week, notes, healths, actions]);
 
   if (q.isLoading) return <p className="py-6 text-[13px] text-fg-tertiary">Reading the week…</p>;
   if (q.isError || !q.data) {
@@ -215,15 +248,22 @@ export function WeeklyReview() {
   if (result) return <ReviewSavedView result={result} titles={new Map(q.data.goals.map((g) => [g.goal.id, g.goal.title]))} />;
 
   const r = q.data;
-  const written = week.trim() || Object.values(notes).some((n) => n.trim());
+  // Round 1 P1-8: a health chip alone is something to save (it is the goal's check-in).
+  const written = week.trim() || Object.values(notes).some((n) => n.trim()) || Object.values(healths).some(Boolean);
   const submit = async () => {
     const res = await save
       .mutateAsync({
         reviewId,
         week,
-        notes: Object.entries(notes).map(([goalId, text]) => ({ goalId, text })),
+        // Every goal with words OR a health chip (round 1 P1-8: a chip alone used to be dropped here).
+        notes: [...new Set([...Object.keys(notes), ...Object.keys(healths).filter((id) => healths[id])])].map((goalId) => ({
+          goalId,
+          text: notes[goalId] ?? "",
+          ...(healths[goalId] ? { health: healths[goalId]! } : {}),
+        })),
         extend: Object.keys(actions).filter((id) => actions[id] === "extend"),
-        close: Object.keys(actions).filter((id) => actions[id] === "close"),
+        achieved: Object.keys(actions).filter((id) => actions[id] === "achieved"),
+        missed: Object.keys(actions).filter((id) => actions[id] === "missed"),
       })
       .catch(() => null);
     if (!res) return;
@@ -256,8 +296,10 @@ export function WeeklyReview() {
             failed={r.failed}
             note={notes[row.goal.id] ?? ""}
             action={actions[row.goal.id] ?? null}
+            health={healths[row.goal.id] ?? null}
             onNote={(text) => setNotes((n) => ({ ...n, [row.goal.id]: text }))}
             onAction={(a) => setActions((m) => ({ ...m, [row.goal.id]: a }))}
+            onHealth={(h) => setHealths((m) => ({ ...m, [row.goal.id]: h }))}
           />
         ))
       )}
