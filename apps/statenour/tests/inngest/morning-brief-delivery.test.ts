@@ -64,6 +64,8 @@ beforeEach(() => {
   h.memCreate.mockResolvedValue({ id: "nudge-1" });
   h.memDeleteMany.mockResolvedValue({ count: 1 });
   h.memFindUnique.mockResolvedValue(null);
+  // clearAllMocks keeps implementations: a test that makes the logger throw must not leak into the next.
+  h.logError.mockReset();
 });
 
 describe("deliverMorningBrief · manager round 1 (R2a, 2026-11-03)", () => {
@@ -131,32 +133,65 @@ describe("deliverMorningBrief · manager round 1 (R2a, 2026-11-03)", () => {
     });
   });
 
-  describe("F3 · a claim this brief already made (crash, retry) is its own", () => {
-    it("P2002 on a row stamped with today's brief date: the line is sent, the row is the claim", async () => {
+  describe("F3 + round 2 · a claim is this brief's own only when the same Inngest run made it", () => {
+    const ownWhere = (id: string, runId: string) => ({
+      where: { id, category: "weekly_review_nudge", key: "2026-W45", metadata: { path: ["runId"], equals: runId } },
+    });
+    it("the claim carries the run's id", async () => {
+      reviewRows("weekly:2026-11-02");
+      await deliverMorningBrief(B("2026-11-09"), "run-A");
+      expect((h.memCreate.mock.calls[0][0] as { data: { metadata: Record<string, unknown> } }).data.metadata).toMatchObject({ runId: "run-A", briefDate: "2026-11-09" });
+    });
+    it("(b) P2002 on a row the SAME run made (a step retry): the line is sent", async () => {
       reviewRows("weekly:2026-11-02");
       h.memCreate.mockRejectedValue(p2002());
-      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09" } });
-      await deliverMorningBrief(B("2026-11-09"));
+      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09", runId: "run-A" } });
+      await deliverMorningBrief(B("2026-11-09"), "run-A");
       expect(body().endsWith("Weekly review is ready")).toBe(true);
       const where = (h.memFindUnique.mock.calls[0][0] as { where: { category_key: { category: string; key: string } } }).where;
       expect(where.category_key).toEqual({ category: "weekly_review_nudge", key: "2026-W45" });
     });
+    it("(a) P2002 on a row another run made TODAY (a manual Invoke or Replay): no line", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(p2002());
+      h.memFindUnique.mockResolvedValue({ id: "run-a-claim", metadata: { briefDate: "2026-11-09", runId: "run-A" } });
+      await deliverMorningBrief(B("2026-11-09"), "run-B");
+      expect(body()).toBe("Drift: LOW · Open tasks: 3");
+    });
+    it("(c) an undelivered run B never deletes run A's claim", async () => {
+      reviewRows("weekly:2026-11-02");
+      h.memCreate.mockRejectedValue(p2002());
+      h.memFindUnique.mockResolvedValue({ id: "run-a-claim", metadata: { briefDate: "2026-11-09", runId: "run-A" } });
+      h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+      h.sendTelegram.mockResolvedValue(false);
+      await deliverMorningBrief(B("2026-11-09"), "run-B");
+      expect(h.memDeleteMany).not.toHaveBeenCalled();
+    });
     it("P2002 on a row from yesterday's brief: no line", async () => {
       reviewRows("weekly:2026-11-02");
       h.memCreate.mockRejectedValue(p2002());
-      h.memFindUnique.mockResolvedValue({ id: "monday", metadata: { briefDate: "2026-11-09" } });
-      await deliverMorningBrief(B("2026-11-10"));
+      h.memFindUnique.mockResolvedValue({ id: "monday", metadata: { briefDate: "2026-11-09", runId: "run-mon" } });
+      await deliverMorningBrief(B("2026-11-10"), "run-tue");
       expect(body()).toBe("Drift: LOW · Open tasks: 3");
     });
-    it("an own-claim brief that then reaches nobody releases that row", async () => {
+    it("a retried run that then reaches nobody releases its own row by compare-and-swap (id AND runId)", async () => {
       reviewRows("weekly:2026-11-02");
       h.memCreate.mockRejectedValue(p2002());
-      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09" } });
+      h.memFindUnique.mockResolvedValue({ id: "earlier-attempt", metadata: { briefDate: "2026-11-09", runId: "run-A" } });
       h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
       h.sendTelegram.mockResolvedValue(false);
-      await deliverMorningBrief(B("2026-11-09"));
-      expect(h.memDeleteMany).toHaveBeenCalledWith({ where: { id: "earlier-attempt", category: "weekly_review_nudge", key: "2026-W45" } });
+      await deliverMorningBrief(B("2026-11-09"), "run-A");
+      expect(h.memDeleteMany).toHaveBeenCalledWith(ownWhere("earlier-attempt", "run-A"));
     });
+  });
+
+  it("round 2 · a logger that throws never throws out of the brief", async () => {
+    h.memFindMany.mockRejectedValue(new Error("db blip"));
+    h.lifeGoalFindMany.mockRejectedValue(new Error("db blip"));
+    h.logError.mockImplementation(() => {
+      throw new Error("logger down");
+    });
+    await expect(deliverMorningBrief(B("2026-11-09"), "run-A")).resolves.toMatchObject({ status: "sent", checkInsDue: null });
   });
 
   describe("F4 · a failed check-in read is visible, never a quiet zero", () => {
@@ -254,13 +289,15 @@ describe("deliverMorningBrief · 'Weekly review is ready' rides the morning push
     expect(where.key.in.sort()).toEqual(["weekly:2026-11-02", "weekly:2026-11-09"]);
   });
 
-  it("a brief that reached nobody releases the claim by its id, so tomorrow's brief can carry the line", async () => {
+  it("a brief that reached nobody releases the claim by its id AND its run, so tomorrow's brief can carry the line", async () => {
     h.memFindMany.mockResolvedValue(REVIEW_ROW);
     h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
     h.sendTelegram.mockResolvedValue(false);
-    const result = await deliverMorningBrief(MONDAY);
+    const result = await deliverMorningBrief(MONDAY, "run-1");
     expect(result.status).toBe("undelivered");
-    expect(h.memDeleteMany).toHaveBeenCalledWith({ where: { id: "nudge-1", category: "weekly_review_nudge", key: "2026-W45" } });
+    expect(h.memDeleteMany).toHaveBeenCalledWith({
+      where: { id: "nudge-1", category: "weekly_review_nudge", key: "2026-W45", metadata: { path: ["runId"], equals: "run-1" } },
+    });
   });
 
   it("a push that throws releases the claim and still throws (the step retries)", async () => {
@@ -434,4 +471,22 @@ describe("operator-morning-brief · pushes straight after compose", () => {
     expect(out.status).toBe("partial");
     expect(String(out.degradedReason)).toMatch(/no device.*Telegram/i);
     expect(out.delivery).toBe("undelivered");
-  });});
+  });
+
+  it("round 2 · the handler hands Inngest's runId to the claim (the consumer of the run identity)", async () => {
+    h.memFindMany.mockResolvedValue([{ key: "weekly:2026-11-02" }]);
+    const CANNED: Record<string, unknown> = {
+      compose: { date: "2026-11-09", text: "Drift: LOW", sectionCount: 1 },
+      "voice-file": { status: "skipped" },
+      "pin-scoreboard": { status: "pinned", numberCount: 0 },
+    };
+    const step = {
+      run: async (id: string, fn: () => Promise<unknown>) => (id === "deliver-push" ? fn() : CANNED[id]),
+      sleep: vi.fn(),
+    };
+    await (
+      operatorMorningBrief as unknown as { handler: (ctx: unknown) => Promise<Record<string, unknown>> }
+    ).handler({ step, runId: "01RUNX" });
+    expect((h.memCreate.mock.calls[0][0] as { data: { metadata: { runId: string } } }).data.metadata.runId).toBe("01RUNX");
+  });
+});

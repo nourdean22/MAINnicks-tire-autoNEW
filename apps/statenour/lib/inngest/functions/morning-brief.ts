@@ -185,7 +185,9 @@ function addDaysYmd(ymd: string, days: number): string {
  * week (claim-before-act: P2002 = an earlier brief this week took it, so no line). Any read or create
  * failure = no line. The caller releases the claim when the brief reached nobody.
  */
-async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week: string } | null> {
+type WeeklyClaim = { id: string; week: string; runId: string };
+
+async function claimWeeklyReviewLine(today: string, runId: string): Promise<WeeklyClaim | null> {
   const thisMonday = addDaysYmd(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
   let week: string | null = null;
   try {
@@ -206,51 +208,65 @@ async function claimWeeklyReviewLine(today: string): Promise<{ id: string; week:
         content: `Weekly review is ready line, morning brief of ${today}`,
         confidence: 1.0,
         source: "inngest/morning-brief",
-        metadata: { weekStart, briefDate: today } as never,
+        metadata: { weekStart, briefDate: today, runId } as never,
       },
       select: { id: true },
     });
-    return { id: row.id, week };
+    return { id: row.id, week, runId };
   } catch (err) {
-    if (week && (err as { code?: string } | null)?.code === "P2002") return ownClaimFromToday(week, today);
+    if (week && (err as { code?: string } | null)?.code === "P2002") return ownClaimOfRun(week, runId);
     await warn("weekly-review-claim", err, { week });
     return null;
   }
 }
 
-/** The P2002 winner is THIS brief's own when an earlier attempt today made it (a crash or retry after
- *  the create committed, or a create that committed while the client saw an error). Any other day's
- *  claim means the line already went out this week. A failed read = no line. */
-async function ownClaimFromToday(week: string, today: string): Promise<{ id: string; week: string } | null> {
+/** The P2002 winner is THIS brief's own only when the same Inngest run made it: a step retry after the
+ *  create committed, or a create that committed while the client saw an error, keeps its runId. Another
+ *  run on the same day (a manual Invoke or Replay, an at-least-once re-execution) is a different caller:
+ *  no line, and it never touches that claim (R2a round 2). A failed read = no line. */
+async function ownClaimOfRun(week: string, runId: string): Promise<WeeklyClaim | null> {
   try {
     const { prisma } = await import("@/lib/prisma");
     const row = await prisma.brainMemory.findUnique({
       where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: week } },
       select: { id: true, metadata: true },
     });
-    const briefDate = (row?.metadata as { briefDate?: unknown } | null)?.briefDate;
-    return row && briefDate === today ? { id: row.id, week } : null;
+    const owner = (row?.metadata as { runId?: unknown } | null)?.runId;
+    return row && owner === runId ? { id: row.id, week, runId } : null;
   } catch (err) {
     await warn("weekly-review-claim", err, { week, stage2: "read-winner" });
     return null;
   }
 }
 
-/** Release a claim whose brief reached nobody, by its own id, so the next brief can carry the line.
+/** Release a claim whose brief reached nobody, so the next brief can carry the line. A compare-and-swap:
+ *  the row must still be this run's (id AND metadata.runId), never a delete by id alone.
  *  Never throws: a failed release must not mask the delivery result or the push error. */
-async function releaseWeeklyReviewLine(claim: { id: string; week: string }): Promise<void> {
+async function releaseWeeklyReviewLine(claim: WeeklyClaim): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
-    await prisma.brainMemory.deleteMany({ where: { id: claim.id, category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: claim.week } });
+    await prisma.brainMemory.deleteMany({
+      where: {
+        id: claim.id,
+        category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+        key: claim.week,
+        metadata: { path: ["runId"], equals: claim.runId },
+      },
+    });
   } catch (err) {
     await warn("weekly-review-release", err, { week: claim.week });
   }
 }
 
-/** A read the push can live without failed: recorded where /system/errors reads it, as a warn. */
+/** A read the push can live without failed: recorded where /system/errors reads it, as a warn.
+ *  Never throws: a broken logger must not take the brief down with it. */
 async function warn(stage: string, err: unknown, extra: Record<string, unknown> = {}): Promise<void> {
-  const { logError } = await import("@/lib/utils/error-log");
-  logError("inngest/morning-brief", err, { stage, ...extra }, "warn");
+  try {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("inngest/morning-brief", err, { stage, ...extra }, "warn");
+  } catch {
+    // The logger itself failed; there is nowhere left to report it.
+  }
 }
 
 /** Active goals past their check-in cadence (lib/brain/goal-pace.ts), the read Home's
@@ -397,14 +413,14 @@ async function sendBriefPush(brief: ComposedBrief, checkInsDue: number, weeklyRe
  * function retries, so a throw would re-send; the orchestrator declares the run
  * `partial` instead, which cron-lifecycle records and the Owner Panel reads.
  */
-export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
+export async function deliverMorningBrief(brief: ComposedBrief, runId: string): Promise<{
   status: "sent" | "telegram_fallback" | "undelivered";
   push: { sent: number; failed: number };
   /** Goals due a check-in; null = the read failed (no line was sent, and the run says so). */
   checkInsDue: number | null;
 }> {
   const checkInsDue = await countCheckInsDue();
-  const review = await claimWeeklyReviewLine(brief.date);
+  const review = await claimWeeklyReviewLine(brief.date, runId);
   let push: Awaited<ReturnType<typeof sendBriefPush>>;
   try {
     push = await sendBriefPush(brief, checkInsDue ?? 0, review !== null);
@@ -618,11 +634,12 @@ export const operatorMorningBrief = inngest.createFunction(
     triggers: [{ cron: "0 10 * * *" }],
     onFailure: onInngestFailure,
   },
-  async ({ step }) => {
+  async ({ step, runId }) => {
     const brief = await step.run("compose", composeBrief);
     // Push right after composing; ledger, rating buttons and the Telegram fallback
-    // live in deliverMorningBrief.
-    const delivery = await step.run("deliver-push", () => deliverMorningBrief(brief));
+    // live in deliverMorningBrief. runId owns the weekly-review claim: a step retry keeps it, a second
+    // run (manual Invoke, Replay) does not, so it can never send the line a second time.
+    const delivery = await step.run("deliver-push", () => deliverMorningBrief(brief, runId));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
     const pinned = await step.run("pin-scoreboard", () =>
