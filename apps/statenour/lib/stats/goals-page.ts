@@ -132,6 +132,16 @@ export function momentInput(g: PageGoal, now: number): GoalMomentInput {
   return { id: g.id, status: g.status, health: g.health?.state ?? null, pace: paceVerdict(g, now) };
 }
 
+/**
+ * The pool minus the maxims Nour skipped on Home (getGoals `skippedMaximIds`). An unread list (null, or
+ * an older payload without the field) gives no pool: the card shows no maxim, never a skipped one.
+ */
+export function maximPoolWithout(pool: readonly Maxim[], skipped: readonly string[] | null | undefined): Maxim[] | null {
+  if (!skipped) return null;
+  const out = new Set(skipped);
+  return pool.filter((m) => !out.has(m.id));
+}
+
 /** The ET day key for a clock, as `today()` gives it. */
 export function etDay(now: number): string {
   return etHourKey(new Date(now)).slice(0, 10);

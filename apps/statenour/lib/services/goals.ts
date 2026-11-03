@@ -296,7 +296,16 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   // with one tap on the card (lib/services/goal-next-step.ts). A failed read offers nothing.
   const needStep = enrichedGoals.filter((g) => g.status === "active" && g.linkedNextStepCount === 0).map((g) => g.id);
   const steps = await suggestJournalSteps(needStep, byGoal);
-  return enrichedGoals.map((g) => ({ ...g, suggestedStep: steps.get(g.id) ?? null }));
+  // W5 2026-11-03 · the maxims Nour skipped on Home, so a goal card never shows one again. Null = the read
+  // failed: the card then shows no maxim, never a skipped one (lib/services/home-maxim.ts skippedIds).
+  let skippedMaximIds: string[] | null = null;
+  try {
+    const { skippedIds } = await import("@/lib/services/home-maxim");
+    skippedMaximIds = [...(await skippedIds(new Date()))];
+  } catch (err) {
+    console.warn("[services/goals] maxim skip read failed:", err instanceof Error ? err.message : err);
+  }
+  return enrichedGoals.map((g) => ({ ...g, suggestedStep: steps.get(g.id) ?? null, skippedMaximIds }));
 }
 
 async function suggestJournalSteps(

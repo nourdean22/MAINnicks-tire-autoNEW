@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   goalEvent: {
     findMany: vi.fn(),
   },
+  // W5 2026-11-03: the maxims Nour skipped on Home (lib/services/home-maxim.ts skippedIds).
+  brainMemory: {
+    findMany: vi.fn(),
+  },
   emitGoalEventAsync: vi.fn(),
   emitGoalTransition: vi.fn(),
   softDelete: vi.fn(),
@@ -40,6 +44,7 @@ vi.mock("@/lib/prisma", () => ({
     brainDump: mocks.brainDump,
     mission: mocks.mission,
     goalEvent: mocks.goalEvent,
+    brainMemory: mocks.brainMemory,
   },
 }));
 
@@ -152,6 +157,34 @@ describe("Goals Service", () => {
         },
       ]);
       expect(result[1].missions).toEqual([]);
+    });
+
+    it("W5: each goal row carries the maxim ids Nour skipped on Home", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      mocks.brainMemory.findMany.mockResolvedValueOnce([{ key: "naval:12" }, { key: "greene:3" }]);
+
+      const result = await getGoals();
+
+      expect(mocks.brainMemory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ category: "maxim_skip", deletedAt: null }) }),
+      );
+      expect(result[0].skippedMaximIds).toEqual(["naval:12", "greene:3"]);
+    });
+
+    it("W5: a failed skip read is null (unknown), never an empty list", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      mocks.brainMemory.findMany.mockRejectedValueOnce(new Error("db down"));
+
+      const result = await getGoals();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].skippedMaximIds).toBeNull();
     });
 
     it("a failed missions read lists none and does not break the goals", async () => {

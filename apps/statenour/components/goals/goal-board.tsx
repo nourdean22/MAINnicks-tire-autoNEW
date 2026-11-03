@@ -103,7 +103,7 @@ import { MilestonesFlow } from "@/components/actions/milestones-flow";
 import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 import { GoalLadder } from "./goal-ladder";
 import { GoalsHero, askNickAboutGoal } from "./goals-hero";
-import { etDay, goalsPulse, maximForGoalMoment, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
+import { etDay, goalsPulse, maximForGoalMoment, maximPoolWithout, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 import { trpc } from "@/lib/trpc/client";
@@ -146,6 +146,8 @@ interface LifeGoal {
   loopsThisWeek?: number;
   /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
   missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases?: LadderPhase[] }>;
+  /** W5 · the maxim ids Nour skipped on Home, the same list on every row; null = the read failed. */
+  skippedMaximIds?: string[] | null;
   /** W2 2026-11-02 · the newest check-in's health, gray past the cadence (lib/services/goals.ts getGoals). */
   health?: GoalHealth;
   // Ambition Engine P1 · the mastery stats this goal levels (resolved
@@ -781,11 +783,15 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
 
   // W5 · the hero: the one goal that matters today (lib/stats/goals-page.ts pickHeroGoal), its maxim
   // when the goal is at a moment, and the pulse of the rest. Recomputed when the goals reload.
+  // The maxim pool without what Nour skipped on Home; null (skip list unread) means no maxim at all.
+  const maximPool = useMemo(() => maximPoolWithout(MAXIM_POOL, goals[0]?.skippedMaximIds), [goals]);
   const hero = useMemo(() => {
     const now = loadedAt;
     const pick = pickHeroGoal(goals, now);
-    return pick ? { ...pick, now, maxim: maximForGoalMoment(momentInput(pick.goal, now), MAXIM_POOL, etDay(now)), pulse: goalsPulse(goals, now) } : null;
-  }, [goals, loadedAt]);
+    if (!pick) return null;
+    const maxim = maximPool ? maximForGoalMoment(momentInput(pick.goal, now), maximPool, etDay(now)) : null;
+    return { ...pick, now, maxim, pulse: goalsPulse(goals, now) };
+  }, [goals, loadedAt, maximPool]);
 
   const openGoal = useCallback((goalId: string) => {
     setHorizonFilter("ALL");
@@ -1695,9 +1701,9 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                   <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
                     {/* W2 2026-11-02 · since last check-in (Tana T1) + Nick-drafted check-in (Linear L4). */}
                     {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
-                    {/* W5 · the maxim at this goal's moment (W6 contract; the pool is not yet skip-filtered on this page). */}
+                    {/* W5 · the maxim at this goal's moment (W6 contract), never one Nour skipped on Home. */}
                     {(() => {
-                      const m = maximForGoalMoment(momentInput(g, loadedAt), MAXIM_POOL, etDay(loadedAt));
+                      const m = maximPool ? maximForGoalMoment(momentInput(g, loadedAt), maximPool, etDay(loadedAt)) : null;
                       return m ? (
                         <figure className="mt-2 space-y-0.5 border-l border-edge-default pl-3">
                           <blockquote className="text-[13px] leading-relaxed text-fg-secondary">{m.text}</blockquote>

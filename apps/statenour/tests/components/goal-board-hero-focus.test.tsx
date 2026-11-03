@@ -26,6 +26,7 @@ const h = vi.hoisted(() => {
     linkedTaskCount: 2,
     linkedNextStepCount: 1,
     health: { state: "no_check_in", at: null, note: null },
+    skippedMaximIds: [] as string[] | null,
   };
   const goals = [
     // No date: not the hero.
@@ -54,7 +55,7 @@ const h = vi.hoisted(() => {
       ],
     },
   ];
-  return { goals, fetchGoals: vi.fn(async () => ({ goals })) };
+  return { goals, fetchGoals: vi.fn(async () => ({ goals: goals as typeof goals })) };
 });
 
 vi.mock("@/lib/trpc/client", () => {
@@ -165,5 +166,21 @@ describe("GoalBoard · W5 hero, ladder and focus", () => {
   it("the expanded card shows the maxim for its moment (no check-in yet: a focus maxim)", async () => {
     await click(container.querySelector("#goal-g-life [role='button']")!);
     expect(container.querySelector("#goal-g-life blockquote")?.textContent?.length ?? 0).toBeGreaterThan(10);
+  });
+});
+
+describe("GoalBoard · W5 maxim when the skip list could not be read", () => {
+  it("a null skip list renders no maxim anywhere (never a skipped one)", async () => {
+    act(() => root.unmount());
+    // Every read in this mount (the mocked useUtils is a new object per render, so load runs more than once).
+    h.fetchGoals.mockImplementation(async () => ({ goals: h.goals.map((g) => ({ ...g, skippedMaximIds: null })) }));
+    root = createRoot(container);
+    act(() => root.render(<GoalBoard onFocusGoal={onFocusGoal} />));
+    await flush();
+    await flush();
+    expect(container.textContent, "the board loaded (positive control)").toContain("Run a 10k");
+    await click(container.querySelector("#goal-g-life [role='button']")!);
+    expect(container.querySelector("blockquote")).toBeNull();
+    h.fetchGoals.mockImplementation(async () => ({ goals: h.goals }));
   });
 });

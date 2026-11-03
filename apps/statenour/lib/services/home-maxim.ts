@@ -38,7 +38,7 @@ export interface HomeMaximView {
 }
 
 /** Keys of the live Skip markers. A failed read throws: the caller shows no maxim, never a skipped one. */
-async function skippedIds(now: Date): Promise<Set<string>> {
+export async function skippedIds(now: Date): Promise<Set<string>> {
   const rows = await prisma.brainMemory.findMany({
     where: { category: MAXIM_SKIP_CATEGORY, deletedAt: null, expiresAt: { gt: now } },
     select: { key: true },

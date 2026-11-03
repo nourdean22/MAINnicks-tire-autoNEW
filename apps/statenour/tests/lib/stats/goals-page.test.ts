@@ -11,6 +11,7 @@ import {
   GOAL_MOMENT_TAG,
   MAXIM_TEXT_MAX,
   maximForGoalMoment,
+  maximPoolWithout,
   missionPhaseLadder,
   momentInput,
   movedLine,
@@ -143,6 +144,18 @@ describe("maximForGoalMoment (W6 contract)", () => {
 
   it("the board's day key is the ET date", () => {
     expect(etDay(Date.parse("2026-11-03T03:30:00Z"))).toBe("2026-11-02");
+  });
+
+  it("a maxim Nour skipped on Home is never selected; an unread skip list gives no pool", () => {
+    const over = { health: { state: "at_risk" as const, at: null, note: null } };
+    const focus = MAXIM_POOL.filter((m) => m.tags.includes("focus"));
+    const keep = focus[focus.length - 1]!;
+    const pool = maximPoolWithout(MAXIM_POOL, focus.filter((m) => m !== keep).map((m) => m.id));
+    expect(pool).not.toBeNull();
+    for (const id of ["a", "b", "c", "d"]) expect(pick({ ...over, id }, pool!)?.id).toBe(keep.id);
+    expect(maximPoolWithout(MAXIM_POOL, null)).toBeNull();
+    expect(maximPoolWithout(MAXIM_POOL, undefined)).toBeNull();
+    expect(maximPoolWithout(MAXIM_POOL, [])).toHaveLength(MAXIM_POOL.length);
   });
 
   it("the real pool carries a maxim for every moment tag", () => {
