@@ -26,12 +26,12 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 
 | Check | NATTYNOUR | NicksMax | MECHANICS |
 |---|---|---|---|
-| Clone | primary `C:\Users\nourd\NattyNour\nicks-tire`, serves the graph (ledger 2026-10-19, FACT then) | sparse partial clone `C:\Users\nourd\NicksMax\repos\NOURCITY`, 109 behind main at 09:40 (FACT: `git rev-list --left-right --count HEAD...origin/main`) | NOT CHECKED; checklist sent to its session |
-| `.claude` on disk | yes | **was absent**: sparse list was `.github apps/... camera-bridge config docs scripts`; `git sparse-checkout add .claude` done 09:43, 88 skills, 6 agents, settings.json now present (FACT) | NOT CHECKED |
-| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before, 13 installed 09:50, 2 MISSING: `find-skills`, `steal-like-an-artist` (no repo copy) (FACT) | NOT CHECKED |
-| Required plugins not enabled | NOT CHECKED | hook line says agentic-council, receipts-check, desktop-commander, avoid-ai-writing, pr-review-toolkit, hookify; the first three are loaded in the session that ran it, so the detector misses account-synced plugins in the desktop app (INFERRED); the three marketplace ones are really absent | NOT CHECKED |
+| Clone | primary `C:\Users\nourd\NattyNour\nicks-tire`, serves the graph (ledger 2026-10-19, FACT then) | sparse partial clone `C:\Users\nourd\NicksMax\repos\NOURCITY`, 109 behind main at 09:40 (FACT: `git rev-list --left-right --count HEAD...origin/main`) | **none**: 0 `.git` directories on C: to depth 6; `C:\NOURCITY` holds hash-pinned downloads (office lane, lot-vision f195f99a6), not a checkout; Git is installed (FACT, its session, 09:50) |
+| `.claude` on disk | yes | **was absent**: sparse list was `.github apps/... camera-bridge config docs scripts`; `git sparse-checkout add .claude` done 09:43, 88 skills, 6 agents, settings.json now present (FACT) | none; `~/.claude/CLAUDE.md` missing, `settings.json` 71 bytes with no hooks, `~/.claude/skills` empty (FACT) |
+| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before, 13 installed 09:50, 2 MISSING: `find-skills`, `steal-like-an-artist` (no repo copy) (FACT) | cannot run: no clone and **no Node.js** (FACT) |
+| Required plugins not enabled | NOT CHECKED | hook line says agentic-council, receipts-check, desktop-commander, avoid-ai-writing, pr-review-toolkit, hookify; the first three are loaded in the session that ran it, so the detector misses account-synced plugins in the desktop app (INFERRED); the three marketplace ones are really absent | plugins folder from 10/26, no `enabledPlugins` key; unmapped without the script (FACT) |
 | Graphify | server on loopback, graph current via merge-gate rebuild + daily task (W9) | none, by policy (`local-services.json`: "no heavy services"); `session-health` prints `local services: not expected on this host` (FACT) | none |
-| Tailnet | `nattynour-1` 100.127.185.69, online, DERP relay; ports 22, 2222, 3389, 8765 closed from NicksMax (FACT 09:38) | `nicksmax` 100.95.169.54, sshd on the tailnet interface | not in `tailscale status` from NicksMax; reach is Chrome Remote Desktop (`local-services.json`) |
+| Tailnet | `nattynour-1` 100.127.185.69, online, DERP relay; ports 22, 2222, 3389, 8765 closed from NicksMax (FACT 09:38) | `nicksmax` 100.95.169.54, sshd on the tailnet interface | **Tailscale not installed** (FACT); reach is Chrome Remote Desktop (`local-services.json`) |
 | Reach for an agent | its own sessions | its own sessions; SSH from NATTYNOUR | its own session only ("Fresh session 10/26") |
 
 ## Steps for Nour
@@ -49,7 +49,11 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
    `.claude/skills` (then every PC gets them by git) or stay personal.
 5. **Obsidian vault**: say where it should live for all PCs. Google Drive for desktop in streaming mode is on NicksMax
    since today; a vault on Drive needs its folder marked "Available offline" on each PC, or Obsidian sees placeholders.
-6. **MECHANICS**: in its session, the same four commands as NicksMax (sparse list, ff-sync, bootstrap, `--check --hook`).
+6. **MECHANICS**, in its session, each on your typed go there, in this order: install Node.js LTS (`winget install
+   OpenJS.NodeJS.LTS`); a sparse clone (`git clone --filter=blob:none --sparse <repo> C:\Users\<user>\NOURCITY`, then
+   `git sparse-checkout set .claude scripts config docs`); `node scripts/agent-os/bootstrap-machine.mjs`; then
+   `bootstrap-machine.mjs --check --hook` for the plugin line. Tailscale (`winget install Tailscale.Tailscale`, sign in)
+   only if MECHANICS should query the graph; its office lane runs from hash-pinned downloads today and needs none of this.
 
 ## Follow-ups in the repo
 
