@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/fb-reel-numbers",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "44069efa-d5ca-4be3-9a0f-eb2a655db35f",
   "worktree": "C:\\Users\\nourd\\NattyNour\\fbreel",
   "claimedBy": "fb-reel-numbers: Facebook reel numbers job for Nour (thread, 2026-11-03 13:08Z); touches metaSocial, socialPublish, instagram-data",
   "claimedAt": "2026-11-03T13:26:32.781Z",
   "expiresAt": "2026-11-04T01:26:32.781Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-03T14:58:20.449Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "400835b5e24918db5ae8ee92cc2ed7ed29921f10",
+  "releasedBy": "44069efa-d5ca-4be3-9a0f-eb2a655db35f",
+  "foreignReleaseReason": null
 }
