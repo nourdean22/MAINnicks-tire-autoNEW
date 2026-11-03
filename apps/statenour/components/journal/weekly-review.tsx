@@ -137,6 +137,11 @@ export function ReviewSavedView({ result, titles }: { result: SaveWeeklyReviewRe
           Not changed: {titleList(result.failed, titles)}. Open Goals to retry.
         </p>
       )}
+      {result.alreadyCheckedIn.length > 0 && (
+        <p role="status" className="mt-1 text-[13px] text-amber-300">
+          Already checked in today on {titleList(result.alreadyCheckedIn, titles)}; this health was not saved.
+        </p>
+      )}
       {result.ungrounded.length > 0 && (
         <p role="status" className="mt-1 text-[13px] text-amber-300">
           Saved without a goal, because the goal is no longer active: {titleList(result.ungrounded, titles)}.
@@ -180,13 +185,19 @@ export function WeeklyReview() {
   if (result) return <ReviewSavedView result={result} titles={new Map(q.data.goals.map((g) => [g.goal.id, g.goal.title]))} />;
 
   const r = q.data;
-  const written = week.trim() || Object.values(notes).some((n) => n.trim());
+  // Round 1 P1-8: a health chip alone is something to save (it is the goal's check-in).
+  const written = week.trim() || Object.values(notes).some((n) => n.trim()) || Object.values(healths).some(Boolean);
   const submit = async () => {
     const res = await save
       .mutateAsync({
         reviewId,
         week,
-        notes: Object.entries(notes).map(([goalId, text]) => ({ goalId, text, ...(healths[goalId] ? { health: healths[goalId]! } : {}) })),
+        // Every goal with words OR a health chip (round 1 P1-8: a chip alone used to be dropped here).
+        notes: [...new Set([...Object.keys(notes), ...Object.keys(healths).filter((id) => healths[id])])].map((goalId) => ({
+          goalId,
+          text: notes[goalId] ?? "",
+          ...(healths[goalId] ? { health: healths[goalId]! } : {}),
+        })),
         extend: Object.keys(actions).filter((id) => actions[id] === "extend"),
         achieved: Object.keys(actions).filter((id) => actions[id] === "achieved"),
         missed: Object.keys(actions).filter((id) => actions[id] === "missed"),

@@ -419,7 +419,9 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
   const goals = ctx.activeGoals ?? [];
   const hasMissions = missions.length > 0;
   const hasGoals = goals.length > 0;
-  if (!hasMissions && !hasGoals) return "";
+  // Round 1 P1-7: a failed goals read is said, like recall's GOAL_READ_FAILED_LINE; silence would read as "no goals".
+  const goalsUnknown = !hasGoals && ctx.goalsReadFailed === true;
+  if (!hasMissions && !hasGoals && !goalsUnknown) return "";
 
   if (hasMissions) {
     lines.push(`## Active Missions (${missions.length})`);
@@ -435,6 +437,10 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
     }
   }
 
+  if (goalsUnknown) {
+    if (hasMissions) lines.push("");
+    lines.push("- Active Goals: couldn't read this turn (unknown, not none)");
+  }
   if (hasGoals) {
     if (hasMissions) lines.push("");
     lines.push(`## Active Goals (${goals.length})`);

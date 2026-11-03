@@ -145,7 +145,7 @@ interface LifeGoal {
   minutesInvested?: number;
   // Apr 27 · GB1 + GB3: server-enriched fields from /api/goals
   nextMove?: { id: string; title: string; status: string } | null;
-  loopsThisWeek?: number;
+  loopsThisWeek?: number | null;
   /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
   missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases?: LadderPhase[] }> | null;
   /** W5 · the maxim ids Nour skipped on Home, the same list on every row; null = the read failed. */
@@ -877,7 +877,10 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
     if (!deepLink.goalId || deepLinkApplied.current === deepLink.goalId) return;
     if (!goals.some((g) => g.id === deepLink.goalId)) return;
     deepLinkApplied.current = deepLink.goalId;
-    openGoal(deepLink.goalId);
+    // Opened on the next frame, not inside the effect body: the card exists once the goals render (react-hooks).
+    const id = deepLink.goalId;
+    // No cleanup: a goals reload before the frame must not cancel the one open (the ref already marks it applied).
+    requestAnimationFrame(() => openGoal(id));
   }, [deepLink.goalId, goals, openGoal]);
 
   // Nick's side pane hears which goal Nour is on: the open card, else the hero goal.
@@ -1430,7 +1433,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                         <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-4 border-0">
                           {g.domain}
                         </Badge>
-                        {(g.linkedTaskCount ?? 0) > 0 && (
+                        {(g.linkedTaskCount ?? 0) > 0 && g.loopsThisWeek != null && (
                           <span>
                             {g.linkedDoneCount}/{g.linkedTaskCount}{" "}
                             {g.kind === "milestone" ? "milestones" : "loops"}

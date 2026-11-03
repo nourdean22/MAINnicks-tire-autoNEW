@@ -73,6 +73,8 @@ describe("createMissionPlan · lifeGoalId", () => {
     expect(h.goalFindFirst.mock.calls[0][0].where).toEqual({ id: "cgoal123", deletedAt: null });
     expect(h.missionCreate.mock.calls[0][0].data.lifeGoalId).toBe("cgoal123");
     expect(r).toMatchObject({ created: true, lifeGoalId: "cgoal123" });
+    // Round 1 P1-10: the plan's tasks serve the goal through the mission; their own goalId stays empty.
+    expect(h.createTaskAndEnrich.mock.calls.every((c) => (c[0] as { goalId: unknown }).goalId === null)).toBe(true);
   });
 
   it("an unknown goal id is dropped and said, never written (no FK throw)", async () => {

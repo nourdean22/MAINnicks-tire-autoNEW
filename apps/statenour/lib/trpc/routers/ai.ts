@@ -98,6 +98,9 @@ export type PlanProjectWireResult =
       model?: string;
       /** "skeleton": the confirmed milestones became the plan because every provider failed. */
       fallback?: "skeleton";
+      /** Round 1: why the skeleton was used, and a retry that found the plan already spawned. */
+      fallbackReason?: "no_answer" | "budget";
+      alreadyPlanned?: boolean;
       /** W8a: tasks created for phase 0 on the server right after the save; spawnFailed names a failed spawn. */
       spawned?: number;
       spawnFailed?: string;

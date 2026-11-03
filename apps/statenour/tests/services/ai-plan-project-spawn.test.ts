@@ -12,9 +12,11 @@ vi.mock("@/lib/ai/strategic-frameworks", () => ({ pickFrameworks: () => [], comp
 vi.mock("@/lib/ai/strategic-frameworks/record-lens-fire", () => ({ recordLensFire: vi.fn() }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 const db = vi.hoisted(() => ({ missionFind: vi.fn(), missionUpdate: vi.fn(), spawn: vi.fn() }));
+const READ_AT = new Date("2026-11-03T12:00:00Z");
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    mission: { findUnique: db.missionFind, update: db.missionUpdate },
+    // Round 1 P0-2: the plan write is a compare-and-swap (updateMany on the updatedAt read first).
+    mission: { findUnique: db.missionFind, updateMany: db.missionUpdate },
     brainMemory: { findMany: vi.fn().mockResolvedValue([]) },
     masteryDecision: { findMany: vi.fn().mockResolvedValue([]) },
     task: { findMany: vi.fn().mockResolvedValue([]) },
@@ -33,8 +35,8 @@ const okPlan = (phases: Array<{ name: string; steps: Array<{ title: string }> }>
 
 beforeEach(() => {
   mockChat.mockReset();
-  db.missionFind.mockReset().mockResolvedValue({ id: "m1", title: "approach 3 people", planData: null });
-  db.missionUpdate.mockReset().mockResolvedValue({});
+  db.missionFind.mockReset().mockResolvedValue({ id: "m1", title: "approach 3 people", planData: null, updatedAt: READ_AT });
+  db.missionUpdate.mockReset().mockResolvedValue({ count: 1 });
   db.spawn.mockReset().mockResolvedValue({ spawned: 2, alreadyExisted: 0, phase: MILESTONES[0], taskIds: ["t1", "t2"] });
 });
 
@@ -97,6 +99,50 @@ describe("plan mode · every confirmed milestone is a phase, named by the milest
   });
 });
 
+describe("plan mode · a retried Plan it cannot duplicate (round 1 P0-2)", () => {
+  const SPAWNED = {
+    v: 1,
+    createdAt: "2026-11-03T12:00:00Z",
+    updatedAt: "2026-11-03T12:00:00Z",
+    title: "approach 3 people",
+    phases: MILESTONES.map((m, i) => ({ name: m, milestone: m, steps: [{ title: `do ${m}`, ...(i === 0 ? { taskId: "t-existing" } : {}) }] })),
+  };
+
+  it("a mission whose phase 0 already has tasks returns the existing plan: no model call, no write, no spawn", async () => {
+    db.missionFind.mockResolvedValue({ id: "m1", title: "approach 3 people", planData: SPAWNED, updatedAt: READ_AT });
+
+    const res = await runPlanProject({ mode: "plan", title: "approach 3 people", missionId: "m1", milestones: MILESTONES });
+
+    if (res.mode !== "plan") throw new Error("unreachable");
+    expect(mockChat).not.toHaveBeenCalled();
+    expect(db.missionUpdate).not.toHaveBeenCalled();
+    expect(db.spawn).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ alreadyPlanned: true, spawned: 0 });
+    expect(res.plan.phases[0].steps[0].taskId).toBe("t-existing");
+  });
+
+  it("the plan write is a swap on the updatedAt read first; a lost swap re-reads and returns the winner's plan, no spawn", async () => {
+    mockChat.mockResolvedValue(okPlan(MILESTONES.map((m) => ({ name: m, steps: [{ title: `do ${m}` }] }))));
+    db.missionFind
+      .mockResolvedValueOnce({ id: "m1", title: "approach 3 people", planData: null, updatedAt: READ_AT })
+      .mockResolvedValueOnce({ id: "m1", title: "approach 3 people", planData: SPAWNED, updatedAt: new Date("2026-11-03T12:01:00Z") });
+    db.missionUpdate.mockResolvedValue({ count: 0 });
+
+    const res = await runPlanProject({ mode: "plan", title: "approach 3 people", missionId: "m1", milestones: MILESTONES });
+
+    expect(db.missionUpdate.mock.calls[0][0].where).toEqual({ id: "m1", updatedAt: READ_AT });
+    expect(db.spawn).not.toHaveBeenCalled();
+    if (res.mode !== "plan") throw new Error("unreachable");
+    expect(res).toMatchObject({ alreadyPlanned: true, spawned: 0 });
+  });
+
+  it("an unknown mission is a 404, not a plan written nowhere", async () => {
+    db.missionFind.mockResolvedValue(null);
+    await expect(runPlanProject({ mode: "plan", title: "x", missionId: "nope", milestones: MILESTONES })).rejects.toBeInstanceOf(PlanProjectError);
+    expect(mockChat).not.toHaveBeenCalled();
+  });
+});
+
 describe("plan mode · failure shapes", () => {
   it("a budget stop (BudgetExceededError) is the skeleton path, not a throw (A10)", async () => {
     const err = new Error("daily budget reached");
@@ -107,6 +153,9 @@ describe("plan mode · failure shapes", () => {
 
     if (res.mode !== "plan") throw new Error("unreachable");
     expect(res.fallback).toBe("skeleton");
+    // Round 1 P2-16: the real cause rides back; the toast says "budget", not "the planner did not answer".
+    expect(res.fallbackReason).toBe("budget");
+    expect(res.plan.summary).toMatch(/budget/i);
     expect(res.plan.phases.map((p) => p.name)).toEqual(MILESTONES);
     expect(db.missionUpdate).toHaveBeenCalledTimes(1);
     expect(db.spawn).toHaveBeenCalledWith({ missionId: "m1", phaseIndex: 0 });

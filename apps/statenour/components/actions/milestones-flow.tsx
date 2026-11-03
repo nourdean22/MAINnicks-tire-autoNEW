@@ -66,7 +66,15 @@ interface MilestonesFlowProps {
 type Phase = "loading" | "editing" | "generating";
 
 /** The toast after a plan lands, from what the server really did. */
-export function planToast(r: { milestones: number; skeleton: boolean; spawned: number | undefined; spawnFailed: string | undefined }): string {
+export function planToast(r: {
+  milestones: number;
+  skeleton: boolean;
+  spawned: number | undefined;
+  spawnFailed: string | undefined;
+  budget?: boolean;
+  alreadyPlanned?: boolean;
+}): string {
+  if (r.alreadyPlanned) return "This project already has its plan and its first tasks; nothing was created twice";
   const tasks =
     r.spawnFailed
       ? ` · the first tasks could not be created (${r.spawnFailed.slice(0, 80)}); open the project to spawn them`
@@ -74,7 +82,7 @@ export function planToast(r: { milestones: number; skeleton: boolean; spawned: n
         ? ` · ${r.spawned} starter task${r.spawned === 1 ? "" : "s"} on NOW`
         : " · no starter task was created";
   return r.skeleton
-    ? `Project spawned from your ${r.milestones} milestones (the AI planner did not answer; each milestone is one checkpoint task)${tasks}`
+    ? `Project spawned from your ${r.milestones} milestones (${r.budget ? "today's AI budget is used up" : "the AI planner did not answer"}; each milestone is one checkpoint task)${tasks}`
     : `Project spawned · ${r.milestones} phases${tasks}`;
 }
 
@@ -210,6 +218,8 @@ export function MilestonesFlow({
           skeleton: plan?.fallback === "skeleton",
           spawned: plan?.spawned,
           spawnFailed: plan?.spawnFailed,
+          budget: plan?.fallbackReason === "budget",
+          alreadyPlanned: plan?.alreadyPlanned,
         }),
       );
       notifyDataChanged("missions", { source: "milestones-flow", detail: "plan", id: missionId });

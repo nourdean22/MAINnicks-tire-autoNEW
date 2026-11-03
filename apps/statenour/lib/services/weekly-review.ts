@@ -164,6 +164,8 @@ export interface SaveWeeklyReviewResult {
   missed: string[];
   /** Goals whose note landed as a check-in (logGoalCheckIn, source weekly-review); a same-day duplicate counts. */
   checkedIn: string[];
+  /** Round 1 P0-1: a check-in already existed today (one per goal per day); this review's health was NOT saved. */
+  alreadyCheckedIn: string[];
   /** Ids that are not active goals (or not WEEK goals, for extend/close): never acted on. */
   skipped: string[];
   /** Goal actions that threw; the entries were already saved. */
@@ -176,7 +178,8 @@ export interface SaveWeeklyReviewResult {
 
 export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date = new Date()): Promise<SaveWeeklyReviewResult> {
   const week = input.week.trim();
-  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim(), health: n.health })).filter((n) => n.text);
+  // Round 1 P1-8: a goal with a health chip and no words is still a check-in; only words become a journal row.
+  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim(), health: n.health })).filter((n) => n.text || n.health);
   if (!week && notes.length === 0) throw new Error("Write one line before saving the review.");
 
   const goals = new Map((await activeGoals()).map((g) => [g.id, g]));
@@ -185,9 +188,10 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
 
   const date = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   // A note whose goal left the active list is saved ungrounded, never dropped: his words outlive the goal.
-  const ungrounded = notes.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
-  const rows = [...notes.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const), ...(week ? [[week, null] as const] : [])];
-  if (rows.length === 0) throw new Error("Write one line before saving the review.");
+  const worded = notes.filter((n) => n.text);
+  const ungrounded = worded.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
+  const rows = [...worded.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const), ...(week ? [[week, null] as const] : [])];
+  if (rows.length === 0 && !notes.some((n) => n.health && goals.has(n.goalId))) throw new Error("Write one line before saving the review.");
 
   // One serializable transaction keyed by the form's reviewId: a failure saves nothing, and a retry after a commit
   // whose response was lost (a phone dropping signal) finds its own rows and writes nothing twice. Two concurrent
@@ -225,12 +229,13 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     },
     { isolationLevel: "Serializable" },
   );
-  if (replayed) return { saved, extended: [], achieved: [], missed: [], checkedIn: [], skipped, failed: [], ungrounded, replayed };
+  if (replayed) return { saved, extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped, failed: [], ungrounded, replayed };
 
   const extended: string[] = [];
   const achieved: string[] = [];
   const missed: string[] = [];
   const checkedIn: string[] = [];
+  const alreadyCheckedIn: string[] = [];
   const failed: string[] = [];
   const act = async (id: string, run: () => Promise<unknown>, done: string[]) => {
     try {
@@ -243,9 +248,26 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   };
   // W8a (S3): a grounded note with a health chip IS the goal's check-in (one per goal per day; the goal card and
   // Nick's tool write the same row). The note is already saved above, so a failed check-in loses nothing written.
+  // Round 1 P0-1: logGoalCheckIn reports a failed write and a same-day duplicate in its RETURN value, it does not throw;
+  // only a returned logged:true is a logged check-in.
   for (const n of notes) {
     if (!n.health || !goals.has(n.goalId)) continue;
-    await act(n.goalId, () => logGoalCheckIn({ goalId: n.goalId, health: n.health!, note: n.text, source: "weekly-review" }), checkedIn);
+    try {
+      const r = (await logGoalCheckIn({ goalId: n.goalId, health: n.health, note: n.text, source: "weekly-review" })) as {
+        logged: boolean;
+        duplicate?: boolean;
+        reason?: string;
+      };
+      if (r.logged) checkedIn.push(n.goalId);
+      else if (r.duplicate) alreadyCheckedIn.push(n.goalId);
+      else {
+        log.warn("review_check_in_not_logged", { goalId: n.goalId, reason: r.reason ?? "no reason returned" });
+        failed.push(n.goalId);
+      }
+    } catch (err) {
+      log.warn("review_goal_action_failed", { goalId: n.goalId, err: err instanceof Error ? err.message : String(err) });
+      failed.push(n.goalId);
+    }
   }
   // W8a (S4): "Close" is two words now. Achieved and missed set the status, so updateGoal emits the GoalEvent
   // (achieved / missed) and the brain moment; the old "completed" wrote neither. Achieved wins over missed.
@@ -272,5 +294,5 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     await act(id, () => updateGoal({ id, deadline }), extended);
   }
 
-  return { saved, extended, achieved, missed, checkedIn, skipped, failed, ungrounded, replayed: false };
+  return { saved, extended, achieved, missed, checkedIn, alreadyCheckedIn, skipped, failed, ungrounded, replayed: false };
 }

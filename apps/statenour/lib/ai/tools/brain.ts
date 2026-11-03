@@ -501,7 +501,7 @@ export const brainTools = {
       // nothing) and stored in metadata, where /brain's goal and person filters read them.
       const goalOk = goalId ? Boolean(await prisma.lifeGoal.findFirst({ where: { id: goalId, deletedAt: null }, select: { id: true } })) : false;
       const personOk = personId ? Boolean(await prisma.personProfile.findFirst({ where: { id: personId, deletedAt: null }, select: { id: true } })) : false;
-      const metadata = goalOk || personOk ? { ...(goalOk ? { goalId } : {}), ...(personOk ? { personId } : {}) } : undefined;
+      const links = goalOk || personOk ? { ...(goalOk ? { goalId } : {}), ...(personOk ? { personId } : {}) } : undefined;
       const slug =
         key ??
         content
@@ -510,6 +510,12 @@ export const brainTools = {
           .replace(/\s+/g, "-")
           .replace(/-+/g, "-")
           .slice(0, 60);
+      // Round 1 P2-14: a re-pin MERGES into the row's metadata (a goal link must not erase an earlier person link).
+      const prior = links
+        ? await prisma.brainMemory.findUnique({ where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key: slug } }, select: { metadata: true } })
+        : null;
+      const priorMeta = prior?.metadata && typeof prior.metadata === "object" && !Array.isArray(prior.metadata) ? (prior.metadata as Record<string, unknown>) : {};
+      const metadata = links ? { ...priorMeta, ...links } : undefined;
       const row = await prisma.brainMemory.upsert({
         where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key: slug } },
         create: {

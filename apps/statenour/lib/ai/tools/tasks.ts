@@ -352,7 +352,8 @@ const tasksCoreTools = {
         taskId: task.id,
         title,
         loopKind,
-        goalLinked: goalOk,
+        // Round 1 P2-13: from the SAVED row (createTaskAndEnrich can return an existing duplicate without the goal).
+        goalLinked: goalOk && task.goalId === goalId,
         ...(goalId && !goalOk ? { goalNote: `goal ${goalId} not found; created without a goal link (use an id from getGoals)` } : {}),
         promised: !!promiseTo,
         // Read from the saved task: createTaskAndEnrich can return an existing duplicate with no parent.
@@ -383,6 +384,7 @@ const tasksCoreTools = {
         loopKind: task.loopKind ?? "ONCE",
         ...(r.streakCount !== undefined ? { streakCount: r.streakCount } : {}),
         ...(r.nextPhaseSpawned ? { nextPhaseSpawned: r.nextPhaseSpawned } : {}),
+        ...(r.nextPhaseSpawnFailed ? { nextPhaseSpawnFailed: r.nextPhaseSpawnFailed, nextPhaseNote: "the next milestone's tasks were NOT created; say so and offer to retry" } : {}),
         ...(r.reward?.goalLifted ? { goalLifted: true } : {}),
       };
     },

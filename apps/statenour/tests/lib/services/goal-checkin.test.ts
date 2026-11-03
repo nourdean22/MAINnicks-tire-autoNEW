@@ -127,6 +127,14 @@ describe("logGoalCheckIn (the shared writer)", () => {
     expect((r as { valueError?: string }).valueError).toContain("db down");
   });
 
+  it("W8a round 1 part 2: a milestone goal's same-day duplicate with a value never calls updateGoal and says the value was not set", async () => {
+    h.goalFindFirst.mockResolvedValue({ ...GOAL, kind: "milestone" });
+    h.eventFindFirst.mockResolvedValue({ id: "ge_prior", payload: { health: "on_track" }, createdAt: new Date() });
+    const r = await logGoalCheckIn({ goalId: "goal_A", health: "on_track", value: 4, note: "x", source: "goal-card" });
+    expect(h.updateGoal).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: false });
+  });
+
   it("a second check-in the same day is a duplicate, not a second row", async () => {
     h.eventFindFirst.mockResolvedValue({ payload: { health: "on_track" }, createdAt: new Date() });
     const r = await logGoalCheckIn({ goalId: "goal_A", health: "off_track", note: "x", source: "goal-card" });

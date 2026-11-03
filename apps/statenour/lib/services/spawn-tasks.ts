@@ -23,7 +23,7 @@ import {
   type ProjectStep,
 } from "@/lib/ai/project-plan";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
-import { createTask } from "@/lib/services/tasks";
+import { createTask, scheduleGlobalPrioritySync } from "@/lib/services/tasks";
 
 export interface SpawnTasksArgs {
   /** mission / project id whose plan to spawn from */
@@ -122,13 +122,17 @@ export async function spawnProjectTasks(
   const newTaskIds: string[] = [];
   let alreadyExisted = 0;
   let lastPhaseName = "";
+  const events: Array<{ taskId: string; phase: string; phaseIndex: number }> = [];
 
+  // Round 1 P1-5: every task and the plan's task ids commit together. A failure part-way used to leave the tasks
+  // already made with no ids in the plan, report 0, and let a retry make them again.
+  await prisma.$transaction(async (tx) => {
   for (const { phase, index } of phasesToProcess) {
     lastPhaseName = phase.name;
     const updatedSteps: ProjectStep[] = [];
     for (const step of phase.steps ?? []) {
       if (step.taskId) {
-        const exists = await prisma.task.findUnique({
+        const exists = await tx.task.findUnique({
           where: { id: step.taskId },
           select: { id: true },
         });
@@ -138,7 +142,8 @@ export async function spawnProjectTasks(
           continue;
         }
       }
-      const created = await createTask({
+      const created = await createTask(
+        {
         title: step.title,
         missionId: mission.id,
         status: "READY",
@@ -155,9 +160,12 @@ export async function spawnProjectTasks(
             : "Step complete",
         loopKind: "ONCE",
         phaseName: phase.name,
-        // The ONE task-goal rule at write time (W8a): a plan task serves its mission's goal unless the caller says otherwise.
-        goalId: args.goalId ?? mission.lifeGoalId ?? null,
-      });
+        // Round 1 P1-10: the override slot stays empty unless the caller sets it; the task serves its mission's goal
+        // through the mission (goalTaskWhere / taskGoalServer), so re-linking the mission moves the task with it.
+        goalId: args.goalId ?? null,
+        },
+        tx,
+      );
       // createTask returns a view-model that can be null when the
       // post-create hydration query misses · skip back-reference
       // tracking but keep the step in the updated plan as-is.
@@ -166,13 +174,7 @@ export async function spawnProjectTasks(
         continue;
       }
       newTaskIds.push(created.id);
-      // Supplemental event with project-spawn source attribution.
-      emitTaskEventAsync({
-        taskId: created.id,
-        kind: "created",
-        source: "api:project-spawn",
-        payload: { projectId: mission.id, phase: phase.name, phaseIndex: index },
-      });
+      events.push({ taskId: created.id, phase: phase.name, phaseIndex: index });
       updatedSteps.push({ ...step, taskId: created.id });
     }
     updatedPlan.phases[index] = { ...phase, steps: updatedSteps };
@@ -180,10 +182,17 @@ export async function spawnProjectTasks(
 
   // Persist the taskId back-references so re-runs are idempotent.
   updatedPlan.updatedAt = new Date().toISOString();
-  await prisma.mission.update({
+  await tx.mission.update({
     where: { id: mission.id },
     data: { planData: updatedPlan as unknown as object },
   });
+  });
+
+  // After the commit: the supplemental project-spawn events and the one global re-score (createTask on a tx skips it).
+  for (const e of events) {
+    emitTaskEventAsync({ taskId: e.taskId, kind: "created", source: "api:project-spawn", payload: { projectId: mission.id, phase: e.phase, phaseIndex: e.phaseIndex } });
+  }
+  if (newTaskIds.length > 0) scheduleGlobalPrioritySync("spawnProjectTasks");
 
   return {
     spawned: newTaskIds.length,

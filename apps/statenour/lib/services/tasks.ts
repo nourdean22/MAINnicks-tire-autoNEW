@@ -1199,6 +1199,9 @@ export async function updateTask(id: string, input: unknown) {
       vm: buildTaskViewModels(updated ? [updated] : [], missions)[0],
       autoLearn: checkRes.autoLearn,
       reward: checkRes.reward,
+      // Round 1 P1-4: the PATCH completion path carries the next-phase outcome too.
+      nextPhaseSpawned: checkRes.nextPhaseSpawned,
+      nextPhaseSpawnFailed: checkRes.nextPhaseSpawnFailed,
     };
   }
 
@@ -1424,12 +1427,12 @@ export async function deleteTask(id: string) {
  *
  * Fire-and-forget — never throws. Failures only log.
  */
-export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<void> {
+export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<boolean> {
   const goal = await prisma.lifeGoal.findUnique({
     where: { id: goalId },
     select: { id: true, kind: true, currentValue: true, targetValue: true, status: true, achievedAt: true },
   });
-  if (!goal) return;
+  if (!goal) return false;
   // W2 2026-11-02 (map gap 3) · a metric goal's value is in its unit ($, lbs, %), so +1 per task moved a
   // $15,000 goal by $1. Its value comes only from a check-in or an explicit edit; the finished task is
   // still recorded, once per (goal, task) through the same marker below. Unitless metrics included.
@@ -1450,78 +1453,68 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
       source: "service:updateTask.goalLift",
       payload: { delta: 0, taskId, note: "goal already achieved" },
     });
-    return;
+    return false;
   }
   const delta = 1;
-  // 2026-06-01 · idempotency guard. liftGoal is now called from BOTH
-  // checkTask (the /check route) and updateTask (the PATCH path); a task
-  // re-completed across paths (or a double check-off) would otherwise
-  // increment currentValue twice. Claim a one-time marker via the
-  // BrainMemory (category,key) unique constraint — create THROWS on a
-  // duplicate, so exactly one completion ever lifts this (goal,task).
-  // (Stat XP is already idempotent via creditTaskStats' sourceKey.)
-  const liftMarked = await prisma.brainMemory
-    .create({
-      data: {
-        category: "goal_lift",
-        key: `goal-lift:${goalId}:${taskId}`,
-        content: taskId.slice(0, 80),
-        source: "goal-lift",
-        createdBy: "system",
-      },
-    })
-    .then(() => true)
-    .catch((err: unknown) => {
-      // W8a (audit A11): only a duplicate key means "already lifted"; any other failure must not be read as one.
-      if ((err as { code?: string })?.code === "P2002" || (err instanceof Error && /P2002/.test(err.message))) return false;
-      log.warn("goal_lift_marker_failed", { goalId, taskId, error: err instanceof Error ? err.message : String(err) });
-      throw err;
-    });
-  if (!liftMarked) return; // a prior completion already lifted this task
+  // One (goal, task) lifts once: a BrainMemory marker (category,key unique) is the claim. Round 1 P2-17: the marker and
+  // the increment commit together, so a failed increment rolls the marker back and the next completion can retry
+  // (the marker used to commit first and block every retry). Only a duplicate key means "already lifted".
+  const isDuplicate = (err: unknown) =>
+    (err as { code?: string })?.code === "P2002" || (err instanceof Error && /P2002/.test(err.message));
+  const marker = {
+    category: "goal_lift",
+    key: `goal-lift:${goalId}:${taskId}`,
+    content: taskId.slice(0, 80),
+    source: "goal-lift",
+    createdBy: "system",
+  };
   if (isMetric) {
-    emitGoalEventAsync({ goalId, kind: "task_completed", source: "service:updateTask.goalLift", payload: { taskId } });
-    return;
+    // A metric goal's number moves only through a check-in or an edit: record the completion once, lift nothing.
+    const recorded = await prisma.brainMemory
+      .create({ data: marker })
+      .then(() => true)
+      .catch((err: unknown) => {
+        if (isDuplicate(err)) return false;
+        log.warn("goal_lift_marker_failed", { goalId, taskId, error: err instanceof Error ? err.message : String(err) });
+        throw err;
+      });
+    if (recorded) emitGoalEventAsync({ goalId, kind: "task_completed", source: "service:updateTask.goalLift", payload: { taskId } });
+    return false;
   }
 
-  // Atomic increment — the prior read-then-write (currentValue =
-  // goal.currentValue + delta) lost updates when two linked tasks
-  // completed concurrently. `{ increment }` is atomic at the DB;
-  // progress/status are derived from the value the UPDATE returns.
-  // (The old targetValue ceiling-clamp is dropped — currentValue may
-  // briefly sit a hair past targetValue under concurrency; progress
-  // still caps at 100 and status flips to achieved either way.)
-  const lifted = await prisma.lifeGoal.update({
-    where: { id: goalId },
-    data: { currentValue: { increment: delta } },
-    select: { currentValue: true, targetValue: true, status: true },
-  });
-  const after = lifted.currentValue;
-  const reachedTarget = lifted.targetValue > 0 && after >= lifted.targetValue;
-  if (lifted.targetValue > 0) {
-    const post: Record<string, unknown> = {
-      progress: Math.min(100, Math.round((after / lifted.targetValue) * 100)),
-    };
-    if (reachedTarget && lifted.status !== "achieved") {
-      post.status = "achieved";
-      post.achievedAt = new Date();
-    }
-    await prisma.lifeGoal.update({ where: { id: goalId }, data: post });
+  // Atomic increment (`{ increment }`): two linked tasks finishing together never lose an update.
+  let lifted: { currentValue: number; targetValue: number };
+  try {
+    lifted = await prisma.$transaction(async (tx) => {
+      await tx.brainMemory.create({ data: marker });
+      const row = await tx.lifeGoal.update({
+        where: { id: goalId },
+        data: { currentValue: { increment: delta } },
+        select: { currentValue: true, targetValue: true },
+      });
+      if (row.targetValue > 0) {
+        await tx.lifeGoal.update({
+          where: { id: goalId },
+          data: { progress: Math.min(100, Math.round((row.currentValue / row.targetValue) * 100)) },
+        });
+      }
+      return row;
+    });
+  } catch (err) {
+    if (isDuplicate(err)) return false; // a prior completion already lifted this task
+    log.warn("goal_lift_failed", { goalId, taskId, error: err instanceof Error ? err.message : String(err) });
+    throw err;
   }
+  // Round 1 P1-11: a non-metric goal is never auto-achieved by a task count. With plan tasks lifting their mission's
+  // goal, a milestone goal with targetValue N would flip to achieved after N tasks; achieving it is Nour's call
+  // (the card, the review's Achieved, Nick's updateGoal).
   emitGoalEventAsync({
     goalId,
     kind: "progress_logged",
     source: "service:updateTask.goalLift",
-    payload: {
-      delta,
-      before: goal.currentValue,
-      after,
-      target: lifted.targetValue,
-      taskId,
-    },
+    payload: { delta, before: goal.currentValue, after: lifted.currentValue, target: lifted.targetValue, taskId },
   });
-  if (reachedTarget && lifted.status !== "achieved") {
-    emitGoalEventAsync({ goalId, kind: "achieved", source: "service:updateTask.goalLift" });
-  }
+  return true;
 }
 
 /**
@@ -1557,46 +1550,50 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
   });
   if (openInPhase > 0) return 0;
 
-  // 2. Load the mission's plan (and its goal: spawned tasks inherit it, audit A2)
-  const mission = await prisma.mission.findUnique({
-    where: { id: missionId },
-    select: { planData: true, lifeGoalId: true },
-  });
-  if (!mission) return 0;
-  const plan = mission.planData as unknown;
-  if (!isProjectPlanData(plan)) return 0;
+  // 2-4 run inside ONE transaction that claims the mission (round 1 P0-3, claim-before-act): the plan is read through
+  // the transaction and the write is a compare-and-swap on the mission's updatedAt. Two completions that both saw the
+  // phase finished (two last tasks checked together, or Nick and the checkbox on one task) both reach here; the
+  // second swap matches no row, rolls its tasks back, and re-reads: it finds the winner's task ids and spawns nothing.
+  // A swap lost to an unrelated mission edit (title, status) finds no task ids on re-read and tries once more.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const outcome = await spawnNextPhaseOnce(missionId, phaseName).catch((err: unknown) => {
+      if (err instanceof SpawnSwapLost) return "lost" as const;
+      throw err;
+    });
+    if (outcome !== "lost") return outcome;
+  }
+  log.warn("phase_progression_swap_lost_twice", { missionId, phaseName });
+  throw new Error("next phase not spawned: the mission changed twice while spawning; finish another task or open the plan");
+}
 
-  // 3. Find the index of this phase + the next un-spawned phase
-  const phaseIdx = plan.phases.findIndex((p) => p.name === phaseName);
-  if (phaseIdx === -1 || phaseIdx >= plan.phases.length - 1) return 0;
-  const nextPhase = plan.phases[phaseIdx + 1];
-  if (!nextPhase || !nextPhase.steps || nextPhase.steps.length === 0) return 0;
+/** Thrown inside the spawn transaction when the mission changed after it was read: rolls the created tasks back. */
+class SpawnSwapLost extends Error {}
 
-  // If the next phase already has any spawned tasks, skip — we
-  // don't want to double-spawn after a phase rollback or partial.
-  const alreadySpawned = nextPhase.steps.filter((s) => s.taskId).length;
-  if (alreadySpawned > 0) return 0;
-
-  // Verify those taskIds actually exist (handle deleted-task edge)
-  // — empty result list, so we're clear to spawn.
-
-  // 4. Spawn the next phase's steps + write back taskIds.
-  const updatedPlan: ProjectPlanData = JSON.parse(JSON.stringify(plan)) as ProjectPlanData;
-  const updatedSteps: ProjectStep[] = [];
-  // v9.1.24 · transactional spawn. Without this, a crash between the
-  // last task.create and the mission.update would leave the spawned
-  // tasks orphaned (no taskId in planData → next call sees
-  // alreadySpawned=0 and re-spawns, producing duplicates). Wrap the
-  // whole loop + final mission update in a transaction so EITHER
-  // every task gets created AND planData reflects it, OR nothing
-  // changes.
+async function spawnNextPhaseOnce(missionId: string, phaseName: string): Promise<number> {
   const taskEventsToEmit: Array<{ taskId: string; phaseIndex: number }> = [];
-  await prisma.$transaction(async (tx) => {
+  let spawnedPhase = "";
+  const spawned = await prisma.$transaction(async (tx) => {
+    const mission = await tx.mission.findUnique({
+      where: { id: missionId },
+      select: { planData: true, updatedAt: true },
+    });
+    if (!mission) return 0;
+    const plan = mission.planData as unknown;
+    if (!isProjectPlanData(plan)) return 0;
+
+    // 3. Find the index of this phase + the next un-spawned phase
+    const phaseIdx = plan.phases.findIndex((p) => p.name === phaseName);
+    if (phaseIdx === -1 || phaseIdx >= plan.phases.length - 1) return 0;
+    const nextPhase = plan.phases[phaseIdx + 1];
+    if (!nextPhase || !nextPhase.steps || nextPhase.steps.length === 0) return 0;
+    // If the next phase already has any spawned tasks, skip: never double-spawn after a phase rollback or partial,
+    // and this is the re-read that tells the loser of a race the winner already spawned.
+    if (nextPhase.steps.some((st) => st.taskId)) return 0;
+
+    // 4. Spawn the next phase's steps + write back taskIds.
+    const updatedPlan: ProjectPlanData = JSON.parse(JSON.stringify(plan)) as ProjectPlanData;
+    const updatedSteps: ProjectStep[] = [];
     for (const step of nextPhase.steps) {
-      if (step.taskId) {
-        updatedSteps.push(step);
-        continue;
-      }
       const created = await tx.task.create({
         data: {
           title: step.title,
@@ -1615,29 +1612,30 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
               : "Step complete",
           loopKind: "ONCE",
           phaseName: nextPhase.name,
-          // The ONE task-goal rule at write time: a plan task serves its mission's goal.
-          goalId: mission.lifeGoalId ?? null,
+          // Round 1 P1-10: no goalId. The task serves its mission's goal through the mission (goalTaskWhere,
+          // taskGoalServer, the lift); copying lifeGoalId into the override slot would strand the task on the old
+          // goal if the mission were re-linked.
           lastTouchedAt: new Date(),
         },
         select: { id: true },
       });
-      // Defer event emission until after the transaction commits —
-      // emitTaskEventAsync is fire-and-forget but still touches DB,
-      // and emitting from inside a transaction can reference rows
-      // that aren't yet visible to other connections.
+      // Events are emitted after the commit: a fire-and-forget DB write from inside the transaction could
+      // reference rows other connections cannot see yet.
       taskEventsToEmit.push({ taskId: created.id, phaseIndex: phaseIdx + 1 });
       updatedSteps.push({ ...step, taskId: created.id });
     }
     updatedPlan.phases[phaseIdx + 1] = { ...nextPhase, steps: updatedSteps };
     updatedPlan.updatedAt = new Date().toISOString();
-    await tx.mission.update({
-      where: { id: missionId },
+    const swap = await tx.mission.updateMany({
+      where: { id: missionId, updatedAt: mission.updatedAt },
       data: { planData: updatedPlan as unknown as object },
     });
+    if (swap.count !== 1) throw new SpawnSwapLost();
+    spawnedPhase = nextPhase.name;
+    return updatedSteps.length;
   });
-  // Post-commit: emit events + gap-fill linkage (classification spine ·
-  // spawned tasks inherit the mission and its goal; enrich fills statHints and,
-  // for a mission with no goal, a goal; compare-and-set leaves the inherited mission).
+  // Post-commit: emit events + gap-fill linkage (classification spine · spawned tasks inherit the mission, and
+  // through it the mission's goal; enrich fills statHints and, for a mission with no goal, a goal guess).
   for (const evt of taskEventsToEmit) {
     emitTaskEventAsync({
       taskId: evt.taskId,
@@ -1645,20 +1643,17 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
       source: "service:phase-progression",
       payload: {
         projectId: missionId,
-        phase: nextPhase.name,
+        phase: spawnedPhase,
         phaseIndex: evt.phaseIndex,
         triggeredBy: "previous-phase-complete",
       },
     });
     void enrichTaskLinkage(evt.taskId);
   }
-  log.info("phase_progression", {
-    missionId,
-    finishedPhase: phaseName,
-    spawnedPhase: nextPhase.name,
-    spawnedSteps: updatedSteps.filter((s) => s.taskId).length,
-  });
-  return taskEventsToEmit.length;
+  if (spawned > 0) {
+    log.info("phase_progression", { missionId, finishedPhase: phaseName, spawnedPhase, spawnedSteps: spawned });
+  }
+  return spawned;
 }
 
 const VALID_EFFORT_BANDS = ["M5", "M15", "M30", "H1", "H2PLUS"] as const;

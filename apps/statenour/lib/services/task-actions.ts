@@ -45,6 +45,7 @@ import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { logError } from "@/lib/utils/error-log";
 import { createTask as createTaskService, liftGoalOnTaskComplete, maybeSpawnNextPhase } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
 import type { TaskReward } from "@/lib/mastery/task-reward";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -82,6 +83,8 @@ export interface CheckTaskResult {
   reward?: TaskReward;
   /** W8a (2026-11-03): tasks of the NEXT plan phase created because this was the phase's last open task. */
   nextPhaseSpawned?: number;
+  /** Round 1 P1-4: the next-phase spawn threw; milestones 2..N do not appear until it is retried. */
+  nextPhaseSpawnFailed?: string;
 }
 
 /**
@@ -200,14 +203,14 @@ export async function checkTask(args: {
       goalId: true,
       // W8a: phaseName drives the next-phase spawn; the mission's goal is the task's goal when it has none.
       phaseName: true,
-      mission: { select: { title: true, domain: true, lifeGoalId: true } },
-      goal: { select: { domain: true } },
+      mission: { select: { title: true, domain: true, lifeGoalId: true, ...TASK_GOAL_SELECT.mission.select } },
+      goal: { select: { domain: true, ...TASK_GOAL_SELECT.goal.select } },
     },
   });
 
   if (!task) throw new ServiceError("Task not found", 404);
-  // The ONE task-goal rule at the lift (lib/services/task-goal-server.ts): own goal, else the mission's.
-  const liftGoalId = task.goalId ?? task.mission?.lifeGoalId ?? null;
+  // The ONE task-goal rule at the lift (lib/services/task-goal-server.ts): own live goal, else the mission's live goal.
+  const liftGoalId = taskGoalServer(task)?.id ?? null;
 
   const now = new Date();
 
@@ -463,7 +466,7 @@ export async function checkTask(args: {
       // updateMany otherwise bypasses every completion hook).
       const cascadedChildren = await prisma.task.findMany({
         where: { parentTaskId: id, status: { notIn: ["DONE", "ARCHIVED"] }, deletedAt: null },
-        select: { id: true, goalId: true, mission: { select: { lifeGoalId: true } } },
+        select: { id: true, ...TASK_GOAL_SELECT },
       });
       const cascadeResult = await prisma.task.updateMany({
         where: {
@@ -480,7 +483,7 @@ export async function checkTask(args: {
       childrenCascaded = cascadeResult.count;
       for (const child of cascadedChildren) {
         void creditTaskStats(child.id).catch(() => {});
-        const childGoal = child.goalId ?? child.mission?.lifeGoalId ?? null;
+        const childGoal = taskGoalServer(child)?.id ?? null;
         if (childGoal) void liftGoalOnTaskComplete(childGoal, child.id).catch(() => {});
       }
     } catch (e) {
@@ -518,8 +521,8 @@ export async function checkTask(args: {
   // `goalLifted` below is a fact, not a claim; a failure is logged and never fails the completion.
   let goalLifted = false;
   if (liftGoalId) {
+    // Round 1 P1-9: true only when the goal's value moved (a metric goal, an achieved goal, a repeat: false).
     goalLifted = await liftGoalOnTaskComplete(liftGoalId, id)
-      .then(() => true)
       .catch((err) => {
         log.warn("goal_lift_failed", { taskId: id, goalId: liftGoalId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
         return false;
@@ -530,13 +533,11 @@ export async function checkTask(args: {
   // branch, so milestones 2..N never became tasks. checkTask is the one completion path every writer
   // uses (UI checkbox, PATCH, Nick's completeTask); awaited so the count rides back on the response.
   let nextPhaseSpawned = 0;
+  let nextPhaseSpawnFailed: string | undefined;
   if (task.phaseName && task.missionId) {
     nextPhaseSpawned = await maybeSpawnNextPhase(task.missionId, task.phaseName).catch((err) => {
-      log.warn("phase_progression_failed", {
-        missionId: task.missionId,
-        phaseName: task.phaseName,
-        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-      });
+      nextPhaseSpawnFailed = err instanceof Error ? err.message.slice(0, 200) : String(err);
+      log.warn("phase_progression_failed", { missionId: task.missionId, phaseName: task.phaseName, err: nextPhaseSpawnFailed });
       return 0;
     });
   }
@@ -741,6 +742,7 @@ export async function checkTask(args: {
       streak: null,
     },
     nextPhaseSpawned,
+    ...(nextPhaseSpawnFailed ? { nextPhaseSpawnFailed } : {}),
   };
 }
 

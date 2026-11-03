@@ -61,7 +61,8 @@ export async function buildPageData(page: string): Promise<string> {
       const [domains, recentScores, goals, revenue] = await Promise.all([
         prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 12 }),
         recentScoreSnapshots(7),
-        prisma.lifeGoal.findMany({ where: { deletedAt: null, status: "active" } }), // v9.1.15
+        // Round 1 P1-12: the one goal number (lib/services/goal-health.ts goalProgress), never the stored column.
+        import("@/lib/services/goal-health").then(({ activeGoalsWithHealth }) => activeGoalsWithHealth()).then((r) => r.goals),
         prisma.auditEvent.findFirst({
           where: { eventType: "business_metrics_sync" },
           orderBy: { createdAt: "desc" },
@@ -102,7 +103,7 @@ export async function buildPageData(page: string): Promise<string> {
         }.`,
         `7-day avg energy: ${avgEnergy}/10, discipline: ${avgDiscipline}/10, workouts: ${workoutDays}/7.`,
         `Active goals: ${
-          goals.map((g) => `"${g.title}" ${g.progress}%`).join(", ") || "none"
+          goals.map((g) => `"${g.title}" ${g.progress == null ? "progress unread" : `${g.progress}%`}`).join(", ") || "none"
         }.`,
         revLine,
         `Daily scores this week: ${

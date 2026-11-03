@@ -97,6 +97,10 @@ export type PlanProjectResult =
       model?: string;
       /** "skeleton": every provider failed, so the confirmed milestones became the plan (one checkpoint step each). */
       fallback?: "skeleton";
+      /** Round 1 P2-16: why the skeleton was used. */
+      fallbackReason?: SkeletonReason;
+      /** Round 1 P0-2: this mission already had a plan with phase 0 spawned (a retry); nothing was asked or written. */
+      alreadyPlanned?: boolean;
       /** W8a: tasks created for phase 0 right after the save (undefined when no missionId was given). */
       spawned?: number;
       /** W8a: the phase-0 spawn threw; the plan is saved, the tasks are not. */
@@ -151,11 +155,14 @@ function alignPhasesToMilestones(plan: ProjectPlanData, milestones: readonly str
   return { ...plan, phases };
 }
 
+/** Why the plan is a skeleton (round 1 P2-16: a budget stop used to read as "the planner did not answer"). */
+type SkeletonReason = "no_answer" | "budget";
+
 /** The confirmed milestones as a plan: one phase each, its single step the checkpoint. */
-function skeletonPlan(milestones: readonly string[], title: string): ProjectPlanData {
+function skeletonPlan(milestones: readonly string[], title: string, reason: SkeletonReason = "no_answer"): ProjectPlanData {
   return normalizeRawPlan(
     {
-      summary: "Plan skeleton from your confirmed milestones: the AI planner did not answer in time. Each milestone is one checkpoint; add steps as you go.",
+      summary: `Plan skeleton from your confirmed milestones: ${reason === "budget" ? "today's AI budget is used up" : "the AI planner did not answer in time"}. Each milestone is one checkpoint; add steps as you go.`,
       phases: milestones.map((m) => ({
         name: m,
         milestone: m,
@@ -455,6 +462,22 @@ Respond ONLY with valid JSON:
     if (confirmedMilestones.length === 0) {
       throw new PlanProjectError("plan mode needs the confirmed milestones (use mode=milestones first)", 400);
     }
+    // Round 1 P0-2: a retried Plan it (the phone timed out while the 170 s server call finished) must not re-ask the
+    // model, overwrite the saved plan with steps that carry no task ids, and spawn phase 0 a second time. Read first;
+    // the write below is a compare-and-swap on this read's updatedAt.
+    const read = missionId
+      ? await prisma.mission.findUnique({ where: { id: missionId }, select: { planData: true, updatedAt: true } })
+      : null;
+    if (missionId && !read) throw new PlanProjectError("Mission not found", 404);
+    const alreadyPlanned = (pd: unknown) => isProjectPlanData(pd) && (pd.phases[0]?.steps ?? []).some((st) => st.taskId);
+    const existingResult = (pd: ProjectPlanData) => ({
+      mode: "plan" as const,
+      plan: pd,
+      flatSteps: pd.phases.flatMap((ph) => (ph.steps ?? []).map((st) => ({ ...st, phase: ph.name, title: `[${ph.name}] ${st.title}` }))),
+      alreadyPlanned: true,
+      spawned: 0,
+    });
+    if (read && alreadyPlanned(read.planData)) return existingResult(read.planData as unknown as ProjectPlanData);
     const compactPrompt = `You are a project planner turning Nour's confirmed milestones into a short, concrete plan.
 
 PROJECT: ${title}
@@ -488,6 +511,7 @@ Respond ONLY with valid JSON:
 
     let plan: ProjectPlanData;
     let fallback: "skeleton" | undefined;
+    let fallbackReason: SkeletonReason | undefined;
     let provider: string | undefined;
     let model: string | undefined;
     try {
@@ -527,8 +551,9 @@ Respond ONLY with valid JSON:
       // milestones. Any other error is a real failure and still throws.
       if (!(err instanceof Error && err.name === "BudgetExceededError")) throw err;
       log.warn("plan_budget_exceeded_skeleton", { missionId, err: err.message });
-      plan = skeletonPlan(confirmedMilestones, title);
+      plan = skeletonPlan(confirmedMilestones, title, "budget");
       fallback = "skeleton";
+      fallbackReason = "budget";
     }
     plan = alignPhasesToMilestones(plan, confirmedMilestones, title);
     if (answers) plan.strategicAnswers = answers;
@@ -553,10 +578,17 @@ Respond ONLY with valid JSON:
     let spawned: number | undefined;
     let spawnFailed: string | undefined;
     if (missionId) {
-      await prisma.mission.update({
-        where: { id: missionId },
+      const swap = await prisma.mission.updateMany({
+        where: { id: missionId, updatedAt: read!.updatedAt },
         data: { planData: JSON.parse(JSON.stringify(plan)) },
       });
+      if (swap.count !== 1) {
+        // Another Plan it on this mission saved first: return what it saved and spawn nothing (it spawns its own).
+        const winner = await prisma.mission.findUnique({ where: { id: missionId }, select: { planData: true } });
+        log.warn("plan_swap_lost", { missionId });
+        if (winner && isProjectPlanData(winner.planData)) return existingResult(winner.planData);
+        throw new PlanProjectError("The project changed while the plan was written; open it and try Plan it again", 400);
+      }
       try {
         spawned = (await spawnProjectTasks({ missionId, phaseIndex: 0 })).spawned;
       } catch (err) {
@@ -572,7 +604,7 @@ Respond ONLY with valid JSON:
       flatSteps,
       provider,
       model,
-      ...(fallback ? { fallback } : {}),
+      ...(fallback ? { fallback, fallbackReason: fallbackReason ?? "no_answer" } : {}),
       ...(spawned !== undefined ? { spawned } : {}),
       ...(spawnFailed ? { spawnFailed } : {}),
     };

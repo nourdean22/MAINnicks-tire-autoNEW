@@ -70,13 +70,26 @@ describe("activeGoalsWithHealth · counts through goalTaskWhere and carries the 
     expect(failed).toContain("tasks");
     expect(goals[0].openTasks).toBeNull();
     expect(goals[0].progress).toBe(80); // a metric goal's number needs no tasks
-    expect({ ...goals[0], kind: "milestone" }.progress).toBe(80);
   });
   it("a metric goal's number survives a failed tasks read; a task goal's does not", async () => {
     h.task.findMany.mockRejectedValue(new Error("db down"));
     h.lifeGoal.findMany.mockResolvedValue([{ ...metricGoal, kind: "milestone" }]);
     const { goals } = await activeGoalsWithHealth(NOW);
     expect(goals[0].progress).toBeNull();
+  });
+  it("own goal first: a task with its own goal counts for that goal only, never also for its mission's goal", async () => {
+    h.lifeGoal.findMany.mockResolvedValue([
+      { ...metricGoal, kind: "milestone" },
+      { ...metricGoal, id: "g2", title: "Side goal", kind: "milestone" },
+    ]);
+    h.task.findMany.mockResolvedValue([
+      { goalId: "g2", status: "DONE", mission: { lifeGoalId: "g1" } },
+      { goalId: null, status: "READY", mission: { lifeGoalId: "g1" } },
+    ]);
+    const { goals } = await activeGoalsWithHealth(NOW);
+    const byId = Object.fromEntries(goals.map((g) => [g.id, g]));
+    expect(byId.g1).toMatchObject({ tasksDone: 0, tasksTotal: 1, progress: 0 });
+    expect(byId.g2).toMatchObject({ tasksDone: 1, tasksTotal: 1, progress: 100 });
   });
 });
 
@@ -87,9 +100,27 @@ describe("Nick's prompt reads the same number", () => {
     expect(s).toMatchObject({ id: "g1", title: "Revenue", domain: "BUSINESS", metric: "revenue", progress: 80, openTasks: 2, horizon: "MONTH", daysToDeadline: null });
     expect(typeof s.paceLine === "string" || s.paceLine === null).toBe(true);
   });
+  it("a horizon_set event moves the pace window: Nick's pace line counts from the reset, not from creation", async () => {
+    const old = { ...metricGoal, createdAt: new Date("2026-10-01T05:00:00.000Z") };
+    h.lifeGoal.findMany.mockResolvedValue([old]);
+    const fromCreation = (await activeGoalsWithHealth(NOW)).goals[0];
+    h.goalEvent.findMany.mockResolvedValue([{ goalId: "g1", kind: "horizon_set", payload: {}, createdAt: new Date("2026-11-10T05:00:00.000Z") }]);
+    const fromReset = (await activeGoalsWithHealth(NOW)).goals[0];
+    expect(fromReset.pace).not.toBe(fromCreation.pace);
+    expect(fromReset.due).not.toEqual(fromCreation.due);
+    expect(goalSummaryFromHealth(fromReset).paceLine).toBe(fromReset.pace);
+  });
   it("the goals page grounding line shows the computed number", async () => {
     const { buildPageData } = await import("@/lib/ai/page-data");
     const text = await buildPageData("goals");
     expect(text).toContain("[id:g1] 80%");
+  });
+  it("a task goal whose tasks read failed shows \"progress unread\" on the grounding line, never 0%", async () => {
+    h.lifeGoal.findMany.mockResolvedValue([{ ...metricGoal, kind: "milestone" }]);
+    h.task.findMany.mockRejectedValue(new Error("db down"));
+    const { buildPageData } = await import("@/lib/ai/page-data");
+    const text = await buildPageData("goals");
+    expect(text).toContain("[id:g1] progress unread");
+    expect(text).not.toContain("[id:g1] 0%");
   });
 });

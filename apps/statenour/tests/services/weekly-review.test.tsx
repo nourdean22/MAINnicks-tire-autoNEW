@@ -175,6 +175,43 @@ describe("saveWeeklyReview", () => {
     expect(h.create).toHaveBeenCalledTimes(2); // the entries are still journal rows
   });
 
+  it("manager round 1 P0-1: a check-in the writer did not log ({logged:false}) is failed, never counted as logged", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.logGoalCheckIn.mockResolvedValue({ logged: false, eventWritten: false, valueSet: false, reason: "the check-in was not logged (db down)" });
+    const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g1", text: "n", health: "on_track" }], extend: [], achieved: [], missed: [] }, NOW);
+    expect(r.checkedIn).toEqual([]);
+    expect(r.failed).toEqual(["g1"]);
+    expect(r.alreadyCheckedIn).toEqual([]);
+  });
+
+  it("manager round 1 P0-1: a same-day duplicate is 'already checked in today', not logged and not failed", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.logGoalCheckIn.mockResolvedValue({ logged: false, duplicate: true, reason: "already checked in on this goal today", existing: { health: "on_track", at: NOW.toISOString() }, valueSet: false });
+    const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g1", text: "n", health: "off_track" }], extend: [], achieved: [], missed: [] }, NOW);
+    expect(r.checkedIn).toEqual([]);
+    expect(r.failed).toEqual([]);
+    expect(r.alreadyCheckedIn).toEqual(["g1"]);
+  });
+
+  it("manager round 1 P1-8: a health chip with no note still logs the check-in (empty note) and writes no journal row", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.logGoalCheckIn.mockResolvedValue({ logged: true });
+    const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g1", text: "  ", health: "at_risk" }], extend: [], achieved: [], missed: [] }, NOW);
+    expect(h.logGoalCheckIn).toHaveBeenCalledWith({ goalId: "g1", health: "at_risk", note: "", source: "weekly-review" });
+    expect(r.checkedIn).toEqual(["g1"]);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it("manager round 1 P0-1: the saved screen says a duplicate's health was not saved", () => {
+    const html = renderToStaticMarkup(
+      <ReviewSavedView
+        result={{ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: ["g1"], skipped: [], failed: [], ungrounded: [], replayed: false }}
+        titles={new Map([["g1", "Ship the quote"]])}
+      />,
+    );
+    expect(html).toContain("Already checked in today on Ship the quote; this health was not saved.");
+  });
+
   it("W8a: a failed check-in is named in failed; the entry is already saved", async () => {
     h.goals.mockResolvedValue([goal("g1")]);
     h.logGoalCheckIn.mockRejectedValue(new Error("db down"));
@@ -319,14 +356,14 @@ describe("weekly review states (silent-failure read)", () => {
     const titles = new Map([["g1", "Ship the quote"], ["g2", "Run the 10k"]]);
     const html = renderToStaticMarkup(
       <ReviewSavedView
-        result={{ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], skipped: [], failed: ["g1"], ungrounded: ["g2"], replayed: false }}
+        result={{ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: ["g1"], ungrounded: ["g2"], replayed: false }}
         titles={titles}
       />,
     );
     expect(html).toContain("Ship the quote");
     expect(html).toContain("Run the 10k");
     const replay = renderToStaticMarkup(
-      <ReviewSavedView result={{ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], skipped: [], failed: [], ungrounded: [], replayed: true }} titles={titles} />,
+      <ReviewSavedView result={{ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], replayed: true }} titles={titles} />,
     );
     expect(replay).toContain("already saved");
   });

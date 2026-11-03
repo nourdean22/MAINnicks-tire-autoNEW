@@ -20,7 +20,7 @@ vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 const db = vi.hoisted(() => ({ missionFind: vi.fn(), missionUpdate: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    mission: { findUnique: db.missionFind, update: db.missionUpdate },
+    mission: { findUnique: db.missionFind, update: db.missionUpdate, updateMany: db.missionUpdate },
     brainMemory: { findMany: vi.fn().mockResolvedValue([]) },
     masteryDecision: { findMany: vi.fn().mockResolvedValue([]) },
     task: { findMany: vi.fn().mockResolvedValue([]) },
@@ -39,7 +39,7 @@ const SENTINEL = {
 beforeEach(() => {
   mockChat.mockReset();
   db.missionFind.mockReset().mockResolvedValue({ id: "m1", title: "Open a second bay", planData: null });
-  db.missionUpdate.mockReset().mockResolvedValue({});
+  db.missionUpdate.mockReset().mockResolvedValue({ count: 1 });
 });
 
 describe("runPlanProject - provider sentinel", () => {

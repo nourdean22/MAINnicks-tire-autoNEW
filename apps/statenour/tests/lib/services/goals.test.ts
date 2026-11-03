@@ -121,6 +121,17 @@ describe("Goals Service", () => {
       expect(g.nextMove?.id).toBe("t2");
     });
 
+    it("round 1 P1-6: a failed weekly-completes read is null (unknown), never '0 this week'", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", kind: "milestone", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([{ id: "t1", title: "a", goalId: "g1", status: "DONE" }]);
+      mocks.taskEvent.findMany.mockRejectedValue(new Error("db down"));
+      const [g] = await getGoals();
+      expect(g.loopsThisWeek).toBeNull();
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      const [g2] = await getGoals();
+      expect(g2.loopsThisWeek).toBe(0);
+    });
+
     it("W8a: a metric goal with a target shows its value %, whatever its tasks say (audit A5/C1)", async () => {
       mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Revenue", kind: "metric", currentValue: 12000, targetValue: 15000, progress: 1, status: "active" }]);
       mocks.task.findMany.mockResolvedValue([

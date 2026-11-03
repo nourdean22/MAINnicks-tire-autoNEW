@@ -123,6 +123,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
   const weeklyCompletes = new Map<string, number>();
+  // Round 1 P1-6: a failed read is null on every goal (the chip hides, staleness treats it as unknown), never 0.
+  let weeklyRead = true;
   if (goalIds.length > 0) {
     try {
       const recentEvents = await prisma.taskEvent.findMany({
@@ -139,6 +141,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
         weeklyCompletes.set(gid, (weeklyCompletes.get(gid) ?? 0) + 1);
       }
     } catch (err) {
+      weeklyRead = false;
       console.warn(
         "[services/goals] weekly completes query failed (table missing?):",
         err instanceof Error ? err.message : err,
@@ -272,7 +275,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
             status: nextMoveTask.status,
           }
         : null,
-      loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
+      loopsThisWeek: weeklyRead ? (weeklyCompletes.get(g.id) ?? 0) : null,
       // null = the read failed (the card says so); [] = no mission planned yet.
       missions: missionsRead ? (missionsByGoal.get(g.id) ?? []) : null,
       health: checkInsRead

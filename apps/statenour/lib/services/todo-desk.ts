@@ -643,7 +643,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
       (t) => t.agedDays >= 10 && t.agedDays < 30,
     ).length;
     const parkedCount = await prisma.task.count({
-      where: { status: "ARCHIVED", updatedAt: { gte: thirtyDaysAgo } },
+      where: { status: "ARCHIVED", updatedAt: { gte: thirtyDaysAgo }, deletedAt: null },
     });
     const commitmentCount = enriched.filter((t) => t.isCommitment).length;
 

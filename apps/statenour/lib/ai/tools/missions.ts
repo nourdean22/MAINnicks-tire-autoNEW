@@ -294,8 +294,9 @@ export const missionsTools = {
           loopKind: t.loopKind as any,
           recurringDays: t.recurringDays ?? [],
           dueDate: t.dueDate ? new Date(t.dueDate) : null,
-          // W8a (audit A2): a plan task serves the mission's goal unless the model named another (createTaskAndEnrich drops an unknown id).
-          goalId: t.goalId ?? (goalOk ? lifeGoalId! : null),
+          // Round 1 P1-10: a plan task serves the mission's goal THROUGH the mission (goalTaskWhere, taskGoalServer, the
+          // lift); its own goalId is an override, set only when the model named a different goal.
+          goalId: t.goalId ?? null,
           promiseTo: t.promiseTo ?? null,
           personId: t.personId ?? null,
         });

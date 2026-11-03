@@ -272,6 +272,8 @@ export interface CommandCenterState {
   /** v9.1.4 · Active missions (projects) + goals — the WHY behind tasks. */
   missions: MissionSummary[];
   goals: GoalSummary[];
+  /** Round 1 P1-7: the goals read failed this turn; `goals` is empty because it is unknown, not because there are none. */
+  goalsReadFailed?: boolean;
   /** v9.1.5 · Recent brain dumps + reflections — the recent thinking. */
   recentThinking: {
     brainDumps: BrainDumpSummary[];
@@ -480,12 +482,12 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       .catch(() => [] as Array<MissionRow>),
     // v9.1.4 · active LifeGoals — the top-of-stack desired outcomes. W8a (audit A5/C1): the same read as the
     // goal card, getGoals and the goals-page grounding (lib/services/goal-health.ts), so the prompt shows the one
-    // computed number, never the stored column. A failed read lists none (the WHY block then has no goals).
+    // computed number, never the stored column. A failed read is null: the WHY block says the goals are unknown.
     activeGoalsWithHealth(now.getTime())
       .then((r) => r.goals.slice(0, PROMPT_GOALS_CAP))
-      .catch((err): ActiveGoalHealth[] => {
+      .catch((err): ActiveGoalHealth[] | null => {
         console.warn("[command-center-state] active goals read failed:", err instanceof Error ? err.message : err);
-        return [];
+        return null;
       }),
     // v9.1.5 · recent brain dumps — what Nour was actively chewing on.
     prisma.brainDump
@@ -866,7 +868,8 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       scheduled: scheduled.map(toScheduledSummary),
     },
     missions: activeMissions.map(toMissionSummary),
-    goals: activeGoals.map(goalSummaryFromHealth),
+    goals: (activeGoals ?? []).map(goalSummaryFromHealth),
+    ...(activeGoals === null ? { goalsReadFailed: true } : {}),
     recentThinking: {
       brainDumps: recentBrainDumps.map(toBrainDumpSummary),
       reflections: recentReflections.map(toReflectionSummary),
