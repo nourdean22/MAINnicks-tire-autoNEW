@@ -15,7 +15,7 @@
 // TYPE imports only: operator-brief.ts is server code (prisma), and this module is imported by a
 // "use client" component. A value import here put the whole server graph in the browser bundle and
 // broke `next build` on PR #3073 (tests/repo/client-server-boundary.test.ts pins the rule).
-import type { BriefJudgmentSection, BriefLeadSection, JudgmentItem, PendingApproval } from "./operator-brief";
+import type { BriefJudgmentSection, BriefLeadSection, JudgmentItem, LeadContext, PendingApproval } from "./operator-brief";
 
 /** The attention budget (operator-brief.ts ATTENTION_CAP), spelled here so the client never imports the builder. */
 export const BRIEF_ROW_CAP = 7;
@@ -36,6 +36,8 @@ export type BriefRow =
 export interface BriefRowsInput {
   lead: BriefLeadSection | null;
   judgment: BriefJudgmentSection | null;
+  /** W7: the mission and goal behind the lead task, shown as the lead row's detail line. */
+  leadContext?: LeadContext | null | "unknown";
 }
 
 export interface ComposedBrief {

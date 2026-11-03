@@ -54,6 +54,7 @@ import { LoveMapLine } from "@/components/relationships/love-map-line";
 import { HomeShortcuts } from "./home-shortcuts";
 import { ShopTodayCard } from "./shop-today-card";
 import { HomeCards } from "./home-cards";
+import { JournalLineView } from "./journal-line";
 
 export function HomeConsole() {
   const briefQ = trpc.operator.brief.useQuery(undefined, {
@@ -117,6 +118,9 @@ export function HomeConsole() {
           // at most seven ruled rows, Keep / Less per row (device-local), approvals in place.
           <BriefRows brief={brief} loading={briefQ.isLoading} />
         )}
+
+        {/* W7 (2026-11-03) · the newest journal line and the people it names, from the same brief. */}
+        <JournalLineView line={brief?.journalLine} />
 
         {/* 2026-10-29 · one plain maxim from every book pack, leaning toward the brief's lead line. */}
         <MaximLine context={brief?.lead?.headline ?? null} ready={!!brief || unreadable} />

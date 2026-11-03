@@ -56,6 +56,7 @@ import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
 import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
+import { isInboxMission } from "@/lib/services/mission-helpers";
 
 // ── Contracts ───────────────────────────────────────────────────────────
 
@@ -179,6 +180,10 @@ export interface OperatorBrief {
   horizon: BriefHorizonSection;
   /** The most overdue goal check-in (Linear L3); null = none due, "unknown" = the read failed. */
   goalCheckInDue: GoalCheckInDue | null | "unknown";
+  /** The mission and goal behind the lead's task (map gap 6); null = the lead is not a task. */
+  leadContext: LeadContext | null | "unknown";
+  /** The newest journal entry with the people it names; null = no entries yet. */
+  journalLine: JournalLine | null | "unknown";
   budget: { visibleActionables: number; cap: number };
 }
 
@@ -186,6 +191,80 @@ export interface GoalCheckInDue {
   goalId: string;
   title: string;
   daysOverdue: number;
+}
+
+export interface LeadContext {
+  mission: { id: string; title: string } | null;
+  goal: { id: string; title: string } | null;
+}
+
+/** CONTROLS RULE: the Home journal line's excerpt length, named once. */
+export const HOME_JOURNAL_EXCERPT_CHARS = 120;
+
+export interface JournalLine {
+  id: string;
+  excerpt: string;
+  createdAt: string;
+  /** Live people the entry names, in its order; null = the names read failed (couldn't load), not "no one". */
+  people: { id: string; name: string }[] | null;
+}
+
+/**
+ * The lead task's mission and goal in one read. The task's own goal overrides the mission's
+ * (lib/missions/task-goal.ts taskGoal, Linear L1); the inbox mission is not named as a mission.
+ */
+async function loadLeadContext(taskId: string | null): Promise<LeadContext | null | "unknown"> {
+  if (!taskId) return null;
+  try {
+    const t = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        goal: { select: { id: true, title: true, deletedAt: true } },
+        mission: { select: { id: true, title: true, lifeGoal: { select: { id: true, title: true, deletedAt: true } } } },
+      },
+    });
+    if (!t) return null;
+    const live = (g: { id: string; title: string; deletedAt: Date | null } | null | undefined) =>
+      g && !g.deletedAt ? { id: g.id, title: g.title } : null;
+    const mission = t.mission && !isInboxMission(t.mission.title) ? { id: t.mission.id, title: t.mission.title } : null;
+    return { mission, goal: live(t.goal) ?? live(t.mission?.lifeGoal) };
+  } catch (err) {
+    briefLog.warn("lead_context_read_failed", { taskId, err: err instanceof Error ? err.message : String(err) });
+    return "unknown";
+  }
+}
+
+/** The newest live journal entry and the live people it names (brain_dumps.person_ids, names in one query). */
+async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
+  let dump: { id: string; rawThoughts: string; createdAt: Date; personIds: string[] } | null;
+  try {
+    dump = await prisma.brainDump.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, rawThoughts: true, createdAt: true, personIds: true },
+    });
+  } catch (err) {
+    briefLog.warn("journal_line_read_failed", { err: err instanceof Error ? err.message : String(err) });
+    return "unknown";
+  }
+  if (!dump) return null;
+  const text = dump.rawThoughts.replace(/\s+/g, " ").trim();
+  const excerpt = text.length > HOME_JOURNAL_EXCERPT_CHARS ? `${text.slice(0, HOME_JOURNAL_EXCERPT_CHARS - 3)}...` : text;
+  let people: JournalLine["people"] = [];
+  if (dump.personIds.length > 0) {
+    try {
+      const rows = await prisma.personProfile.findMany({
+        where: { id: { in: dump.personIds }, deletedAt: null },
+        select: { id: true, name: true },
+      });
+      const name = new Map(rows.map((p) => [p.id, p.name]));
+      people = dump.personIds.flatMap((id) => (name.has(id) ? [{ id, name: name.get(id)! }] : []));
+    } catch (err) {
+      briefLog.warn("journal_line_people_failed", { err: err instanceof Error ? err.message : String(err) });
+      people = null;
+    }
+  }
+  return { id: dump.id, excerpt, createdAt: dump.createdAt.toISOString(), people };
 }
 
 /** Active goals and their newest check-in, through the one cadence table (lib/brain/goal-pace.ts). */
@@ -315,6 +394,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     weekGoals,
     calendarRead,
     goalCheckInDue,
+    journalLine,
   ] = await Promise.all([
     // Active/resume candidates. Ordering mirrors command-center-state.ts's
     // activeTask pick (autoPriority desc nulls last, lastTouchedAt desc) so
@@ -400,6 +480,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     // a time pointer. A non-ok state is kept, so TODAY says why instead of reading as a free day.
     readCalendarDay().catch((err): CalendarRead => ({ state: "read_failed", reason: (err as Error).message })),
     loadGoalCheckInDue(now),
+    loadJournalLine(),
   ]);
   const calendarUpcoming =
     calendarRead.state === "ok"
@@ -467,7 +548,8 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
   // 2026-10-02 · the lead is a recommendation the operator is SHOWN; without
   // this row Home was the highest-frequency surface recording nothing in the
   // outcome ledger (docs/design/outcome-ledger-coverage-2026-10-02.md §5).
-  lead.ledgerId = await ledgerLeadShown(lead);
+  const [ledgerId, leadContext] = await Promise.all([ledgerLeadShown(lead), loadLeadContext(lead.taskId)]);
+  lead.ledgerId = ledgerId;
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
@@ -591,6 +673,8 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     },
     horizon,
     goalCheckInDue,
+    leadContext,
+    journalLine,
     budget: {
       visibleActionables:
         leadActionables + Math.min(judgmentAll.length, judgmentVisibleCap),
@@ -937,7 +1021,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources, loadGoalCheckInDue };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources, loadGoalCheckInDue, loadLeadContext, loadJournalLine };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,
