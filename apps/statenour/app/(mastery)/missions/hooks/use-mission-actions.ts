@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
 import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
+import { nextPhaseToast } from "@/lib/missions/next-phase-toast";
+
 import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
@@ -13,6 +15,13 @@ import { retroDueAfterCompletion } from "@/lib/services/mission-helpers";
 import { RESURFACE_PROMISE } from "@/lib/missions/snooze-presets";
 
 const log = rootLogger.withSurface("missions/actions");
+
+/** Round 1 P1-4: say the next milestone's outcome (spawned, or the failure) after a completion. */
+function showPhaseToast(r: { nextPhaseSpawned?: number; nextPhaseSpawnFailed?: string } | null | undefined) {
+  const t = nextPhaseToast(r);
+  if (t?.kind === "error") toast.error(t.message, { duration: 8000 });
+  else if (t) toast.success(t.message, { duration: 4500 });
+}
 
 export interface MissionActionsParams {
   tasks: Task[];
@@ -166,6 +175,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
+          showPhaseToast(res);
         } else {
           const res = await updateTask.mutateAsync({ id, fields: { status: "DONE", ...outcomeFields } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
@@ -173,6 +183,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
+          showPhaseToast(res as unknown as { nextPhaseSpawned?: number; nextPhaseSpawnFailed?: string });
         }
         await refetchAll();
 
@@ -192,6 +203,43 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       }
     },
     [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setRetroState, collectOutcome],
+  );
+
+  /**
+   * Take back today's tick on a DAILY rhythm (the row's two-tap uncheck). Same spine as the tick:
+   * task.check, action "uncheck", which appends an `uncompleted` event and rewinds the streak. The
+   * tick also parked the row WAITING until tomorrow (presentation only), so that comes off too.
+   */
+  const handleUncheckTask = useCallback(
+    async (id: string): Promise<boolean> => {
+      let res: Awaited<ReturnType<typeof checkTaskMut.mutateAsync>>;
+      try {
+        telemetry.event("uncheckTask", { taskId: id });
+        res = await checkTaskMut.mutateAsync({ id, action: "uncheck" });
+      } catch (err) {
+        log.error("uncheckTask_failed", { err });
+        // A refusal (a 400, e.g. not a daily habit) says why; anything else may have landed.
+        const refusal = (err as { data?: { code?: string }; message?: string } | null)?.data?.code === "BAD_REQUEST";
+        toast.error(refusal ? (err as Error).message : "Could not confirm the uncheck. Refresh to see where it stands.");
+        return false;
+      }
+      // The uncheck is written from here on: a failed un-park or refetch must not say otherwise.
+      if (res.unchecked) {
+        await updateTask
+          .mutateAsync({ id, fields: { status: "READY", snoozedUntil: null } })
+          .catch((err: unknown) => log.error("uncheckTask_unpark_failed", { err, taskId: id }));
+      }
+      await refetchAll().catch((err: unknown) => log.error("uncheckTask_refetch_failed", { err }));
+      const streak = typeof res.streakCount === "number" ? res.streakCount : null;
+      toast.success(
+        res.unchecked
+          ? `Unchecked for today. Streak ${streak === null ? "unknown" : `${streak} ${streak === 1 ? "day" : "days"}`}.`
+          : "Nothing to uncheck today.",
+      );
+      // The row shows "unchecked" only when the server took a check-off back.
+      return res.unchecked === true;
+    },
+    [checkTaskMut, updateTask, refetchAll, telemetry],
   );
 
   const handleStartTask = useCallback(
@@ -502,6 +550,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     handleAddTask,
     handleAddRhythm,
     handleCompleteTask,
+    handleUncheckTask,
     handleStartTask,
     handleDeleteTask,
     handleUpdateTaskFields,

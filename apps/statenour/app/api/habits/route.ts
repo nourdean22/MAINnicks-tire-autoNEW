@@ -18,15 +18,19 @@ export const GET = apiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || today();
 
+  // 2026-11-03 · a failed habit read is an error response (nour-state counts the feed as failed),
+  // never every habit "not done"; soft-deleted habits are not habits.
   const [dailyTasks, config] = await Promise.all([
-    prisma.task
-      .findMany({
-        where: { loopKind: "DAILY" },
-        select: { title: true, lastCompletedAt: true, streakCount: true },
-      })
-      .catch(() => [] as Array<{ title: string; lastCompletedAt: Date | null; streakCount: number }>),
+    prisma.task.findMany({
+      where: { loopKind: "DAILY", deletedAt: null },
+      select: { id: true, title: true, loopKind: true, lastCompletedAt: true, streakCount: true },
+    }),
     prisma.userPreference.findUnique({ where: { key: "habits_config" } }).catch(() => null),
   ]);
+  // The date and the six ET days before it, off the TaskEvent ledger: a day backfilled
+  // before the latest check-off is done on its own day. Throws on a failed read.
+  const { habitDays } = await import("@/lib/services/daily-backfill");
+  const grid = await habitDays(dailyTasks, 7, date);
 
   let enabledKeys: Set<string> | null = null;
   if (config?.value) {
@@ -43,11 +47,6 @@ export const GET = apiHandler(async (req) => {
   }
 
   // Loose match: habit key tokens appear in task title (case-insensitive).
-  const wasCompletedToday = (task: { lastCompletedAt: Date | null }) => {
-    if (!task.lastCompletedAt) return false;
-    const d = new Date(task.lastCompletedAt).toISOString().slice(0, 10);
-    return d === date;
-  };
   const findTaskFor = (habitKey: string, label: string) => {
     const kw = [habitKey.replace(/_/g, " "), label]
       .map((s) => s.toLowerCase());
@@ -61,11 +60,14 @@ export const GET = apiHandler(async (req) => {
     .filter((h) => !enabledKeys || enabledKeys.has(h.key))
     .map((h) => {
       const task = findTaskFor(h.key, h.label);
+      const days = task ? (grid.get(task.id) ?? []) : [];
       return {
         ...h,
-        completed: task ? wasCompletedToday(task) : false,
+        completed: days[0]?.done ?? false,
         notes: null,
         streak: task?.streakCount ?? 0,
+        /** `date` first, then the six days before it. */
+        days,
       };
     });
 

@@ -266,14 +266,36 @@ describe("deck · sections tell the truth about their shapes", () => {
       task({ id: "t-journal", title: "5-min journal", loopKind: "DAILY", missionId: "m-general-personal", lastCompletedAt: NOW }),
     ]);
     mocks.taskEvent.findMany.mockResolvedValue([
-      { taskId: "t-journal", createdAt: new Date(NOW.getTime() - 1 * DAY) },
-      { taskId: "t-journal", createdAt: new Date(NOW.getTime() - 2 * DAY) },
-      { taskId: "t-journal", createdAt: new Date(NOW.getTime() - 2 * DAY + 3600e3) }, // same ET day
+      { taskId: "t-journal", kind: "completed", createdAt: new Date(NOW.getTime() - 1 * DAY), payload: {} },
+      { taskId: "t-journal", kind: "completed", createdAt: new Date(NOW.getTime() - 2 * DAY), payload: {} },
+      { taskId: "t-journal", kind: "completed", createdAt: new Date(NOW.getTime() - 2 * DAY + 3600e3), payload: {} }, // same ET day
     ]);
     const deck = await buildMissionsDeck(NOW);
     const r = deck.rhythms.find((x) => x.id === "t-journal");
-    expect(r?.windowDone).toBe(2);
+    expect(deck.unmeasured).not.toContain("rhythm history");
+    // Two event days plus today, which the row vouches for (its event write is fire-and-forget).
+    // Before 2026-11-03 the window counted events only: "done today" beside "2 of 7".
+    expect(r?.windowDone).toBe(3);
     expect(r?.doneToday).toBe(true);
+  });
+
+  // 2026-11-03 · the /missions uncheck appends an `uncompleted` event and rewinds the row; the
+  // window used to count `completed` events only, so the row still read "done" after an uncheck.
+  it("an unchecked day leaves the window and doneToday, and a backfilled day joins it", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-journal", title: "5-min journal", loopKind: "DAILY", missionId: "m-general-personal", streakCount: 0, lastCompletedAt: null }),
+    ]);
+    mocks.taskEvent.findMany.mockResolvedValue([
+      { taskId: "t-journal", kind: "completed", createdAt: NOW, payload: {} },
+      { taskId: "t-journal", kind: "uncompleted", createdAt: new Date(NOW.getTime() + 60e3), payload: { forDay: "2026-09-01" } },
+      { taskId: "t-journal", kind: "completed", createdAt: new Date("2026-08-30T16:00:00Z"), payload: { backfilled: true } },
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    const r = deck.rhythms.find((x) => x.id === "t-journal");
+    expect(r?.doneToday).toBe(false);
+    expect(r?.windowDone).toBe(1);
+    const where = mocks.taskEvent.findMany.mock.calls.find((c) => c[0]?.where?.kind)?.[0].where;
+    expect(where.kind).toEqual({ in: ["completed", "uncompleted"] });
   });
 
   it("a weekly rhythm carries its weekdays to the row, and the task read selects them (2026-10-26)", async () => {

@@ -44,7 +44,8 @@ export async function goalPeopleMemories(input: { by: "goal" | "person"; id?: st
   const where =
     input.by === "goal"
       ? input.id
-        ? { category: BRAIN_CATEGORIES.GOAL_MOMENT, deletedAt: null, metadata: { path: ["goalId"], equals: input.id } }
+        // W8a (C4): any row that names the goal (goal moments and pinned memories alike), by metadata.goalId.
+        ? { deletedAt: null, metadata: { path: ["goalId"], equals: input.id } }
         : { category: { in: [BRAIN_CATEGORIES.GOAL_MOMENT, BRAIN_CATEGORIES.GOAL] }, deletedAt: null }
       : { deletedAt: null, metadata: { path: ["personId"], equals: input.id! } };
   const rows = await prisma.brainMemory.findMany({

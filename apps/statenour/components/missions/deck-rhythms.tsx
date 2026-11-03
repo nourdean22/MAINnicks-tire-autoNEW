@@ -13,14 +13,21 @@
  * 2026-10-26 · the list is also where rhythms are managed: the title opens the
  * page's task editor (cadence daily / weekly with weekdays, delete), the cadence
  * is written under the title, and the last row adds a daily rhythm.
+ *
+ * 2026-11-03 · a mis-tap on a DAILY rhythm is taken back on the same circle:
+ * the first tap on a done circle arms it ("tap again to uncheck" for 4 s), the
+ * second unchecks. In-DOM, never window.confirm (suppressed in the iOS PWA).
+ * The arm is the guard: one stray tap never costs a streak.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MissionsDeck } from "@/lib/missions/deck";
 
 type Props = {
   rhythms: MissionsDeck["rhythms"];
   /** Resolves true only on a confirmed write. */
   onComplete: (taskId: string, loopKind: string) => Promise<boolean>;
+  /** Takes back today's check-off of a DAILY rhythm; resolves true only on a confirmed write. */
+  onUncheck?: (taskId: string) => Promise<boolean>;
   /** Opens the task editor for this rhythm. */
   onEdit: (taskId: string) => void;
   /** Creates a DAILY rhythm; resolves true only on a confirmed write. */
@@ -109,9 +116,19 @@ function AddRhythmRow({ onAdd }: { onAdd: Props["onAdd"] }) {
   );
 }
 
-export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
-  const [marked, setMarked] = useState<Record<string, "pending" | "done" | "failed">>({});
+/** How long an armed uncheck waits for the second tap. */
+const ARM_MS = 4000;
+
+export function DeckRhythms({ rhythms, onComplete, onUncheck, onEdit, onAdd }: Props) {
+  const [marked, setMarked] = useState<Record<string, "pending" | "done" | "failed" | "unchecked">>({});
+  const [armed, setArmed] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
+
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(null), ARM_MS);
+    return () => clearTimeout(t);
+  }, [armed]);
 
   const tick = async (id: string, title: string, loopKind: string) => {
     setMarked((m) => ({ ...m, [id]: "pending" }));
@@ -120,7 +137,18 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
     setAnnounce(ok ? `${title} done for today.` : `${title} could not be saved. Try again.`);
   };
 
-  const isDone = (r: Props["rhythms"][number]) => r.doneToday || marked[r.id] === "done";
+  const uncheck = async (id: string, title: string) => {
+    if (!onUncheck) return;
+    setArmed(null);
+    setMarked((m) => ({ ...m, [id]: "pending" }));
+    const ok = await onUncheck(id);
+    // An unconfirmed take-back keeps showing done (the last state the server confirmed).
+    setMarked((m) => ({ ...m, [id]: ok ? "unchecked" : "done" }));
+    setAnnounce(ok ? `${title} unchecked for today.` : `${title} could not be unchecked here. Refresh to see where it stands.`);
+  };
+
+  const isDone = (r: Props["rhythms"][number]) =>
+    marked[r.id] === "done" || (r.doneToday && marked[r.id] !== "unchecked" && marked[r.id] !== "pending");
   // A weekly rhythm off its weekdays is not today's work (Nour 2026-11-01, Sunday): it waits under "not due today"
   // and never counts in "N of M today". Ticked anyway, it joins today's list.
   const today = rhythms.filter((r) => r.dueToday || isDone(r));
@@ -130,19 +158,39 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
   const row = (r: Props["rhythms"][number]) => {
     const state = marked[r.id];
     const done = isDone(r);
+    // Only a DAILY check-off can be taken back (the server refuses a weekly one).
+    const canUncheck = done && !!onUncheck && r.loopKind === "DAILY";
+    const isArmed = canUncheck && armed === r.id;
+    const onCircle = () => {
+      if (!done) return void tick(r.id, r.title, r.loopKind);
+      if (!canUncheck) return;
+      if (isArmed) return void uncheck(r.id, r.title);
+      setArmed(r.id);
+      setAnnounce(`Tap ${r.title} again to uncheck it for today.`);
+    };
     return (
       <li key={r.id} className="flex items-center gap-3 py-1">
         <button
           type="button"
-          disabled={done || state === "pending"}
-          onClick={() => void tick(r.id, r.title, r.loopKind)}
-          aria-label={done ? `${r.title}, done today` : `Mark ${r.title} done`}
+          disabled={(done && !canUncheck) || state === "pending"}
+          onClick={onCircle}
+          aria-label={
+            isArmed
+              ? `Confirm: uncheck ${r.title} for today`
+              : done
+                ? canUncheck
+                  ? `${r.title}, done today. Tap to uncheck`
+                  : `${r.title}, done today`
+                : `Mark ${r.title} done`
+          }
           className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control active:scale-[0.97]"
         >
           <span
             aria-hidden
             className={
-              done
+              isArmed
+                ? "inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-emerald-400 text-[12px] font-bold text-emerald-300"
+                : done
                 ? "inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-[12px] font-bold text-[var(--text-inverse)]"
                 : state === "pending"
                   ? "inline-block h-6 w-6 rounded-full border-2 border-emerald-400/60"
@@ -168,7 +216,9 @@ export function DeckRhythms({ rhythms, onComplete, onEdit, onAdd }: Props) {
         <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-tertiary">
           {state === "failed"
             ? <span className="text-rose-300">not saved</span>
-            : done
+            : isArmed
+              ? <span className="text-fg-secondary">tap again to uncheck</span>
+              : done
               ? <span className="text-emerald-300">done</span>
               : r.windowOf > 0
                 ? `${r.windowDone} of ${r.windowOf}`

@@ -331,10 +331,12 @@ export const BRAIN_CATEGORIES = {
    *  committed to. Tim Challies' "Do More Better" framework
    *  (Get Clear → Get Current → Get Set → Get Going + Serve & Surprise). */
   WEEKLY_REVIEW: "weekly_review",
-  /** 2026-05-27 · idempotency marker for the Sunday 6pm ET Telegram
-   *  nudge that prompts the operator to open the ReviewWizard.
-   *  Key shape `YYYY-WNN` matches WEEKLY_REVIEW so the two markers
-   *  cross-reference per week. Written by cron:weekly-review-nudge. */
+  /** Once-per-ISO-week claim for the "Weekly review is ready" line on
+   *  the morning brief push. Key shape `YYYY-WNN` (the review's ET
+   *  Monday). Written by inngest/morning-brief (claimWeeklyReviewLine,
+   *  R2a 2026-11-03): create -> P2002 = an earlier brief this week took
+   *  it. Defined 2026-05-27 for a Telegram nudge cron that never shipped
+   *  a writer. */
   WEEKLY_REVIEW_NUDGE: "weekly_review_nudge",
 
   // ── Power Atlas · 2026-05-27 ──
@@ -890,6 +892,13 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // the event lives in metadata. Prod 11-01: an os-drift title had been rewritten into LLM prose,
   // and coach rows were soft-deleted inside the merge's 03:00-04:15Z window (one 81s after write).
   BRAIN_CATEGORIES.COACH_EVENT,
+  // 2026-11-03 · R2a · the once-per-week "Weekly review is ready" brief-line claim, read by key (P2002): a merge
+  // would rewrite one week's marker into prose and soft-delete the rest.
+  BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+  // 2026-11-03 · R2a round 1 · weekly reviews are per-week records, never merged. Prod (manager read
+  // 11-03, counts only): 22 cron rows soft-deleted, 3 live; weekly:2026-09-28 was written 10-05 03:03Z
+  // and soft-deleted 03:16Z the same night, three more together 10-16 03:08Z, inside the merge window.
+  BRAIN_CATEGORIES.WEEKLY_REVIEW,
 ];
 
 /**
@@ -985,6 +994,8 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "planning", "project_management", "strategic_plan", "strategy",
     "task_insight", "task_lesson", "task_pattern", "orphan_tasks_nudge",
     "board_consultation", "task_completion",
+    // W8a (C13): goal facts and goal moments (lib/brain/goal-brain.ts) sit with strategy.
+    "goal", "goal_moment",
   ],
   "Legacy / deprecated": [
     "relationship", "skills", "business_read", "business_write",

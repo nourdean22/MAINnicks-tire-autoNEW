@@ -98,3 +98,41 @@ describe("chat write gaps · shop and customer wording pins no personal writer",
     }
   });
 });
+
+// 2026-11-03 (second PR) · the relationship ledger's in-turn writer. Pinned only by the ledger
+// grammar itself: a verb, a signed amount, then for/to/with and a name (never an article).
+describe("logPersonInteraction · reachable from the ledger grammar, never from shop wording", () => {
+  const withBudget = async <T,>(fn: () => Promise<T>) => {
+    const prev = process.env.NICK_TOOL_BUDGET;
+    process.env.NICK_TOOL_BUDGET = "10";
+    try {
+      return await fn();
+    } finally {
+      if (prev === undefined) delete process.env.NICK_TOOL_BUDGET;
+      else process.env.NICK_TOOL_BUDGET = prev;
+    }
+  };
+
+  it.each([
+    "log +20 for Mash, covered the counter",
+    "log -5 for manny, late again",
+    "record +10 with Dania, coffee and talked about the move",
+    "add +3 for zach, helped with the lift",
+    "+5 for mash, opened early",
+  ])("%s pins logPersonInteraction", async (prompt) => {
+    expect(await withBudget(() => offered(prompt))).toContain("logPersonInteraction");
+  });
+
+  it.each([
+    "log +2 tasks for the week",
+    "recorded +5 lb on bench",
+    "log +20 for the honda",
+    "add +10 to the invoice total",
+    "manny forgot to log the invoice for the f150",
+    "how many cars did we do this week",
+    "log the deposit for the f150 customer",
+  ])("CONTROL: %s pins no ledger writer", async (prompt) => {
+    expect(await withBudget(() => offered(prompt))).not.toContain("logPersonInteraction");
+  });
+});
+

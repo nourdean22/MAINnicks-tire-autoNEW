@@ -56,6 +56,8 @@ import { ServiceError } from "@/lib/utils/service-error";
 /** ET noon of a YYYY-MM-DD (EDT in these fixtures: UTC-4). */
 const noon = (d: string) => new Date(`${d}T16:00:00.000Z`);
 const NOW = noon("2026-11-03");
+/** ET noon as the service computes it (Nov 2 is EST after the Nov 1 DST change). */
+const parseEtDayNoon = (d: string) => new Date(`${d}T17:00:00.000Z`);
 
 function habit(over: Partial<{ streakCount: number; lastCompletedAt: Date | null; loopKind: string }> = {}) {
   mocks.task.findUnique.mockResolvedValue({
@@ -234,6 +236,16 @@ describe("uncheckDailyCompletion", () => {
     expect(r).toMatchObject({ changed: true, streakCount: 2 });
     expect(r.lastCompletedAt).toEqual(noon("2026-10-30"));
     expect(mocks.invalidateMutationCaches).toHaveBeenCalledTimes(1);
+  });
+
+  // 2026-11-03 (second reader) · the /missions two-tap uncheck puts this one tap away: a 40-day run
+  // whose earlier days have no event (pre-log, or a lost fire-and-forget write) must not go to 0.
+  it("7c · the latest day of a long row run with no earlier events rewinds to yesterday, streak minus one", async () => {
+    habit({ streakCount: 40, lastCompletedAt: noon("2026-11-03") });
+    events("2026-11-03");
+    const r = await uncheckDailyCompletion({ id: "h1", date: "2026-11-03" });
+    expect(r).toMatchObject({ changed: true, streakCount: 39 });
+    expect(r.lastCompletedAt).toEqual(parseEtDayNoon("2026-11-02"));
   });
 
   it("7b · the latest day with no event history left zeroes the row", async () => {

@@ -2337,6 +2337,26 @@ async function appendGraphContext(
 // Related context (commitments, loops, people)
 // ---------------------------------------------------------------------------
 
+/**
+ * W8a (audit C11): the people read's WHERE. Live rows only, matched in SQL on each topic and its 4+ letter words
+ * (the same shape matchesTopic applied in JS to ANY 30 rows, deleted ones included). Null when no term: no read.
+ */
+export function recallPeopleWhere(topicLower: string[]): { deletedAt: null; OR: Array<Record<string, { contains: string; mode: "insensitive" }>> } | null {
+  const terms = new Set<string>();
+  for (const t of topicLower) {
+    const topic = t.toLowerCase().trim();
+    // A whole topic of 3+ letters ("sam"); shorter ones ("ok") would match inside most names.
+    if (topic.length >= 3) terms.add(topic);
+    for (const w of topic.split(/\s+/)) if (w.length > 3) terms.add(w);
+  }
+  if (terms.size === 0) return null;
+  const OR: Array<Record<string, { contains: string; mode: "insensitive" }>> = [];
+  for (const term of terms) {
+    OR.push({ name: { contains: term, mode: "insensitive" } }, { relationship: { contains: term, mode: "insensitive" } });
+  }
+  return { deletedAt: null, OR };
+}
+
 async function appendRelatedContext(lines: string[], topicLower: string[]): Promise<void> {
   const matchesTopic = (text: string) =>
     topicLower.some(
@@ -2382,8 +2402,12 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
 
   // People
   // W6 · a failed people read says so once, instead of dropping the block as if no one matched (empty-vs-error).
+  // W8a (C11) · live rows, matched in SQL; no term means no read.
+  const peopleWhere = recallPeopleWhere(topicLower);
+  if (!peopleWhere) return;
   const allPeople = await prisma.personProfile
     .findMany({
+      where: peopleWhere,
       take: 30,
       select: { id: true, name: true, role: true, relationship: true },
     })

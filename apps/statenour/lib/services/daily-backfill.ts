@@ -85,6 +85,10 @@ export async function dayLedger(taskId: string): Promise<Map<string, DayCount>> 
     orderBy: { createdAt: "desc" },
     take: EVENT_WINDOW,
   });
+  return tally(rows);
+}
+
+function tally(rows: ReadonlyArray<{ kind: string; createdAt: Date; payload: unknown }>): Map<string, DayCount> {
   const counts = new Map<string, DayCount>();
   for (const r of rows) {
     const day = eventDay(r);
@@ -94,6 +98,71 @@ export async function dayLedger(taskId: string): Promise<Map<string, DayCount>> 
     counts.set(day, c);
   }
   return counts;
+}
+
+export interface HabitDay {
+  day: string;
+  done: boolean;
+}
+
+/**
+ * The last `days` ET days ending at `endDay`, newest first, per habit: the
+ * one per-day read for the chat (getHabitStreaks), GET /api/habits, the
+ * legacy daily-habit rows and the /missions rhythm window.
+ *
+ * A day is done when its events net a completion (a backfill counts on its
+ * own day; an uncheck takes it back). With no net word from the events, the
+ * row's own run vouches for the day: a check whose fire-and-forget event
+ * write failed, or history from before the log. For a WEEKLY row the count
+ * is a tally, not a run, so only its lastCompletedAt day vouches.
+ *
+ * One query for every task. A failed read THROWS: the caller says
+ * "unknown", never a row of not-done days.
+ */
+export async function habitDays(
+  // lastCompletedAt may arrive JSON-serialized (the /missions deck scores serialized rows).
+  tasks: ReadonlyArray<{ id: string; loopKind?: string | null; streakCount: number; lastCompletedAt: Date | string | null }>,
+  days = 7,
+  endDay: string = today(),
+): Promise<Map<string, HabitDay[]>> {
+  parseEtDay(endDay); // a malformed day is a 400, not a RangeError deep in the walk
+  const window: string[] = [endDay];
+  while (window.length < days) window.push(prevDay(window[window.length - 1]));
+  const out = new Map<string, HabitDay[]>();
+  if (tasks.length === 0) return out;
+
+  // Every event that speaks for a window day is created on or after that day's start:
+  // a check on the day, a backfill at its noon, an uncheck later still.
+  const rows = await prisma.taskEvent.findMany({
+    where: {
+      taskId: { in: tasks.map((t) => t.id) },
+      kind: { in: ["completed", "uncompleted"] },
+      createdAt: { gte: parseEtDay(window[window.length - 1]).start },
+    },
+    select: { taskId: true, kind: true, createdAt: true, payload: true },
+  });
+  const byTask = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byTask.get(r.taskId) ?? [];
+    list.push(r);
+    byTask.set(r.taskId, list);
+  }
+
+  for (const t of tasks) {
+    const ledger = tally(byTask.get(t.id) ?? []);
+    const lastDay = t.lastCompletedAt ? toDateString(new Date(t.lastCompletedAt)) : null;
+    const run = (t.loopKind ?? "DAILY") === "DAILY" ? Math.max(1, t.streakCount || 0) : 1;
+    out.set(
+      t.id,
+      window.map((day) => {
+        const c = ledger.get(day) ?? { done: 0, undone: 0 };
+        if (c.done !== c.undone) return { day, done: c.done > c.undone };
+        const gap = lastDay ? dayGap(day, lastDay) : -1;
+        return { day, done: c.undone === 0 && gap >= 0 && gap < run };
+      }),
+    );
+  }
+  return out;
 }
 
 /** Days with a net completion, newest first. */
@@ -298,7 +367,12 @@ export async function uncheckDailyCompletion(args: { id: string; date?: string; 
     // The latest check-off goes; the run now ends at the newest remaining day.
     const remaining = completedDays(ledger).filter((d) => d !== date);
     const newLatest = remaining[0] ?? null;
-    if (!newLatest) {
+    if (task.streakCount > 1) {
+      // The row's run vouches for yesterday (habitDays reads it the same way), even when its
+      // event is missing (pre-log history, a lost fire-and-forget write): one take-back costs one day.
+      streakCount = task.streakCount - 1;
+      lastCompletedAt = parseEtDay(prevDay(date)).noon;
+    } else if (!newLatest) {
       streakCount = 0;
       lastCompletedAt = null;
     } else {
