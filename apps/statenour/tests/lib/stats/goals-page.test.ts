@@ -4,13 +4,17 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  goalMoment,
+  etDay,
+  goalMomentState,
   goalsPulse,
+  GOAL_MOMENT_STATES,
+  GOAL_MOMENT_TAG,
+  MAXIM_TEXT_MAX,
   maximForGoalMoment,
   missionPhaseLadder,
+  momentInput,
   movedLine,
   pickHeroGoal,
-  MOMENT_TAG,
 } from "@/lib/stats/goals-page";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 import type { Maxim } from "@/lib/wisdom/maxims";
@@ -18,7 +22,7 @@ import type { Maxim } from "@/lib/wisdom/maxims";
 const NOW = Date.parse("2026-11-02T17:00:00Z");
 const DAY = 86_400_000;
 
-type G = Parameters<typeof goalMoment>[0];
+type G = Parameters<typeof momentInput>[0];
 const goal = (over: Partial<G> = {}): G => ({
   id: "g1",
   title: "Goal",
@@ -74,34 +78,35 @@ describe("missionPhaseLadder", () => {
   });
 });
 
-describe("goalMoment", () => {
-  it("each state, in priority order", () => {
-    expect(goalMoment(goal({ progress: 100 }), NOW)).toBe("achieved");
-    expect(goalMoment(goal({ health: { state: "off_track", at: null, note: null } }), NOW)).toBe("off_track");
-    expect(goalMoment(goal({ health: { state: "at_risk", at: null, note: null } }), NOW)).toBe("behind");
-    expect(goalMoment(goal({ health: { state: "no_check_in", at: null, note: null } }), NOW)).toBe("check_in_due");
-    expect(goalMoment(goal(), NOW)).toBeNull();
+describe("goalMomentState (W6 contract, via momentInput)", () => {
+  const state = (over: Partial<G> = {}) => goalMomentState(momentInput(goal(over), NOW));
+  it("each state, highest first", () => {
+    expect(state({ status: "achieved", health: { state: "off_track", at: null, note: null } })).toBe("achieved");
+    expect(state({ health: { state: "off_track", at: null, note: null } })).toBe("off_track");
+    expect(state({ status: "missed" })).toBe("off_track");
+    expect(state({ health: { state: "at_risk", at: null, note: null } })).toBe("at_risk");
+    expect(state({ health: { state: "no_check_in", at: null, note: null } })).toBe("check_in_due");
+    expect(state()).toBeNull();
   });
 
-  it("pace counts: behind pace is 'behind', a missed deadline is 'off_track'", () => {
+  it("pace counts: behind pace beats at risk, a missed deadline is off track", () => {
     // 10 of 20 days gone, 1 of 10 done: behind (0 done reads "needs N/day", not behind).
-    const behind = goal({ currentValue: 1, createdAt: new Date(NOW - 10 * DAY).toISOString(), deadline: new Date(NOW + 10 * DAY).toISOString() });
-    expect(goalMoment(behind, NOW)).toBe("behind");
-    const missed = goal({ currentValue: 2, deadline: new Date(NOW - 3 * DAY).toISOString() });
-    expect(goalMoment(missed, NOW)).toBe("off_track");
+    const behind = { currentValue: 1, createdAt: new Date(NOW - 10 * DAY).toISOString(), deadline: new Date(NOW + 10 * DAY).toISOString() };
+    expect(state({ ...behind, health: { state: "at_risk", at: null, note: null } })).toBe("behind_pace");
+    expect(state({ currentValue: 2, deadline: new Date(NOW - 3 * DAY).toISOString() })).toBe("off_track");
   });
 
-  it("an unknown health is no moment (unknown never reads as a state)", () => {
-    expect(goalMoment(goal({ health: { state: "unknown", at: null, note: null } }), NOW)).toBeNull();
-    expect(goalMoment(goal({ health: undefined }), NOW)).toBeNull();
+  it("an unknown or missing health is no moment (unknown never reads as a state)", () => {
+    expect(state({ health: { state: "unknown", at: null, note: null } })).toBeNull();
+    expect(state({ health: undefined })).toBeNull();
   });
 
-  it("achieved beats off track", () => {
-    expect(goalMoment(goal({ progress: 100, health: { state: "off_track", at: null, note: null } }), NOW)).toBe("achieved");
+  it("an active goal at 100% is not 'achieved' (status decides, same as Nick's recall)", () => {
+    expect(state({ progress: 100 })).toBeNull();
   });
 });
 
-describe("maximForGoalMoment", () => {
+describe("maximForGoalMoment (W6 contract)", () => {
   const pool: Maxim[] = (["focus", "decisions", "timing", "learning", "people"] as const).map((t) => ({
     id: `p:${t}`,
     text: `${t} maxim`,
@@ -109,30 +114,39 @@ describe("maximForGoalMoment", () => {
     ref: t,
     tags: [t],
   }));
+  const pick = (over: Partial<G>, p: readonly Maxim[] = pool, day = "2026-11-02") => maximForGoalMoment(momentInput(goal(over), NOW), p, day);
 
   it("picks from the tag the state maps to, and says which state chose it", () => {
-    const off = maximForGoalMoment(goal({ health: { state: "off_track", at: null, note: null } }), NOW, pool);
-    expect(off).toMatchObject({ state: "off_track", tag: "decisions", id: "p:decisions", text: "decisions maxim" });
-    expect(maximForGoalMoment(goal({ health: { state: "at_risk", at: null, note: null } }), NOW, pool)?.tag).toBe("focus");
-    expect(maximForGoalMoment(goal({ health: { state: "no_check_in", at: null, note: null } }), NOW, pool)?.tag).toBe("timing");
-    expect(maximForGoalMoment(goal({ progress: 100 }), NOW, pool)?.tag).toBe("learning");
+    expect(pick({ health: { state: "off_track", at: null, note: null } })).toEqual({ id: "p:decisions", text: "decisions maxim", origin: "Test", state: "off_track" });
+    expect(pick({ health: { state: "at_risk", at: null, note: null } })?.id).toBe("p:focus");
+    expect(pick({ health: { state: "no_check_in", at: null, note: null } })?.id).toBe("p:focus");
+    expect(pick({ status: "achieved" })?.id).toBe("p:learning");
+    expect(pick({ currentValue: 1, deadline: new Date(NOW + 10 * DAY).toISOString() })?.id).toBe("p:timing");
+    expect(Object.keys(GOAL_MOMENT_TAG).sort()).toEqual([...GOAL_MOMENT_STATES].sort());
   });
 
   it("no moment, no maxim (the right moment only)", () => {
-    expect(maximForGoalMoment(goal(), NOW, pool)).toBeNull();
+    expect(pick({})).toBeNull();
+  });
+
+  it("caps the text at MAXIM_TEXT_MAX", () => {
+    const long = [{ id: "l:1", text: "x".repeat(MAXIM_TEXT_MAX + 40), source: "T", ref: "1", tags: ["focus"] }];
+    expect(pick({ health: { state: "at_risk", at: null, note: null } }, long)?.text).toHaveLength(MAXIM_TEXT_MAX);
   });
 
   it("holds still all day for one goal, and two goals can differ", () => {
-    const g = goal({ health: { state: "no_check_in", at: null, note: null } });
-    const a = maximForGoalMoment(g, NOW, MAXIM_POOL);
-    const b = maximForGoalMoment(g, NOW + 3 * 3_600_000, MAXIM_POOL);
-    expect(a?.id).toBe(b?.id);
-    const ids = new Set(["a", "b", "c", "d", "e", "f"].map((id) => maximForGoalMoment({ ...g, id }, NOW, MAXIM_POOL)?.id));
+    const over = { health: { state: "no_check_in" as const, at: null, note: null } };
+    expect(pick(over, MAXIM_POOL)?.id).toBe(pick(over, MAXIM_POOL)?.id);
+    const ids = new Set(["a", "b", "c", "d", "e", "f"].map((id) => pick({ ...over, id }, MAXIM_POOL)?.id));
     expect(ids.size).toBeGreaterThan(1);
   });
 
+  it("the board's day key is the ET date", () => {
+    expect(etDay(Date.parse("2026-11-03T03:30:00Z"))).toBe("2026-11-02");
+  });
+
   it("the real pool carries a maxim for every moment tag", () => {
-    for (const tag of Object.values(MOMENT_TAG)) expect(MAXIM_POOL.some((m) => m.tags.includes(tag))).toBe(true);
+    for (const tag of Object.values(GOAL_MOMENT_TAG)) expect(MAXIM_POOL.some((m) => m.tags.includes(tag))).toBe(true);
   });
 });
 

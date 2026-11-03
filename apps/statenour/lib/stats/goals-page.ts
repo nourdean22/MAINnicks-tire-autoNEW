@@ -5,13 +5,13 @@
  *  - missionPhaseLadder: the milestone ladder on a goal card, from the linked mission's plan phases
  *    (Asana: goal progress comes from the linked work). Read on the server in lib/services/goals.ts.
  *  - pickHeroGoal: the one goal the hero shows (Tability "My focus": the item that needs you now).
- *  - goalMoment + maximForGoalMoment: one maxim from his books, only at a goal moment, the tag chosen
- *    by the state (same pattern as lib/services/people/maxim-for-pick.ts). No model call.
+ *  - goalMomentState + maximForGoalMoment: one maxim from his books, only at a goal moment, the tag
+ *    chosen by the state. A copy of W6's lib/brain/goal-maxim.ts contract until W6 merges (see SEAM).
  *  - goalsPulse + movedLine: the hero's one-line band and its accountability line.
  * Every input is plain data; nothing here reads a clock it was not given.
  */
-import { goalDue, goalPaceView, type GoalHealth, type PaceVerdict } from "@/lib/brain/goal-pace";
-import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
+import { goalDue, goalPaceView, type GoalHealth, type GoalHealthState, type PaceVerdict } from "@/lib/brain/goal-pace";
+import { today } from "@/lib/utils/datetime";
 import { etHourKey, pickMaximForDay, type Maxim, type MaximTag } from "@/lib/wisdom/maxims";
 
 const DAY_MS = 86_400_000;
@@ -69,47 +69,72 @@ export interface PageGoal {
   health?: GoalHealth;
 }
 
-export type GoalMomentState = "achieved" | "off_track" | "behind" | "check_in_due";
+/**
+ * The goal moment and its maxim. SEAM (manager ruling 2026-11-03): the one selector is W6's
+ * `maximForGoalMoment` in lib/brain/goal-maxim.ts, so the card and Nick's recall pick the same line.
+ * Until W6 is on main, the block below is a copy of W6's file at e6bbf5d0e8 (same names, signature,
+ * states, tags, key and cap); the swap is: delete the block, import the same names from
+ * "@/lib/brain/goal-maxim". `momentInput` adapts a board goal to its input.
+ */
+export const GOAL_MOMENT_STATES = ["behind_pace", "off_track", "at_risk", "check_in_due", "achieved"] as const;
+export type GoalMomentState = (typeof GOAL_MOMENT_STATES)[number];
 
-/** Which maxim tag answers which moment: a win locks in the lesson, off track asks for a decision. */
-export const MOMENT_TAG: Readonly<Record<GoalMomentState, MaximTag>> = {
-  achieved: "learning",
+export const GOAL_MOMENT_TAG: Readonly<Record<GoalMomentState, MaximTag>> = {
   off_track: "decisions",
-  behind: "focus",
-  check_in_due: "timing",
+  behind_pace: "timing",
+  at_risk: "focus",
+  check_in_due: "focus",
+  achieved: "learning",
 };
+
+export const MAXIM_TEXT_MAX = 160;
+
+export interface GoalMomentInput {
+  id: string;
+  status: string;
+  health: GoalHealthState | null;
+  pace: { kind: string } | null;
+}
+
+export interface GoalMaxim {
+  id: string;
+  text: string;
+  origin: string;
+  state: GoalMomentState;
+}
+
+/** Highest first: achieved > off_track > behind_pace > at_risk > check_in_due; on track or unknown is none. */
+export function goalMomentState(g: Omit<GoalMomentInput, "id">): GoalMomentState | null {
+  if (g.status === "achieved") return "achieved";
+  if (g.status === "missed" || g.health === "off_track" || g.pace?.kind === "missed") return "off_track";
+  if (g.pace?.kind === "behind") return "behind_pace";
+  if (g.health === "at_risk") return "at_risk";
+  if (g.health === "no_check_in") return "check_in_due";
+  return null;
+}
+
+export function maximForGoalMoment(goal: GoalMomentInput, pool: readonly Maxim[], day: string = today()): GoalMaxim | null {
+  const state = goalMomentState(goal);
+  if (!state) return null;
+  const m = pickMaximForDay(pool, GOAL_MOMENT_TAG[state], `${day}:${goal.id}:${state}`);
+  return m ? { id: m.id, text: m.text.slice(0, MAXIM_TEXT_MAX), origin: m.source, state } : null;
+}
+
+// ── Board goals into the moment contract ──────────────────────────────────────────────────────────
 
 function paceVerdict(g: PageGoal, now: number): PaceVerdict | null {
   const view = goalPaceView(g, now);
   return view?.kind === "chip" ? view.verdict : null;
 }
 
-/** The goal's moment, or null when nothing calls for a maxim. An unknown health is never a moment. */
-export function goalMoment(g: PageGoal, now: number): GoalMomentState | null {
-  if (g.progress >= 100) return "achieved";
-  const health = g.health?.state;
-  const pace = paceVerdict(g, now);
-  if (health === "off_track" || pace?.kind === "missed") return "off_track";
-  if (health === "at_risk" || pace?.kind === "behind") return "behind";
-  if (health === "no_check_in") return "check_in_due";
-  return null;
+/** A board goal as the moment selector reads it: health from the newest check-in, pace from goalPaceView. */
+export function momentInput(g: PageGoal, now: number): GoalMomentInput {
+  return { id: g.id, status: g.status, health: g.health?.state ?? null, pace: paceVerdict(g, now) };
 }
 
-export interface GoalMaxim {
-  state: GoalMomentState;
-  tag: MaximTag;
-  id: string;
-  text: string;
-  source: string;
-}
-
-/** One maxim for the goal's moment, keyed by ET day and goal so it holds still all day. */
-export function maximForGoalMoment(g: PageGoal, now: number, pool: readonly Maxim[] = MAXIM_POOL): GoalMaxim | null {
-  const state = goalMoment(g, now);
-  if (!state) return null;
-  const tag = MOMENT_TAG[state];
-  const m = pickMaximForDay(pool, tag, `${etHourKey(new Date(now)).slice(0, 10)}:${g.id}`);
-  return m ? { state, tag, id: m.id, text: m.text, source: m.source } : null;
+/** The ET day key for a clock, as `today()` gives it. */
+export function etDay(now: number): string {
+  return etHourKey(new Date(now)).slice(0, 10);
 }
 
 // ── The hero ─────────────────────────────────────────────────────────────────────────────────────
@@ -152,8 +177,8 @@ export function goalsPulse(goals: readonly PageGoal[], now: number) {
   let offTrack = 0;
   let checkInDue = 0;
   for (const g of goals) {
-    const m = goalMoment(g, now);
-    if (m === "behind") behind++;
+    const m = goalMomentState(momentInput(g, now));
+    if (m === "behind_pace" || m === "at_risk") behind++;
     else if (m === "off_track") offTrack++;
     else if (m === "check_in_due") checkInDue++;
   }

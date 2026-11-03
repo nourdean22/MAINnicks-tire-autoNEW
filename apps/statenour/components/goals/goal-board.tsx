@@ -103,7 +103,8 @@ import { MilestonesFlow } from "@/components/actions/milestones-flow";
 import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 import { GoalLadder } from "./goal-ladder";
 import { GoalsHero, askNickAboutGoal } from "./goals-hero";
-import { goalsPulse, maximForGoalMoment, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
+import { etDay, goalsPulse, maximForGoalMoment, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
+import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 import { trpc } from "@/lib/trpc/client";
 import { DOMAINS } from "@/lib/mastery/config";
@@ -780,7 +781,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
   const hero = useMemo(() => {
     const now = Date.now();
     const pick = pickHeroGoal(goals, now);
-    return pick ? { ...pick, now, maxim: maximForGoalMoment(pick.goal, now), pulse: goalsPulse(goals, now) } : null;
+    return pick ? { ...pick, now, maxim: maximForGoalMoment(momentInput(pick.goal, now), MAXIM_POOL, etDay(now)), pulse: goalsPulse(goals, now) } : null;
   }, [goals]);
 
   const openGoal = useCallback((goalId: string) => {
@@ -1691,13 +1692,13 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                   <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
                     {/* W2 2026-11-02 · since last check-in (Tana T1) + Nick-drafted check-in (Linear L4). */}
                     {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
-                    {/* W5 · the maxim at this goal's moment (behind, off track, check-in due, reached). */}
+                    {/* W5 · the maxim at this goal's moment (W6 contract; the pool is not yet skip-filtered on this page). */}
                     {(() => {
-                      const m = maximForGoalMoment(g, Date.now());
+                      const m = maximForGoalMoment(momentInput(g, Date.now()), MAXIM_POOL);
                       return m ? (
                         <figure className="mt-2 space-y-0.5 border-l border-edge-default pl-3">
                           <blockquote className="text-[13px] leading-relaxed text-fg-secondary">{m.text}</blockquote>
-                          <figcaption className="font-mono text-[11px] text-fg-tertiary">{m.source}</figcaption>
+                          <figcaption className="font-mono text-[11px] text-fg-tertiary">{m.origin}</figcaption>
                         </figure>
                       ) : null;
                     })()}

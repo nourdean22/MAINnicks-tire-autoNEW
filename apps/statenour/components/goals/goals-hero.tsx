@@ -25,7 +25,8 @@ const REASON_LABEL: Record<HeroReason, string> = {
 const MOMENT_LABEL: Record<GoalMomentState, string> = {
   achieved: "goal reached",
   off_track: "off track",
-  behind: "behind pace",
+  behind_pace: "behind pace",
+  at_risk: "at risk",
   check_in_due: "check-in due",
 };
 
@@ -107,7 +108,7 @@ export function GoalsHeroView(p: {
         <figure className="space-y-0.5 border-l border-edge-default pl-3">
           <blockquote className="text-[14px] leading-relaxed text-fg-secondary">{p.maxim.text}</blockquote>
           <figcaption className="font-mono text-[11px] text-fg-tertiary">
-            {p.maxim.source} · for a goal {MOMENT_LABEL[p.maxim.state]}
+            {p.maxim.origin} · for a goal {MOMENT_LABEL[p.maxim.state]}
           </figcaption>
         </figure>
       )}

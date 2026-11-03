@@ -162,7 +162,7 @@ describe("GoalBoard · W5 hero, ladder and focus", () => {
     window.removeEventListener("statenour:open-nick", listen);
   });
 
-  it("the expanded card shows the maxim for its moment (no check-in yet: a timing maxim)", async () => {
+  it("the expanded card shows the maxim for its moment (no check-in yet: a focus maxim)", async () => {
     await click(container.querySelector("#goal-g-life [role='button']")!);
     expect(container.querySelector("#goal-g-life blockquote")?.textContent?.length ?? 0).toBeGreaterThan(10);
   });

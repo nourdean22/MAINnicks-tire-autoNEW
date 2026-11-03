@@ -85,7 +85,7 @@ describe("GoalsHeroView", () => {
 
   it("a maxim shows with its source and the moment that chose it; none, no quote block", () => {
     const html = renderToStaticMarkup(
-      <GoalsHeroView {...base} maxim={{ state: "check_in_due", tag: "timing", id: "x:1", text: "Act that day.", source: "Bezos" }} />,
+      <GoalsHeroView {...base} maxim={{ state: "check_in_due", id: "x:1", text: "Act that day.", origin: "Bezos" }} />,
     );
     expect(html).toContain("Act that day.");
     expect(html).toContain("Bezos");
