@@ -1509,7 +1509,7 @@ export function GoalBoard() {
                           </span>
                         )}
                         {/* W2 2026-11-02 (Linear L2) · health from the newest check-in; tap opens the check-in. */}
-                        <GoalHealthChip health={g.health} onOpen={() => setExpandedGoal(g.id)} />
+                        {g.status === "active" && <GoalHealthChip health={g.health} onOpen={() => setExpandedGoal(g.id)} />}
                         {/* 2026-11-02 · the mission "Plan it" made from this goal, with its ladder. */}
                         {(g.missions ?? []).map((m) => (
                           <Link
