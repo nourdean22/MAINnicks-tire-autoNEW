@@ -39,9 +39,14 @@
  *
  *   · Inline "Plan it" → MilestonesFlow spawns a mission with phases.
  *
- * Self-fetches goals via GET /api/goals (authedFetch): independent of
- * the /goals page's trpc.operator.goalsSnapshot query (which still
- * feeds the page header axes + missions sidebar).
+ * W5 2026-11-02 (job nour-os-interconnect; Nour: "this page looks old and stingy"): the hero leads
+ * (components/goals/goals-hero.tsx: the one goal, its one move, a maxim at a goal moment), each card
+ * shows its mission's milestone ladder, and quick-add moves below the list. The coachLog panel
+ * ("Show legacy details", 0 goals in prod used it) is gone; the execution coach sandbox is one tap
+ * behind "Focus session" instead of filling every expanded card. The open card (else the hero goal)
+ * is reported up through onFocusGoal so Nick's side pane knows which goal Nour is looking at.
+ *
+ * Self-fetches goals via trpc task.goals (lib/services/goals.ts getGoals).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -96,6 +101,11 @@ import {
 import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { MilestonesFlow } from "@/components/actions/milestones-flow";
 import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
+import { GoalLadder } from "./goal-ladder";
+import { GoalsHero, askNickAboutGoal } from "./goals-hero";
+import { maximForGoalMoment } from "@/lib/brain/goal-maxim";
+import { etDay, goalsPulse, maximPoolWithout, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
+import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 import { trpc } from "@/lib/trpc/client";
 import { DOMAINS } from "@/lib/mastery/config";
@@ -103,15 +113,6 @@ import { scrollBehavior } from "@/lib/ui/scroll-behavior";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
-
-interface CoachEntry {
-  at: string;
-  read: string;
-  nextAction: string;
-  blocker: string | null;
-  risks: string[];
-  progressPct: number;
-}
 
 interface LifeGoal {
   id: string;
@@ -128,7 +129,6 @@ interface LifeGoal {
   /** People W4 S3: the live people on this goal's tasks (lib/services/goals.ts getGoals). */
   people?: Array<{ id: string; name: string }>;
   estimatedHours: number | null;
-  coachLog: CoachEntry[] | null;
   deadline: string | null;
   createdAt: string;
   updatedAt: string;
@@ -146,7 +146,9 @@ interface LifeGoal {
   nextMove?: { id: string; title: string; status: string } | null;
   loopsThisWeek?: number;
   /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
-  missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number }>;
+  missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases?: LadderPhase[] }> | null;
+  /** W5 · the maxim ids Nour skipped on Home, the same list on every row; null = the read failed. */
+  skippedMaximIds?: string[] | null;
   /** W2 2026-11-02 · the newest check-in's health, gray past the cadence (lib/services/goals.ts getGoals). */
   health?: GoalHealth;
   // Ambition Engine P1 · the mastery stats this goal levels (resolved
@@ -319,24 +321,24 @@ function NextStepPrompt({
   );
 }
 
-export function GoalBoard() {
+export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; title: string; opened: boolean } | null) => void } = {}) {
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
   // standalone mode so the archive branch never fired on the phone.
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // W5 · the clock the hero and the maxims read, stamped when the goals load (never read during render).
+  const [loadedAt, setLoadedAt] = useState(0);
   // task.* tRPC for the goals CRUD. scattered-components slice
-  // (2026-05-22) · the AI suggest/coach calls migrate now,
-  // `/api/ai/suggest-goals` → `trpc.ai.suggestGoals`, `/api/ai/coach-goal`
-  // → `trpc.ai.coachGoal`: so the `authedFetch` import is gone. load()
+  // (2026-05-22) · the AI suggest call migrated to `trpc.ai.suggestGoals`, so the
+  // `authedFetch` import is gone (W5 removed the coach call with its panel). load()
   // stays a callback (referenced by many handlers) but reads via
   // utils.task.goals.fetch: the procedure returns { goals } directly.
   const utils = trpc.useUtils();
   const goalsCreate = trpc.task.goalsCreate.useMutation();
   const goalsUpdate = trpc.task.goalsUpdate.useMutation();
   const suggestGoalsMut = trpc.ai.suggestGoals.useMutation();
-  const coachGoalMut = trpc.ai.coachGoal.useMutation();
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<SuggestedGoal[]>([]);
   const [overview, setOverview] = useState<string>("");
@@ -345,9 +347,9 @@ export function GoalBoard() {
   const [newWhy, setNewWhy] = useState("");
   const [newHorizon, setNewHorizon] = useState<Horizon | "">("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [coachingId, setCoachingId] = useState<string | null>(null);
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
-  const [showLegacyGoalIds, setShowLegacyGoalIds] = useState<Set<string>>(new Set());
+  // The execution coach sandbox opens per card on "Focus session" (W5: was the default expanded body).
+  const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
 
   // Apr 27 · GH1: horizon tab filter. Defaults to "ALL" so the page
   // is never empty. Goals with explicit horizon use it; goals with
@@ -414,6 +416,7 @@ export function GoalBoard() {
       // TS2589 "excessively deep" instantiation guard.
       const list = (d?.goals ?? []) as unknown as LifeGoal[];
       setGoals(list.filter((g) => g.status === "active"));
+      setLoadedAt(Date.now());
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof Error && err.message ? err.message : "no reason returned");
@@ -426,6 +429,16 @@ export function GoalBoard() {
       void load();
     });
     return () => cancelAnimationFrame(frame);
+  }, [load]);
+
+  // W5 · the PWA can sit on this tab overnight: coming back reloads, so a deadline that passed in the
+  // night reads missed (load() restamps the clock the hero and maxims read).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
 
   // Apr 27 · cross-tab reactive refresh. When NOW completes a task
@@ -777,200 +790,51 @@ export function GoalBoard() {
     }
   }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, editParentId, editKind, editConviction, editAmbition, editIdentityLine, editKillCriteria, editKillBy, cancelEdit, load, goalsUpdate]);
 
-  const coachGoal = useCallback(
-    async (goalId: string) => {
-      setCoachingId(goalId);
-      try {
-        // scattered-components slice · goal coaching via
-        // trpc.ai.coachGoal (the same `runCoachGoal` service the legacy
-        // POST /api/ai/coach-goal called). The procedure appends the
-        // coach entry to LifeGoal.coachLog server-side; `load()` then
-        // re-reads the goal so the new "Nick's read" renders. A missing
-        // goal throws a NOT_FOUND TRPCError → the catch surfaces the
-        // "Coach failed" toast, same as the legacy !r.ok path.
-        await coachGoalMut.mutateAsync({ goalId });
-        setExpandedGoal(goalId);
-        toast.success("Nick has a read");
-        await load();
-      } catch {
-        toast.error("Coach failed");
-      }
-      setCoachingId(null);
-    },
-    [load, coachGoalMut]
-  );
-
   const listView = goalListView(loading, loadError, goals.length);
+
+  // W5 · the hero: the one goal that matters today (lib/stats/goals-page.ts pickHeroGoal), its maxim
+  // when the goal is at a moment, and the pulse of the rest. Recomputed when the goals reload.
+  // The maxim pool without what Nour skipped on Home; null (skip list unread) means no maxim at all.
+  const maximPool = useMemo(() => maximPoolWithout(MAXIM_POOL, goals[0]?.skippedMaximIds), [goals]);
+  const hero = useMemo(() => {
+    const now = loadedAt;
+    const pick = pickHeroGoal(goals, now);
+    if (!pick) return null;
+    const maxim = maximPool ? maximForGoalMoment(momentInput(pick.goal, now), maximPool, etDay(now)) : null;
+    return { ...pick, now, maxim, pulse: goalsPulse(goals, now) };
+  }, [goals, loadedAt, maximPool]);
+
+  const openGoal = useCallback((goalId: string) => {
+    setHorizonFilter("ALL");
+    setExpandedGoal(goalId);
+    requestAnimationFrame(() =>
+      document.getElementById(`goal-${goalId}`)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
+    );
+  }, []);
+
+  // Nick's side pane hears which goal Nour is on: the open card, else the hero goal.
+  const focusId = expandedGoal ?? hero?.goal.id ?? null;
+  const focusTitle = goals.find((g) => g.id === focusId)?.title ?? null;
+  const opened = expandedGoal !== null;
+  useEffect(() => {
+    onFocusGoal?.(focusId && focusTitle ? { id: focusId, title: focusTitle, opened } : null);
+  }, [onFocusGoal, focusId, focusTitle, opened]);
+  // Leaving the Goals tab unmounts the board: Nick no longer has a goal open.
+  useEffect(() => () => onFocusGoal?.(null), [onFocusGoal]);
 
   return (
     <div className="space-y-3">
-      {/* ── Add + suggest ── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-end">
-          <Button
-            size="sm"
-            onClick={suggestGoals}
-            disabled={suggesting}
-            className="min-h-11 min-w-11 h-7 px-2.5 bg-sky-500/15 text-sky-300 hover:bg-sky-500/30 text-[11px] font-semibold border border-sky-500/30 shrink-0"
-          >
-            {suggesting ? (
-              <Loader2 size={11} className="animate-spin mr-1" />
-            ) : (
-              <Sparkles size={11} className="mr-1" />
-            )}
-            AI suggest
-          </Button>
-        </div>
-
-        {/* Quick-add */}
-        <div className="space-y-1.5">
-          <div className="flex gap-1.5">
-            <Input
-              placeholder="What do you want to achieve?"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (isSubmitEnter(e)) {
-                  if (showAddForm) addManual();
-                  else if (newTitle.trim()) setShowAddForm(true);
-                }
-              }}
-              className="min-h-11 h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
-            />
-            <Button
-              size="sm"
-              disabled={adding}
-              aria-label="Add goal"
-              className="min-h-11 min-w-11 h-9 w-9 p-0 bg-surface-interactive hover:bg-sky-500/20 hover:text-sky-400 border border-edge-default shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={() => {
-                if (!showAddForm && newTitle.trim()) setShowAddForm(true);
-                else addManual();
-              }}
-            >
-              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            </Button>
-          </div>
-
-          {showAddForm && newTitle.trim() && (
-            <div className="rounded-surface bg-content border border-edge-subtle p-2.5 space-y-1.5">
-              <Input
-                placeholder="Why does this matter?"
-                value={newWhy}
-                onChange={(e) => setNewWhy(e.target.value)}
-                className="min-h-11 h-7 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
-              />
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono text-[11px] text-fg-tertiary">
-                  Horizon:
-                </span>
-                {(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as Horizon[]).map(
-                  (h) => (
-                    <button
-                      key={h}
-                      onClick={() => setNewHorizon(newHorizon === h ? "" : h)}
-                      className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
-                        newHorizon === h
-                          ? HORIZON_LABELS[h].accent
-                          : "text-fg-tertiary border-edge-subtle"
-                      )}
-                    >
-                      {HORIZON_LABELS[h].label}
-                    </button>
-                  )
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 justify-end">
-                <button
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setNewWhy("");
-                    setNewHorizon("");
-                  }}
-                  className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg px-2"
-                >
-                  Cancel
-                </button>
-                <Button
-                  size="sm"
-                  disabled={adding}
-                  className="min-h-11 min-w-11 h-6 px-3 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={addManual}
-                >
-                  {adding ? <Loader2 size={9} className="inline animate-spin mr-1" /> : null}
-                  Add goal
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── AI overview + warning ── */}
-      {(overview || warning) && (
-        <div className="space-y-1.5">
-          {overview && (
-            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-sky-500/5 border border-sky-500/20">
-              <Lightbulb size={11} className="text-sky-400/70 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-fg-secondary italic leading-relaxed">{overview}</p>
-            </div>
-          )}
-          {warning && (
-            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-amber-500/5 border border-amber-500/20">
-              <AlertTriangle size={11} className="text-amber-400/70 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-200/90 leading-relaxed">{warning}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── AI suggestions ── */}
-      {suggested.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-mono text-sky-300 px-0.5">
-            Nick suggests ({suggested.length})
-          </p>
-          {suggested.map((s, i) => (
-            <div
-              key={i}
-              className="rounded-surface border border-sky-500/20 bg-sky-500/[0.03] p-2.5 space-y-1"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-semibold text-fg">{s.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <Badge className="bg-surface-interactive text-fg-secondary text-[11px] h-4">
-                      {s.domain}
-                    </Badge>
-                    {s.targetValue > 0 && (
-                      <span className="text-[11px] text-fg-tertiary font-mono">
-                        {s.targetValue} {s.unit}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => adoptSuggestion(s)}
-                  disabled={adoptingTitles.has(s.title)}
-                  className="min-h-11 min-w-11 h-6 px-2 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {adoptingTitles.has(s.title) ? (
-                    <Loader2 size={9} className="animate-spin" />
-                  ) : (
-                    "Adopt"
-                  )}
-                </Button>
-              </div>
-              {s.why && <p className="text-[11px] text-fg-secondary italic">{s.why}</p>}
-              {s.firstMove && (
-                <p className="text-[11px] text-emerald-300/80">
-                  <Zap size={9} className="inline mr-1" />
-                  First move: {s.firstMove}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
+      {/* ── W5 hero: the one goal, its one move, the maxim at its moment ── */}
+      {listView === "list" && hero && (
+        <GoalsHero
+          goal={hero.goal}
+          reason={hero.reason}
+          health={hero.health}
+          pulse={hero.pulse}
+          maxim={hero.maxim}
+          now={hero.now}
+          onOpen={() => openGoal(hero.goal.id)}
+        />
       )}
 
       {/* ── Goal cards ── */}
@@ -989,7 +853,7 @@ export function GoalBoard() {
         <div className="text-center py-8 rounded-surface border border-edge-subtle bg-content space-y-2">
           <Target size={20} className="mx-auto text-fg-tertiary" />
           <p className="text-[11px] text-fg-tertiary">
-            Type a goal above or tap AI suggest.
+            Type a goal below or tap AI suggest.
           </p>
           <p className="text-[11px] text-fg-tertiary italic max-w-[240px] mx-auto">
             Think big. &ldquo;Lose 44 lbs.&rdquo; &ldquo;$10K/month take-home.&rdquo;
@@ -1028,15 +892,11 @@ export function GoalBoard() {
 
           {filteredGoals.length === 0 ? (
             <p className="text-[11px] text-fg-tertiary italic px-2 py-3">
-              No goals in this horizon. Switch tabs or add one above.
+              No goals in this horizon. Switch tabs or add one below.
             </p>
           ) : null}
 
           {filteredGoals.map((g) => {
-            const latestCoach: CoachEntry | null =
-              Array.isArray(g.coachLog) && g.coachLog.length > 0
-                ? g.coachLog[g.coachLog.length - 1]
-                : null;
             const isExpanded = expandedGoal === g.id;
             // Apr 27 · GH2: auto-classify from deadline when horizon
             // is null. The card stripe + badge use this so visual
@@ -1615,6 +1475,14 @@ export function GoalBoard() {
                         )}
                       </div>
 
+                      {/* W5 · the milestone ladder of the newest ACTIVE mission planned from this goal (else the
+                          newest); null = the missions read failed. */}
+                      {editingId !== g.id && (
+                        <GoalLadder
+                          phases={g.missions === null ? null : ((g.missions ?? []).find((m) => m.status === "ACTIVE") ?? g.missions?.[0])?.phases ?? []}
+                        />
+                      )}
+
                       {/* Ambition Engine P1 · stat chips: the spine to
                           the character sheet. Each chip is a mastery stat
                           this goal levels (character-sheet color);
@@ -1851,173 +1719,107 @@ export function GoalBoard() {
                   <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
                     {/* W2 2026-11-02 · since last check-in (Tana T1) + Nick-drafted check-in (Linear L4). */}
                     {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
-                    {!showLegacyGoalIds.has(g.id) ? (
-                      <div className="mt-2 space-y-2">
-                        <ExecutionCoachSandbox
-                          goal={g}
-                          latestCoach={latestCoach}
-                          onRefresh={load}
-                        />
-                        <div className="flex justify-end pt-1">
+                    {/* W5 · the maxim at this goal's moment (W6 contract), never one Nour skipped on Home. */}
+                    {(() => {
+                      const m = maximPool ? maximForGoalMoment(momentInput(g, loadedAt), maximPool, etDay(loadedAt)) : null;
+                      return m ? (
+                        <figure className="mt-2 space-y-0.5 border-l border-edge-default pl-3">
+                          <blockquote className="text-[13px] leading-relaxed text-fg-secondary">{m.text}</blockquote>
+                          <figcaption className="font-mono text-[11px] text-fg-tertiary">{m.origin}</figcaption>
+                        </figure>
+                      ) : null;
+                    })()}
+
+                    {/* Ambition Engine P3 · sub-goals list (the ladder's
+                        children): tap to scroll to that goal's card. */}
+                    {(g.ladder?.children.length ?? 0) > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-[11px] font-mono text-sky-400/70">
+                          Sub-goals ({g.ladder!.children.length})
+                        </p>
+                        {g.ladder!.children.map((c) => (
                           <button
+                            key={c.id}
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowLegacyGoalIds((prev) => {
-                                const next = new Set(prev);
-                                next.add(g.id);
-                                return next;
-                              });
+                              setHorizonFilter("ALL");
+                              requestAnimationFrame(() =>
+                                document
+                                  .getElementById(`goal-${c.id}`)
+                                  ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
+                              );
                             }}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg-secondary flex items-center gap-1"
+                            className="min-h-11 min-w-11 w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"
                           >
-                            Show legacy details
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Coach section: visible when coached, or prompt to coach */}
-                        {latestCoach ? (
-                          <div className="mt-2 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[11px] font-mono text-amber-400/70">
-                                Nick&apos;s read
-                              </p>
-                              <button
-                                onClick={() => coachGoal(g.id)}
-                                disabled={coachingId === g.id}
-                                className="min-h-11 min-w-11 text-[12px] font-medium text-amber-400/50 hover:text-amber-400"
-                              >
-                                {coachingId === g.id ? "Thinking…" : "Refresh"}
-                              </button>
-                            </div>
-                            <p className="text-[11px] text-fg-secondary leading-relaxed">
-                              {latestCoach.read}
-                            </p>
-                            <div className="flex items-start gap-2 p-2 rounded-surface bg-emerald-500/5 border border-emerald-500/20">
-                              <Zap size={10} className="text-emerald-400 shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-[11px] font-mono text-emerald-400/70">
-                                  Next move
-                                </p>
-                                <p className="text-[11px] text-fg">
-                                  {latestCoach.nextAction}
-                                </p>
-                              </div>
-                            </div>
-                            {latestCoach.blocker && (
-                              <div className="flex items-start gap-2 text-[11px]">
-                                <AlertTriangle
-                                  size={9}
-                                  className="text-red-400/60 shrink-0 mt-0.5"
-                                />
-                                <span className="text-fg-secondary">
-                                  Blocker: {latestCoach.blocker}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => coachGoal(g.id)}
-                            disabled={coachingId === g.id}
-                            className="min-h-11 min-w-11 mt-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-surface border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
-                          >
-                            {coachingId === g.id ? (
-                              <Loader2 size={12} className="animate-spin text-amber-400" />
-                            ) : (
-                              <Brain size={12} className="text-amber-400" />
-                            )}
-                            <span className="text-[11px] font-semibold text-amber-300">
-                              {coachingId === g.id
-                                ? "Nick is analyzing…"
-                                : "Ask Nick to analyze this goal"}
+                            <span className="text-[11px] font-mono text-fg-tertiary w-7 shrink-0 text-right">
+                              {c.progress}%
                             </span>
+                            <span className="text-[11px] text-fg-secondary truncate flex-1">
+                              {c.title}
+                            </span>
+                            {(c.status === "achieved" || c.status === "completed") && (
+                              <Check size={9} className="text-emerald-400 shrink-0" />
+                            )}
                           </button>
-                        )}
-
-                        {/* Ambition Engine P3 · sub-goals list (the ladder's
-                            children): tap to scroll to that goal's card. */}
-                        {(g.ladder?.children.length ?? 0) > 0 && (
-                          <div className="mt-2 space-y-1">
-                            <p className="text-[11px] font-mono text-sky-400/70">
-                              Sub-goals ({g.ladder!.children.length})
-                            </p>
-                            {g.ladder!.children.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setHorizonFilter("ALL");
-                                  requestAnimationFrame(() =>
-                                    document
-                                      .getElementById(`goal-${c.id}`)
-                                      ?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
-                                  );
-                                }}
-                                className="min-h-11 min-w-11 w-full flex items-center gap-2 rounded-control border border-edge-subtle bg-content px-2 py-1 hover:bg-surface-hover transition-colors text-left"
-                              >
-                                <span className="text-[11px] font-mono text-fg-tertiary w-7 shrink-0 text-right">
-                                  {c.progress}%
-                                </span>
-                                <span className="text-[11px] text-fg-secondary truncate flex-1">
-                                  {c.title}
-                                </span>
-                                {(c.status === "achieved" || c.status === "completed") && (
-                                  <Check size={9} className="text-emerald-400 shrink-0" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-3 pt-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEdit(g);
-                            }}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
-                          >
-                            <Pencil size={9} />
-                            Edit
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const ok = await confirm({
-                                title: `Archive "${g.title}"?`,
-                                body: "It moves to paused: you can revive it later from the Goals tab in Stats.",
-                                confirmLabel: "Archive",
-                              });
-                              if (ok) void archiveGoal(g.id);
-                            }}
-                            className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
-                            title="pauses the goal · history preserved · recoverable"
-                          >
-                            <Trash2 size={9} />
-                            Archive
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowLegacyGoalIds((prev) => {
-                                const next = new Set(prev);
-                                next.delete(g.id);
-                                return next;
-                              });
-                            }}
-                            className="min-h-11 min-w-11 ml-auto text-[12px] font-medium text-amber-400/60 hover:text-amber-400"
-                          >
-                            Show execution coach
-                          </button>
-                        </div>
-                      </>
+                        ))}
+                      </div>
                     )}
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-x-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          askNickAboutGoal(g);
+                        }}
+                        className="min-h-11 min-w-11 text-[12px] font-medium text-fg-secondary hover:text-fg flex items-center gap-1"
+                      >
+                        <Brain size={9} />
+                        Ask Nick about this goal
+                      </button>
+                      <button
+                        type="button"
+                        aria-expanded={focusSessionId === g.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFocusSessionId(focusSessionId === g.id ? null : g.id);
+                        }}
+                        className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                      >
+                        {focusSessionId === g.id ? "Close focus session" : "Focus session"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(g);
+                        }}
+                        className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                      >
+                        <Pencil size={9} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ok = await confirm({
+                            title: `Archive "${g.title}"?`,
+                            body: "It moves to paused: you can revive it later from the Goals tab in Stats.",
+                            confirmLabel: "Archive",
+                          });
+                          if (ok) void archiveGoal(g.id);
+                        }}
+                        className="min-h-11 min-w-11 text-[12px] font-medium text-fg-tertiary hover:text-fg flex items-center gap-1"
+                        title="pauses the goal · history preserved · recoverable"
+                      >
+                        <Trash2 size={9} />
+                        Archive
+                      </button>
+                    </div>
+                    {focusSessionId === g.id && <ExecutionCoachSandbox goal={g} onRefresh={load} />}
                   </div>
                 )}
                 </div>
@@ -2026,6 +1828,176 @@ export function GoalBoard() {
           })}
         </div>
       )}
+      {/* W5: adding and AI suggest sit under the list; the goals come first on a phone. */}
+      {/* ── Add + suggest ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-end">
+          <Button
+            size="sm"
+            onClick={suggestGoals}
+            disabled={suggesting}
+            className="min-h-11 min-w-11 h-7 px-2.5 bg-sky-500/15 text-sky-300 hover:bg-sky-500/30 text-[11px] font-semibold border border-sky-500/30 shrink-0"
+          >
+            {suggesting ? (
+              <Loader2 size={11} className="animate-spin mr-1" />
+            ) : (
+              <Sparkles size={11} className="mr-1" />
+            )}
+            AI suggest
+          </Button>
+        </div>
+
+        {/* Quick-add */}
+        <div className="space-y-1.5">
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="What do you want to achieve?"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (isSubmitEnter(e)) {
+                  if (showAddForm) addManual();
+                  else if (newTitle.trim()) setShowAddForm(true);
+                }
+              }}
+              className="min-h-11 h-9 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary focus:border-accent transition-colors"
+            />
+            <Button
+              size="sm"
+              disabled={adding}
+              aria-label="Add goal"
+              className="min-h-11 min-w-11 h-9 w-9 p-0 bg-surface-interactive hover:bg-sky-500/20 hover:text-sky-400 border border-edge-default shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                if (!showAddForm && newTitle.trim()) setShowAddForm(true);
+                else addManual();
+              }}
+            >
+              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            </Button>
+          </div>
+
+          {showAddForm && newTitle.trim() && (
+            <div className="rounded-surface bg-content border border-edge-subtle p-2.5 space-y-1.5">
+              <Input
+                placeholder="Why does this matter?"
+                value={newWhy}
+                onChange={(e) => setNewWhy(e.target.value)}
+                className="min-h-11 h-7 bg-content border-edge-subtle text-[16px] placeholder:text-fg-tertiary"
+              />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono text-[11px] text-fg-tertiary">
+                  Horizon:
+                </span>
+                {(["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as Horizon[]).map(
+                  (h) => (
+                    <button
+                      key={h}
+                      onClick={() => setNewHorizon(newHorizon === h ? "" : h)}
+                      className={cn("min-h-11 min-w-11 text-[12px] font-medium px-2 py-0.5 rounded-control border transition-colors duration-[var(--motion-state)]",
+                        newHorizon === h
+                          ? HORIZON_LABELS[h].accent
+                          : "text-fg-tertiary border-edge-subtle"
+                      )}
+                    >
+                      {HORIZON_LABELS[h].label}
+                    </button>
+                  )
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 justify-end">
+                <button
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewWhy("");
+                    setNewHorizon("");
+                  }}
+                  className="min-h-11 min-w-11 text-[11px] text-fg-tertiary hover:text-fg px-2"
+                >
+                  Cancel
+                </button>
+                <Button
+                  size="sm"
+                  disabled={adding}
+                  className="min-h-11 min-w-11 h-6 px-3 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={addManual}
+                >
+                  {adding ? <Loader2 size={9} className="inline animate-spin mr-1" /> : null}
+                  Add goal
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── AI overview + warning ── */}
+      {(overview || warning) && (
+        <div className="space-y-1.5">
+          {overview && (
+            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-sky-500/5 border border-sky-500/20">
+              <Lightbulb size={11} className="text-sky-400/70 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-fg-secondary italic leading-relaxed">{overview}</p>
+            </div>
+          )}
+          {warning && (
+            <div className="flex items-start gap-2 p-2.5 rounded-surface bg-amber-500/5 border border-amber-500/20">
+              <AlertTriangle size={11} className="text-amber-400/70 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">{warning}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── AI suggestions ── */}
+      {suggested.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-mono text-sky-300 px-0.5">
+            Nick suggests ({suggested.length})
+          </p>
+          {suggested.map((s, i) => (
+            <div
+              key={i}
+              className="rounded-surface border border-sky-500/20 bg-sky-500/[0.03] p-2.5 space-y-1"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-fg">{s.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <Badge className="bg-surface-interactive text-fg-secondary text-[11px] h-4">
+                      {s.domain}
+                    </Badge>
+                    {s.targetValue > 0 && (
+                      <span className="text-[11px] text-fg-tertiary font-mono">
+                        {s.targetValue} {s.unit}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => adoptSuggestion(s)}
+                  disabled={adoptingTitles.has(s.title)}
+                  className="min-h-11 min-w-11 h-6 px-2 text-[11px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-semibold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {adoptingTitles.has(s.title) ? (
+                    <Loader2 size={9} className="animate-spin" />
+                  ) : (
+                    "Adopt"
+                  )}
+                </Button>
+              </div>
+              {s.why && <p className="text-[11px] text-fg-secondary italic">{s.why}</p>}
+              {s.firstMove && (
+                <p className="text-[11px] text-emerald-300/80">
+                  <Zap size={9} className="inline mr-1" />
+                  First move: {s.firstMove}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* iOS-PWA-safe confirm mount · renders null when idle. */}
       {confirmDialog}
     </div>

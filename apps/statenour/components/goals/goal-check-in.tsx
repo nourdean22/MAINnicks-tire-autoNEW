@@ -12,9 +12,8 @@ import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
-import { CHECK_IN_HEALTH, type CheckInHealth, type GoalHealth, type GoalHealthState } from "@/lib/brain/goal-pace";
+import { CHECK_IN_HEALTH, etDaysBetween, type CheckInHealth, type GoalHealth, type GoalHealthState } from "@/lib/brain/goal-pace";
 
-const DAY_MS = 86_400_000;
 
 const HEALTH_VIEW: Record<GoalHealthState, { label: string; tone: string }> = {
   on_track: { label: "on track", tone: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300" },
@@ -29,7 +28,7 @@ export function healthChipView(state: GoalHealthState) {
 }
 
 const agoLabel = (iso: string, now: number) => {
-  const d = Math.floor((now - Date.parse(iso)) / DAY_MS);
+  const d = etDaysBetween(Date.parse(iso), now); // ET calendar days, not 24 h buckets
   return d <= 0 ? "today" : `${d}d ago`;
 };
 

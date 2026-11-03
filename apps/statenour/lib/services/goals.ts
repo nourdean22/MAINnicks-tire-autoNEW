@@ -8,6 +8,7 @@ import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
 import { peopleOnGoal } from "@/lib/services/people/people-on-goal";
 import { goalHealthFrom, type GoalHealth } from "@/lib/brain/goal-pace";
+import { missionPhaseLadder, type LadderPhase } from "@/lib/stats/goals-page";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -142,8 +143,10 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 
   // 2026-11-02 · the missions planned from each goal (Mission.lifeGoalId): the card shows the
   // ladder's progress and links to it. A failed read lists none; it never hides the goal.
-  type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number };
+  // W5 2026-11-02: `phases` is the card's milestone ladder (lib/stats/goals-page.ts missionPhaseLadder).
+  type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases: LadderPhase[] };
   const missionsByGoal = new Map<string, GoalMission[]>();
+  let missionsRead = true;
   if (goalIds.length > 0) {
     try {
       const missions = await prisma.mission.findMany({
@@ -154,24 +157,26 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           status: true,
           lifeGoalId: true,
           planData: true,
-          tasks: { where: activeOnly(), select: { status: true } },
+          tasks: { where: activeOnly(), select: { status: true, phaseName: true } },
         },
         orderBy: { createdAt: "desc" },
       });
       for (const m of missions) {
         if (!m.lifeGoalId) continue;
-        const phases = (m.planData as { phases?: unknown } | null)?.phases;
         const row: GoalMission = {
           id: m.id,
           title: m.title,
           status: m.status,
-          phaseCount: Array.isArray(phases) ? phases.length : 0,
+          phaseCount: 0, // set from the ladder below: an unnamed phase is not a milestone
           tasksDone: m.tasks.filter((t) => t.status === "DONE").length,
           tasksTotal: m.tasks.length,
+          phases: missionPhaseLadder(m.planData, m.tasks),
         };
+        row.phaseCount = row.phases.length;
         (missionsByGoal.get(m.lifeGoalId) ?? missionsByGoal.set(m.lifeGoalId, []).get(m.lifeGoalId)!).push(row);
       }
     } catch (err) {
+      missionsRead = false;
       console.warn("[services/goals] missions query failed:", err instanceof Error ? err.message : err);
     }
   }
@@ -251,7 +256,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     // (declared GoalStat rows, else domain-inferred) for the card chips.
     // statLinks is pulled out of the spread so the raw relation doesn't
     // ride along in the payload — only the resolved `stats` does.
-    const { statLinks, parent, children, events, ...goalRest } = g;
+    // coachLog is dropped: its panel and every client reader went in W5 (lib/services/ai-coach-goal.ts writes it).
+    const { statLinks, parent, children, events, coachLog: _coachLog, ...goalRest } = g;
     const stats = effectiveGoalStats(statLinks ?? [], g.domain);
     // Defensive: a goal fetched without the ladder include (or a test mock)
     // has no `children` relation — never assume it's an array.
@@ -273,7 +279,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           }
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
-      missions: missionsByGoal.get(g.id) ?? [],
+      // null = the read failed (the card says so); [] = no mission planned yet.
+      missions: missionsRead ? (missionsByGoal.get(g.id) ?? []) : null,
       health: checkInsRead
         ? goalHealthFrom(latestCheckIn.get(g.id) ?? null, g.horizon)
         : ({ state: "unknown", at: null, note: null } satisfies GoalHealth),
@@ -293,7 +300,16 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   // with one tap on the card (lib/services/goal-next-step.ts). A failed read offers nothing.
   const needStep = enrichedGoals.filter((g) => g.status === "active" && g.linkedNextStepCount === 0).map((g) => g.id);
   const steps = await suggestJournalSteps(needStep, byGoal);
-  return enrichedGoals.map((g) => ({ ...g, suggestedStep: steps.get(g.id) ?? null }));
+  // W5 2026-11-03 · the maxims Nour skipped on Home, so a goal card never shows one again. Null = the read
+  // failed: the card then shows no maxim, never a skipped one (lib/services/home-maxim.ts skippedIds).
+  let skippedMaximIds: string[] | null = null;
+  try {
+    const { skippedIds } = await import("@/lib/services/home-maxim");
+    skippedMaximIds = [...(await skippedIds(new Date()))];
+  } catch (err) {
+    console.warn("[services/goals] maxim skip read failed:", err instanceof Error ? err.message : err);
+  }
+  return enrichedGoals.map((g) => ({ ...g, suggestedStep: steps.get(g.id) ?? null, skippedMaximIds }));
 }
 
 async function suggestJournalSteps(

@@ -111,6 +111,9 @@ export function NickSidePane({
   coachSurface,
 }: NickSidePaneProps) {
   const [open, setOpen] = useState(false);
+  // W5 2026-11-02: a question that arrived while the pane was closed (its chat unmounted). The chat takes it
+  // once on mount (onInitialConsumed clears it), so a remount never re-seeds it; submit = the event's submitOnMount.
+  const [pendingPrompt, setPendingPrompt] = useState<{ prompt: string; submit: boolean } | null>(null);
   // lg+ keeps the non-modal right pane; below lg the pane is a modal sheet (audit 09-F4).
   const isDesktop = useMinWidth(1024);
   const fabRef = useRef<HTMLButtonElement>(null);
@@ -155,7 +158,9 @@ export function NickSidePane({
 
   // Listen for the custom "statenour:open-nick" event to automatically open the side pane.
   useEffect(() => {
-    function handleOpenNick() {
+    function handleOpenNick(e: Event) {
+      const detail = (e as CustomEvent<{ pendingPrompt?: string; submitOnMount?: boolean } | null>).detail;
+      if (detail?.pendingPrompt) setPendingPrompt({ prompt: detail.pendingPrompt, submit: detail.submitOnMount === true });
       setOpen(true);
       try {
         localStorage.setItem(STORAGE_KEY, "1");
@@ -168,6 +173,7 @@ export function NickSidePane({
   }, []);
 
   const toggle = useCallback(() => {
+    setPendingPrompt(null); // a pane opened or closed by hand never re-seeds an old question
     setOpen((prev) => {
       const next = !prev;
       try {
@@ -180,6 +186,7 @@ export function NickSidePane({
   }, []);
 
   const close = useCallback(() => {
+    setPendingPrompt(null);
     setOpen(false);
     try {
       localStorage.setItem(STORAGE_KEY, "0");
@@ -211,7 +218,10 @@ export function NickSidePane({
     const root = document.documentElement;
     const release = reserveFabLane(root);
     root.dataset[NICK_PANE_MOUNTED_ATTR] = "1";
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      setPendingPrompt(null); // the More sheet opens the pane by hand: no old question
+      setOpen(true);
+    };
     window.addEventListener(NICK_PANE_OPEN_EVENT, onOpen);
     return () => {
       release();
@@ -279,6 +289,9 @@ export function NickSidePane({
           data={data}
           focus={focus}
           presets={presets ?? DEFAULT_PRESETS}
+          initialInput={pendingPrompt?.prompt}
+          initialSubmit={pendingPrompt?.submit}
+          onInitialConsumed={() => setPendingPrompt(null)}
         />
       </div>
 

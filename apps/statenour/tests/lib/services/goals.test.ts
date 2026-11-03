@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   goalEvent: {
     findMany: vi.fn(),
   },
+  // W5 2026-11-03: the maxims Nour skipped on Home (lib/services/home-maxim.ts skippedIds).
+  brainMemory: {
+    findMany: vi.fn(),
+  },
   emitGoalEventAsync: vi.fn(),
   emitGoalTransition: vi.fn(),
   softDelete: vi.fn(),
@@ -40,6 +44,7 @@ vi.mock("@/lib/prisma", () => ({
     brainDump: mocks.brainDump,
     mission: mocks.mission,
     goalEvent: mocks.goalEvent,
+    brainMemory: mocks.brainMemory,
   },
 }));
 
@@ -125,7 +130,7 @@ describe("Goals Service", () => {
           status: "ACTIVE",
           lifeGoalId: "g1",
           planData: { v: 1, phases: [{ name: "a", steps: [] }, { name: "b", steps: [] }, { name: "c", steps: [] }] },
-          tasks: [{ status: "DONE" }, { status: "READY" }, { status: "DOING" }],
+          tasks: [{ status: "DONE", phaseName: "a" }, { status: "READY", phaseName: "b" }, { status: "DOING", phaseName: "b" }],
         },
       ]);
 
@@ -134,8 +139,72 @@ describe("Goals Service", () => {
       expect(mocks.mission.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ lifeGoalId: { in: ["g1", "g2"] }, deletedAt: null }) }),
       );
-      expect(result[0].missions).toEqual([{ id: "m1", title: "Goal", status: "ACTIVE", phaseCount: 3, tasksDone: 1, tasksTotal: 3 }]);
+      // W5: the card's milestone ladder needs each task's phase.
+      expect(mocks.mission.findMany.mock.calls[0]![0].select.tasks.select).toEqual({ status: true, phaseName: true });
+      expect(result[0].missions).toEqual([
+        {
+          id: "m1",
+          title: "Goal",
+          status: "ACTIVE",
+          phaseCount: 3,
+          tasksDone: 1,
+          tasksTotal: 3,
+          phases: [
+            { name: "a", done: true, current: false },
+            { name: "b", done: false, current: true },
+            { name: "c", done: false, current: false },
+          ],
+        },
+      ]);
       expect(result[1].missions).toEqual([]);
+    });
+
+    it("W5: each goal row carries the maxim ids Nour skipped on Home", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      mocks.brainMemory.findMany.mockResolvedValueOnce([{ key: "naval:12" }, { key: "greene:3" }]);
+
+      const result = await getGoals();
+
+      expect(mocks.brainMemory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ category: "maxim_skip", deletedAt: null }) }),
+      );
+      expect(result[0].skippedMaximIds).toEqual(["naval:12", "greene:3"]);
+    });
+
+    it("W5: a failed skip read is null (unknown), never an empty list", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      mocks.brainMemory.findMany.mockRejectedValueOnce(new Error("db down"));
+
+      const result = await getGoals();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].skippedMaximIds).toBeNull();
+    });
+
+    it("phaseCount counts the ladder's named phases (an unnamed phase is not a milestone)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([
+        { id: "m1", title: "Goal", status: "ACTIVE", lifeGoalId: "g1", planData: { phases: [{ name: "a" }, { name: "" }, {}] }, tasks: [] },
+      ]);
+      const result = await getGoals();
+      expect(result[0].missions?.[0]).toMatchObject({ phaseCount: 1, phases: [{ name: "a", done: false, current: true }] });
+    });
+
+    it("the payload no longer carries coachLog (no reader left; W5 removed the panel)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active", coachLog: [{ read: "x" }] }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      const result = await getGoals();
+      expect(result[0]).not.toHaveProperty("coachLog");
     });
 
     it("a failed missions read lists none and does not break the goals", async () => {
@@ -147,7 +216,8 @@ describe("Goals Service", () => {
       const result = await getGoals();
 
       expect(result).toHaveLength(1);
-      expect(result[0].missions).toEqual([]);
+      // W5: null = unread, so the card says the milestones couldn't load instead of "never planned".
+      expect(result[0].missions).toBeNull();
     });
   });
 

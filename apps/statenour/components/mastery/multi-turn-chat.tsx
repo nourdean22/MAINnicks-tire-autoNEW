@@ -57,6 +57,12 @@ interface MultiTurnChatProps {
   data?: unknown;
   /** Optional focus line that biases the analysis. */
   focus?: string;
+  /** A prompt waiting from the open-nick event, for a chat mounted after the event fired (pane was closed). */
+  initialInput?: string;
+  /** Send `initialInput` on mount (the event's submitOnMount); otherwise it only fills the field. */
+  initialSubmit?: boolean;
+  /** Called once when the chat has taken `initialInput`, so the pane can drop it. */
+  onInitialConsumed?: () => void;
   /** Pre-set quick-question pills · click fires immediately. */
   presets?: string[];
 }
@@ -100,9 +106,9 @@ function writeStored(page: string, turns: ChatTurn[]): void {
   }
 }
 
-export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps) {
+export function MultiTurnChat({ page, data, focus, presets, initialInput, initialSubmit, onInitialConsumed }: MultiTurnChatProps) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput ?? "");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -224,6 +230,18 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
     },
     [page, data, focus, streaming, turns],
   );
+
+  // W5: take the pane's waiting question once, on mount; send it when the event asked to (same 300 ms
+  // settle as the listener below). Mount-only on purpose: a later prop change is a new event's job.
+  const initialTaken = useRef(false);
+  useEffect(() => {
+    if (initialTaken.current || !initialInput) return;
+    initialTaken.current = true;
+    onInitialConsumed?.();
+    // No cleanup: with the ref, a dev double-mount would cancel the only send.
+    if (initialSubmit) setTimeout(() => void send(initialInput), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen for the custom "statenour:open-nick" event to receive pre-filled prompt and submit it.
   useEffect(() => {
