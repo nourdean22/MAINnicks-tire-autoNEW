@@ -33,9 +33,9 @@ export interface DayActivity {
 export function etDayBounds(date: string): { start: Date; end: Date } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const [y, mo, d] = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
-  // Rebuilt through Date.UTC: a day the month does not have (Feb 31) rolls over, and is refused rather than read.
+  // Rebuilt through Date.UTC: a day the month does not have (Feb 31) rolls into another month and is refused.
   const check = new Date(Date.UTC(y, mo - 1, d));
-  if (!m || check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) {
+  if (!m || check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `not a calendar date: ${date}` });
   }
   return { start: etMidnightToUtc(y, mo, d), end: etMidnightToUtc(y, mo, d + 1) };
