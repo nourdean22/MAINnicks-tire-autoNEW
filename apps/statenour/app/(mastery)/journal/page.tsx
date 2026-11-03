@@ -10,6 +10,7 @@ import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
 import { WeeklyReview } from "@/components/journal/weekly-review";
+import { DayPicker } from "@/components/journal/day-picker";
 
 import { JournalFeedView } from "./_components/journal-feed-view";
 import { JournalInsightsView } from "./_components/journal-insights-view";
@@ -83,8 +84,10 @@ function JournalPageInner() {
       */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-7 space-y-6">
           <ReflectComposer />
+          {/* W8b: the day view for ANY day, including one with no entry (the feed's day headers keep their own toggle). */}
+          <DayPicker />
         </div>
 
         {/* Intelligence & Context · 2nd on mobile · right column on lg */}

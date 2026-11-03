@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   goalFindMany: vi.fn(),
+  taskFindMany: vi.fn(),
   goalFindFirst: vi.fn(),
   eventFindMany: vi.fn(),
   eventFindFirst: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.goalFindMany, findFirst: h.goalFindFirst },
     goalEvent: { findMany: h.eventFindMany, findFirst: h.eventFindFirst, create: h.eventCreate },
+    // W8a: open tasks are counted through goalTaskWhere (own goal, else the mission goal), not _count.
+    task: { findMany: h.taskFindMany },
   },
 }));
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
@@ -64,6 +67,11 @@ beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
   h.eventFindMany.mockResolvedValue([]);
   h.eventFindFirst.mockResolvedValue(null);
+  // g1 has two open tasks (one through its mission), g2 none: the counts the tests below read.
+  h.taskFindMany.mockResolvedValue([
+    { goalId: "g1", status: "READY", mission: { lifeGoalId: null } },
+    { goalId: null, status: "DOING", mission: { lifeGoalId: "g1" } },
+  ]);
 });
 
 describe("getGoals", () => {

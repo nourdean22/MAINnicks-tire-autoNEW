@@ -48,6 +48,11 @@ const engines = {
 vi.mock("@/lib/brain/people-intelligence", () => ({
   runPeopleIntelligence: engines.runPeopleIntelligence,
 }));
+// W8b: the cron runs the people engine through its claimed run (lib/brain/people-intelligence-run.ts), which
+// records the run row /people reads; the claim itself is pinned in tests/brain/people-intelligence-run-claim.test.ts.
+vi.mock("@/lib/brain/people-intelligence-run", () => ({
+  runPeopleIntelligenceClaimed: () => engines.runPeopleIntelligence(),
+}));
 vi.mock("@/lib/brain/decision-patterns", () => ({
   analyzeDecisionPatterns: engines.analyzeDecisionPatterns,
 }));
