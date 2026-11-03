@@ -83,6 +83,8 @@ const BASE_BUSINESS_SCORES: Record<string, number> = {
   getEstimateLeaks: 0.02,
   getHabitRevenueCorrelation: 0.01,
   getRevenueStats: 0.01,
+  // 2026-11-03 · the people family's /person/ name pattern matches it ("customer" opens that family).
+  logPersonInteraction: 0.01,
 };
 
 // 2026-10-18 · the alphabetically-first family member is DERIVED, not named: the tool

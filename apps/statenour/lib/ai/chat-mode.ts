@@ -367,6 +367,10 @@ export async function pruneTools(
     [/\b(archive|drop|kill|delete|scrap|get rid of|remove) (that |the |this |my )?(task|todo|to-do)\b/, "archiveTask"],
     [/\bjournal (entry|note)\b|\b(log|write|put|add|save) (this|that|it)?\s*(in|to|into) my journal\b|\bi (wrote|journaled|journalled) (in my journal|an entry|this morning|today|last night|yesterday)\b/, "logJournalEntry"],
     [/\b(log|record|track) my (weight|sleep|energy|stress|waist|body ?fat|workout)\b|\b(i )?(weighed|weigh) (in )?(at )?\d|\b(i )?slept \d|\bbody log\b/, "logBodyEntry"],
+    // The ledger grammar (`<name> <+n|-n>`, parse-ledger-query.ts) as he says it in chat: a signed
+    // amount, then for/to/with and a name. An article after the preposition is a shop object
+    // ("+20 for the honda"), and a bare "+2 tasks" has no preposition, so neither pins.
+    [/(?:^|[\s,])[+-]\d{1,3}\s+(?:for|to|with)\s+(?!(?:the|a|an|that|this|my|our|his|her|each|every)\b)[a-z][\w'-]*/, "logPersonInteraction"],
   ];
   for (const [re, name] of EXPLICIT_WRITE_INTENTS) {
     if (allTools[name] && re.test(text)) exactMentioned.add(name);

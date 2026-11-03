@@ -29,7 +29,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { queryNick } from "@/lib/nickstire/query";
@@ -130,50 +130,28 @@ export interface LegacyHabitRow {
 }
 
 /**
- * Recent N-day habit completion log. Sourced from `Task` rows with
- * loopKind="DAILY" — for each daily task, we synthesize one row
- * per day in the window: completed=true if lastCompletedAt for
- * that day matches, otherwise completed=false. Best-effort proxy
- * (we don't have a per-day completion ledger; streakCount tells us
- * the contiguous-recent-days count).
+ * Recent N-day habit completion log, newest day first per habit. Sourced from
+ * `Task` rows with loopKind="DAILY", one row per day, read off the TaskEvent
+ * ledger by habitDays (lib/services/daily-backfill.ts): a backfilled day is
+ * done on its own day, an unchecked one is not. Until 2026-11-03 this counted
+ * streakCount back from lastCompletedAt, which hid every backfilled day.
+ * A failed read returns [] (no rows to correlate), never a window of false.
  */
 export async function recentDailyHabits(days = 14): Promise<LegacyHabitRow[]> {
-  const since = daysAgo(days);
-  const tasks = await prisma.task
-    .findMany({
-      where: {
-        loopKind: "DAILY",
-        deletedAt: null,
-      },
-      select: { title: true, streakCount: true, lastCompletedAt: true },
-    })
-    .catch((err): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => {
-      logError("brain.legacy-shims", err, { fn: "recentDailyHabits.findMany" });
-      return [];
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { loopKind: "DAILY", deletedAt: null },
+      select: { id: true, title: true, loopKind: true, streakCount: true, lastCompletedAt: true },
     });
-
-  const out: LegacyHabitRow[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (const t of tasks) {
-    // Synthesize one row per day in the window. A task is "completed"
-    // for a given day if it falls within (today - streakCount + 1)
-    // through today, AND lastCompletedAt is recent enough to make
-    // streakCount credible.
-    const streakActive =
-      t.lastCompletedAt &&
-      t.lastCompletedAt.getTime() >= since.getTime();
-    const streakDays = streakActive ? Math.min(days, t.streakCount) : 0;
-    for (let i = 0; i < days; i++) {
-      const day = new Date(today);
-      day.setDate(today.getDate() - i);
-      const dateStr = toDateString(day);
-      const completed = i < streakDays;
-      out.push({ habitKey: t.title, completed, date: dateStr });
-    }
+    const { habitDays } = await import("@/lib/services/daily-backfill");
+    const grid = await habitDays(tasks, days);
+    return tasks.flatMap((t) =>
+      (grid.get(t.id) ?? []).map((d) => ({ habitKey: t.title, completed: d.done, date: d.day })),
+    );
+  } catch (err) {
+    logError("brain.legacy-shims", err, { fn: "recentDailyHabits" });
+    return [];
   }
-  return out;
 }
 
 // ── Shop data shims (no bridge query yet → graceful empty) ──

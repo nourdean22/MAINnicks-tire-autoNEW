@@ -284,6 +284,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   archiveTask: { family: "personal-write", description: "Archive (soft-delete) a task Nour no longer wants; recoverable, keeps the row for abandoned-task patterns." },
   logJournalEntry: { family: "personal-write", description: "Write a journal entry verbatim through the same ingest the /journal capture uses (classified, people-linked)." },
   logBodyEntry: { family: "personal-write", description: "Log a day's body numbers (weight, sleep, workout, energy, stress, note); partial update of that day's row." },
+  logPersonInteraction: { family: "personal-write", description: "Log a signed contact (+n / -n and a note) for someone already in Nour's people on the relationship ledger; never guesses a person." },
 };
 
 /**
