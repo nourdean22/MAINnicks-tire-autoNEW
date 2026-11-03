@@ -68,7 +68,7 @@ export type ThoughtType =
   // than from the tool nobody invokes. That table had never held a row.
   | "situation";  // a power/relationship situation worth logging against a law
 
-interface JournalResult {
+export interface JournalResult {
   brainDumpId: string;
   entryType: ThoughtType;
   tasksCreated: number;
@@ -79,8 +79,11 @@ interface JournalResult {
   reflectionId?: string;
   /** Set when the dump was classified `decision` and promoted to a silo row. */
   decisionReplayId?: string;
-  /** W4 · people the entry named: ids linked, contact rows written, contact writes that failed. Absent = link did not run. */
-  peopleLinked?: { linked: number; contacts: number; failed: number };
+  /**
+   * W4 · people the entry named: ids linked, contact rows written, contact writes that failed. Absent = link did not run.
+   * W8b · `names` are the linked people as People spells them; `rejected` the names the gate refused, as he wrote them.
+   */
+  peopleLinked?: { linked: number; contacts: number; failed: number; names: string[]; rejected: string[] };
 }
 
 // ─── v10.0.232 · entryType-based extraction gates ──────────────────
@@ -439,7 +442,13 @@ ${rawText}`,
           people: normalizeJournalPeople(data.people),
         });
         // A failed contact write already reached recordError inside the link; the result says so too.
-        peopleLinked = { linked: linked.personIds.length, contacts: linked.recorded, failed: linked.failed };
+        peopleLinked = {
+          linked: linked.personIds.length,
+          contacts: linked.recorded,
+          failed: linked.failed,
+          names: linked.linkedNames,
+          rejected: linked.rejectedNames,
+        };
       } catch (err) {
         recordError("brain:journal-ingest", err, { phase: "people-link", brainDumpId: brainDump.id });
       }

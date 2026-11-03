@@ -135,10 +135,12 @@ export const GET = apiHandler(
           FROM brain_dumps d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
           WHERE d.deleted_at IS NULL AND pid = ANY(${rows.map((r) => r.id)}::text[])
           ORDER BY pid, d.created_at DESC`;
+        const nameOf = new Map(rows.map((r) => [r.id, r.name]));
         journal = new Map(
           latest.map((l) => [
             l.person_id,
-            { at: new Date(l.created_at).toISOString(), excerpt: journalExcerpt(l.raw_thoughts), dumpId: l.id },
+            // Windowed around the person's name (W8b), so the line is the sentence about them.
+            { at: new Date(l.created_at).toISOString(), excerpt: journalExcerpt(l.raw_thoughts, nameOf.get(l.person_id)), dumpId: l.id },
           ]),
         );
       } catch (err) {

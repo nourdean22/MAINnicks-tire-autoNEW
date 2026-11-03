@@ -47,8 +47,8 @@ vi.mock("@/lib/services/people/record-interaction", async (orig) => ({
   recordInteractionOnce: h.once,
 }));
 
+import { endOfDayET, startOfDayET } from "@/lib/utils/datetime";
 import {
-  JOURNAL_CONTACT_WINDOW_MS,
   JOURNAL_EXCERPT_CHARS,
   JOURNAL_LEDGER_NOTE_CHARS,
   journalExcerpt,
@@ -89,14 +89,45 @@ describe("linkJournalPeople · the resolver gate", () => {
       note: text,
       source: "journal",
       at: createdAt,
-      // once per (person, entry): the window opens AT the entry, so a re-process sees its own row and skips.
-      noRowSince: createdAt,
-      // Bounded (second reader P3-1): only a contact inside the entry day blocks it; a later gmail or manual row does not.
-      noRowBefore: new Date(createdAt.getTime() + JOURNAL_CONTACT_WINDOW_MS),
+      // W8b (audit B8): the window is the entry's ET DAY, so a 9 am digest and a 9 pm line are one contact in either
+      // order; a contact logged the next day never blocks it.
+      noRowSince: startOfDayET(createdAt),
+      noRowBefore: endOfDayET(createdAt),
       creditXp: false,
       metadata: { auto: true, via: "journal_ingest", dumpId: "d1", matchTier: "exact" },
     });
     expect(r).toMatchObject({ personIds: ["p_dania"], recorded: 1, skipped: 0, failed: 0 });
+  });
+
+  it("a 9 am and a 9 pm entry (ET) share one window; 11:30 pm and 00:30 am do not", async () => {
+    const windows = async (iso: string) => {
+      h.once.mockClear();
+      await linkJournalPeople({ dumpId: "d1", createdAt: new Date(iso), rawText: text, people: [{ name: "Dania", interacted: true }] });
+      const a = h.once.mock.calls[0][0] as { noRowSince: Date; noRowBefore: Date };
+      return [a.noRowSince.toISOString(), a.noRowBefore.toISOString()];
+    };
+    // 2026-11-02 is EST (UTC-5): 9 am ET = 14:00Z, 9 pm ET = 02:00Z next UTC day.
+    expect(await windows("2026-11-02T14:00:00Z")).toEqual(await windows("2026-11-03T02:00:00Z"));
+    expect(await windows("2026-11-02T14:00:00Z")).toEqual(["2026-11-02T05:00:00.000Z", "2026-11-03T05:00:00.000Z"]);
+    expect(await windows("2026-11-03T04:30:00Z")).not.toEqual(await windows("2026-11-03T05:30:00Z"));
+  });
+
+  it("the result names who was linked and who was refused, so a reply can say 'not on People: Zeinab'", async () => {
+    const r = await linkJournalPeople({
+      dumpId: "d1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: true }, { name: "Zeinab", interacted: false }, { name: "ali", interacted: false }],
+    });
+    expect(r.linkedNames).toEqual(["Dania"]);
+    expect(r.rejectedNames).toEqual(["Zeinab", "ali"]);
+    expect(r.rejected).toBe(2);
+  });
+
+  it("asks the resolver for exact tiers only: no fuzzy pass, so no Auto-merged audit row for a name the gate refuses", async () => {
+    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Danya", interacted: true }] });
+    // The Levenshtein tier scans every live person (findMany); with fuzzy off that scan never runs.
+    expect(h.findMany).not.toHaveBeenCalled();
   });
 
   it("an unmatched name writes no id and no row", async () => {
@@ -272,5 +303,18 @@ describe("journalExcerpt · the /people card line (gap 3)", () => {
     const t = `${"a".repeat(119)} b`;
     expect(t.length).toBe(JOURNAL_EXCERPT_CHARS + 1);
     expect(journalExcerpt(t)).toBe(`${"a".repeat(119)}…`);
+  });
+
+  // W8b (audit B12): the card line is windowed around the NAME, like chatSnippets, so a person named at character
+  // 300 is not shown a prefix that never mentions them.
+  it("windowed around the name when one is given; falls back to the prefix when the name is absent", () => {
+    const t = `${"x ".repeat(150)}Talked to Dania about the lease and she is fine. ${"y ".repeat(80)}`;
+    const w = journalExcerpt(t, "Dania");
+    expect(w).toContain("Dania");
+    expect(w.startsWith("…")).toBe(true);
+    expect(w.length).toBeLessThanOrEqual(JOURNAL_EXCERPT_CHARS + 2);
+    expect(journalExcerpt(t, "Zeinab")).toBe(journalExcerpt(t));
+    // A name at the start needs no leading ellipsis.
+    expect(journalExcerpt("Dania called.", "Dania")).toBe("Dania called.");
   });
 });

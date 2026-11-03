@@ -163,10 +163,16 @@ export async function resolvePersonByName(
     email?: string;
     /** When false, return {matched:false, person:null} instead of creating. Default true. */
     createIfMissing?: boolean;
+    /**
+     * When false (W8b, the journal gate), stop after the case-insensitive tier: no Levenshtein or Jaro-Winkler
+     * scan, so no "Auto-merged" memory for a match the caller would refuse anyway. Default true.
+     */
+    fuzzy?: boolean;
   } = {},
 ): Promise<ResolveResult> {
   const name = inputName.trim();
   const createIfMissing = createDefaults.createIfMissing ?? true;
+  const fuzzy = createDefaults.fuzzy ?? true;
   // 2026-06-06 · never resolve OR create from a pronoun / generic descriptor
   // ("her", "the caller") or a too-short token · those created ghost rows.
   if (name.length < 2 || isNonName(name)) {
@@ -201,7 +207,7 @@ export async function resolvePersonByName(
   // ── Tier 3 + 4 · Levenshtein + Jaro-Winkler ────────────────────
   // Only worth the scan if input is long enough to typo into a similar
   // existing name. Skip for very short names (false-positive risk).
-  if (name.length >= 4) {
+  if (fuzzy && name.length >= 4) {
     const allActive = await prisma.personProfile.findMany({
       where: { deletedAt: null },
       select: { id: true, name: true },
