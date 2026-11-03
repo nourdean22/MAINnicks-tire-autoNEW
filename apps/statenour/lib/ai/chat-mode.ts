@@ -348,6 +348,29 @@ export async function pruneTools(
   for (const [retired, kept] of Object.entries(RETIRED_TOOL_ALIASES)) {
     if (text.includes(retired) && allTools[kept]) exactMentioned.add(kept);
   }
+  // 2026-11-03 · the four personal writers that closed the chat write gaps (plus
+  // the dated check-off on completeTask) are named by a WRITE VERB in his own
+  // words, at the same tier as an explicit mention: a tier-4 family candidate
+  // sorts alphabetically on a cold cache and "uncheckTask" / "logJournalEntry"
+  // sat under the budget cliff on 3 of 15 phrasings. Each regex is a verb plus
+  // its object, so a shop question ("how many cars today") matches none.
+  // MIRRORED in tests/ai/chat-mode-write-gaps.test.ts.
+  // `text` carries the conversation tail too, so each pattern is a verb next to
+  // a first-person habit object, never a verb and an object anywhere in the
+  // turn. The second reader's 11 shop sentences ("drop the price on that item",
+  // "the customer weighed in on the quote", "mash checked the wrong one") are
+  // the negative controls in the test. completeTask is not here: it is
+  // ACTION_CORE and always offered.
+  const HABIT_OBJ = "(my |the |that |this |today'?s |yesterday'?s |last night'?s )?(habit|streak|check ?off|checkoff|journal|workout|meditation|reading)";
+  const EXPLICIT_WRITE_INTENTS: Array<[RegExp, string]> = [
+    [new RegExp(`\\b(uncheck|untick|unmark|undo|take back) ${HABIT_OBJ}\\b|\\bi (tapped|clicked|checked) (it|that|the wrong (one|day)) (by mistake|by accident)?`), "uncheckTask"],
+    [/\b(archive|drop|kill|delete|scrap|get rid of|remove) (that |the |this |my )?(task|todo|to-do)\b/, "archiveTask"],
+    [/\bjournal (entry|note)\b|\b(log|write|put|add|save) (this|that|it)?\s*(in|to|into) my journal\b|\bi (wrote|journaled|journalled) (in my journal|an entry|this morning|today|last night|yesterday)\b/, "logJournalEntry"],
+    [/\b(log|record|track) my (weight|sleep|energy|stress|waist|body ?fat|workout)\b|\b(i )?(weighed|weigh) (in )?(at )?\d|\b(i )?slept \d|\bbody log\b/, "logBodyEntry"],
+  ];
+  for (const [re, name] of EXPLICIT_WRITE_INTENTS) {
+    if (allTools[name] && re.test(text)) exactMentioned.add(name);
+  }
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
@@ -417,9 +440,11 @@ export async function pruneTools(
     addMatching(/task|loop|commit|mission|triage|followup|schedule/i);
   }
 
-  // Daily / habits / body / score
-  if (/\b(score|habit|workout|body|sleep|energy|focus|water|log|today|yesterday|day|morning|evening|streak|adderall|wake|mood|food|meal|drift|drifting)\b/.test(text)) {
-    addMatching(/score|habit|body|daily|workout|sleep|drift|mood/i);
+  // Daily / habits / body / score / journal
+  // 2026-11-03 · journal wording added so logJournalEntry sits with the habit
+  // family; the write verbs themselves are pinned above (EXPLICIT_WRITE_INTENTS).
+  if (/\b(score|habit|workout|body|sleep|energy|focus|water|log|today|yesterday|day|morning|evening|streak|adderall|wake|mood|food|meal|drift|drifting|journal(ed|ing|s)?)\b/.test(text)) {
+    addMatching(/score|habit|body|daily|workout|sleep|drift|mood|journal/i);
   }
 
   // 2026-08-28 · Follow-up / reminder phrasings. The task family's TRIGGER needs a
