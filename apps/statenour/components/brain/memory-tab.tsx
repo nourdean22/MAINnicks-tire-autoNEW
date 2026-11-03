@@ -51,6 +51,7 @@ import { NickSuggestions } from "@/components/chat/nick-suggestions";
 import { WisdomSection } from "@/components/brain/wisdom-section";
 import { BrainFold, ReadingUnavailable, StaleNote } from "@/components/brain/brain-fold";
 import { MemoryVerdict } from "@/components/brain/memory-verdict";
+import { GoalPeopleMemories } from "@/components/brain/goal-people-memories";
 
 export function MemoryTab() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -121,6 +122,8 @@ export function MemoryTab() {
           </div>
           <PinnedContextPanel />
           <RecallPreviewPanel />
+          {/* W6 (2026-11-02): goal moments and what the brain holds about one person. */}
+          <GoalPeopleMemories />
         </BrainFold>
       </div>
     </div>
