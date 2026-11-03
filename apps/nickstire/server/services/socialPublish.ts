@@ -66,6 +66,13 @@ export interface PublishOutcome {
     platform: "facebook" | "instagram";
     success: boolean;
     postId?: string;
+    /**
+     * Facebook reels only: the video node's id. The `postId` of a reel cannot be
+     * read back (Meta #12); this is the id its plays, watch time and reactions are
+     * read from (`fetchFacebookReelInsights`). Rides into the publish ledger's
+     * `platformResults` unchanged.
+     */
+    videoId?: string;
     error?: string;
     /**
      * The publish request was DISPATCHED to Meta and no answer came back

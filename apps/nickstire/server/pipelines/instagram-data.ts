@@ -123,7 +123,7 @@ export async function syncInstagramPosts(): Promise<{
   /** Append-only history rows written this sync — 0 with errors>0 means the snapshot lane is failing, not idle. */
   snapshotsWritten: number;
   snapshotErrors: number;
-  /** Facebook cross-post insights (Wave C): rows written as `fb:<postId>` into ig_metric_snapshots. */
+  /** Facebook cross-post insights (Wave C): rows written as `fb:<postId>` (image cross-posts) and `fb:<videoId>` (reels) into ig_metric_snapshots. */
   fbSnapshotsWritten: number;
   fbErrors: number;
 }> {
@@ -310,10 +310,15 @@ export async function syncInstagramPosts(): Promise<{
 
   // Facebook cross-posts: the SAME token, a different Graph node. Runs after the
   // IG loop so an FB failure can never cost an IG row; its own counters keep it
-  // from hiding inside the IG ones.
+  // from hiding inside the IG ones. Two lanes: image cross-posts (read by post id,
+  // from ig_autopost_log) and reels (read by video id, from the publish ledger).
   const fb = await syncFacebookPostInsights(d);
+  const fbReels = await syncFacebookReelInsights(d);
 
-  return { processed: posts.length, newPosts, errors, source, snapshotsWritten, snapshotErrors, fbSnapshotsWritten: fb.written, fbErrors: fb.errors };
+  return {
+    processed: posts.length, newPosts, errors, source, snapshotsWritten, snapshotErrors,
+    fbSnapshotsWritten: fb.written + fbReels.written, fbErrors: fb.errors + fbReels.errors,
+  };
 }
 
 /** Prefix that keeps Facebook ids apart from IG media ids in the shared snapshot table. */
@@ -392,6 +397,72 @@ export async function syncFacebookPostInsights(d: Awaited<ReturnType<typeof db>>
   }
   if (ids.length > 0 && written === 0) {
     log.error(`[Instagram Pipeline] FB snapshot lane wrote NOTHING across ${ids.length} cross-posts (${errors} errors)`);
+  }
+  return { written, errors, candidates: ids.length };
+}
+
+/**
+ * Facebook REEL numbers → ig_metric_snapshots: the same `fb:` lane and rules as
+ * syncFacebookPostInsights above, keyed by the reel's VIDEO id (`fb:<videoId>`), because a
+ * reel's post_id cannot be read back (Meta #12; fetchFacebookReelInsights has the proof).
+ * Column mapping, native units:
+ *   views ← fb_reels_total_plays (replays included)   avgWatchTimeMs ← post_video_avg_time_watched (ms, rounded)
+ *   likes ← reactions on the reel                     comments       ← comments on the reel
+ *   reach, saved, shares, skipRate ← NULL (not read here)
+ * `likes` and `comments` are NOT NULL: a row is written only when BOTH were read. A measured 0 is
+ * written as 0; a value that was not read is an error, never a fabricated 0. Plays and watch time stay
+ * NULL when Facebook returned no row for them.
+ *
+ * Source rows: the publish ledger (findPublishedFacebookReelVideoIds), last 14 days. Every publish
+ * door stores the Facebook `videoId` there; a ledger that cannot be read is ONE counted error, not
+ * "no reels".
+ */
+async function syncFacebookReelInsights(d: Awaited<ReturnType<typeof db>>): Promise<{ written: number; errors: number; candidates: number }> {
+  if (!d) return { written: 0, errors: 0, candidates: 0 };
+  const FB_REEL_REFRESH_DAYS = 14;
+  let ids: string[];
+  try {
+    const { findPublishedFacebookReelVideoIds } = await import("../services/publishAttemptLedger");
+    ids = await findPublishedFacebookReelVideoIds(FB_REEL_REFRESH_DAYS);
+  } catch (err) {
+    log.warn("[Instagram Pipeline] FB reel candidate read failed — FB reel numbers skipped this run", { err: err instanceof Error ? err.message : String(err) });
+    return { written: 0, errors: 1, candidates: 0 };
+  }
+  if (ids.length === 0) return { written: 0, errors: 0, candidates: 0 };
+
+  const { fetchFacebookReelInsights } = await import("../services/metaSocial");
+  let written = 0;
+  let errors = 0;
+  for (const videoId of ids) {
+    try {
+      const ins = await fetchFacebookReelInsights(videoId);
+      if (!ins.ok) { errors++; continue; }
+      if (ins.reactions === undefined || ins.comments === undefined) {
+        // likes and comments are NOT NULL — an unread count would be stored as a fabricated 0.
+        errors++;
+        log.warn("[Instagram Pipeline] FB reel numbers without reactions or comments — snapshot skipped", { videoId });
+        continue;
+      }
+      await d.insert(igMetricSnapshots).values({
+        postId: `${FB_SNAPSHOT_PREFIX}${videoId}`.slice(0, 100),
+        likes: ins.reactions,
+        comments: ins.comments,
+        reach: null,
+        saved: null,
+        views: ins.plays ?? null,
+        shares: null,
+        avgWatchTimeMs: ins.avgWatchMs === undefined ? null : Math.round(ins.avgWatchMs),
+        skipRate: null,
+        followerSnapshot: null,
+      });
+      written++;
+    } catch (err) {
+      errors++;
+      if (errors === 1) log.warn("[Instagram Pipeline] FB reel snapshot write failed (continuing):", err);
+    }
+  }
+  if (written === 0) {
+    log.error(`[Instagram Pipeline] FB reel lane wrote NOTHING across ${ids.length} reels (${errors} errors)`);
   }
   return { written, errors, candidates: ids.length };
 }

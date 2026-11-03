@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "publish-boundary-test": {
+      "ref": "fb-reel-numbers 2026-11-03: the only publish-path change is that a Facebook reel result now carries videoId (success and ambiguous finish). Kill switches, cadence, claim gates and REEL_PUBLISH_ENABLED are untouched. server/socialPublish.facebook.test.ts: 8 pass, of which 3 assert videoId (red first 3 failed, 5 passed); the existing gate tests in that file (disabled flag, claim-safety, AI-generated kept off the Page) still pass. Mutants M1 and M2 (drop videoId) killed."
+    },
+    "capability-ledger-updated": {
+      "ref": "fb-reel-numbers 2026-11-03: new capability facebook-reel-numbers (merged / unit_verified / internal) with tests, Meta doc read, limits and the P2 blocker that no production nightly row exists yet; REALITY-LEDGER.md re-rendered; check-capability-ledger.mjs valid (191 capabilities)."
+    }
+  }
+}
