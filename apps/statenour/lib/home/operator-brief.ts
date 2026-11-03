@@ -39,6 +39,10 @@
 
 import { readCalendarDay, type CalendarRead } from "@/lib/calendar/day-events";
 import { prisma } from "@/lib/prisma";
+import { pickCheckInDue } from "@/lib/brain/goal-pace";
+import { logger as rootLogger } from "@/lib/logger";
+
+const briefLog = rootLogger.withSurface("home/operator-brief");
 import { deriveBriefing, type Briefing } from "@/lib/home/derive-briefing";
 import { homeHealthState, type ChipState } from "@/lib/home/health-state";
 import { buildNextMove, type NextMove } from "@/lib/services/next-move";
@@ -173,7 +177,43 @@ export interface OperatorBrief {
   lead: BriefLeadSection;
   judgment: BriefJudgmentSection;
   horizon: BriefHorizonSection;
+  /** The most overdue goal check-in (Linear L3); null = none due, "unknown" = the read failed. */
+  goalCheckInDue: GoalCheckInDue | null | "unknown";
   budget: { visibleActionables: number; cap: number };
+}
+
+export interface GoalCheckInDue {
+  goalId: string;
+  title: string;
+  daysOverdue: number;
+}
+
+/** Active goals and their newest check-in, through the one cadence table (lib/brain/goal-pace.ts). */
+async function loadGoalCheckInDue(now: Date): Promise<GoalCheckInDue | null | "unknown"> {
+  try {
+    const goals = await prisma.lifeGoal.findMany({
+      where: { deletedAt: null, status: "active" },
+      take: 50,
+      select: { id: true, title: true, horizon: true, createdAt: true },
+    });
+    if (goals.length === 0) return null;
+    const events = await prisma.goalEvent.findMany({
+      where: { goalId: { in: goals.map((g) => g.id) }, kind: "check_in" },
+      orderBy: { createdAt: "desc" },
+      distinct: ["goalId"],
+      select: { goalId: true, createdAt: true },
+    });
+    const last = new Map<string, Date>();
+    for (const e of events) if (!last.has(e.goalId)) last.set(e.goalId, e.createdAt);
+    return pickCheckInDue(
+      goals.map((g) => ({ ...g, lastCheckInAt: last.get(g.id) ?? null })),
+      now.getTime(),
+    );
+  } catch (err) {
+    // Named in judgment.failedSources too (collectFailedSources), so the brief says which read failed.
+    briefLog.warn("goal_check_in_read_failed", { err: err instanceof Error ? err.message : String(err) });
+    return "unknown";
+  }
 }
 
 // ── Guarded fetch helper ────────────────────────────────────────────────
@@ -205,8 +245,11 @@ function collectFailedSources(r: {
   followUps: unknown;
   pendingActions: unknown;
   approvalRequests: unknown;
+  /** "unknown" = the goal check-in read failed (loadGoalCheckInDue). */
+  goalCheckInDue?: unknown;
 }): string[] {
   const failed: string[] = [];
+  if (r.goalCheckInDue === "unknown") failed.push("goal check-ins");
   if (r.contradictions === null) failed.push("contradictions");
   if (r.proposals === null) failed.push("commitments");
   if (r.followUps === null) failed.push("follow-ups");
@@ -271,6 +314,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     laterGoals,
     weekGoals,
     calendarRead,
+    goalCheckInDue,
   ] = await Promise.all([
     // Active/resume candidates. Ordering mirrors command-center-state.ts's
     // activeTask pick (autoPriority desc nulls last, lastTouchedAt desc) so
@@ -355,6 +399,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     // `Event: <title>` + metadata.start shape firstCalendarEventToday reads. All-day events are not
     // a time pointer. A non-ok state is kept, so TODAY says why instead of reading as a free day.
     readCalendarDay().catch((err): CalendarRead => ({ state: "read_failed", reason: (err as Error).message })),
+    loadGoalCheckInDue(now),
   ]);
   const calendarUpcoming =
     calendarRead.state === "ok"
@@ -426,7 +471,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
-  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests });
+  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests, goalCheckInDue });
 
   const judgmentAll: JudgmentItem[] = [];
 
@@ -545,6 +590,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       failedSources,
     },
     horizon,
+    goalCheckInDue,
     budget: {
       visibleActionables:
         leadActionables + Math.min(judgmentAll.length, judgmentVisibleCap),
@@ -891,7 +937,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources, loadGoalCheckInDue };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

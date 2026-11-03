@@ -73,6 +73,8 @@ const ALLOWLIST: Record<string, string> = {
   "lib/brain/people-intelligence.ts": "per-person enrichment object; not in the failing set",
   "lib/brain/session-distiller.ts": "distill object; not in the failing set",
   "lib/brain/strategic-plans.ts": "plan array; not in the failing set",
+  "lib/services/goal-checkin.ts":
+    "goal check-in draft {health, note, value?}, two sentences; an empty or unparsed reply falls back to the manual form (W2 2026-11-02)",
   "lib/services/chat-suggestions.ts":
     "3 strings of <=48 chars each; latency-sensitive UI path with its own AbortController",
 };

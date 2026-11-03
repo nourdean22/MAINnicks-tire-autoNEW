@@ -1581,9 +1581,13 @@ export async function deleteTask(id: string) {
 export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<void> {
   const goal = await prisma.lifeGoal.findUnique({
     where: { id: goalId },
-    select: { id: true, currentValue: true, targetValue: true, status: true, achievedAt: true },
+    select: { id: true, kind: true, currentValue: true, targetValue: true, status: true, achievedAt: true },
   });
   if (!goal) return;
+  // W2 2026-11-02 (map gap 3) · a metric goal's value is in its unit ($, lbs, %), so +1 per task moved a
+  // $15,000 goal by $1. Its value comes only from a check-in or an explicit edit; the finished task is
+  // still recorded, once per (goal, task) through the same marker below. Unitless metrics included.
+  const isMetric = goal.kind === "metric";
 
   // 2026-06-01 · stat crediting is now centralized in `creditTaskStats`
   // (called from every completion path: updateTask, checkTask ONCE/PROMISE,
@@ -1623,6 +1627,10 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
     .then(() => true)
     .catch(() => false);
   if (!liftMarked) return; // a prior completion already lifted this task
+  if (isMetric) {
+    emitGoalEventAsync({ goalId, kind: "task_completed", source: "service:updateTask.goalLift", payload: { taskId } });
+    return;
+  }
 
   // Atomic increment — the prior read-then-write (currentValue =
   // goal.currentValue + delta) lost updates when two linked tasks

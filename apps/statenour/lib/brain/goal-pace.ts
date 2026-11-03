@@ -263,3 +263,67 @@ export function goalPaceView(g: {
   const label = due.source === "horizon" ? `${pace} · ${due.label}` : pace;
   return { kind: "chip", verdict, label };
 }
+
+// ── Check-in health (job 2026-11-02-nour-os-interconnect W2, Linear L2/L3) ──────────────────────
+// Health is the newest check_in GoalEvent. A check-in older than the goal's cadence goes gray
+// ("no_check_in"): staleness is a visible state, never a silent green. The card chip and Home's
+// "check-in due" row both read this one table, so the two can never disagree.
+
+export const CHECK_IN_HEALTH = ["on_track", "at_risk", "off_track"] as const;
+export type CheckInHealth = (typeof CHECK_IN_HEALTH)[number];
+/** "unknown" = the check-in read failed, or the stored health is off-list; never rendered as fine. */
+export type GoalHealthState = CheckInHealth | "no_check_in" | "unknown";
+export interface GoalHealth {
+  state: GoalHealthState;
+  at: string | null;
+  note: string | null;
+}
+
+/** Check-in cadence in days, by horizon. A LIFE or missing horizon uses YEAR. */
+export const CHECK_IN_CADENCE_DAYS: Readonly<Record<string, number>> = { DAY: 1, WEEK: 7, MONTH: 30, QUARTER: 90, YEAR: 180 };
+
+export function checkInCadenceDays(horizon: string | null | undefined): number {
+  return CHECK_IN_CADENCE_DAYS[horizon ?? ""] ?? CHECK_IN_CADENCE_DAYS.YEAR;
+}
+
+export const isCheckInHealth = (v: unknown): v is CheckInHealth => (CHECK_IN_HEALTH as readonly unknown[]).includes(v);
+
+/** Ms past the cadence since the anchor; > 0 means the check-in is due. */
+function pastCadenceMs(horizon: string | null | undefined, anchorMs: number, now: number): number {
+  return now - anchorMs - checkInCadenceDays(horizon) * DAY_MS;
+}
+
+/** The goal's health from its newest check-in (null = none ever). */
+export function goalHealthFrom(
+  latest: { payload: unknown; createdAt: Date } | null,
+  horizon: string | null | undefined,
+  now: number = Date.now(),
+): GoalHealth {
+  if (!latest) return { state: "no_check_in", at: null, note: null };
+  const p = (latest.payload ?? {}) as { health?: unknown; note?: unknown };
+  const at = latest.createdAt.toISOString();
+  const note = typeof p.note === "string" && p.note.trim() ? p.note.trim() : null;
+  if (pastCadenceMs(horizon, latest.createdAt.getTime(), now) > 0) return { state: "no_check_in", at, note };
+  return { state: isCheckInHealth(p.health) ? p.health : "unknown", at, note };
+}
+
+type CheckInClock = { horizon: string | null | undefined; createdAt: string | Date; lastCheckInAt: string | Date | null };
+
+/** Whole days past the cadence, counted from the last check-in (else creation); negative = not due yet. */
+export function checkInOverdueDays(g: CheckInClock, now: number = Date.now()): number {
+  const over = pastCadenceMs(g.horizon, new Date(g.lastCheckInAt ?? g.createdAt).getTime(), now);
+  return over > 0 ? Math.floor(over / DAY_MS) : -1;
+}
+
+/** The one goal whose check-in is most overdue, or null when none is due. */
+export function pickCheckInDue(
+  goals: ReadonlyArray<CheckInClock & { id: string; title: string }>,
+  now: number = Date.now(),
+): { goalId: string; title: string; daysOverdue: number } | null {
+  let best: { goalId: string; title: string; daysOverdue: number } | null = null;
+  for (const g of goals) {
+    const daysOverdue = checkInOverdueDays(g, now);
+    if (daysOverdue >= 0 && (!best || daysOverdue > best.daysOverdue)) best = { goalId: g.id, title: g.title, daysOverdue };
+  }
+  return best;
+}

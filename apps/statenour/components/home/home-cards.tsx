@@ -12,6 +12,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { goalDue, timeLeftLabel } from "@/lib/brain/goal-pace";
+import type { GoalCheckInDue } from "@/lib/home/operator-brief";
 
 // UI v3 grammar (ratchet glassCard): ruled, not glass: a left rule, no panel, no radius, like the brief rows.
 const CARD = "block min-h-11 py-2";
@@ -102,7 +103,25 @@ export function PeopleCardView({ read }: { read: PeopleTotals | "capped" | "load
   );
 }
 
-export function GoalsCardView({ read }: { read: GoalsCardRead | null | "loading" | "error" }) {
+/** The brief's most overdue goal check-in (Linear L3): null = none due, "unknown" = its read failed. */
+function CheckInDueLine({ checkIn }: { checkIn: GoalCheckInDue | null | "unknown" | undefined }) {
+  if (checkIn === "unknown") return <p className="mt-1 text-[13px] text-amber-300">Check-in unknown, couldn&apos;t load</p>;
+  if (!checkIn) return null;
+  return (
+    <p className="mt-1 line-clamp-2 text-[13px] text-amber-300">
+      Check-in due: {checkIn.title}
+      <span className="font-mono tabular-nums text-fg-secondary">{checkIn.daysOverdue > 0 ? ` · ${checkIn.daysOverdue}d over` : ""}</span>
+    </p>
+  );
+}
+
+export function GoalsCardView({
+  read,
+  checkIn,
+}: {
+  read: GoalsCardRead | null | "loading" | "error";
+  checkIn?: GoalCheckInDue | null | "unknown";
+}) {
   return (
     // /stats opens on Mastery without a tab, and GoalBoard mounts only on the Goals tab (Codex P2 on #3405).
     <GlassCard as="a" ruled href="/stats?tab=goals" className={CARD}>
@@ -120,6 +139,7 @@ export function GoalsCardView({ read }: { read: GoalsCardRead | null | "loading"
             <p className="mt-0.5 font-mono text-[12px] tabular-nums text-fg-secondary">
               {read.label ? `${read.label} · ${read.active} active` : `${read.active} active, no date ahead`}
             </p>
+            <CheckInDueLine checkIn={checkIn} />
           </>
         )}
       </div>
@@ -132,6 +152,8 @@ export function HomeCards() {
     intervalMs: 5 * 60_000,
   });
   const goals = trpc.operator.goalsSnapshot.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+  // Same key and options as HomeConsole's brief read, so this shares its cache (no second fetch).
+  const brief = trpc.operator.brief.useQuery(undefined, { staleTime: 30_000, refetchInterval: 60_000, refetchOnWindowFocus: false });
 
   const peopleRead = people.data ? peopleReadFrom(people.data.totals) : people.error ? "error" : "loading";
   const goalsRead = goals.data
@@ -143,7 +165,8 @@ export function HomeCards() {
   return (
     <div className="grid grid-cols-2 gap-3">
       <PeopleCardView read={peopleRead} />
-      <GoalsCardView read={goalsRead} />
+      {/* A brief that failed or is loading shows no row here: the brief itself says it couldn't load. */}
+      <GoalsCardView read={goalsRead} checkIn={brief.data?.goalCheckInDue} />
     </div>
   );
 }

@@ -14,16 +14,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
-import { goalDue, goalPaceView } from "@/lib/brain/goal-pace";
+import { CHECK_IN_HEALTH, goalDue, goalPaceView } from "@/lib/brain/goal-pace";
 import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
 import { RELATED_DEFAULT_DAYS, RELATED_MAX_DAYS } from "@/lib/services/related-activity";
-import { idempotentCreate, mintIdempotencyKey } from "@/lib/db/idempotency";
-import { today } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/tools/goals");
 
-const CHECK_IN_HEALTH = ["on_track", "at_risk", "off_track"] as const;
 
 export const goalsTools = {
 
@@ -135,71 +132,10 @@ export const goalsTools = {
       value: z.number().optional().describe("Metric goals only: the value now (sets currentValue, does not add)"),
       note: z.string().max(500).describe("One line on why"),
     }),
+    // The writer lives in lib/services/goal-checkin.ts (W2): the goal card saves through the same one.
     execute: async ({ goalId, health, value, note }) => {
-      const goal = await prisma.lifeGoal.findFirst({
-        where: { id: goalId, deletedAt: null },
-        select: { id: true, title: true, kind: true },
-      });
-      if (!goal) return { logged: false, reason: "goal not found: pass an id from getGoals" };
-      const day = today();
-      const key = mintIdempotencyKey({ goalId: goal.id, kind: "check_in", day });
-      const duplicate = (row: { payload: unknown; createdAt: Date }, valueSet: boolean) => ({
-        logged: false,
-        duplicate: true,
-        reason: "already checked in on this goal today",
-        existing: { health: (row.payload as { health?: string } | null)?.health ?? null, at: row.createdAt.toISOString() },
-        valueSet,
-      });
-      const prior = await prisma.goalEvent.findFirst({ where: { idempotencyKey: key } });
-      if (prior) return duplicate(prior, false);
-
-      // The value goes FIRST: updateGoal SETS it, so a retry is harmless, and a failed value write
-      // takes no claim, so the same-day retry stays open (second reader, 2026-11-02).
-      let valueSet = false;
-      if (value !== undefined && goal.kind === "metric") {
-        try {
-          const { updateGoal } = await import("@/lib/services/goals");
-          await updateGoal({ id: goal.id, currentValue: value });
-          valueSet = true;
-        } catch (err) {
-          const valueError = err instanceof Error ? err.message : String(err);
-          return { logged: false, valueSet: false, valueError, reason: "the value was not set and no check-in was logged; retry is open" };
-        }
-      }
-
-      let result: Awaited<ReturnType<typeof idempotentCreate<{ payload: unknown; createdAt: Date }, unknown>>>;
-      try {
-        result = await idempotentCreate({
-          model: prisma.goalEvent,
-          key,
-          data: {
-            goalId: goal.id,
-            kind: "check_in",
-            source: "chat",
-            payload: { health, ...(valueSet ? { value } : {}), note, day },
-            idempotencyKey: key,
-          },
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        log.warn("check_in_write_failed", { goalId: goal.id, err: msg });
-        return {
-          logged: false,
-          eventWritten: false,
-          valueSet,
-          reason: valueSet ? `the value was set, but the check-in was not logged (${msg}); retry is open` : `the check-in was not logged (${msg})`,
-        };
-      }
-      if (!result.created) return duplicate(result.row, valueSet);
-      return {
-        logged: true,
-        goalId: goal.id,
-        title: goal.title,
-        health,
-        at: result.row.createdAt.toISOString(),
-        valueSet,
-        ...(value !== undefined && goal.kind !== "metric" ? { valueIgnored: `a ${goal.kind} goal has no numeric value` } : {}),
-      };
+      const { logGoalCheckIn } = await import("@/lib/services/goal-checkin");
+      return logGoalCheckIn({ goalId, health, value, note, source: "chat" });
     },
   }),
 

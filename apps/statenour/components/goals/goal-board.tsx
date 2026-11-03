@@ -47,6 +47,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { GoalPeopleLine } from "./goal-people-line";
+import { GoalCheckInPanel, GoalHealthChip } from "./goal-check-in";
+import type { GoalHealth } from "@/lib/brain/goal-pace";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +147,8 @@ interface LifeGoal {
   loopsThisWeek?: number;
   /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
   missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number }>;
+  /** W2 2026-11-02 · the newest check-in's health, gray past the cadence (lib/services/goals.ts getGoals). */
+  health?: GoalHealth;
   // Ambition Engine P1 · the mastery stats this goal levels (resolved
   // server-side: declared GoalStat rows, else domain-inferred). A rep on
   // a task tagged with this goal credits XP to these stats.
@@ -1504,6 +1508,8 @@ export function GoalBoard() {
                             {g.kind === "milestone" ? "milestones" : "loops"}
                           </span>
                         )}
+                        {/* W2 2026-11-02 (Linear L2) · health from the newest check-in; tap opens the check-in. */}
+                        {g.status === "active" && <GoalHealthChip health={g.health} onOpen={() => setExpandedGoal(g.id)} />}
                         {/* 2026-11-02 · the mission "Plan it" made from this goal, with its ladder. */}
                         {(g.missions ?? []).map((m) => (
                           <Link
@@ -1843,6 +1849,8 @@ export function GoalBoard() {
                 {/* Expanded panel */}
                 {isExpanded && (
                   <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
+                    {/* W2 2026-11-02 · since last check-in (Tana T1) + Nick-drafted check-in (Linear L4). */}
+                    {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
                     {!showLegacyGoalIds.has(g.id) ? (
                       <div className="mt-2 space-y-2">
                         <ExecutionCoachSandbox

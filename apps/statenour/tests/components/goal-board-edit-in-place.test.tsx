@@ -49,6 +49,10 @@ vi.mock("@/lib/trpc/client", () => {
         goalsCreate: { useMutation: idle },
         goalsUpdate: { useMutation: () => ({ mutateAsync: h.update, isPending: false }) },
         create: { useMutation: idle },
+        // W2 2026-11-02 · the expanded card's check-in panel.
+        goalSinceCheckIn: { useQuery: () => ({ data: undefined, isError: false, refetch: async () => {} }) },
+        draftGoalCheckIn: { useMutation: idle },
+        goalCheckIn: { useMutation: idle },
       },
       ai: { suggestGoals: { useMutation: idle }, coachGoal: { useMutation: idle } },
     },
