@@ -207,6 +207,26 @@ describe("PromisesSection", () => {
     expect(h.edit).toHaveBeenCalledWith({ id: 2, description: "Walk every morning", toWhom: "Dr. Lee", deadline: null });
   });
 
+  it("Edit sends only what changed, so a legacy deadline the date field cannot show is never wiped", async () => {
+    h.query = { ...h.query, data: { ...LIST, active: [{ ...LIST.active[0], deadline: "next Friday", deadlineDays: null }] } };
+    await mount();
+    await open();
+    expect(rowOf(1)!.textContent).toContain("due next Friday");
+    await click(button("Edit", rowOf(1)!));
+    await type(rowOf(1)!.querySelector("textarea"), "Send Mash the quote");
+    await click(button("Save", rowOf(1)!));
+    expect(h.edit).toHaveBeenCalledWith({ id: 1, description: "Send Mash the quote" });
+  });
+
+  it("a Done that finds the promise already closed says so instead of claiming it was kept", async () => {
+    h.resolve.mockResolvedValueOnce({ resolved: false });
+    await mount();
+    await open();
+    await click(button("Done", rowOf(1)!));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.toastMessage).toHaveBeenCalledWith("Already closed elsewhere.");
+  });
+
   it("Make it a task files into the chosen mission, Inbox by default, and leaves the promise open", async () => {
     await mount();
     await open();

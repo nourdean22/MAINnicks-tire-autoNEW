@@ -45,7 +45,9 @@ function age(days: number): string {
 
 /** YYYY-MM-DD read as written: no Date parse, so no UTC shift on an Eastern phone. */
 function due(deadline: string | null, days: number | null): string {
-  if (!deadline || days === null) return "no date";
+  if (!deadline) return "no date";
+  // A legacy free-text deadline the server could not date: show it as written.
+  if (days === null) return `due ${deadline}`;
   const [y, m, d] = deadline.split("-").map(Number);
   const label = `${MONTHS[m - 1]} ${d}${Math.abs(days) > 300 ? ` ${y}` : ""}`;
   if (days === 0) return "due today";
@@ -88,12 +90,14 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   };
 
   /** Hide the row at once; a failed write brings it back with a toast. */
-  async function close(id: number, run: () => Promise<unknown>, done: string) {
+  async function close(id: number, run: () => Promise<{ resolved?: boolean; ok?: boolean }>, done: string) {
     setBusy(id);
     setGone((s) => new Set(s).add(id));
     try {
-      await run();
-      toast.success(done);
+      const out = await run();
+      // false = no open row matched (closed in chat, the pulse ticker or another tab): never claim it was ours.
+      if (out.resolved === false || out.ok === false) toast.message("Already closed elsewhere.");
+      else toast.success(done);
       refresh();
     } catch {
       setGone((s) => {
@@ -148,28 +152,29 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   return (
     <section id="promises" aria-labelledby="promises-heading" className="scroll-mt-24 space-y-4">
       {dialog}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="promises-body"
-        onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[44px] w-full items-end justify-between gap-3 border-b border-edge pb-3 text-left"
-      >
-        <h2 id="promises-heading" className="vt-eyebrow text-fg-secondary">
-          promises
-        </h2>
-        <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
-          {/* A count is a claim: shown only once the read has answered. */}
-          {data
-            ? `${data.activeCount - (data.active.length - active.length)} promises · ${data.proposedCount - (data.proposed.length - proposed.length)} proposed`
-            : list.isError
-              ? "not read"
-              : "loading"}
-          <span aria-hidden className="ml-2">
-            {open ? "Hide" : "Show"}
+      {/* Disclosure pattern: the heading holds the button (a heading inside a button is invalid HTML). */}
+      <h2 id="promises-heading" className="border-b border-edge pb-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="promises-body"
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-h-[44px] w-full items-end justify-between gap-3 text-left"
+        >
+          <span className="vt-eyebrow text-fg-secondary">promises</span>
+          <span className="font-mono text-[11px] tabular-nums text-fg-tertiary">
+            {/* A count is a claim: shown only once the read has answered. */}
+            {data
+              ? `${data.activeCount - (data.active.length - active.length)} promises · ${data.proposedCount - (data.proposed.length - proposed.length)} proposed`
+              : list.isError
+                ? "not read"
+                : "loading"}
+            <span aria-hidden className="ml-2">
+              {open ? "Hide" : "Show"}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+      </h2>
 
       {list.isError && (
         <ReadFailed onRetry={() => void list.refetch()}>Couldn&apos;t load promises (state unknown, not empty)</ReadFailed>
@@ -268,6 +273,11 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
                   ))}
                 </ul>
               )}
+              {data.activeCount > data.active.length && (
+                <p className="font-mono text-[11px] tabular-nums text-fg-tertiary">
+                  First {data.active.length} of {data.activeCount}
+                </p>
+              )}
 
               {proposed.length > 0 && (
                 <div className="space-y-2">
@@ -321,11 +331,12 @@ function EditForm({
 }: {
   row: PromiseRow;
   busy: boolean;
-  onSave: (patch: { description: string; toWhom: string; deadline: string | null }) => Promise<void>;
+  onSave: (patch: { description?: string; toWhom?: string; deadline?: string | null }) => Promise<void>;
   onCancel: () => void;
 }) {
+  const initialTo = row.toWhom.toLowerCase() === "self" ? "" : row.toWhom;
   const [description, setDescription] = useState(row.description);
-  const [toWhom, setToWhom] = useState(row.toWhom.toLowerCase() === "self" ? "" : row.toWhom);
+  const [toWhom, setToWhom] = useState(initialTo);
   const [deadline, setDeadline] = useState(row.deadline ?? "");
   return (
     <form
@@ -333,7 +344,14 @@ function EditForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (!description.trim()) return;
-        void onSave({ description: description.trim(), toWhom: toWhom.trim(), deadline: deadline || null });
+        // Only what changed: a legacy free-text deadline the date field cannot show must survive a text edit.
+        const patch = {
+          ...(description.trim() !== row.description ? { description: description.trim() } : {}),
+          ...(toWhom.trim() !== initialTo ? { toWhom: toWhom.trim() } : {}),
+          ...(deadline !== (row.deadline ?? "") ? { deadline: deadline || null } : {}),
+        };
+        if (Object.keys(patch).length === 0) return onCancel();
+        void onSave(patch);
       }}
     >
       <label className="block space-y-1">
