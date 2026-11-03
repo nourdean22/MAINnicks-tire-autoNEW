@@ -271,6 +271,16 @@ describe("PromisesSection", () => {
     expect(h.accept).toHaveBeenCalledWith({ id: 9 });
   });
 
+  it("an accepted proposal shows up in the active list once the read returns it", async () => {
+    await mount();
+    await open();
+    await click(button("Accept", rowOf(9)!));
+    expect(rowOf(9)).toBeNull();
+    h.query = { ...h.query, data: { ...LIST, active: [...LIST.active, { ...LIST.proposed[0] }], proposed: [], activeCount: 3, proposedCount: 466 } };
+    await mount();
+    expect(button("Done", rowOf(9)!)).toBeTruthy();
+  });
+
   it("Dismiss reaches the existing proposal mutation", async () => {
     await mount();
     await open();

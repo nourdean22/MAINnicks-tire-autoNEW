@@ -150,7 +150,8 @@ describe("promiseToTask", () => {
     // the claim is a compare-and-swap on the exact ref it read
     expect(claim.where).toEqual({ id: 7, status: "active", deletedAt: null, executionRef: null });
     expect(String(claim.data.executionRef)).toMatch(/^task:pending:\d+$/);
-    expect(claim.data.updatedBy).toBe("nour");
+    // Only the link stamps nour: a claim released after a failed create must leave no section mark.
+    expect(claim.data).not.toHaveProperty("updatedBy");
     expect(h.updateMany.mock.invocationCallOrder[0]).toBeLessThan(h.createTaskFromAPI.mock.invocationCallOrder[0]);
     expect(link.where).toEqual({ id: 7, executionRef: claim.data.executionRef });
     expect(link.data).toEqual({ executionRef: "task:t9", updatedBy: "nour" });

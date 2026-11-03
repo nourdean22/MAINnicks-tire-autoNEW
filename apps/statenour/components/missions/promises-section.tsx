@@ -33,7 +33,8 @@ type MissionOption = { id: string; title: string; status?: string; systemKind?: 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BUTTON =
   "inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50";
-const FIELD = "w-full rounded-control border border-edge-default bg-transparent px-3 py-2 text-[15px] text-fg";
+// 16px: iOS Safari zooms the page on focus into any field under 16px.
+const FIELD = "w-full rounded-control border border-edge-default bg-transparent px-3 py-2 text-base text-fg";
 
 function age(days: number): string {
   if (days < 1) return "today";
@@ -61,7 +62,8 @@ function meta(r: PromiseRow): string {
 
 export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   const [open, setOpen] = useState(false);
-  const [gone, setGone] = useState<Set<number>>(() => new Set());
+  // Hidden rows, keyed per list ("active:1", "proposed:9"): an accepted proposal must reappear as active.
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState<number | null>(null);
   const [panel, setPanel] = useState<{ id: number; kind: "edit" | "task" } | null>(null);
   const { confirm, dialog } = useConfirmDialog();
@@ -90,9 +92,15 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   };
 
   /** Hide the row at once; a failed write brings it back with a toast. */
-  async function close(id: number, run: () => Promise<{ resolved?: boolean; ok?: boolean }>, done: string) {
+  async function close(
+    id: number,
+    from: "active" | "proposed",
+    run: () => Promise<{ resolved?: boolean; ok?: boolean }>,
+    done: string,
+  ) {
+    const key = `${from}:${id}`;
     setBusy(id);
-    setGone((s) => new Set(s).add(id));
+    setGone((s) => new Set(s).add(key));
     try {
       const out = await run();
       // false = no open row matched (closed in chat, the pulse ticker or another tab): never claim it was ours.
@@ -102,7 +110,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
     } catch {
       setGone((s) => {
         const next = new Set(s);
-        next.delete(id);
+        next.delete(key);
         return next;
       });
       toast.error("That did not save. The promise is still open.");
@@ -118,7 +126,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
       confirmLabel: "Drop",
       tone: "danger",
     });
-    if (ok) await close(r.id, () => resolve.mutateAsync({ id: r.id, action: "drop" }), "Dropped.");
+    if (ok) await close(r.id, "active", () => resolve.mutateAsync({ id: r.id, action: "drop" }), "Dropped.");
   }
 
   async function makeTask(id: number, missionId: string | null) {
@@ -145,8 +153,8 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   }
 
   const data = list.data;
-  const active = (data?.active ?? []).filter((r) => !gone.has(r.id));
-  const proposed = (data?.proposed ?? []).filter((r) => !gone.has(r.id));
+  const active = (data?.active ?? []).filter((r) => !gone.has(`active:${r.id}`));
+  const proposed = (data?.proposed ?? []).filter((r) => !gone.has(`proposed:${r.id}`));
   const missionOptions = missions.filter((m) => (m.status ?? "ACTIVE") === "ACTIVE" && isUserProject(m));
 
   return (
@@ -252,7 +260,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
                             type="button"
                             className={BUTTON}
                             disabled={busy === r.id}
-                            onClick={() => void close(r.id, () => resolve.mutateAsync({ id: r.id, action: "done" }), "Marked kept.")}
+                            onClick={() => void close(r.id, "active", () => resolve.mutateAsync({ id: r.id, action: "done" }), "Marked kept.")}
                           >
                             Done
                           </button>
@@ -292,7 +300,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
                             type="button"
                             className={BUTTON}
                             disabled={busy === r.id}
-                            onClick={() => void close(r.id, () => accept.mutateAsync({ id: r.id }), "Accepted. It is on your list now.")}
+                            onClick={() => void close(r.id, "proposed", () => accept.mutateAsync({ id: r.id }), "Accepted. It is on your list now.")}
                           >
                             Accept
                           </button>
@@ -300,7 +308,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
                             type="button"
                             className={BUTTON}
                             disabled={busy === r.id}
-                            onClick={() => void close(r.id, () => dismiss.mutateAsync({ id: r.id }), "Dismissed. Nick will not propose it again.")}
+                            onClick={() => void close(r.id, "proposed", () => dismiss.mutateAsync({ id: r.id }), "Dismissed. Nick will not propose it again.")}
                           >
                             Dismiss
                           </button>

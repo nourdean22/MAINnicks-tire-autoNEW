@@ -429,7 +429,8 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
   const claim = `${PENDING_REF}${Date.now()}`;
   const won = await prisma.commitment.updateMany({
     where: { id, status: "active", deletedAt: null, executionRef: ref },
-    data: { executionRef: claim, updatedBy: PROMISE_ACTOR },
+    // No updatedBy here: a claim released after a failed create must leave no section mark for the kill read.
+    data: { executionRef: claim },
   });
   if (won.count !== 1) {
     const winner = await prisma.commitment.findUnique({ where: { id }, select: { executionRef: true } });
