@@ -29,7 +29,7 @@ import type { Page } from "@playwright/test";
 
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
 import { HOME_BRIEF, HOME_GOALS, HOME_LOVE_MAP, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
-import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_GOALS, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
+import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_CHATS, MISSION_GOALS, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { NOW_CARD_TITLE, NOW_COMPOSE } from "./now";
 import { SHELL_PULSE, SHELL_SIGNALS, SHELL_TICKER } from "./shell";
 import { FIXED_TIME } from "./time";
@@ -99,6 +99,7 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "task.list": MISSION_TASKS,
   "task.missions": MISSIONS,
   "task.goals": MISSION_GOALS,
+  "task.missionChats": MISSION_CHATS,
   // Chat (W3a)
   "system.providerHealth": CHAT_PROVIDER_HEALTH,
   "system.toolsHealth": CHAT_TOOLS_HEALTH,

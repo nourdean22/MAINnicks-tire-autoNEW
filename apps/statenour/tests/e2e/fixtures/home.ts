@@ -86,6 +86,17 @@ export const HOME_BRIEF: OperatorBrief = {
     measured: true,
   },
   goalCheckInDue: { goalId: "demo-goal-1", title: "Demo goal: finish the demo floor layout", daysOverdue: 3 },
+  // W7: the lead task's mission and goal (the lead row's detail line) and the newest journal line with its people.
+  leadContext: {
+    mission: { id: "demo-mission-alpha", title: "Demo mission Alpha" },
+    goal: { id: "demo-goal-1", title: "Demo goal: finish the demo floor layout" },
+  },
+  journalLine: {
+    id: "demo-entry-1",
+    excerpt: "Demo entry: walked the demo floor with Demo Contractor A and agreed the shelving goes on the north wall.",
+    createdAt: NOW_ISO,
+    people: [{ id: "demo-person-1", name: "Demo Contractor A" }],
+  },
   budget: { visibleActionables: 6, cap: 7 },
 };
 

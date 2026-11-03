@@ -5,6 +5,7 @@ import { Search, X as XIcon, NotebookPen, Calendar } from "lucide-react";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { JournalEntryRow } from "@/components/journal/entry-row";
+import { DayActivityToggle } from "@/components/journal/day-activity";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { useJournalFeed } from "../_hooks/use-journal-feed";
@@ -176,6 +177,8 @@ export function JournalFeedView() {
                       {dayEntries.length} {dayEntries.length === 1 ? "entry" : "entries"}
                     </span>
                   </div>
+                  {/* W7 (Tana T3) · that day's done tasks and contacts, read when opened. */}
+                  <DayActivityToggle date={date} />
                   <div className="space-y-1.5">
                     {dayEntries.map((entry, i) => (
                       <JournalEntryRow

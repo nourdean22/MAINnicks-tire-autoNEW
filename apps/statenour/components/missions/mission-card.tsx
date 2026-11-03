@@ -40,6 +40,7 @@ import Link from "next/link";
 import { missionHasEndState } from "@/lib/services/mission-helpers";
 import { GOAL_CHIP_WIDTH, goalFilterHref } from "@/lib/missions/task-goal";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
+import { MissionChatsLine, type MissionChatsRead } from "./mission-chats-line";
 
 export interface MissionCardProps {
   mission: Project;
@@ -50,6 +51,8 @@ export interface MissionCardProps {
    *  treatment + a "Nick's pick" eyebrow. */
   /** Rank of each live open task in the deck's one order (deck.taskOrder, map F15). */
   taskRank?: Map<string, number>;
+  /** W7 · the chats linked to this mission (task.missionChats, read once by the feed). */
+  chats?: MissionChatsRead;
   /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
    *  so the card can disable arrows at the ends. */
   isDragged?: boolean;
@@ -70,6 +73,7 @@ export function MissionCard({
   tasks,
   defaultExpanded = true,
   taskRank,
+  chats,
   isDragged,
   isDraggedOver,
   onDragStart,
@@ -322,6 +326,7 @@ export function MissionCard({
       {/* Body · task list + add row + footer */}
       {expanded && (
         <div className="border-t border-edge pb-2">
+          <MissionChatsLine read={chats} />
           {/* Task list */}
           <div className="divide-y divide-edge/60">
             {sortedOpen.length === 0 && doneTasks.length === 0 && (
