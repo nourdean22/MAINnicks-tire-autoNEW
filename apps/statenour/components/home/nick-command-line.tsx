@@ -92,6 +92,13 @@ const getMessageText = (m: unknown): string => {
   return "";
 };
 
+/** Map gap 6: a failed "Nick remembers" read says so; a clean read (even an empty one) says nothing. */
+export function remembersFailedLine(data: { failed?: string[] } | undefined, isError: boolean): string | null {
+  if (isError) return "Couldn't read what Nick remembers";
+  const failed = data?.failed ?? [];
+  return failed.length ? `Couldn't read what Nick remembers (${failed.join(", ")})` : null;
+}
+
 export function NickCommandLine() {
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
@@ -260,6 +267,7 @@ export function NickCommandLine() {
     ? SLASH_COMMANDS.filter((c) => c.token.startsWith(input.trim().split(" ")[0].toLowerCase()))
     : [];
   const showChips = focused && input.length === 0 && anticipatedQuestions.length > 0;
+  const remembersFailed = focused && input.length === 0 ? remembersFailedLine(remembersQ.data, remembersQ.isError) : null;
   const canSend = !isLoading && parseSlash(input).text.length > 0;
   const visibleMessages = messages.filter((m) => getMessageText(m) !== WAKE_MESSAGE);
   const lastReply = [...visibleMessages].reverse().find((m) => m.role === "assistant");
@@ -349,6 +357,7 @@ export function NickCommandLine() {
           </ul>
         )}
 
+        {remembersFailed && <p className="py-1 text-[12px] text-amber-300">{remembersFailed}</p>}
         {showChips && (
           <div className="flex flex-wrap gap-2 border-b border-edge py-2">
             {anticipatedQuestions.slice(0, 3).map((q) => (

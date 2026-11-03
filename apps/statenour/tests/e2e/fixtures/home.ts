@@ -85,6 +85,7 @@ export const HOME_BRIEF: OperatorBrief = {
     ],
     measured: true,
   },
+  goalCheckInDue: { goalId: "demo-goal-1", title: "Demo goal: finish the demo floor layout", daysOverdue: 3 },
   budget: { visibleActionables: 6, cap: 7 },
 };
 
@@ -153,6 +154,7 @@ export const HOME_WAITING: WaitingSummary = {
 export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickRemembersContext"] = {
   anticipatedQuestions: [],
   followUps: [],
+  failed: [],
 };
 
 // A Demo maxim, shaped like operator.maxim's output. Fictional like every fixture string (v3-gate.test.ts);
