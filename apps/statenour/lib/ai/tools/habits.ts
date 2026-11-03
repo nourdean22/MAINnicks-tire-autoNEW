@@ -57,33 +57,35 @@ export const habitsTools = {
   }),
 
   getHabitStreaks: tool({
-    description: "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
+    description:
+      "Habit check-offs for the last 7 ET days, per DAILY habit (workouts, journal, etc): which days are done (a day backfilled with completeTask.completedOn counts on its own day, an unchecked one does not), how many of 7, and the current streak. A read that failed says unknown.",
     inputSchema: z.object({}),
     execute: async () => {
-      // v10.0.54 · Wave A · Replaces retired HabitLog table reads
-      // (Apr 19 deprecation). Source of truth for habits is now
-      // Task with loopKind="DAILY" — streakCount + lastCompletedAt
-      // give the same signal: is this habit being kept on track?
-      // Returns { [taskTitle]: { completed, total } } where completed
-      // = streakCount and total = streakCount + missDaysSinceLast,
-      // matching the legacy 7-day-window contract.
-      const dailyTasks = await prisma.task
-        .findMany({
+      // 2026-11-03 · read the per-day TaskEvent ledger (habitDays) instead of
+      // counting streakCount back from lastCompletedAt, which hid every day
+      // backfilled before the latest check-off. A failed read is unknown, never
+      // "no habits" or a week of not-done.
+      let dailyTasks: Array<{ id: string; title: string; loopKind: string | null; streakCount: number; lastCompletedAt: Date | null }>;
+      try {
+        dailyTasks = await prisma.task.findMany({
           where: { loopKind: "DAILY", deletedAt: null },
-          select: { title: true, streakCount: true, lastCompletedAt: true },
-        })
-        .catch((err): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => {
-          logError("ai.tools-habits", err, { fn: "getHabitStreaks" });
-          return [];
+          select: { id: true, title: true, loopKind: true, streakCount: true, lastCompletedAt: true },
         });
-      const summary: Record<string, { completed: number; total: number }> = {};
+      } catch (err) {
+        logError("ai.tools-habits", err, { fn: "getHabitStreaks" });
+        return { error: "habits unknown (read failed)" };
+      }
+      const { habitDays } = await import("@/lib/services/daily-backfill");
+      const grid = await habitDays(dailyTasks, 7).catch((err: unknown) => {
+        logError("ai.tools-habits", err, { fn: "getHabitStreaks", scope: "ledger" });
+        return null;
+      });
+      const summary: Record<string, unknown> = {};
       for (const t of dailyTasks) {
-        const completed = Math.min(7, t.streakCount); // 7-day window
-        const daysSince = t.lastCompletedAt
-          ? Math.floor((Date.now() - t.lastCompletedAt.getTime()) / 86400000)
-          : 7;
-        const missed = Math.min(7, daysSince);
-        summary[t.title] = { completed, total: completed + Math.max(0, missed - completed) || 7 };
+        const days = grid?.get(t.id);
+        summary[t.title] = days
+          ? { completed: days.filter((d) => d.done).length, total: days.length, streak: t.streakCount, last7: days }
+          : { streak: t.streakCount, last7: "unknown (history read failed)" };
       }
       return summary;
     },

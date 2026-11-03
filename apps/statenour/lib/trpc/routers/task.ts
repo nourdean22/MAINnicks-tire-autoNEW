@@ -496,7 +496,7 @@ export const taskRouter = router({
     .input(
       z.object({
         id: z.string().min(1).max(64),
-        action: z.enum(["complete", "break"]).optional(),
+        action: z.enum(["complete", "break", "uncheck"]).optional(),
         // 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · the UI
         // prompts the operator when completing a parent with open
         // children · this flag carries the operator's yes. False or
@@ -540,7 +540,9 @@ export const taskRouter = router({
         );
         if (isService) {
           throw new TRPCError({
-            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            // A 400 (an uncheck of a non-DAILY task, a bad outcome score) is the caller's mistake,
+            // not a server fault: the UI says the message instead of "something went wrong".
+            code: err.status === 404 ? "NOT_FOUND" : err.status < 500 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
             message: err.message,
           });
         }

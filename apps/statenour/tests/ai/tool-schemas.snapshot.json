@@ -1428,7 +1428,7 @@
   },
   {
     "name": "getHabitStreaks",
-    "description": "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
+    "description": "Habit check-offs for the last 7 ET days, per DAILY habit (workouts, journal, etc): which days are done (a day backfilled with completeTask.completedOn counts on its own day, an unchecked one does not), how many of 7, and the current streak. A read that failed says unknown.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -2147,6 +2147,42 @@
       },
       "required": [
         "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "logPersonInteraction",
+    "description": "Record a contact with someone already in Nour's people on the relationship ledger: a signed amount (a deposit +, a withdrawal -) and one line of what happened. The same row the /people log and Telegram /log write. Use when he says \"log +20 for Mash, covered the counter\". Never creates a person and never guesses one: no_match (offer to add them first), ambiguous (two people, or only a typo-close name; ask which, then call again with the exact name or that candidate's personId) and rejected_name come back for you to say. Do not also append a person.logInteraction block for the same contact. Example: {\"personQuery\":\"Mash\",\"amount\":20,\"note\":\"covered the counter\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "amount": {
+          "description": "Signed, as he said it: +20 is 20, -5 is -5",
+          "maximum": 100,
+          "minimum": -100,
+          "type": "integer"
+        },
+        "note": {
+          "description": "What happened, in his words. Omit only if he gave none.",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "personId": {
+          "description": "Only after an ambiguous result: the personId of the candidate Nour picked",
+          "maxLength": 64,
+          "type": "string"
+        },
+        "personQuery": {
+          "description": "The name as Nour said it",
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "personQuery",
+        "amount"
       ],
       "type": "object"
     }

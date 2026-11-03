@@ -119,6 +119,83 @@ const tasksCoreTools = {
     },
   }),
 
+  // 2026-11-03 · the relationship ledger had no in-turn writer: Nick's person.logInteraction action
+  // block runs after the reply (deferred-background-work), so a name it could not pin was never said
+  // back to Nour in the turn. Resolution is resolveLedgerPerson, shared with Telegram /log, but strict:
+  // a typo-close name is asked about, never written (claim-before-act: the write is by the id read).
+  logPersonInteraction: tool({
+    description:
+      "Record a contact with someone already in Nour's people on the relationship ledger: a signed amount (a deposit +, a withdrawal -) and one line of what happened. The same row the /people log and Telegram /log write. Use when he says \"log +20 for Mash, covered the counter\". Never creates a person and never guesses one: no_match (offer to add them first), ambiguous (two people, or only a typo-close name; ask which, then call again with the exact name or that candidate's personId) and rejected_name come back for you to say. Do not also append a person.logInteraction block for the same contact. Example: {\"personQuery\":\"Mash\",\"amount\":20,\"note\":\"covered the counter\"}",
+    inputSchema: z.object({
+      personQuery: z.string().min(1).max(80).describe("The name as Nour said it"),
+      personId: z
+        .string()
+        .max(64)
+        .optional()
+        .describe("Only after an ambiguous result: the personId of the candidate Nour picked"),
+      amount: z.number().int().min(-100).max(100).describe("Signed, as he said it: +20 is 20, -5 is -5"),
+      note: z.string().max(500).optional().describe("What happened, in his words. Omit only if he gave none."),
+    }),
+    execute: async ({ personQuery, personId, amount, note }) => {
+      const { resolveLedgerPerson } = await import("@/lib/services/people/log-from-text");
+      try {
+        const who = await resolveLedgerPerson(personQuery, { allowTypoMatch: false });
+        let target: { id: string; name: string } | null = who.kind === "resolved" ? who.person : null;
+        // A picked candidate counts only if it is one of THIS name's candidates: an id from
+        // anywhere else (a stale turn, a guess) never moves a person row.
+        if (!target && personId && who.kind === "ambiguous") {
+          target = who.candidates.find((c) => c.id === personId) ?? null;
+        }
+        if (!target) {
+          if (who.kind === "rejected_name") {
+            return { logged: false, kind: who.kind, say: `"${who.name}" is not a name. Ask who he means.` };
+          }
+          if (who.kind === "no_match") {
+            return {
+              logged: false,
+              kind: who.kind,
+              say: `No one named "${who.name}" in his people. Ask if he wants them added first; nothing was logged.`,
+            };
+          }
+          if (who.kind === "ambiguous") {
+            return {
+              logged: false,
+              kind: who.kind,
+              reason: who.reason,
+              candidates: who.candidates.map((c) => ({ personId: c.id, name: c.name })),
+              say: personId
+                ? `That personId is not one of the candidates for "${who.name}"; nothing was logged. Ask which of these he means.`
+                : who.reason === "same_name"
+                  ? `More than one person is called "${who.name}". Ask which one; nothing was logged.`
+                  : `No one is called "${who.name}"; the closest is ${who.candidates[0]?.name}. Ask if that is who he means; nothing was logged.`,
+            };
+          }
+          return { logged: false, kind: who.kind, say: "nothing was logged" }; // unreachable: "resolved" set target
+        }
+        const { recordInteraction } = await import("@/lib/services/people/record-interaction");
+        const r = await recordInteraction({
+          personId: target.id,
+          amount,
+          note: note?.trim() || "manual log",
+          source: "chat",
+          metadata: { via: "chat_tool", matchTier: who.kind === "resolved" ? who.matchTier : "picked_candidate" },
+        });
+        return {
+          logged: true,
+          person: r.personName,
+          personId: r.personId,
+          amount: r.amount,
+          note: r.note,
+          interactionCount: r.interactionCount,
+          ledgerId: r.ledgerId,
+        };
+      } catch (err) {
+        await recordError("ai:tool-exec", err, { op: "logPersonInteraction" });
+        return { logged: false, error: "the ledger write failed; nothing was logged and the error is recorded" };
+      }
+    },
+  }),
+
   getCommitments: tool({
     description: "Get active commitments",
     inputSchema: z.object({}),
