@@ -52,6 +52,7 @@ const h = vi.hoisted(() => {
     vecFetch: null as Deferred<unknown[]> | null,
     people: [] as unknown[],
     peopleError: null as Error | null,
+    dumpError: null as Error | null,
     goals: [] as unknown[],
     sqlScorerError: null as Error | null,
   };
@@ -98,7 +99,8 @@ vi.mock("@/lib/prisma", () => {
     }),
   };
   const personProfile = { findMany: vi.fn(() => (h.peopleError ? Promise.reject(h.peopleError) : Promise.resolve(h.people))) };
-  const named: Record<string, unknown> = { brainMemory, vectorEmbedding, commitment, personProfile };
+  const brainDump = { findFirst: vi.fn(() => (h.dumpError ? Promise.reject(h.dumpError) : Promise.resolve(null))) };
+  const named: Record<string, unknown> = { brainMemory, vectorEmbedding, commitment, personProfile, brainDump };
   const prisma = new Proxy(
     {},
     {
@@ -196,6 +198,7 @@ beforeEach(() => {
   h.events.length = 0;
   h.people = [];
   h.peopleError = null;
+  h.dumpError = null;
   h.goals = [];
   h.sqlScorerError = null;
   h.memFetch = h.deferred<unknown[]>();
@@ -364,5 +367,39 @@ describe("contextual recall · goals and people (W6, 2026-11-03)", () => {
     h.peopleError = new Error("db down");
     const out = await settle(run());
     expect(out).toContain("couldn't read people");
+  });
+
+  const offTrackGoal = {
+    id: "g1", title: "Revenue this month", kind: "metric", horizon: "MONTH", unit: "$", currentValue: 1, targetValue: 2,
+    status: "active", due: { at: null, source: null, label: "" }, pace: null, paceKind: null,
+    health: { state: "off_track", at: null }, openTasks: 0,
+  };
+
+  it("WIRING: a goal maxim reaches the block and takes one wisdom slot (3 eligible wisdoms, 2 injected)", async () => {
+    h.goals = [offTrackGoal];
+    const wisdoms = Array.from({ length: 4 }, (_, i) => ({
+      ...MEMORIES[1], id: `w${i}`, category: "wisdom", key: `principle_${i}`, source: "wisdom-distiller",
+      content: `principle ${i}: answer the supplier invoice before the follow up ${i}`, confidence: 0.95 - i * 0.01,
+    }));
+    const p = getContextualMemories(["how are my goals going with the tire supplier invoice"], 5, { fastTopics: true, queryEmbedding: EMBED });
+    await flush();
+    h.memFetch!.resolve([...wisdoms, ...MEMORIES.slice(1)]);
+    await flush();
+    h.vecFetch!.resolve([...wisdoms.map((w) => ({ sourceId: w.id, embedding: JSON.stringify(EMBED) })), ...VECTORS.slice(1)]);
+    const out = await p;
+    expect(out).toContain("### Goals in this turn");
+    expect(out).toContain('- Maxim for "Revenue this month" (off track)');
+    const slotLog = logSpy.mock.calls.find((c) => c[0] === "[brain-recall] wisdom_slots")?.[1] as { wisdomInjected: number; goalMaxim: string | null };
+    expect(slotLog.goalMaxim).toBeTruthy();
+    expect(slotLog.wisdomInjected).toBe(2);
+  });
+
+  it("WIRING: each recalled person's line carries the facts suffix (a failed journal read says unread)", async () => {
+    h.people = [{ id: "p1", name: "Sam", role: "supplier", relationship: "tire supplier rep" }];
+    h.dumpError = new Error("db down");
+    const out = await settle(run());
+    const line = out.split(/\r?\n/).find((l) => l.includes("Sam (supplier)"));
+    expect(line).toBeTruthy();
+    expect(line!.trimEnd().endsWith(" · journal unread")).toBe(true);
   });
 });

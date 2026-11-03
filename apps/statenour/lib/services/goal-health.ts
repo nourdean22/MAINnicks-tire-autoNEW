@@ -82,8 +82,9 @@ export async function activeGoalsWithHealth(now: number = Date.now()): Promise<{
         targetValue: g.targetValue,
         status: g.status,
         due: goalDue(dates),
-        pace: view ? (view.kind === "note" ? view.text : view.label) : null,
-        paceKind: view?.kind === "chip" ? view.verdict.kind : null,
+        // A failed event read also lost horizon_set, so the pace would count from creation: no pace, not a guess.
+        pace: failed.length ? null : view ? (view.kind === "note" ? view.text : view.label) : null,
+        paceKind: !failed.length && view?.kind === "chip" ? view.verdict.kind : null,
         health: failed.length ? { state: "unknown", at: null } : { state: h.state, at: h.at },
         openTasks: g._count.tasks,
       };

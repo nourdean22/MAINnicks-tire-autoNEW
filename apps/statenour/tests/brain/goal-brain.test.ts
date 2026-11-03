@@ -50,6 +50,11 @@ describe("afterGoalMoment", () => {
     expect(h.memoryFindUnique.mock.calls[0][0].where).toEqual({ category_key: { category: "goal_moment", key: "goal_event:ge_1" } });
   });
 
+  it("a missed goal writes 'Missed <title>'", async () => {
+    await afterGoalMoment({ goalEventId: "ge_m", goalId: "goal_A", kind: "missed" });
+    expect(h.remember.mock.calls[0][2]).toBe('Missed "Save $15k"');
+  });
+
   it("an achieved goal writes 'Achieved <title>'", async () => {
     await afterGoalMoment({ goalEventId: "ge_2", goalId: "goal_A", kind: "achieved" });
     expect(h.remember.mock.calls[0][2]).toBe('Achieved "Save $15k"');

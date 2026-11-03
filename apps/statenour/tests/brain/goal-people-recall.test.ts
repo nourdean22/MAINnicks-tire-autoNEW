@@ -94,6 +94,16 @@ describe("goalRecallBlock", () => {
     }
   });
 
+  it("the cap holds at its edge: exactly 3 goals all show, a 4th does not", () => {
+    const n = (k: number) => Array.from({ length: k }, (_, i) => goal({ id: `g${i}`, title: `Goal ${i}`, paceKind: null, health: { state: "on_track", at: null } }));
+    expect(GOAL_RECALL_LINES).toBe(3);
+    const three = goalRecallBlock(n(3), ["goals"], "my goals", POOL, DAY).lines.filter((l) => l.startsWith("- Goal "));
+    expect(three).toHaveLength(3);
+    const four = goalRecallBlock(n(4), ["goals"], "my goals", POOL, DAY).lines.filter((l) => l.startsWith("- Goal "));
+    expect(four).toHaveLength(3);
+    expect(four.some((l) => l.includes("[id:g3]"))).toBe(false);
+  });
+
   it("goal words reach every active goal, capped at the named line cap", () => {
     const many = Array.from({ length: GOAL_RECALL_LINES + 3 }, (_, i) => goal({ id: `g${i}`, title: `Goal ${i}`, paceKind: null, health: { state: "on_track", at: null } }));
     const r = goalRecallBlock(many, ["goals"], "am I on track with my goals", POOL, DAY);
@@ -187,6 +197,14 @@ describe("people facts", () => {
     const facts = await readPeopleFacts(["p1"]);
     expect(personFactSuffix(facts, "p1")).toBe(" · journal unread");
     expect(h.warn).toHaveBeenCalledWith("people_facts_read_failed", expect.objectContaining({ source: "journal" }));
+  });
+
+  it("a failed contact read says last contact unread, not that there was none", async () => {
+    h.dumpFindFirst.mockResolvedValue(null);
+    h.ledgerFindMany.mockRejectedValue(new Error("db down"));
+    const facts = await readPeopleFacts(["p1"]);
+    expect(personFactSuffix(facts, "p1")).toBe(" · last contact unread");
+    expect(h.warn).toHaveBeenCalledWith("people_facts_read_failed", expect.objectContaining({ source: "contact" }));
   });
 
   it("no people means no reads", async () => {
