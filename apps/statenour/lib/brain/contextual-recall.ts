@@ -1387,6 +1387,10 @@ export async function getContextualMemories(
   // (graph's two neighbour lookups overlapping crossSource and related),
   // where starting everything together would put 5 in flight at t0. Stage
   // timings now overlap, so they no longer sum to `ms` in [brain-recall].
+  // W6 (2026-11-03): the goals read (2 sequential reads) starts only after
+  // semantic, before the wisdom slots and before graph, so it overlaps at most
+  // crossSource and related (3 in flight); the people facts inside related read
+  // one at a time. The peak of 4 holds.
   // Test: tests/brain/recall-stage-concurrency.test.ts.
   const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
   const [allMemories, lexicalAll, knnAll, wisdomLaneAll] = await Promise.all([
@@ -1468,9 +1472,6 @@ export async function getContextualMemories(
       return out;
     }),
   );
-  // W6 (2026-11-02) · goals touched by this turn: lines + at most one goal maxim (lib/brain/goal-people-recall.ts).
-  // readGoalRecall never throws; it is awaited before the wisdom slots, since its maxim takes one.
-  const goalsP = timed("goals", () => readGoalRecall(topicLower, queryText));
 
   const lexicalRows = lexicalAll.filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
@@ -1735,7 +1736,12 @@ export async function getContextualMemories(
   // 300 highest-confidence rows and curated wisdom can be most of it.
   const wisdomFloor = wisdomSlotFloor(useEmbeddings);
   const wisdomMetaOk = await attachWisdomOrigins(scored.filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= wisdomFloor));
-  const goalRecall = await goalsP;
+  // W6 · goals touched by this turn: lines + at most one goal maxim (lib/brain/goal-people-recall.ts), read here
+  // (after semantic, before graph: see the phase note above) because its maxim takes a wisdom slot. Goal phrases
+  // are read from the raw last message. readGoalRecall never throws; a failed read is `failed`, said on a goal turn.
+  const goalRecall = await timed("goals", () =>
+    readGoalRecall(topicLower, String(recentMessages[recentMessages.length - 1] ?? "").slice(0, 500)),
+  );
   const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now), goalMaximSlots: goalRecall.maxim ? 1 : 0 });
   // Pool sizes ride along so an empty pool (a failed lane) is not read as "nothing relevant".
   console.log("[brain-recall] wisdom_slots", {
@@ -2008,6 +2014,8 @@ export async function getContextualMemories(
     rerankFired,
     crossSourceLines,
     relatedLines,
+    goalLines: goalRecall.lines.length,
+    goalFailed: goalRecall.failed === true,
     budgetDropped,
     // CUMULATIVE since process start, not this turn — a rate needs a
     // denominator, and one turn cannot supply one. `null` rather than 0 when
@@ -2373,12 +2381,20 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
   }
 
   // People
+  // W6 · a failed people read says so once, instead of dropping the block as if no one matched (empty-vs-error).
   const allPeople = await prisma.personProfile
     .findMany({
       take: 30,
       select: { id: true, name: true, role: true, relationship: true },
     })
-    .catch(() => []);
+    .catch((err: unknown) => {
+      logError("brain.contextual-recall", err, { fn: "appendRelatedContext.people" }, "warn");
+      return null;
+    });
+  if (allPeople === null) {
+    lines.push(RECALL_ADDENDUM_HEADINGS.people, "- People: couldn't read people this turn (unknown, not none)");
+    return;
+  }
 
   const relevantPeople = allPeople.filter(
     (p) => matchesTopic(p.name) || matchesTopic(p.relationship)

@@ -51,6 +51,8 @@ const h = vi.hoisted(() => {
     memFetch: null as Deferred<unknown[]> | null,
     vecFetch: null as Deferred<unknown[]> | null,
     people: [] as unknown[],
+    peopleError: null as Error | null,
+    goals: [] as unknown[],
     sqlScorerError: null as Error | null,
   };
 });
@@ -95,7 +97,7 @@ vi.mock("@/lib/prisma", () => {
       return Promise.resolve([{ description: "call the tire supplier about the invoice", deadline: null }]);
     }),
   };
-  const personProfile = { findMany: vi.fn(() => Promise.resolve(h.people)) };
+  const personProfile = { findMany: vi.fn(() => (h.peopleError ? Promise.reject(h.peopleError) : Promise.resolve(h.people))) };
   const named: Record<string, unknown> = { brainMemory, vectorEmbedding, commitment, personProfile };
   const prisma = new Proxy(
     {},
@@ -154,6 +156,13 @@ vi.mock("@/lib/brain/relational-graph", () => ({
 }));
 
 vi.mock("@/lib/brain/rerank", () => ({ rerank: vi.fn(), isRerankAvailable: () => false }));
+// W6: the goals read (lib/services/goal-health.ts) is its own stage; its start is an event like the others.
+vi.mock("@/lib/services/goal-health", () => ({
+  activeGoalsWithHealth: vi.fn(() => {
+    h.events.push("start:goals");
+    return Promise.resolve({ goals: h.goals, failed: [] });
+  }),
+}));
 
 import { getContextualMemories } from "@/lib/brain/contextual-recall";
 
@@ -186,6 +195,8 @@ let warnSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   h.events.length = 0;
   h.people = [];
+  h.peopleError = null;
+  h.goals = [];
   h.sqlScorerError = null;
   h.memFetch = h.deferred<unknown[]>();
   h.vecFetch = h.deferred<unknown[]>();
@@ -312,5 +323,46 @@ describe("contextual recall · independent stages start together (2026-09-23)", 
     } finally {
       process.off("unhandledRejection", onUnhandled);
     }
+  });
+});
+
+describe("contextual recall · goals and people (W6, 2026-11-03)", () => {
+  const settle = async (p: Promise<string>) => {
+    await flush();
+    h.memFetch!.resolve(MEMORIES);
+    await flush();
+    h.vecFetch!.resolve(VECTORS);
+    return p;
+  };
+
+  it("the goals read waits for the semantic stage, so phase B's pool peak is unchanged", async () => {
+    const p = run();
+    await flush();
+    h.memFetch!.resolve(MEMORIES);
+    await flush();
+    await flush();
+    expect(h.events).toContain("start:semantic");
+    expect(h.events).not.toContain("start:goals");
+    h.vecFetch!.resolve(VECTORS);
+    await p;
+    expect(h.events).toContain("start:goals");
+  });
+
+  it("goal phrases come from the raw last message: 'on track' brings the goal lines in", async () => {
+    h.goals = [
+      {
+        id: "g1", title: "Revenue this month", kind: "metric", horizon: "MONTH", unit: "$", currentValue: 1, targetValue: 2,
+        status: "active", due: { at: null, source: null, label: "" }, pace: null, paceKind: null,
+        health: { state: "on_track", at: null }, openTasks: 0,
+      },
+    ];
+    const out = await settle(getContextualMemories(["am I on track this week with the tire supplier"], 5, { fastTopics: true, queryEmbedding: EMBED }));
+    expect(out).toContain("[id:g1]");
+  });
+
+  it("a failed people read says so instead of dropping the people block", async () => {
+    h.peopleError = new Error("db down");
+    const out = await settle(run());
+    expect(out).toContain("couldn't read people");
   });
 });

@@ -27,33 +27,41 @@ const RECALL_MAXIM_STATES: readonly GoalMomentState[] = ["off_track", "behind_pa
 /** Also RECALL_ADDENDUM_HEADINGS.goals (contextual-recall.ts imports it from here). */
 export const GOAL_RECALL_HEADING = "### Goals in this turn";
 
-// Not "behind", "pace" or "progress": "behind on emails" is not about a goal (self-review, W6).
-const GOAL_WORDS = /\b(goals?|targets?|on track|off track|check[- ]?ins?)\b/i;
+// Read against the RAW last message (topics are single words, so a phrase could never match). Not "behind", "pace"
+// or "progress" ("behind on emails"), and not "target" (the store): W6 self-review and second reader.
+const GOAL_WORDS = /\b(goals?|on track|off track|check[- ]?ins?)\b/i;
+/** Rendered when the goals read fails on a goal turn: the goals are unknown this turn, not absent. */
+export const GOAL_READ_FAILED_LINE = "- Goals: couldn't read this turn (unknown, not none)";
 
 const clip = (s: string | null | undefined, n: number) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
   return t.length > n ? `${t.slice(0, n - 1)}...` : t;
 };
 
-/** The same loose match appendRelatedContext uses for commitments, tasks and people. */
-function touches(text: string, topicLower: string[]): boolean {
-  const lower = text.toLowerCase();
-  return topicLower.some((t) => lower.includes(t) || t.split(/\s+/).some((w) => w.length > 3 && lower.includes(w)));
+const words = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+
+/** A goal title is touched when a topic shares a whole word of 4+ letters with it ("work" never matches "workout"). */
+function touches(title: string, topicLower: string[]): boolean {
+  const titleWords = new Set(words(title));
+  return topicLower.some((t) => words(t).some((w) => titleWords.has(w)));
 }
 
 export interface GoalRecall {
   lines: string[];
   maxim: GoalMaxim | null;
+  /** The goals read failed this turn: the lines say so on a goal turn, and the [brain-recall] log carries it. */
+  failed?: true;
 }
 
 export function goalRecallBlock(
   goals: readonly ActiveGoalHealth[],
   topicLower: string[],
+  /** The raw last message: goal phrases are read from it, not from the single-word topics. */
   query: string,
   pool: readonly Maxim[] = MAXIM_POOL,
   day?: string,
 ): GoalRecall {
-  const all = GOAL_WORDS.test(query) || topicLower.some((t) => GOAL_WORDS.test(t));
+  const all = GOAL_WORDS.test(query);
   const touched = (all ? goals : goals.filter((g) => touches(g.title, topicLower))).slice(0, GOAL_RECALL_LINES);
   if (touched.length === 0) return { lines: [], maxim: null };
   const lines = [
@@ -80,7 +88,8 @@ export async function readGoalRecall(topicLower: string[], query: string): Promi
     return goalRecallBlock(goals, topicLower, query);
   } catch (err) {
     log.warn("goal_recall_failed", { err: err instanceof Error ? err.message : String(err) });
-    return { lines: [], maxim: null };
+    // A goal turn must not read like a turn that touched no goal (empty-vs-error).
+    return { lines: GOAL_WORDS.test(query) ? [GOAL_RECALL_HEADING, GOAL_READ_FAILED_LINE] : [], maxim: null, failed: true };
   }
 }
 
@@ -92,38 +101,35 @@ export interface PeopleFacts {
 
 export async function readPeopleFacts(personIds: string[]): Promise<PeopleFacts> {
   const facts: PeopleFacts = { journal: new Map(), contact: new Map(), failed: new Set() };
-  if (personIds.length === 0) return facts;
-  const [dumps, ledger] = await Promise.allSettled([
-    prisma.brainDump.findMany({
-      where: { personIds: { hasSome: personIds }, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      select: { personIds: true, summary: true, rawThoughts: true, createdAt: true },
-    }),
-    prisma.relationshipLedger.findMany({
-      where: { personId: { in: personIds } },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: { personId: true, note: true, metadata: true, createdAt: true },
-    }),
-  ]);
-  if (dumps.status === "fulfilled") {
-    for (const d of dumps.value) {
-      for (const id of d.personIds) {
-        if (personIds.includes(id) && !facts.journal.has(id)) facts.journal.set(id, { at: d.createdAt, text: d.summary || d.rawThoughts });
-      }
+  const fail = (source: "journal" | "contact", err: unknown) => {
+    if (!facts.failed.has(source)) log.warn("people_facts_read_failed", { source, err: err instanceof Error ? err.message : String(err) });
+    facts.failed.add(source);
+  };
+  // One person, one read at a time: each person gets their own newest line (a shared capped read let a busy person
+  // crowd out the rest), and recall's pool peak is unchanged (contextual-recall.ts phase B note).
+  for (const id of personIds) {
+    try {
+      const d = await prisma.brainDump.findFirst({
+        where: { personIds: { has: id }, deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        select: { summary: true, rawThoughts: true, createdAt: true },
+      });
+      if (d) facts.journal.set(id, { at: d.createdAt, text: d.summary || d.rawThoughts });
+    } catch (err) {
+      fail("journal", err);
     }
-  } else {
-    facts.failed.add("journal");
-    log.warn("people_facts_read_failed", { source: "journal", err: String(dumps.reason instanceof Error ? dumps.reason.message : dumps.reason) });
-  }
-  if (ledger.status === "fulfilled") {
-    for (const l of contactRowsOnly(ledger.value)) {
-      if (l.personId && !facts.contact.has(l.personId)) facts.contact.set(l.personId, { at: l.createdAt, note: l.note ?? "" });
+    try {
+      const rows = await prisma.relationshipLedger.findMany({
+        where: { personId: id },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { personId: true, note: true, metadata: true, createdAt: true },
+      });
+      const c = contactRowsOnly(rows)[0];
+      if (c) facts.contact.set(id, { at: c.createdAt, note: c.note ?? "" });
+    } catch (err) {
+      fail("contact", err);
     }
-  } else {
-    facts.failed.add("contact");
-    log.warn("people_facts_read_failed", { source: "contact", err: String(ledger.reason instanceof Error ? ledger.reason.message : ledger.reason) });
   }
   return facts;
 }

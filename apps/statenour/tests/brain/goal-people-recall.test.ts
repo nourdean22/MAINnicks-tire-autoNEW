@@ -8,13 +8,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   activeGoalsWithHealth: vi.fn(),
-  dumpFindMany: vi.fn(),
+  dumpFindFirst: vi.fn(),
   ledgerFindMany: vi.fn(),
   warn: vi.fn(),
 }));
 vi.mock("@/lib/services/goal-health", () => ({ activeGoalsWithHealth: h.activeGoalsWithHealth }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { brainDump: { findMany: h.dumpFindMany }, relationshipLedger: { findMany: h.ledgerFindMany } },
+  prisma: { brainDump: { findFirst: h.dumpFindFirst }, relationshipLedger: { findMany: h.ledgerFindMany } },
 }));
 vi.mock("@/lib/logger", async (orig) => {
   const m = await orig<typeof import("@/lib/logger")>();
@@ -23,6 +23,7 @@ vi.mock("@/lib/logger", async (orig) => {
 
 import {
   GOAL_RECALL_LINES,
+  GOAL_READ_FAILED_LINE,
   goalRecallBlock,
   readGoalRecall,
   personFactSuffix,
@@ -73,6 +74,20 @@ describe("goalRecallBlock", () => {
     expect(r.lines.at(-1)).toBe('- Maxim for "Revenue this month" (behind pace): Move before the window shuts. (Gracián)');
   });
 
+  it("a title matches only on a whole word of 4+ letters: work is not workout, the Target store is not a target", () => {
+    const g = [goal({ title: "Daily workout" }), goal({ id: "g2", title: "Career move" }), goal({ id: "g3", title: "Revenue this month" })];
+    expect(goalRecallBlock(g, ["work"], "work stuff today", POOL, DAY).lines).toEqual([]);
+    expect(goalRecallBlock(g, ["car"], "fix the car", POOL, DAY).lines).toEqual([]);
+    expect(goalRecallBlock(g, ["target"], "I'm going to Target", POOL, DAY).lines).toEqual([]);
+    const hit = goalRecallBlock(g, ["revenue so far"], "revenue so far", POOL, DAY);
+    expect(hit.lines.filter((l) => l.includes("[id:"))).toEqual([expect.stringContaining("Revenue this month")]);
+  });
+
+  it("goal phrases are read from the raw message, so on track and check in can match", () => {
+    expect(goalRecallBlock([goal({})], ["track"], "am I on track this week", POOL, DAY).lines.length).toBeGreaterThan(0);
+    expect(goalRecallBlock([goal({})], ["check"], "let's check in on things", POOL, DAY).lines.length).toBeGreaterThan(0);
+  });
+
   it("everyday words like behind, pace or progress do not pull goals into an unrelated turn", () => {
     for (const q of ["I'm behind on emails", "slow pace at the shop today", "any progress on the brake job"]) {
       expect(goalRecallBlock([goal({})], ["emails"], q, POOL, DAY)).toEqual({ lines: [], maxim: null });
@@ -101,10 +116,20 @@ describe("goalRecallBlock", () => {
 });
 
 describe("readGoalRecall", () => {
-  it("a failed goals read adds nothing and is logged, never thrown", async () => {
+  it("a failed goals read on a goal turn says the goals are unknown, never that there are none", async () => {
     h.activeGoalsWithHealth.mockRejectedValue(new Error("db down"));
-    await expect(readGoalRecall(["goals"], "my goals")).resolves.toEqual({ lines: [], maxim: null });
+    await expect(readGoalRecall(["goals"], "how are my goals")).resolves.toEqual({
+      lines: [RECALL_ADDENDUM_HEADINGS.goals, GOAL_READ_FAILED_LINE],
+      maxim: null,
+      failed: true,
+    });
+    expect(GOAL_READ_FAILED_LINE).toContain("unknown, not none");
     expect(h.warn).toHaveBeenCalledWith("goal_recall_failed", expect.objectContaining({ err: "db down" }));
+  });
+
+  it("a failed goals read on an unrelated turn adds nothing but still reports failed", async () => {
+    h.activeGoalsWithHealth.mockRejectedValue(new Error("db down"));
+    await expect(readGoalRecall(["invoice"], "send the invoice")).resolves.toEqual({ lines: [], maxim: null, failed: true });
   });
   it("returns the touched goal's line from the shared goals read", async () => {
     h.activeGoalsWithHealth.mockResolvedValue({ goals: [goal({})], failed: [] });
@@ -125,24 +150,39 @@ describe("selectWisdomSlots goal signal", () => {
 });
 
 describe("people facts", () => {
-  it("each person carries their newest journal line and last contact, read by id", async () => {
-    h.dumpFindMany.mockResolvedValue([
-      { personIds: ["p1", "p2"], summary: "Talked with Sam about the lease", rawThoughts: "x", createdAt: new Date("2026-11-01T15:00:00Z") },
-      { personIds: ["p1"], summary: "older line", rawThoughts: "y", createdAt: new Date("2026-10-20T15:00:00Z") },
-    ]);
-    h.ledgerFindMany.mockResolvedValue([
-      { personId: "p1", note: "status flip", metadata: { kind: "status_flip" }, createdAt: new Date("2026-11-02T10:00:00Z") },
-      { personId: "p1", note: "coffee, he wants in", metadata: null, createdAt: new Date("2026-10-30T10:00:00Z") },
-    ]);
+  it("each person carries their OWN newest journal line and last contact, one person at a time", async () => {
+    const shared = { personIds: ["p1", "p2"], summary: "Talked with Sam about the lease", rawThoughts: "x", createdAt: new Date("2026-11-01T15:00:00Z") };
+    let inFlight = 0;
+    let peak = 0;
+    const track = <T,>(v: T) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      return new Promise<T>((r) => setTimeout(() => { inFlight--; r(v); }, 1));
+    };
+    h.dumpFindFirst.mockImplementation(() => track(shared));
+    h.ledgerFindMany.mockImplementation(({ where }: { where: { personId: string } }) =>
+      track(
+        where.personId === "p1"
+          ? [
+              { personId: "p1", note: "status flip", metadata: { kind: "status_flip" }, createdAt: new Date("2026-11-02T10:00:00Z") },
+              { personId: "p1", note: "coffee, he wants in", metadata: null, createdAt: new Date("2026-10-30T10:00:00Z") },
+            ]
+          : [],
+      ),
+    );
     const facts = await readPeopleFacts(["p1", "p2"]);
-    expect(h.dumpFindMany.mock.calls[0][0].where).toMatchObject({ personIds: { hasSome: ["p1", "p2"] }, deletedAt: null });
-    expect(h.ledgerFindMany.mock.calls[0][0].where).toEqual({ personId: { in: ["p1", "p2"] } });
+    expect(h.dumpFindFirst.mock.calls.map((c) => c[0].where)).toEqual([
+      { personIds: { has: "p1" }, deletedAt: null },
+      { personIds: { has: "p2" }, deletedAt: null },
+    ]);
+    expect(h.ledgerFindMany.mock.calls.map((c) => c[0].where)).toEqual([{ personId: "p1" }, { personId: "p2" }]);
+    expect(peak).toBe(1);
     expect(personFactSuffix(facts, "p1")).toBe(" · last contact 2026-10-30: coffee, he wants in · journal 2026-11-01: Talked with Sam about the lease");
     expect(personFactSuffix(facts, "p2")).toBe(" · journal 2026-11-01: Talked with Sam about the lease");
   });
 
   it("a failed read says so on the line instead of reading as 'nothing logged'", async () => {
-    h.dumpFindMany.mockRejectedValue(new Error("db down"));
+    h.dumpFindFirst.mockRejectedValue(new Error("db down"));
     h.ledgerFindMany.mockResolvedValue([]);
     const facts = await readPeopleFacts(["p1"]);
     expect(personFactSuffix(facts, "p1")).toBe(" · journal unread");
@@ -151,7 +191,7 @@ describe("people facts", () => {
 
   it("no people means no reads", async () => {
     await readPeopleFacts([]);
-    expect(h.dumpFindMany).not.toHaveBeenCalled();
+    expect(h.dumpFindFirst).not.toHaveBeenCalled();
     expect(h.ledgerFindMany).not.toHaveBeenCalled();
   });
 });
