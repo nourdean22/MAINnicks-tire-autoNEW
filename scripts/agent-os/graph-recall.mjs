@@ -167,7 +167,9 @@ function downVerdict() {
 function commonDir(dir) {
   try {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
-    return resolve(execFileSync("git", ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", env, stdio: ["ignore", "pipe", "ignore"], timeout: 800 }).trim());
+    // 2.5 s: git took over 800 ms right after a reboot with 40 sessions starting (verify7, 2026-11-03), which read as
+    // "another repo" and silenced the global entry; a slow git is still silence (fail-safe), only later.
+    return resolve(execFileSync("git", ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", env, stdio: ["ignore", "pipe", "ignore"], timeout: 2500 }).trim());
   } catch {
     return null;
   }
