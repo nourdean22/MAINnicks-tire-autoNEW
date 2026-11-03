@@ -33,6 +33,10 @@ import { creditStatXp } from "@/lib/mastery/credit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { getJournalSettings, type JournalSettingsValues } from "@/lib/journal/settings";
 import { logger as rootLogger } from "@/lib/logger";
+import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
+
+/** Every row but a weekly-review row. entryType is nullable, and `NOT` would drop the NULL rows in SQL. */
+const NOT_REVIEW_ROW = { OR: [{ entryType: null }, { entryType: { not: REVIEW_ENTRY_TYPE } }] };
 
 const log = rootLogger.withSurface("brain/journal-brain");
 const aiChat = makeTracedAiChat("journal-brain", "journal");
@@ -161,7 +165,7 @@ export async function writeGrounding(
   id: string,
   g: Grounding,
   status: LinkStatus | null,
-): Promise<void> {
+): Promise<boolean> {
   const linkData = {
     goalId: g.goalId,
     missionId: g.missionId,
@@ -170,11 +174,17 @@ export async function writeGrounding(
     enrichedAt: new Date(),
   };
   switch (silo) {
-    case "brain_dump":
-      await prisma.brainDump.update({ where: { id }, data: { ...linkData, entryType: g.entryType } });
+    case "brain_dump": {
+      // A weekly-review row keeps its type and its own grounding: the model never re-grounds his review notes.
+      const r = await prisma.brainDump.updateMany({ where: { id, ...NOT_REVIEW_ROW }, data: { ...linkData, entryType: g.entryType } });
+      if (r.count === 0) {
+        await markEnriched(silo, id);
+        return false;
+      }
       // goals-system W3b · a trusted goal link carries the entry's own tasks with it.
       if (g.goalId && status === "auto") await linkJournalTasksToGoal(id, g.goalId);
       break;
+    }
     case "reflection":
       await prisma.reflection.update({ where: { id }, data: linkData });
       break;
@@ -185,6 +195,7 @@ export async function writeGrounding(
       await prisma.decisionReplay.update({ where: { id }, data: linkData });
       break;
   }
+  return true;
 }
 
 /** Just stamp enrichedAt (used for too-short entries / no-op passes) so the
@@ -323,7 +334,8 @@ ${missionMenu}`,
       ? confidence >= settings.autoConfirmThreshold ? "auto" : "proposed"
       : null;
 
-    await writeGrounding(silo, id, grounding, status);
+    // false = a weekly-review row: kept as he grounded it, so no credit and no notice either.
+    if (!(await writeGrounding(silo, id, grounding, status))) return;
 
     // 4. SCORE — grounded bonus only when the GOAL link is auto-confirmed.
     //    A "proposed" link defers its credit to the confirm mutation, so the
@@ -527,10 +539,17 @@ export async function requeueDanglingLinks(silo: JournalSilo): Promise<number> {
   };
   const data = { linkStatus: null, linkConfidence: null, enrichedAt: null };
   try {
+    if (silo === "brain_dump") {
+      // Review rows are never re-grounded by the model: ungrounded in place, type and enrichedAt kept.
+      const requeued = await prisma.brainDump.updateMany({ where: { ...where, AND: [NOT_REVIEW_ROW] }, data });
+      const review = await prisma.brainDump.updateMany({
+        where: { ...where, entryType: REVIEW_ENTRY_TYPE },
+        data: { linkStatus: null, linkConfidence: null },
+      });
+      return requeued.count + review.count;
+    }
     const r =
-      silo === "brain_dump"
-        ? await prisma.brainDump.updateMany({ where, data })
-        : silo === "reflection"
+      silo === "reflection"
           ? await prisma.reflection.updateMany({ where, data })
           : silo === "situation_log"
             ? await prisma.situationLog.updateMany({ where, data })

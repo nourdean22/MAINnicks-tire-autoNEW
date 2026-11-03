@@ -22,12 +22,15 @@ const shortDate = (iso: string) =>
 
 export function WeeklyReviewGoalView({
   row,
+  failed = [],
   note,
   action,
   onNote,
   onAction,
 }: {
   row: ReviewGoal;
+  /** The review read's failed side reads: a failed one is named here, never "nothing done". */
+  failed?: string[];
   note: string;
   action: GoalAction;
   onNote: (text: string) => void;
@@ -51,8 +54,16 @@ export function WeeklyReviewGoalView({
         {(goal.horizon ?? "no horizon").toLowerCase()}
         {goal.due ? ` · due ${shortDate(goal.due)}` : ""}
       </p>
+      {failed.includes("done tasks") && (
+        <p role="status" className="mt-2 text-[12px] text-amber-300">Done tasks couldn&apos;t load</p>
+      )}
+      {failed.includes("entries") && (
+        <p role="status" className="mt-2 text-[12px] text-amber-300">Entries couldn&apos;t load</p>
+      )}
       {doneTasks.length === 0 && entries.length === 0 ? (
-        <p className="mt-2 text-[13px] text-fg-tertiary">Nothing done or written for this goal since the last review.</p>
+        failed.includes("done tasks") || failed.includes("entries") ? null : (
+          <p className="mt-2 text-[13px] text-fg-tertiary">Nothing done or written for this goal since the last review.</p>
+        )
       ) : (
         <ul className="mt-2 space-y-1 text-[13px]">
           {doneTasks.map((t) => (
@@ -81,6 +92,38 @@ export function WeeklyReviewGoalView({
   );
 }
 
+const titleList = (ids: string[], titles: ReadonlyMap<string, string>) => ids.map((id) => titles.get(id) ?? "a goal no longer listed").join(", ");
+
+/** The screen after Save: counts, then every goal change that failed and every note saved without a goal, by title. */
+export function ReviewSavedView({ result, titles }: { result: SaveWeeklyReviewResult; titles: ReadonlyMap<string, string> }) {
+  return (
+    <div className="py-6 text-[14px] text-fg">
+      {result.replayed ? (
+        <p>This review was already saved ({result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}). Goal changes were not repeated.</p>
+      ) : (
+        <p>
+          Saved {result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}
+          {result.extended.length ? `, extended ${result.extended.length}` : ""}
+          {result.closed.length ? `, closed ${result.closed.length}` : ""}.
+        </p>
+      )}
+      {result.failed.length > 0 && (
+        <p role="status" className="mt-1 text-[13px] text-amber-300">
+          Not changed: {titleList(result.failed, titles)}. Open Goals to retry.
+        </p>
+      )}
+      {result.ungrounded.length > 0 && (
+        <p role="status" className="mt-1 text-[13px] text-amber-300">
+          Saved without a goal, because the goal is no longer active: {titleList(result.ungrounded, titles)}.
+        </p>
+      )}
+      <Link href="/journal" className="mt-3 inline-flex min-h-11 items-center text-[13px] text-fg-secondary underline-offset-2 hover:underline">
+        Back to the journal
+      </Link>
+    </div>
+  );
+}
+
 export function WeeklyReview() {
   const utils = trpc.useUtils();
   const q = trpc.journal.weeklyReview.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -89,6 +132,8 @@ export function WeeklyReview() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [actions, setActions] = useState<Record<string, GoalAction>>({});
   const [result, setResult] = useState<SaveWeeklyReviewResult | null>(null);
+  // One id per review form: a retry after a lost response is recognised by the server and not saved twice.
+  const [reviewId] = useState(() => crypto.randomUUID());
 
   if (q.isLoading) return <p className="py-6 text-[13px] text-fg-tertiary">Reading the week…</p>;
   if (q.isError || !q.data) {
@@ -106,31 +151,14 @@ export function WeeklyReview() {
     );
   }
 
-  if (result) {
-    return (
-      <div className="py-6 text-[14px] text-fg">
-        <p>
-          Saved {result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}
-          {result.extended.length ? `, extended ${result.extended.length}` : ""}
-          {result.closed.length ? `, closed ${result.closed.length}` : ""}.
-        </p>
-        {result.failed.length > 0 && (
-          <p role="status" className="mt-1 text-[13px] text-amber-300">
-            {result.failed.length} goal {result.failed.length === 1 ? "change" : "changes"} failed; open Goals to retry.
-          </p>
-        )}
-        <Link href="/journal" className="mt-3 inline-flex min-h-11 items-center text-[13px] text-fg-secondary underline-offset-2 hover:underline">
-          Back to the journal
-        </Link>
-      </div>
-    );
-  }
+  if (result) return <ReviewSavedView result={result} titles={new Map(q.data.goals.map((g) => [g.goal.id, g.goal.title]))} />;
 
   const r = q.data;
   const written = week.trim() || Object.values(notes).some((n) => n.trim());
   const submit = async () => {
     const res = await save
       .mutateAsync({
+        reviewId,
         week,
         notes: Object.entries(notes).map(([goalId, text]) => ({ goalId, text })),
         extend: Object.keys(actions).filter((id) => actions[id] === "extend"),
@@ -148,10 +176,13 @@ export function WeeklyReview() {
       <p className="text-[13px] text-fg-secondary">
         Since {r.lastReviewAt ? `your last review, ${shortDate(r.since)}` : shortDate(r.since)}
       </p>
-      {r.failed.length > 0 && (
+      {r.failed.includes("last review") && (
         <p role="status" className="mt-1 text-[12px] text-amber-300">
-          Couldn&apos;t read: {r.failed.join(", ")}. Those rows are missing, not zero.
+          Couldn&apos;t read when the last review was: this shows the last 7 days, a guess.
         </p>
+      )}
+      {r.truncated && (
+        <p role="status" className="mt-1 text-[12px] text-amber-300">This window has more rows than one read holds: the oldest are not shown.</p>
       )}
       {r.goals.length === 0 ? (
         <p className="py-4 text-[13px] text-fg-tertiary">No active goals. The week note below still saves to the journal.</p>
@@ -160,6 +191,7 @@ export function WeeklyReview() {
           <WeeklyReviewGoalView
             key={row.goal.id}
             row={row}
+            failed={r.failed}
             note={notes[row.goal.id] ?? ""}
             action={actions[row.goal.id] ?? null}
             onNote={(text) => setNotes((n) => ({ ...n, [row.goal.id]: text }))}
@@ -173,7 +205,7 @@ export function WeeklyReview() {
       </label>
       {save.isError && (
         <p role="status" className="mt-2 text-[13px] text-rose-300">
-          {save.error.message || "Save failed."} Nothing was lost: your text is still here.
+          {save.error.message || "Save failed."} Your text is still here, and saving again is safe: a review already saved is not saved twice.
         </p>
       )}
       <button

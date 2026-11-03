@@ -14,13 +14,14 @@ const h = vi.hoisted(() => ({
   create: vi.fn(),
   updateGoal: vi.fn(),
   tx: vi.fn(),
+  prior: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.goals },
     taskEvent: { findMany: h.events },
     brainDump: { findMany: h.dumps, findFirst: h.lastReview, create: h.create },
-    $transaction: (ops: Promise<unknown>[]) => h.tx(ops),
+    $transaction: (fn: unknown, opts: unknown) => h.tx(fn, opts),
   },
 }));
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
@@ -33,11 +34,12 @@ vi.mock("@/lib/logger", async (orig) => {
 import {
   REVIEW_ENTRY_TYPE,
   REVIEW_MAX_DAYS,
+  REVIEW_ROWS_CAP,
   REVIEW_WINDOW_DAYS,
   readWeeklyReview,
   saveWeeklyReview,
 } from "@/lib/services/weekly-review";
-import { WeeklyReviewGoalView } from "@/components/journal/weekly-review";
+import { ReviewSavedView, WeeklyReviewGoalView } from "@/components/journal/weekly-review";
 
 const DAY = 86_400_000;
 const NOW = new Date("2026-11-02T15:00:00Z");
@@ -55,8 +57,12 @@ beforeEach(() => {
   logWarn.mockReset();
   h.create.mockImplementation(async ({ data }: { data: { goalId: string | null } }) => ({ id: `d-${data.goalId ?? "week"}` }));
   h.updateGoal.mockResolvedValue({});
-  h.tx.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+  // The interactive transaction runs its callback against a tx client with the same brainDump mocks.
+  h.prior.mockResolvedValue([]);
+  h.tx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn({ brainDump: { findMany: h.prior, create: h.create } }));
 });
+
+const RID = "rev-0123456789";
 
 describe("readWeeklyReview", () => {
   it("windows from the last review, buckets done tasks by their goal (own over mission) and grounded entries", async () => {
@@ -83,6 +89,21 @@ describe("readWeeklyReview", () => {
     expect(by.g1.goal.canExtendOrClose).toBe(true);
     expect(by.g2.goal.canExtendOrClose).toBe(false);
     expect(r.failed).toEqual([]);
+    expect(r.truncated).toBe(false);
+    // Only completions that can land on a reviewed goal are read, so the cap is spent on them.
+    expect(h.events.mock.calls[0][0].where.task).toEqual({
+      OR: [{ goalId: { in: ["g1", "g2"] } }, { goalId: null, mission: { lifeGoalId: { in: ["g1", "g2"] } } }],
+    });
+  });
+
+  it("a read that fills its cap says the window is truncated", async () => {
+    h.lastReview.mockResolvedValue(null);
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.events.mockResolvedValue(
+      Array.from({ length: REVIEW_ROWS_CAP }, (_, i) => ({ createdAt: NOW, task: { id: `t${i}`, title: "x", goalId: "g1", mission: null } })),
+    );
+    h.dumps.mockResolvedValue([]);
+    expect((await readWeeklyReview(NOW)).truncated).toBe(true);
   });
 
   it("no past review is a REVIEW_WINDOW_DAYS window; an old one is capped at REVIEW_MAX_DAYS", async () => {
@@ -110,7 +131,7 @@ describe("readWeeklyReview", () => {
 describe("saveWeeklyReview", () => {
   it("saves each goal's note as an entry grounded to that goal, confidence 1, no enrichment pass", async () => {
     h.goals.mockResolvedValue([goal("g1"), goal("g2", "MONTH")]);
-    const r = await saveWeeklyReview({ week: "Solid week.", notes: [{ goalId: "g1", text: "Supplier call went well" }], extend: [], close: [] }, NOW);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "Solid week.", notes: [{ goalId: "g1", text: "Supplier call went well" }], extend: [], close: [] }, NOW);
     expect(h.create).toHaveBeenCalledTimes(2);
     const data = h.create.mock.calls.map((c) => c[0].data);
     expect(data[0]).toMatchObject({
@@ -131,7 +152,7 @@ describe("saveWeeklyReview", () => {
 
   it("extends a WEEK goal by a week from its due date and closes another through updateGoal", async () => {
     h.goals.mockResolvedValue([goal("g1", "WEEK", { deadline: new Date("2026-11-05T04:59:59Z") }), goal("g3")]);
-    const r = await saveWeeklyReview({ week: "w", notes: [], extend: ["g1"], close: ["g3"] }, NOW);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: ["g1"], close: ["g3"] }, NOW);
     expect(h.updateGoal).toHaveBeenCalledWith({ id: "g1", deadline: new Date("2026-11-12T04:59:59Z").toISOString() });
     expect(h.updateGoal).toHaveBeenCalledWith({ id: "g3", status: "completed" });
     expect(r).toMatchObject({ extended: ["g1"], closed: ["g3"], skipped: [] });
@@ -139,7 +160,7 @@ describe("saveWeeklyReview", () => {
 
   it("a past due date extends a week from now, not from the past", async () => {
     h.goals.mockResolvedValue([goal("g1", "WEEK", { deadline: new Date("2026-10-20T00:00:00Z") })]);
-    await saveWeeklyReview({ week: "w", notes: [], extend: ["g1"], close: [] }, NOW);
+    await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: ["g1"], close: [] }, NOW);
     expect(h.updateGoal).toHaveBeenCalledWith({ id: "g1", deadline: new Date(NOW.getTime() + 7 * DAY).toISOString() });
   });
 
@@ -147,6 +168,7 @@ describe("saveWeeklyReview", () => {
     h.goals.mockResolvedValue([goal("g1"), goal("g2", "MONTH")]);
     const r = await saveWeeklyReview(
       {
+        reviewId: RID,
         week: "close g1 and extend g2, also goal id g1",
         notes: [
           { goalId: "ghost", text: "a note on a goal that is not active" },
@@ -160,14 +182,16 @@ describe("saveWeeklyReview", () => {
     expect(h.updateGoal).not.toHaveBeenCalled();
     expect(r.extended).toEqual([]);
     expect(r.closed).toEqual([]);
-    expect(r.skipped.sort()).toEqual(["g2", "ghost", "ghost", "nope"].sort());
-    expect(h.create.mock.calls.map((c) => c[0].data.goalId)).toEqual(["g1", null]);
+    expect(r.skipped.sort()).toEqual(["g2", "ghost", "nope"].sort());
+    // The note on a goal that is not active is kept, ungrounded (P1: his text is never dropped).
+    expect(h.create.mock.calls.map((c) => c[0].data.goalId)).toEqual([null, "g1", null]);
+    expect(r.ungrounded).toEqual(["ghost"]);
   });
 
   it("a failed entry write saves nothing and touches no goal (one transaction, retry-safe)", async () => {
     h.goals.mockResolvedValue([goal("g1")]);
     h.tx.mockRejectedValue(new Error("write failed"));
-    await expect(saveWeeklyReview({ week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] }, NOW)).rejects.toThrow(
+    await expect(saveWeeklyReview({ reviewId: RID, week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] }, NOW)).rejects.toThrow(
       "write failed",
     );
     expect(h.updateGoal).not.toHaveBeenCalled();
@@ -175,18 +199,44 @@ describe("saveWeeklyReview", () => {
 
   it("a goal both extended and closed is closed, not extended", async () => {
     h.goals.mockResolvedValue([goal("g1")]);
-    const r = await saveWeeklyReview({ week: "w", notes: [], extend: ["g1"], close: ["g1"] }, NOW);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: ["g1"], close: ["g1"] }, NOW);
     expect(h.updateGoal).toHaveBeenCalledTimes(1);
     expect(r).toMatchObject({ extended: [], closed: ["g1"] });
   });
 
   it("refuses a review with nothing written (the review IS the entry)", async () => {
     h.goals.mockResolvedValue([goal("g1")]);
-    await expect(saveWeeklyReview({ week: "  ", notes: [{ goalId: "g1", text: " " }], extend: ["g1"], close: [] }, NOW)).rejects.toThrow(
+    await expect(saveWeeklyReview({ reviewId: RID, week: "  ", notes: [{ goalId: "g1", text: " " }], extend: ["g1"], close: [] }, NOW)).rejects.toThrow(
       /write one line/i,
     );
     expect(h.updateGoal).not.toHaveBeenCalled();
     expect(h.create).not.toHaveBeenCalled();
+    expect(h.tx).not.toHaveBeenCalled();
+  });
+
+  it("a note whose goal left the active list between read and save is saved without a goal, never dropped", async () => {
+    h.goals.mockResolvedValue([]);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g-closed", text: "Still my words" }], extend: [], close: [] }, NOW);
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.create.mock.calls[0][0].data).toMatchObject({ rawThoughts: "Still my words", goalId: null, linkStatus: null });
+    expect(r).toMatchObject({ saved: ["d-week"], ungrounded: ["g-closed"] });
+  });
+
+  it("CLAIM: the save is one serializable transaction keyed by the form's reviewId", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    await saveWeeklyReview({ reviewId: RID, week: "w", notes: [{ goalId: "g1", text: "n" }], extend: [], close: [] }, NOW);
+    expect(h.tx.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
+    expect(h.prior.mock.calls[0][0].where).toEqual({ entryType: REVIEW_ENTRY_TYPE, extractedItems: JSON.stringify({ reviewId: RID }) });
+    for (const c of h.create.mock.calls) expect(c[0].data.extractedItems).toBe(JSON.stringify({ reviewId: RID }));
+  });
+
+  it("CLAIM: a retry of a review already committed returns its rows and repeats no write and no goal action", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.prior.mockResolvedValue([{ id: "d-old1" }, { id: "d-old2" }]);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] }, NOW);
+    expect(h.create).not.toHaveBeenCalled();
+    expect(h.updateGoal).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ saved: ["d-old1", "d-old2"], replayed: true, extended: [], closed: [] });
   });
 });
 
@@ -209,5 +259,39 @@ describe("WeeklyReviewGoalView", () => {
     expect(renderToStaticMarkup(<WeeklyReviewGoalView row={{ ...g, doneTasks: [], entries: [] }} note="" action={null} onNote={() => {}} onAction={() => {}} />)).toContain(
       "Nothing done or written",
     );
+  });
+});
+
+describe("weekly review states (silent-failure read)", () => {
+  const g = {
+    goal: { id: "g1", title: "Goal g1", horizon: "WEEK", due: null, canExtendOrClose: true },
+    doneTasks: [],
+    entries: [],
+  };
+  const view = (failed: string[]) =>
+    renderToStaticMarkup(<WeeklyReviewGoalView row={g} failed={failed} note="" action={null} onNote={() => {}} onAction={() => {}} />);
+
+  it("a failed side read is named in the goal block, never 'Nothing done or written'", () => {
+    const html = view(["done tasks"]);
+    expect(html).toContain("Done tasks couldn&#x27;t load");
+    expect(html).not.toContain("Nothing done or written");
+    expect(view(["entries"])).toContain("Entries couldn&#x27;t load");
+    expect(view([])).toContain("Nothing done or written");
+  });
+
+  it("the saved screen names failed goal changes and goal-less notes by title, and says when a retry was a replay", () => {
+    const titles = new Map([["g1", "Ship the quote"], ["g2", "Run the 10k"]]);
+    const html = renderToStaticMarkup(
+      <ReviewSavedView
+        result={{ saved: ["d1"], extended: [], closed: [], skipped: [], failed: ["g1"], ungrounded: ["g2"], replayed: false }}
+        titles={titles}
+      />,
+    );
+    expect(html).toContain("Ship the quote");
+    expect(html).toContain("Run the 10k");
+    const replay = renderToStaticMarkup(
+      <ReviewSavedView result={{ saved: ["d1"], extended: [], closed: [], skipped: [], failed: [], ungrounded: [], replayed: true }} titles={titles} />,
+    );
+    expect(replay).toContain("already saved");
   });
 });

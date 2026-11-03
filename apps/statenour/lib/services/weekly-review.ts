@@ -14,6 +14,7 @@
 import { prisma } from "@/lib/prisma";
 import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
+import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/weekly-review");
@@ -22,9 +23,10 @@ const log = rootLogger.withSurface("services/weekly-review");
 export const REVIEW_WINDOW_DAYS = 7;
 export const REVIEW_MAX_DAYS = 28;
 export const REVIEW_EXTEND_DAYS = 7;
-export const REVIEW_ENTRY_TYPE = "weekly_review";
+// The marker is shared with the journal brain, whose sweeps leave review rows alone (journal-review-marker.ts).
+export { REVIEW_ENTRY_TYPE };
 const REVIEW_GOALS_CAP = 20;
-const REVIEW_ROWS_CAP = 500;
+export const REVIEW_ROWS_CAP = 500;
 
 const DAY_MS = 86_400_000;
 
@@ -40,6 +42,8 @@ export interface WeeklyReviewRead {
   goals: ReviewGoal[];
   /** Side reads that threw ("last review" | "done tasks" | "entries"); their rows are missing, not zero. */
   failed: string[];
+  /** A side read filled REVIEW_ROWS_CAP: older rows in the window are not shown. */
+  truncated: boolean;
 }
 
 const clip = (s: string, n = 160) => {
@@ -92,13 +96,20 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
       ];
     }),
   );
-  if (rows.size === 0) return { since: since.toISOString(), lastReviewAt: lastReviewAt?.toISOString() ?? null, goals: [], failed };
+  if (rows.size === 0) {
+    return { since: since.toISOString(), lastReviewAt: lastReviewAt?.toISOString() ?? null, goals: [], failed, truncated: false };
+  }
 
   const ids = [...rows.keys()];
   const [events, dumps] = await Promise.allSettled([
     prisma.taskEvent.findMany({
       // gt, not gte: the last review's own rows sit exactly at `since` and are not this week's work.
-      where: { kind: "completed", createdAt: { gt: since } },
+      // Only completions that can land on a reviewed goal, so the cap is spent on them (own goal, else the mission's).
+      where: {
+        kind: "completed",
+        createdAt: { gt: since },
+        task: { OR: [{ goalId: { in: ids } }, { goalId: null, mission: { lifeGoalId: { in: ids } } }] },
+      },
       orderBy: { createdAt: "desc" },
       take: REVIEW_ROWS_CAP,
       select: { createdAt: true, task: { select: { id: true, title: true, goalId: true, mission: { select: { lifeGoalId: true } } } } },
@@ -111,7 +122,9 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
     }),
   ]);
 
+  let truncated = false;
   if (events.status === "fulfilled") {
+    if (events.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const e of events.value) {
       // The task's own goal overrides its mission's (lib/missions/task-goal.ts taskGoal).
       const gid = e.task?.goalId ?? e.task?.mission?.lifeGoalId ?? null;
@@ -122,16 +135,19 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
   } else warn("done tasks", events.reason);
 
   if (dumps.status === "fulfilled") {
+    if (dumps.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const d of dumps.value) {
       const row = d.goalId ? rows.get(d.goalId) : undefined;
       if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts), at: d.createdAt.toISOString() });
     }
   } else warn("entries", dumps.reason);
 
-  return { since: since.toISOString(), lastReviewAt: lastReviewAt?.toISOString() ?? null, goals: [...rows.values()], failed };
+  return { since: since.toISOString(), lastReviewAt: lastReviewAt?.toISOString() ?? null, goals: [...rows.values()], failed, truncated };
 }
 
 export interface SaveWeeklyReviewInput {
+  /** Minted once per review form; a retry with the same id returns the rows already saved (claim-before-act). */
+  reviewId: string;
   /** The week's reflection; saved ungrounded. */
   week: string;
   /** One note per goal; each is saved grounded to its goal. */
@@ -148,6 +164,10 @@ export interface SaveWeeklyReviewResult {
   skipped: string[];
   /** Goal actions that threw; the entries were already saved. */
   failed: string[];
+  /** Goals whose note was saved WITHOUT a goal: the goal left the active list between the read and the save. */
+  ungrounded: string[];
+  /** This reviewId was already saved: its rows are returned and nothing is written or acted on again. */
+  replayed: boolean;
 }
 
 export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date = new Date()): Promise<SaveWeeklyReviewResult> {
@@ -160,32 +180,48 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   const skipped: string[] = [];
 
   const date = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const entry = (rawThoughts: string, goalId: string | null, at: Date) =>
-    prisma.brainDump.create({
-      data: {
-        date,
-        rawThoughts,
-        actionsTaken: 0,
-        entryType: REVIEW_ENTRY_TYPE,
-        goalId,
-        linkConfidence: goalId ? 1 : null,
-        linkStatus: goalId ? "confirmed" : null,
-        enrichedAt: now,
-        createdAt: at,
-      },
-      select: { id: true },
-    });
+  // A note whose goal left the active list is saved ungrounded, never dropped: his words outlive the goal.
+  const ungrounded = notes.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
+  const rows = [...notes.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const), ...(week ? [[week, null] as const] : [])];
+  if (rows.length === 0) throw new Error("Write one line before saving the review.");
 
-  const grounded = notes.filter((n) => {
-    if (goals.has(n.goalId)) return true;
-    skipped.push(n.goalId);
-    return false;
-  });
-  // One transaction: a failure saves nothing, so a retry cannot duplicate entries. Each row gets its own instant,
-  // the week entry last, so the newest review row (the next review's `since`) is never one of this review's notes.
-  const rows = [...grounded.map((n) => [n.text, n.goalId] as const), ...(week ? [[week, null] as const] : [])];
-  const created = await prisma.$transaction(rows.map(([text, goalId], i) => entry(text, goalId, new Date(now.getTime() + i))));
-  const saved = created.map((c) => c.id);
+  // One serializable transaction keyed by the form's reviewId: a failure saves nothing, and a retry after a commit
+  // whose response was lost (a phone dropping signal) finds its own rows and writes nothing twice. Two concurrent
+  // saves of one id conflict under SERIALIZABLE and one fails, so they cannot both write. Each row gets its own
+  // instant, the week entry last, so the newest review row (the next review's `since`) is never one of its notes.
+  const marker = JSON.stringify({ reviewId: input.reviewId });
+  const { ids: saved, replayed } = await prisma.$transaction(
+    async (tx) => {
+      const prior = await tx.brainDump.findMany({
+        where: { entryType: REVIEW_ENTRY_TYPE, extractedItems: marker },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (prior.length > 0) return { ids: prior.map((p) => p.id), replayed: true };
+      const ids: string[] = [];
+      for (const [i, [rawThoughts, goalId]] of rows.entries()) {
+        const row = await tx.brainDump.create({
+          data: {
+            date,
+            rawThoughts,
+            actionsTaken: 0,
+            entryType: REVIEW_ENTRY_TYPE,
+            extractedItems: marker,
+            goalId,
+            linkConfidence: goalId ? 1 : null,
+            linkStatus: goalId ? "confirmed" : null,
+            enrichedAt: now,
+            createdAt: new Date(now.getTime() + i),
+          },
+          select: { id: true },
+        });
+        ids.push(row.id);
+      }
+      return { ids, replayed: false };
+    },
+    { isolationLevel: "Serializable" },
+  );
+  if (replayed) return { saved, extended: [], closed: [], skipped, failed: [], ungrounded, replayed };
 
   const extended: string[] = [];
   const closed: string[] = [];
@@ -216,5 +252,5 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     await act(id, () => updateGoal({ id, deadline }), extended);
   }
 
-  return { saved, extended, closed, skipped, failed };
+  return { saved, extended, closed, skipped, failed, ungrounded, replayed: false };
 }
