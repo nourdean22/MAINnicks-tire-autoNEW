@@ -80,6 +80,8 @@ function MissionEditDrawerBody({
   );
   // "" is No goal. The value is always an id from `goals` (or the mission's own current goal), never typed text.
   const [lifeGoalId, setLifeGoalId] = useState(() => initial?.goal?.id ?? "");
+  // The goal the server holds for this mission (moves when Use links one), so Save sends the goal only on a change.
+  const [savedGoalId, setSavedGoalId] = useState(() => initial?.goal?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
   const goalRef = useRef<HTMLSelectElement>(null);
 
@@ -113,7 +115,11 @@ function MissionEditDrawerBody({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(res.status === 400 ? "That goal is not active any more." : `HTTP ${res.status}`);
+      if (!res.ok) {
+        // The server's own reason (a refused goal, a bad domain, a bad body), never a guess from the status code.
+        const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(typeof body?.error === "string" && body.error ? body.error : `HTTP ${res.status}`);
+      }
       await Promise.all([utils.task.missions.invalidate(), utils.task.deck.invalidate()]);
     },
     [missionId, utils],
@@ -125,6 +131,7 @@ function MissionEditDrawerBody({
       try {
         await patchMission({ lifeGoalId: goal.goalId });
         setLifeGoalId(goal.goalId);
+        setSavedGoalId(goal.goalId);
         toast.success(`Linked to “${goal.title}”.`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Link failed.");
@@ -165,7 +172,7 @@ function MissionEditDrawerBody({
           domain: domain.trim() || null,
           completionCriteria: description.trim() || null,
           deadline: deadline.trim() || null,
-          lifeGoalId: lifeGoalId || null,
+          ...(lifeGoalId !== savedGoalId ? { lifeGoalId: lifeGoalId || null } : {}),
         });
         toast.success(`Updated “${trimmed}”.`);
         onSaved?.(missionId!);
@@ -184,6 +191,7 @@ function MissionEditDrawerBody({
     description,
     deadline,
     lifeGoalId,
+    savedGoalId,
     missionId,
     createMission,
     patchMission,
@@ -397,14 +405,20 @@ function MissionEditDrawerBody({
 }
 
 type Suggestion = { goalId: string; title: string; score: number; basis: "embedding" | "words" };
+/** lib/missions/suggest-goal.ts GoalSuggestionStatus, as it arrives on the wire. */
+type SuggestionStatus =
+  | { status: "linked" }
+  | { status: "no_active_goals" }
+  | { status: "no_match"; basis: Suggestion["basis"] }
+  | { status: "suggested"; suggestion: Suggestion };
 
-/** One line above the goal select: the suggestion and its one-tap Use, "couldn't suggest", or a measured no-match. */
+/** One line above the goal select: the suggestion and its one-tap Use, "couldn't suggest", or which empty it is. */
 function GoalSuggestionLine({
   query,
   disabled,
   onUse,
 }: {
-  query: { data?: Suggestion | null; isError: boolean; isLoading: boolean };
+  query: { data?: SuggestionStatus; isError: boolean; isLoading: boolean };
   disabled: boolean;
   onUse: (s: Suggestion) => void;
 }) {
@@ -415,9 +429,11 @@ function GoalSuggestionLine({
       </p>
     );
   }
-  if (query.data === undefined) return null;
-  if (query.data === null) return <p className="text-[12px] text-fg-tertiary">No goal matched closely</p>;
-  const s = query.data;
+  const d = query.data;
+  if (!d || d.status === "linked") return null;
+  if (d.status === "no_active_goals") return <p className="text-[12px] text-fg-tertiary">No active goals to link</p>;
+  if (d.status === "no_match") return <p className="text-[12px] text-fg-tertiary">No goal matched closely</p>;
+  const s = d.suggestion;
   return (
     <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-fg-secondary">
       <span className="min-w-0 truncate">

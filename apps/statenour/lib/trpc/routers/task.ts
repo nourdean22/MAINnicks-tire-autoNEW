@@ -290,13 +290,14 @@ export const taskRouter = router({
 
   /**
    * W8c · the goal an unlinked mission most likely belongs under (the edit drawer's "Suggested: <goal> · Use").
-   * Null is a measured no-match; a failed read throws, so the drawer says "couldn't suggest".
+   * Returns a status (linked · no_active_goals · no_match · suggested); a failed read throws, so the drawer says
+   * "couldn't suggest", never an empty answer.
    */
   suggestMissionGoal: operatorProcedure
     .input(z.object({ missionId: z.string().min(1).max(64) }))
     .query(async ({ input }) => {
-      const { suggestGoalForMission } = await import("@/lib/missions/suggest-goal");
-      return suggestGoalForMission(input.missionId);
+      const { suggestGoalStatusForMission } = await import("@/lib/missions/suggest-goal");
+      return suggestGoalStatusForMission(input.missionId);
     }),
 
   /**

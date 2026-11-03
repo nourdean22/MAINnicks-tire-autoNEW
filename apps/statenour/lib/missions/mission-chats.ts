@@ -51,10 +51,29 @@ export async function missionChats(missionIds: string[]): Promise<MissionChatsRe
     }
   }
   const wanted = new Set(ids);
+  const open = reviews.flatMap((r) => {
+    const m = (r.metadata ?? {}) as { missionId?: unknown; conversationId?: unknown };
+    return typeof m.missionId === "string" && wanted.has(m.missionId)
+      ? [{ missionId: m.missionId, conversationId: typeof m.conversationId === "string" ? m.conversationId : null }]
+      : [];
+  });
+  // A chat linked since it was queued (by the cron or a review approval) no longer needs a yes.
+  const convIds = [...new Set(open.flatMap((r) => (r.conversationId ? [r.conversationId] : [])))];
+  const linked =
+    convIds.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await prisma.chatConversation.findMany({
+              where: { id: { in: convIds }, missionId: { not: null } },
+              select: { id: true },
+            })
+          ).map((c) => c.id),
+        );
   const reviewByMission: Record<string, number> = {};
-  for (const r of reviews) {
-    const missionId = (r.metadata as { missionId?: unknown } | null)?.missionId;
-    if (typeof missionId === "string" && wanted.has(missionId)) reviewByMission[missionId] = (reviewByMission[missionId] ?? 0) + 1;
+  for (const r of open) {
+    if (r.conversationId && linked.has(r.conversationId)) continue;
+    reviewByMission[r.missionId] = (reviewByMission[r.missionId] ?? 0) + 1;
   }
   return { byMission: out, truncated: rows.length >= MISSION_CHATS_READ_CAP, reviewByMission };
 }

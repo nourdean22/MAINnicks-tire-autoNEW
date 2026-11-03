@@ -79,6 +79,20 @@ describe("missionChats", () => {
     expect(args.where).toEqual({ category: "conversation_mission_link_review", deletedAt: null });
   });
 
+  it("drops review rows for chats that already carry a mission (linked since they were queued)", async () => {
+    h.reviews.mockResolvedValue([
+      { metadata: { missionId: "m1", conversationId: "c1" } },
+      { metadata: { missionId: "m1", conversationId: "c2" } },
+    ]);
+    h.findMany.mockImplementation(async (args: { where: { id?: { in: string[] } } }) =>
+      args.where.id ? [{ id: "c1" }] : [],
+    );
+    const { reviewByMission } = await missionChats(["m1"]);
+    expect(reviewByMission).toEqual({ m1: 1 });
+    const linkedRead = h.findMany.mock.calls.find((c) => c[0].where.id)![0];
+    expect(linkedRead.where).toEqual({ id: { in: ["c1", "c2"] }, missionId: { not: null } });
+  });
+
   it("a failed review read fails the one read (couldn't load), never reads as no reviews", async () => {
     h.reviews.mockRejectedValue(new Error("db down"));
     await expect(missionChats(["m1"])).rejects.toThrow("db down");

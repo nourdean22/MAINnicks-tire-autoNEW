@@ -61,13 +61,29 @@ function parseVector(raw: string): number[] {
   }
 }
 
+/**
+ * Which answer the drawer shows: four different states, never one null for all of them (manager round 1 P2-9).
+ * "no_match" is the only measured no-match; a failed read throws.
+ */
+export type GoalSuggestionStatus =
+  | { status: "linked" }
+  | { status: "no_active_goals" }
+  | { status: "no_match"; basis: GoalSuggestion["basis"] }
+  | { status: "suggested"; suggestion: GoalSuggestion };
+
+/** The suggestion alone (null for every non-suggestion state); W13's backfill imports this signature. */
 export async function suggestGoalForMission(missionId: string): Promise<GoalSuggestion | null> {
+  const r = await suggestGoalStatusForMission(missionId);
+  return r.status === "suggested" ? r.suggestion : null;
+}
+
+export async function suggestGoalStatusForMission(missionId: string): Promise<GoalSuggestionStatus> {
   const mission = await prisma.mission.findFirst({
     where: { id: missionId, deletedAt: null },
     select: { id: true, title: true, successMetric: true, completionCriteria: true, lifeGoalId: true },
   });
   if (!mission) throw new Error("Mission not found.");
-  if (mission.lifeGoalId) return null;
+  if (mission.lifeGoalId) return { status: "linked" };
 
   const goals = await prisma.lifeGoal.findMany({
     where: { status: "active", deletedAt: null },
@@ -75,7 +91,7 @@ export async function suggestGoalForMission(missionId: string): Promise<GoalSugg
     take: SUGGEST_GOAL_MAX_GOALS,
     select: { id: true, title: true, why: true },
   });
-  if (goals.length === 0) return null;
+  if (goals.length === 0) return { status: "no_active_goals" };
 
   const rows = await prisma.vectorEmbedding.findMany({
     where: {
@@ -102,7 +118,7 @@ export async function suggestGoalForMission(missionId: string): Promise<GoalSugg
       const score = cosineSimilarity(missionVec, goalVecs.get(g.id)!);
       if (score >= SUGGEST_GOAL_MIN_COSINE && (!best || score > best.score)) best = { goalId: g.id, title: g.title, score, basis: "embedding" };
     }
-    return best;
+    return best ? { status: "suggested", suggestion: best } : { status: "no_match", basis: "embedding" };
   }
 
   // shortcut: word overlap until every active goal has a same-model vector (the nightly cron writes them).
@@ -112,5 +128,5 @@ export async function suggestGoalForMission(missionId: string): Promise<GoalSugg
     const score = wordOverlapScore(missionText, goalEmbedText(g));
     if (score >= SUGGEST_GOAL_MIN_WORDS && (!best || score > best.score)) best = { goalId: g.id, title: g.title, score, basis: "words" };
   }
-  return best;
+  return best ? { status: "suggested", suggestion: best } : { status: "no_match", basis: "words" };
 }

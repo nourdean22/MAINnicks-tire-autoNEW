@@ -23,6 +23,7 @@ import {
   SUGGEST_GOAL_MIN_COSINE,
   SUGGEST_GOAL_MIN_WORDS,
   suggestGoalForMission,
+  suggestGoalStatusForMission,
   wordOverlapScore,
 } from "@/lib/missions/suggest-goal";
 
@@ -116,9 +117,38 @@ describe("suggestGoalForMission · word fallback (no goal vectors yet)", () => {
     expect(s!.goalId).not.toBe("Hit 15K revenue this month");
   });
 
+  it("the word floor is 0.25, not the cosine floor: 0.286 suggests, 0.222 does not", async () => {
+    h.mission.mockResolvedValue(missionRow({ title: "Install the bay lift" }));
+    h.goals.mockResolvedValue([goal("g1", "Lift budget review quarterly")]);
+    expect(wordOverlapScore("Install the bay lift", "Lift budget review quarterly")).toBeCloseTo(0.286, 3);
+    expect(await suggestGoalForMission("m1")).toMatchObject({ goalId: "g1", basis: "words" });
+    h.goals.mockResolvedValue([goal("g1", "Lift budget review quarterly numbers spreadsheet")]);
+    expect(wordOverlapScore("Install the bay lift", "Lift budget review quarterly numbers spreadsheet")).toBeCloseTo(0.222, 3);
+    expect(await suggestGoalForMission("m1")).toBeNull();
+  });
+
   it("wordOverlapScore is 0 for no shared word and 1 for the same words", () => {
     expect(wordOverlapScore("bay lift", "marathon")).toBe(0);
     expect(wordOverlapScore("Bay lift", "the lift, bay!")).toBe(1);
+  });
+});
+
+describe("suggestGoalStatusForMission · says which empty it is (the drawer's line)", () => {
+  it("already linked, no active goals, measured no-match and a suggestion are four different answers", async () => {
+    h.mission.mockResolvedValue(missionRow({ lifeGoalId: "g1" }));
+    expect(await suggestGoalStatusForMission("m1")).toEqual({ status: "linked" });
+    h.mission.mockResolvedValue(missionRow());
+    h.goals.mockResolvedValue([]);
+    expect(await suggestGoalStatusForMission("m1")).toEqual({ status: "no_active_goals" });
+    h.goals.mockResolvedValue([goal("g1", "Run a marathon")]);
+    expect(await suggestGoalStatusForMission("m1")).toEqual({ status: "no_match", basis: "words" });
+    h.goals.mockResolvedValue([goal("g1", "Bay two lift")]);
+    expect(await suggestGoalStatusForMission("m1")).toMatchObject({ status: "suggested", suggestion: { goalId: "g1", basis: "words" } });
+  });
+
+  it("a failed read throws (the drawer says couldn't suggest), never a status", async () => {
+    h.goals.mockRejectedValue(new Error("db down"));
+    await expect(suggestGoalStatusForMission("m1")).rejects.toThrow("db down");
   });
 });
 
