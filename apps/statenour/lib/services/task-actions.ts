@@ -43,8 +43,9 @@ import { emitTaskEventAsync } from "@/lib/brain/task-events";
 // never blocks" — so a direct call is strictly safer here than the dynamic
 // import this replaced, which added a chunk-load rejection path inside a catch.
 import { logError } from "@/lib/utils/error-log";
-import { createTask as createTaskService, liftGoalOnTaskComplete } from "@/lib/services/tasks";
+import { createTask as createTaskService, liftGoalOnTaskComplete, maybeSpawnNextPhase } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
 import type { TaskReward } from "@/lib/mastery/task-reward";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
@@ -80,6 +81,10 @@ export interface CheckTaskResult {
   /** 2026-06-09 · Wire #2 · the reward signal the /missions toast renders
    *  (real XP credited, goal-lift, streak). Only set on a completion. */
   reward?: TaskReward;
+  /** W8a (2026-11-03): tasks of the NEXT plan phase created because this was the phase's last open task. */
+  nextPhaseSpawned?: number;
+  /** Round 1 P1-4: the next-phase spawn threw; milestones 2..N do not appear until it is retried. */
+  nextPhaseSpawnFailed?: string;
 }
 
 /**
@@ -196,12 +201,16 @@ export async function checkTask(args: {
       autoPriority: true,
       roiScore: true,
       goalId: true,
-      mission: { select: { title: true, domain: true } },
-      goal: { select: { domain: true } },
+      // W8a: phaseName drives the next-phase spawn; the mission's goal is the task's goal when it has none.
+      phaseName: true,
+      mission: { select: { title: true, domain: true, lifeGoalId: true, ...TASK_GOAL_SELECT.mission.select } },
+      goal: { select: { domain: true, ...TASK_GOAL_SELECT.goal.select } },
     },
   });
 
   if (!task) throw new ServiceError("Task not found", 404);
+  // The ONE task-goal rule at the lift (lib/services/task-goal-server.ts): own live goal, else the mission's live goal.
+  const liftGoalId = taskGoalServer(task)?.id ?? null;
 
   const now = new Date();
 
@@ -321,7 +330,7 @@ export async function checkTask(args: {
           effort: task.effort,
           loopKind: task.loopKind,
           streakCount: updated.streakCount,
-          hasGoalId: !!task.goalId,
+          hasGoalId: !!liftGoalId,
           outcomeScore: outcomeScore ?? null,
           completionNote: completionNote ?? null,
           outcomeRating: outcomeRating ?? null,
@@ -457,7 +466,7 @@ export async function checkTask(args: {
       // updateMany otherwise bypasses every completion hook).
       const cascadedChildren = await prisma.task.findMany({
         where: { parentTaskId: id, status: { notIn: ["DONE", "ARCHIVED"] }, deletedAt: null },
-        select: { id: true, goalId: true },
+        select: { id: true, ...TASK_GOAL_SELECT },
       });
       const cascadeResult = await prisma.task.updateMany({
         where: {
@@ -474,7 +483,8 @@ export async function checkTask(args: {
       childrenCascaded = cascadeResult.count;
       for (const child of cascadedChildren) {
         void creditTaskStats(child.id).catch(() => {});
-        if (child.goalId) void liftGoalOnTaskComplete(child.goalId, child.id).catch(() => {});
+        const childGoal = taskGoalServer(child)?.id ?? null;
+        if (childGoal) void liftGoalOnTaskComplete(childGoal, child.id).catch(() => {});
       }
     } catch (e) {
       // Cascade failure shouldn't fail the parent completion · the
@@ -507,8 +517,29 @@ export async function checkTask(args: {
   // only the updateTask PATCH path did. So a goal-tagged task completed by
   // checkbox left its goal frozen. Now it lifts here too. Idempotent on the
   // goal side; stat XP already credited above (liftGoal is currentValue-only).
-  if (task.goalId) {
-    void liftGoalOnTaskComplete(task.goalId, id).catch(() => {});
+  // W8a: a plan task carries no goalId of its own; its mission's goal is lifted (audit A2). Awaited so
+  // `goalLifted` below is a fact, not a claim; a failure is logged and never fails the completion.
+  let goalLifted = false;
+  if (liftGoalId) {
+    // Round 1 P1-9: true only when the goal's value moved (a metric goal, an achieved goal, a repeat: false).
+    goalLifted = await liftGoalOnTaskComplete(liftGoalId, id)
+      .catch((err) => {
+        log.warn("goal_lift_failed", { taskId: id, goalId: liftGoalId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+        return false;
+      });
+  }
+
+  // W8a (audit A1): the phase-progression hook. The only call used to sit in updateTask's UNREACHABLE
+  // branch, so milestones 2..N never became tasks. checkTask is the one completion path every writer
+  // uses (UI checkbox, PATCH, Nick's completeTask); awaited so the count rides back on the response.
+  let nextPhaseSpawned = 0;
+  let nextPhaseSpawnFailed: string | undefined;
+  if (task.phaseName && task.missionId) {
+    nextPhaseSpawned = await maybeSpawnNextPhase(task.missionId, task.phaseName).catch((err) => {
+      nextPhaseSpawnFailed = err instanceof Error ? err.message.slice(0, 200) : String(err);
+      log.warn("phase_progression_failed", { missionId: task.missionId, phaseName: task.phaseName, err: nextPhaseSpawnFailed });
+      return 0;
+    });
   }
 
   let autoLearnReport: AutoLearnReport | null = null;
@@ -707,9 +738,11 @@ export async function checkTask(args: {
     reward: {
       xpCredited: onceCredit.xpCredited,
       statsCredited: onceCredit.statsCredited,
-      goalLifted: !!task.goalId,
+      goalLifted,
       streak: null,
     },
+    nextPhaseSpawned,
+    ...(nextPhaseSpawnFailed ? { nextPhaseSpawnFailed } : {}),
   };
 }
 

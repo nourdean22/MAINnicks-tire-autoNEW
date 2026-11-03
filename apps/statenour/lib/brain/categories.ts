@@ -994,6 +994,8 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
     "planning", "project_management", "strategic_plan", "strategy",
     "task_insight", "task_lesson", "task_pattern", "orphan_tasks_nudge",
     "board_consultation", "task_completion",
+    // W8a (C13): goal facts and goal moments (lib/brain/goal-brain.ts) sit with strategy.
+    "goal", "goal_moment",
   ],
   "Legacy / deprecated": [
     "relationship", "skills", "business_read", "business_write",

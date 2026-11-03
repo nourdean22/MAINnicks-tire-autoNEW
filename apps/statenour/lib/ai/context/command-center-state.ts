@@ -17,8 +17,7 @@
  * reflects.
  */
 
-import { goalPaceView } from "@/lib/brain/goal-pace";
-import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
+import { activeGoalsWithHealth, type ActiveGoalHealth } from "@/lib/services/goal-health";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AI_GENERATION_SUCCESS_STATUSES as GENERATION_SUCCESS } from "@/lib/ai/generation-status";
@@ -73,6 +72,8 @@ export interface MissionSummary {
   domain: string;
   priority: number;
   successMetric: string | null;
+  /** W8a (C9): the goal the mission serves (Mission.lifeGoalId, live); null when none. */
+  goal?: { id: string; title: string } | null;
 }
 
 /** v9.1.4 · Active LifeGoal summary for the prompt. */
@@ -84,7 +85,8 @@ export interface GoalSummary {
   targetValue: number;
   currentValue: number;
   unit: string;
-  progress: number; // 0-100
+  /** 0-100 from goalProgress (lib/services/goal-health.ts); null = the tasks read failed and this goal counts tasks. */
+  progress: number | null;
   horizon: string | null;
   daysToDeadline: number | null;
   /** The goal card's date/pace line (lib/brain/goal-pace.ts goalPaceView); a derived date says "(from horizon)". */
@@ -270,6 +272,8 @@ export interface CommandCenterState {
   /** v9.1.4 · Active missions (projects) + goals — the WHY behind tasks. */
   missions: MissionSummary[];
   goals: GoalSummary[];
+  /** Round 1 P1-7: the goals read failed this turn; `goals` is empty because it is unknown, not because there are none. */
+  goalsReadFailed?: boolean;
   /** v9.1.5 · Recent brain dumps + reflections — the recent thinking. */
   recentThinking: {
     brainDumps: BrainDumpSummary[];
@@ -472,35 +476,18 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           domain: true,
           priority: true,
           successMetric: true,
+          lifeGoal: { select: { id: true, title: true, deletedAt: true } },
         },
       })
       .catch(() => [] as Array<MissionRow>),
-    // v9.1.4 · active LifeGoals — the top-of-stack desired outcomes.
-    prisma.lifeGoal
-      .findMany({
-        where: { status: "active", deletedAt: null },
-        orderBy: [{ horizon: "asc" }, { progress: "desc" }],
-        take: 8,
-        select: {
-          id: true,
-          title: true,
-          domain: true,
-          metric: true,
-          targetValue: true,
-          currentValue: true,
-          unit: true,
-          progress: true,
-          horizon: true,
-          deadline: true,
-          createdAt: true,
-          // goals-system W3 · open linked tasks ("no next step" when 0) and the latest horizon_set.
-          _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...NEXT_STEP_STATUSES] } } } } },
-          events: { where: { kind: "horizon_set" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
-        },
-      })
-      .catch((err): Array<GoalRow> => {
+    // v9.1.4 · active LifeGoals — the top-of-stack desired outcomes. W8a (audit A5/C1): the same read as the
+    // goal card, getGoals and the goals-page grounding (lib/services/goal-health.ts), so the prompt shows the one
+    // computed number, never the stored column. A failed read is null: the WHY block says the goals are unknown.
+    activeGoalsWithHealth(now.getTime())
+      .then((r) => r.goals.slice(0, PROMPT_GOALS_CAP))
+      .catch((err): ActiveGoalHealth[] | null => {
         console.warn("[command-center-state] active goals read failed:", err instanceof Error ? err.message : err);
-        return [];
+        return null;
       }),
     // v9.1.5 · recent brain dumps — what Nour was actively chewing on.
     prisma.brainDump
@@ -881,7 +868,8 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       scheduled: scheduled.map(toScheduledSummary),
     },
     missions: activeMissions.map(toMissionSummary),
-    goals: activeGoals.map(toGoalSummary),
+    goals: (activeGoals ?? []).map(goalSummaryFromHealth),
+    ...(activeGoals === null ? { goalsReadFailed: true } : {}),
     recentThinking: {
       brainDumps: recentBrainDumps.map(toBrainDumpSummary),
       reflections: recentReflections.map(toReflectionSummary),
@@ -1049,6 +1037,7 @@ interface MissionRow {
   domain: string;
   priority: number;
   successMetric: string | null;
+  lifeGoal?: { id: string; title: string; deletedAt: Date | null } | null;
 }
 
 function toMissionSummary(m: MissionRow): MissionSummary {
@@ -1058,43 +1047,15 @@ function toMissionSummary(m: MissionRow): MissionSummary {
     domain: m.domain,
     priority: m.priority,
     successMetric: m.successMetric,
+    goal: m.lifeGoal && !m.lifeGoal.deletedAt ? { id: m.lifeGoal.id, title: m.lifeGoal.title } : null,
   };
 }
 
-interface GoalRow {
-  id: string;
-  title: string;
-  domain: string;
-  metric: string;
-  targetValue: number;
-  currentValue: number;
-  unit: string;
-  progress: number;
-  horizon: string | null;
-  deadline: Date | null;
-  createdAt?: Date;
-  _count?: { tasks: number };
-  events?: { createdAt: Date }[];
-}
+/** Nick's prompt goals come from the one read (lib/services/goal-health.ts); 3 active in prod (2026-11-03). */
+export const PROMPT_GOALS_CAP = 8;
 
-/** `opts` is an object, so `rows.map(toGoalSummary)` can never pass the array index as the clock. */
-export function toGoalSummary(g: GoalRow, opts?: { now?: number } | number): GoalSummary {
-  const now = (typeof opts === "object" && opts?.now) || Date.now();
-  const view = g.createdAt
-    ? goalPaceView(
-        {
-          currentValue: g.currentValue,
-          targetValue: g.targetValue,
-          unit: g.unit,
-          status: "active",
-          deadline: g.deadline ? g.deadline.toISOString() : null,
-          horizon: g.horizon,
-          createdAt: g.createdAt.toISOString(),
-          horizonSetAt: g.events?.[0]?.createdAt.toISOString() ?? null,
-        },
-        now,
-      )
-    : null;
+/** The prompt's goal line from the shared read: the same progress, pace and open count the card shows. */
+export function goalSummaryFromHealth(g: ActiveGoalHealth): GoalSummary {
   return {
     id: g.id,
     title: g.title,
@@ -1103,13 +1064,11 @@ export function toGoalSummary(g: GoalRow, opts?: { now?: number } | number): Goa
     targetValue: g.targetValue,
     currentValue: g.currentValue,
     unit: g.unit,
-    progress: Math.round(g.progress),
+    progress: g.progress,
     horizon: g.horizon,
-    daysToDeadline: g.deadline
-      ? Math.max(0, Math.round((g.deadline.getTime() - Date.now()) / 86_400_000))
-      : null,
-    paceLine: view ? (view.kind === "note" ? view.text : view.label) : null,
-    openTasks: g._count ? g._count.tasks : null,
+    daysToDeadline: g.deadline ? Math.max(0, Math.round((Date.parse(g.deadline) - Date.now()) / 86_400_000)) : null,
+    paceLine: g.pace,
+    openTasks: g.openTasks,
   };
 }
 

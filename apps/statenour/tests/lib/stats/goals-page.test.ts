@@ -98,10 +98,11 @@ describe("goalMomentState (W6 contract, via momentInput)", () => {
     expect(state({ currentValue: 2, deadline: new Date(NOW - 3 * DAY).toISOString() })).toBe("off_track");
   });
 
-  it("precedence: off track beats behind pace, behind pace beats check-in due", () => {
+  it("precedence: off track beats behind pace; with no check-in the pace is a guess, so check-in due beats behind pace (W8a C10)", () => {
     const behind = { currentValue: 1, createdAt: new Date(NOW - 10 * DAY).toISOString(), deadline: new Date(NOW + 10 * DAY).toISOString() };
     expect(state({ ...behind, health: { state: "off_track", at: null, note: null } })).toBe("off_track");
-    expect(state({ ...behind, health: { state: "no_check_in", at: null, note: null } })).toBe("behind_pace");
+    expect(state({ ...behind, health: { state: "no_check_in", at: null, note: null } })).toBe("check_in_due");
+    expect(state({ ...behind, health: { state: "at_risk", at: null, note: null } })).toBe("behind_pace");
   });
 
   it("an unknown or missing health is no moment (unknown never reads as a state)", () => {

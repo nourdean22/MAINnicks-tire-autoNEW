@@ -17,6 +17,9 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.goalFindMany, findFirst: h.goalFindFirst },
     masteryScore: { findMany: h.scoreFindMany },
+    // W8a: the goals grounding reads activeGoalsWithHealth (check-ins + tasks through goalTaskWhere).
+    goalEvent: { findMany: vi.fn(async () => []) },
+    task: { findMany: vi.fn(async () => []) },
     mission: { create: h.missionCreate },
   },
 }));
@@ -49,10 +52,13 @@ describe("Active Goals block carries each goal's id", () => {
 
 describe("goals page data carries ids", () => {
   it("names each goal with its id", async () => {
-    h.goalFindMany.mockResolvedValue([{ id: "cgoal123", title: "Revenue", domain: "business", progress: 20, horizon: "MONTH" }]);
+    h.goalFindMany.mockResolvedValue([
+      { id: "cgoal123", title: "Revenue", kind: "metric", domain: "business", metric: "", unit: "$", currentValue: 3000, targetValue: 15000, progress: 99, horizon: "MONTH", status: "active", deadline: null, createdAt: new Date("2026-11-01T05:00:00.000Z") },
+    ]);
     const out = await buildPageData("goals");
     expect(h.goalFindMany.mock.calls[0][0].select.id).toBe(true);
-    expect(out).toContain('"Revenue" [id:cgoal123]');
+    // W8a: the one computed number (20 = 3000/15000), never the stored column (99).
+    expect(out).toContain('"Revenue" [id:cgoal123] 20%');
   });
 });
 
@@ -67,6 +73,8 @@ describe("createMissionPlan · lifeGoalId", () => {
     expect(h.goalFindFirst.mock.calls[0][0].where).toEqual({ id: "cgoal123", deletedAt: null });
     expect(h.missionCreate.mock.calls[0][0].data.lifeGoalId).toBe("cgoal123");
     expect(r).toMatchObject({ created: true, lifeGoalId: "cgoal123" });
+    // Round 1 P1-10: the plan's tasks serve the goal through the mission; their own goalId stays empty.
+    expect(h.createTaskAndEnrich.mock.calls.every((c) => (c[0] as { goalId: unknown }).goalId === null)).toBe(true);
   });
 
   it("an unknown goal id is dropped and said, never written (no FK throw)", async () => {

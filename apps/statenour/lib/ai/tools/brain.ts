@@ -485,7 +485,7 @@ export const brainTools = {
    */
   pinMemory: tool({
     description:
-      "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'.",
+      "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'. Pass goalId (from getGoals) or personId when the fact is about a goal or a person, so the /brain goal and person filters find it.",
     inputSchema: z.object({
       content: z.string().describe("The fact or note to pin · plain English · 1-2 sentences ideal"),
       key: z
@@ -493,8 +493,15 @@ export const brainTools = {
         .optional()
         .describe("Optional dedup key · defaults to slug of content first 60 chars"),
       confidence: z.number().min(0).max(1).default(0.95).optional(),
+      goalId: z.string().optional().describe("The goal this fact is about (id from getGoals); an unknown id is dropped and said"),
+      personId: z.string().optional().describe("The person this fact is about (id from getRelated / the people list); an unknown id is dropped and said"),
     }),
-    execute: async ({ content, key, confidence }) => {
+    execute: async ({ content, key, confidence, goalId, personId }) => {
+      // W8a (audit C4): the ids are checked against live rows (a hallucinated id would point the filters at
+      // nothing) and stored in metadata, where /brain's goal and person filters read them.
+      const goalOk = goalId ? Boolean(await prisma.lifeGoal.findFirst({ where: { id: goalId, deletedAt: null }, select: { id: true } })) : false;
+      const personOk = personId ? Boolean(await prisma.personProfile.findFirst({ where: { id: personId, deletedAt: null }, select: { id: true } })) : false;
+      const links = goalOk || personOk ? { ...(goalOk ? { goalId } : {}), ...(personOk ? { personId } : {}) } : undefined;
       const slug =
         key ??
         content
@@ -503,6 +510,12 @@ export const brainTools = {
           .replace(/\s+/g, "-")
           .replace(/-+/g, "-")
           .slice(0, 60);
+      // Round 1 P2-14: a re-pin MERGES into the row's metadata (a goal link must not erase an earlier person link).
+      const prior = links
+        ? await prisma.brainMemory.findUnique({ where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key: slug } }, select: { metadata: true } })
+        : null;
+      const priorMeta = prior?.metadata && typeof prior.metadata === "object" && !Array.isArray(prior.metadata) ? (prior.metadata as Record<string, unknown>) : {};
+      const metadata = links ? { ...priorMeta, ...links } : undefined;
       const row = await prisma.brainMemory.upsert({
         where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key: slug } },
         create: {
@@ -512,12 +525,14 @@ export const brainTools = {
           confidence: confidence ?? 0.95,
           source: "nick-tool:pinMemory",
           createdBy: "user:via-nick",
+          ...(metadata ? { metadata } : {}),
         },
         update: {
           content,
           confidence: confidence ?? 0.95,
           lastSeen: new Date(),
           seenCount: { increment: 1 },
+          ...(metadata ? { metadata } : {}),
         },
       });
       // The vector must follow the content (05-M7); same text shape as
@@ -527,7 +542,16 @@ export const brainTools = {
           logError("ai.tools.brain", err, { fn: "pinMemory.embed" }, "warn"),
         ),
       );
-      return { pinned: true, id: row.id, key: slug, content };
+      return {
+        pinned: true,
+        id: row.id,
+        key: slug,
+        content,
+        goalLinked: goalOk,
+        personLinked: personOk,
+        ...(goalId && !goalOk ? { goalNote: `goal ${goalId} not found; pinned without a goal link` } : {}),
+        ...(personId && !personOk ? { personNote: `person ${personId} not found; pinned without a person link` } : {}),
+      };
     },
   }),
 
