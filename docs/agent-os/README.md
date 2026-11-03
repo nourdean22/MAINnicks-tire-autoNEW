@@ -462,8 +462,10 @@ Job 2026-10-26-always-on-hardening. Four pieces:
    refreshes, from the repo: the two machine hooks, their `~/.claude/settings.json` registrations (found by script
    name, only the command string replaced), the always-on skills that have a repo copy, and the marked block in
    `~/.claude/CLAUDE.md`. It backs a file up to `~/.claude/bootstrap-backup/` before changing it; a second run changes
-   nothing; `--check` only reports. `find-skills` and `steal-like-an-artist` have no repo copy yet: the script cannot
-   install them and reads MISSING on a machine that lacks them. An existing machine SKILL.md keeps its own
+   nothing; `--check` only reports. `find-skills` (vendored from skills.sh, with SOURCE.md and LICENSE) and
+   `steal-like-an-artist` (house-authored) have had a repo copy since 2026-11-03, so the script installs them like the
+   rest. A name in `SKILLS` with no repo copy still reads MISSING, and the script cannot install it.
+   An existing machine SKILL.md keeps its own
    `description:`. An always-on registration whose matcher misses a source reads DRIFT and is moved to a full group.
    Every path honours `CLAUDE_CONFIG_DIR`. Canary: `bootstrapMachine.test.mjs`.
 4. **Health.** SessionStart startup runs `bootstrap-machine.mjs --check --hook`: one `[health] machine` line, on every
