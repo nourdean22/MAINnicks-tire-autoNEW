@@ -155,6 +155,14 @@ describe("BriefRows", () => {
     expect(row?.querySelector("a")?.getAttribute("href")).toBe("/brain?tab=memory#contradictions");
   });
 
+  // W8b (manager, R3): the proposed-commitment row links to every promise on /missions (R3 mounts id="promises").
+  it("the commitment row links to all promises on /missions, at a 44px tap target", async () => {
+    await mount(HOME_BRIEF);
+    const link = container.querySelector('[data-brief-row="commitment"] a[href="/missions#promises"]');
+    expect(link?.textContent).toBe("All promises");
+    expect(link?.className).toContain("min-h-[44px]");
+  });
+
   it("decision detail sits on its own line: the commitment's domain and evidence", async () => {
     await mount(HOME_BRIEF);
     expect(container.querySelector('[data-brief-row="commitment"]')?.textContent).toContain("work · proposed from a demo conversation");

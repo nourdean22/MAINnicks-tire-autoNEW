@@ -385,6 +385,8 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
                   <X className="h-3.5 w-3.5" />
                 </button>
               );
+              // One link to every promise: Home shows only the proposal awaiting a yes.
+              secondary = <>{secondary}<Link href="/missions#promises" className={ACTION_LINK}>All promises</Link></>;
               break;
             }
             case "followup": {
