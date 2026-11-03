@@ -94,6 +94,8 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   // 2026-10-30 (brain backfill W1): one durable distill per conversation, like conversation_summary.
   // Prod 13:02Z: 120 of 126 live rows already carried no expiry; the 30-day policy was never what the rows did.
   chat_summary: { days: null, notes: "session distillation · one row per conversation" },
+  // 2026-11-03 (W6) · one goal moment per GoalEvent (check-in, achieved, missed).
+  goal_moment: { days: null, notes: "goal check-in / achieved / missed · one row per GoalEvent" },
   emotional_state: { days: 30, notes: "rolls over" },
   emotional_arc: { days: 30, notes: "per-week mood arc" },
   daily_synthesis: { days: 30, notes: "daily roll-up" },

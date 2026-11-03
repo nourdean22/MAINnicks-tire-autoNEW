@@ -2,7 +2,8 @@
  * Goal moments into the brain (job 2026-11-02-nour-os-interconnect W6; research map gap 7: the brain was keyed by
  * chat topic, not by goals).
  *
- * A check-in, an achieved goal and a missed goal each write ONE BrainMemory row, category goal, key
+ * A check-in, an achieved goal and a missed goal each write ONE BrainMemory row, category goal_moment (a one-shot
+ * record: no probation, no TTL, never merged or swept; categories.ts), key
  * `goal_event:<GoalEvent.id>`, metadata { goalId, kind, goalEventId }. The (category, key) unique index is the
  * claim: a second call for the same event finds the row and writes nothing; two racing calls both reach
  * brainMemory.remember, which reinforces the one row (or the loser's create hits P2002, read as a duplicate). The
@@ -49,13 +50,13 @@ export async function afterGoalMoment(m: GoalMomentInput): Promise<GoalMomentRes
         : `${m.kind === "achieved" ? "Achieved" : "Missed"} "${goal.title}"`;
     const key = `goal_event:${m.goalEventId}`;
     const prior = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: BRAIN_CATEGORIES.GOAL, key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GOAL_MOMENT, key } },
       select: { id: true },
     });
     if (prior) return { written: false, reason: "duplicate" };
     try {
       const { brainMemory } = await import("@/lib/brain/memory-manager");
-      const row = await brainMemory.remember(BRAIN_CATEGORIES.GOAL, key, content, GOAL_MOMENT_SOURCE, {
+      const row = await brainMemory.remember(BRAIN_CATEGORIES.GOAL_MOMENT, key, content, GOAL_MOMENT_SOURCE, {
         goalId: goal.id,
         kind: m.kind,
         goalEventId: m.goalEventId,

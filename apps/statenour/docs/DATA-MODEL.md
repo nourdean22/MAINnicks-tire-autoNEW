@@ -188,7 +188,7 @@ goes here as a typed key/value pair. Query: `category: "X"`, `key: "Y"`,
 
 | BrainMemory category | Key | Metadata | Writer |
 |---|---|---|---|
-| `goal` (2026-11-02) | `goal_event:<GoalEvent.id>` (the claim: one row per event) | `{ goalId, kind: check_in \| achieved \| missed, goalEventId }` | `lib/brain/goal-brain.ts`, after `logGoalCheckIn` and `emitGoalEvent`; older free-text goal facts share the category |
+| `goal_moment` (2026-11-03) | `goal_event:<GoalEvent.id>` (the claim: one row per event) | `{ goalId, kind: check_in \| achieved \| missed, goalEventId }` | `lib/brain/goal-brain.ts`, after `logGoalCheckIn` and `emitGoalEvent`. One-shot record: no probation, no TTL, never merged, decayed or swept. Free-text goal facts stay in `goal` |
 
 ---
 

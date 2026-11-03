@@ -66,7 +66,18 @@ export function GoalPeopleMemories() {
       {state === "offline" && <ReadStateNote state="offline" label={LABEL} />}
       {state === "loading" && <p className="text-[13px] text-fg-tertiary">Reading the brain</p>}
       {data && <StaleNote q={q} label={LABEL} />}
-      {data && data.needsPick && <p className="text-[13px] text-fg-secondary">Pick a person to see what the brain holds about them.</p>}
+      {data && data.needsPick && (
+        <p className="text-[13px] text-fg-secondary">
+          {data.options.length > 0 ? "Pick a person to see what the brain holds about them." : "No people on /people yet."}
+        </p>
+      )}
+      {data && data.optionsTruncated && (
+        <p className="text-[13px] text-fg-tertiary">
+          {by === "goal"
+            ? `Only the ${data.options.length} most recent goals are listed.`
+            : `Only the first ${data.options.length} people, A to Z, are listed.`}
+        </p>
+      )}
       {data && !data.needsPick && data.rows.length === 0 && (
         <p className="text-[13px] text-fg-secondary">
           {by === "goal"
@@ -87,6 +98,7 @@ export function GoalPeopleMemories() {
           ))}
         </ul>
       )}
+      {data && data.rowsTruncated && <p className="text-[13px] text-fg-tertiary">Showing the newest {data.rows.length}.</p>}
     </section>
   );
 }

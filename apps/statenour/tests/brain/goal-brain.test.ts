@@ -40,14 +40,14 @@ describe("afterGoalMoment", () => {
     expect(r).toEqual({ written: true, id: "mem_1" });
     expect(h.remember).toHaveBeenCalledTimes(1);
     const [category, key, content, source, metadata] = h.remember.mock.calls[0];
-    expect(category).toBe(BRAIN_CATEGORIES.GOAL);
+    expect(category).toBe(BRAIN_CATEGORIES.GOAL_MOMENT);
     expect(key).toBe("goal_event:ge_1");
     expect(source).toBe(GOAL_MOMENT_SOURCE);
     expect(metadata).toEqual({ goalId: "goal_A", kind: "check_in", goalEventId: "ge_1" });
     expect(content).toContain("two invoices paid");
     expect(content).toContain("Save $15k");
     expect(content).toContain("at_risk");
-    expect(h.memoryFindUnique.mock.calls[0][0].where).toEqual({ category_key: { category: "goal", key: "goal_event:ge_1" } });
+    expect(h.memoryFindUnique.mock.calls[0][0].where).toEqual({ category_key: { category: "goal_moment", key: "goal_event:ge_1" } });
   });
 
   it("an achieved goal writes 'Achieved <title>'", async () => {
@@ -99,7 +99,7 @@ describe("afterGoalMoment", () => {
     expect(h.remember).not.toHaveBeenCalled();
   });
 
-  it("the goal category rides chat recall", () => {
-    expect(CONTEXT_CATEGORIES.has(BRAIN_CATEGORIES.GOAL)).toBe(true);
+  it("the goal_moment category rides chat recall", () => {
+    expect(CONTEXT_CATEGORIES.has(BRAIN_CATEGORIES.GOAL_MOMENT)).toBe(true);
   });
 });

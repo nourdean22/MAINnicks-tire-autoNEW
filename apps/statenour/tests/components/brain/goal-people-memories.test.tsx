@@ -55,6 +55,8 @@ describe("GoalPeopleMemories", () => {
       rows: [{ id: "m1", category: "goal", content: 'Achieved "Save $15k"', at: "2026-11-02T15:00:00.000Z", kind: "achieved" }],
       options: [{ id: "g1", label: "Save $15k" }],
       needsPick: false,
+      rowsTruncated: false,
+      optionsTruncated: false,
     });
     await mount();
     expect(host.textContent).toContain('Achieved "Save $15k"');
@@ -89,5 +91,27 @@ describe("GoalPeopleMemories", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(h.inputs.at(-1)).toEqual({ by: "person", id: "p1" });
+  });
+
+  it("a capped list says how many it shows, not that it is the whole brain", async () => {
+    h.q = ok({
+      rows: [{ id: "m1", category: "goal_moment", content: "moment", at: "2026-11-02T15:00:00.000Z", kind: "check_in" }],
+      options: [{ id: "g1", label: "Save $15k" }],
+      needsPick: false,
+      rowsTruncated: true,
+      optionsTruncated: true,
+    });
+    await mount();
+    expect(host.textContent).toContain("Showing the newest 1");
+    expect(host.textContent).toContain("Only the 1 most recent goals are listed");
+  });
+
+  it("with no people at all it says so instead of asking for a pick it cannot offer", async () => {
+    h.q = ok({ rows: [], options: [], needsPick: true, rowsTruncated: false, optionsTruncated: false });
+    await mount();
+    const personTab = [...host.querySelectorAll("button")].find((b) => b.textContent === "About a person")!;
+    await act(async () => personTab.click());
+    expect(host.textContent).toContain("No people on /people yet");
+    expect(host.textContent).not.toContain("Pick a person to see");
   });
 });
