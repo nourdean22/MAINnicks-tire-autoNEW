@@ -13,7 +13,8 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+  // replace / scroll are next/link props, not DOM attributes.
+  default: ({ href, children, replace: _r, scroll: _s, ...rest }: { href: string; children: React.ReactNode; replace?: boolean; scroll?: boolean }) => (
     <a href={href} {...rest}>
       {children}
     </a>

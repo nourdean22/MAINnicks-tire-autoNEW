@@ -38,7 +38,7 @@ export function GoalFilterChips({
             aria-current={on ? "true" : undefined}
             title={on ? `Showing ${o.title}: tap to show every goal` : `Show only work toward ${o.title}`}
             className={cn(
-              "inline-flex min-h-11 items-center rounded-control border px-3 font-mono text-[11px] transition-colors duration-[var(--motion-state)]",
+              "inline-flex min-h-11 min-w-11 items-center justify-center rounded-control border px-3 font-mono text-[11px] transition-colors duration-[var(--motion-state)]",
               GOAL_CHIP_WIDTH,
               on ? "border-sky-300/60 text-sky-200" : "border-edge-default text-sky-300 hover:border-edge-strong",
             )}
