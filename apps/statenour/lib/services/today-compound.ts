@@ -13,6 +13,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { OWN_PROGRESS_WHERE } from "@/lib/brain/goal-events";
 import {
   today as todayET,
   startOfDay as etDayStart,
@@ -80,6 +81,7 @@ export async function buildTodayCompound(): Promise<TodayCompound> {
         where: {
           kind: "progress_logged",
           createdAt: { gte: startOfDay, lte: endOfDay },
+          ...OWN_PROGRESS_WHERE, // goals Nour lifted: the shop sync's nightly values are not his
         },
       })
       .then((rows) => rows.length)

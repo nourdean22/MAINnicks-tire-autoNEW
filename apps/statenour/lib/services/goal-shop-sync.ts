@@ -20,11 +20,12 @@ import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
 import { etCalendarParts, toDateString } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
+import { SHOP_SYNC_SOURCE } from "@/lib/brain/goal-events";
 
 const log = rootLogger.withSurface("services/goal-shop-sync");
 
-/** The GoalEvent source of every value this sync writes. */
-export const SHOP_SYNC_SOURCE = "shop-bridge";
+/** The GoalEvent source of every value this sync writes; named once in goal-events, whose own-progress reads exclude it. */
+export { SHOP_SYNC_SOURCE };
 /** The `metric` values (case-insensitive) a business goal can name that the shop measures. */
 export const SHOP_METRICS = ["revenue", "cars", "reviews"] as const;
 type ShopMetric = (typeof SHOP_METRICS)[number];

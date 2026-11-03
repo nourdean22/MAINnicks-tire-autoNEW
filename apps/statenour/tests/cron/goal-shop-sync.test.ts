@@ -45,7 +45,10 @@ vi.mock("@/lib/nickstire/query", async (orig) => ({
   ...(await orig<typeof import("@/lib/nickstire/query")>()),
   queryNick: h.queryNick,
 }));
-vi.mock("@/lib/brain/goal-events", () => ({ emitGoalEventAsync: h.emit }));
+vi.mock("@/lib/brain/goal-events", async (orig) => ({
+  ...(await orig<typeof import("@/lib/brain/goal-events")>()),
+  emitGoalEventAsync: h.emit,
+}));
 vi.mock("@/lib/db/brain-bus-emit", () => ({ emitGoalTransition: vi.fn() }));
 vi.mock("@/lib/db/entity-audit", () => ({ logCreate: vi.fn(), logUpdate: vi.fn(), stripNoise: (x: unknown) => x }));
 vi.mock("@/lib/utils/http", () => ({
