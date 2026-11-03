@@ -65,13 +65,26 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     return {
       logged: false as const,
       duplicate: true,
-      reason: "already checked in on this goal today",
+      reason: valueSet ? "already checked in on this goal today; the value was set" : "already checked in on this goal today",
       existing: { health: (row.payload as { health?: string } | null)?.health ?? null, at: row.createdAt.toISOString() },
       valueSet,
     };
   };
   const prior = await prisma.goalEvent.findFirst({ where: { idempotencyKey: key } });
-  if (prior) return duplicate(prior, false);
+  if (prior) {
+    // W8a (audit A7): the day's check-in is one row, but the number can move twice in a day (an evening count).
+    if (value !== undefined && goal.kind === "metric") {
+      try {
+        const { updateGoal } = await import("@/lib/services/goals");
+        await updateGoal({ id: goal.id, currentValue: value });
+      } catch (err) {
+        const valueError = err instanceof Error ? err.message : String(err);
+        return { logged: false as const, duplicate: true, valueSet: false, valueError, reason: "already checked in today and the value was not set; retry the value" };
+      }
+      return duplicate(prior, true);
+    }
+    return duplicate(prior, false);
+  }
 
   // The value goes FIRST: updateGoal SETS it, so a retry is harmless, and a failed value write
   // takes no claim, so the same-day retry stays open (second reader, 2026-11-02).

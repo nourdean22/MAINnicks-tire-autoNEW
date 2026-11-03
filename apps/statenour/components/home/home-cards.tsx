@@ -8,6 +8,7 @@
  *  · Goals: operator.goalsSnapshot (goals-system's read model) and goal-pace's `timeLeftLabel`.
  * Three states each: measured, loading, unknown. A failed read never reads as "0" or "none".
  */
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { trpc } from "@/lib/trpc/client";
@@ -107,11 +108,17 @@ export function PeopleCardView({ read }: { read: PeopleTotals | "capped" | "load
 function CheckInDueLine({ checkIn }: { checkIn: GoalCheckInDue | null | "unknown" | undefined }) {
   if (checkIn === "unknown") return <p className="mt-1 text-[13px] text-amber-300">Check-in unknown, couldn&apos;t load</p>;
   if (!checkIn) return null;
+  // W8a (audit A top-3): one tap lands on the goal with its check-in panel open (goal-board.tsx useGoalDeepLink).
   return (
-    <p className="mt-1 line-clamp-2 text-[13px] text-amber-300">
-      Check-in due: {checkIn.title}
-      <span className="font-mono tabular-nums text-fg-secondary">{checkIn.daysOverdue > 0 ? ` · ${checkIn.daysOverdue}d over` : ""}</span>
-    </p>
+    <Link
+      href={`/stats?tab=goals&goalId=${encodeURIComponent(checkIn.goalId)}&checkin=1`}
+      className="mt-1 flex min-h-11 items-center text-[13px] text-amber-300 underline-offset-2 hover:underline"
+    >
+      <span className="line-clamp-2">
+        Check-in due: {checkIn.title}
+        <span className="font-mono tabular-nums text-fg-secondary">{checkIn.daysOverdue > 0 ? ` · ${checkIn.daysOverdue}d over` : ""}</span>
+      </span>
+    </Link>
   );
 }
 
@@ -124,9 +131,12 @@ export function GoalsCardView({
 }) {
   return (
     // /stats opens on Mastery without a tab, and GoalBoard mounts only on the Goals tab (Codex P2 on #3405).
-    <GlassCard as="a" ruled href="/stats?tab=goals" className={CARD}>
+    // W8a: the card is a div with a header Link, so the check-in row can be its own Link (no <a> inside <a>).
+    <GlassCard ruled className={CARD}>
       <div aria-busy={read === "loading"}>
-        <p className="text-[13px] text-fg-secondary">Goals</p>
+        <Link href="/stats?tab=goals" className="flex min-h-11 items-center text-[13px] text-fg-secondary">
+          Goals
+        </Link>
         {read === "loading" ? (
           <Skeleton />
         ) : read === "error" ? (

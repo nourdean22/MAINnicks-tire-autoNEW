@@ -24,7 +24,7 @@ vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 const db = vi.hoisted(() => ({ missionFind: vi.fn(), missionUpdate: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    mission: { findUnique: db.missionFind, update: db.missionUpdate },
+    mission: { findUnique: db.missionFind, update: db.missionUpdate, updateMany: db.missionUpdate },
     brainMemory: { findMany: vi.fn().mockResolvedValue([]) },
     masteryDecision: { findMany: vi.fn().mockResolvedValue([]) },
     task: { findMany: vi.fn().mockResolvedValue([]) },
@@ -41,8 +41,8 @@ const userPrompt = () => (planCall()[1] as Array<{ role: string; content: string
 
 beforeEach(() => {
   mockChat.mockReset();
-  db.missionFind.mockReset().mockResolvedValue({ id: "m1", title: "approach 3 people", planData: null });
-  db.missionUpdate.mockReset().mockResolvedValue({});
+  db.missionFind.mockReset().mockResolvedValue({ id: "m1", title: "approach 3 people", planData: null, updatedAt: new Date("2026-11-03T12:00:00Z") });
+  db.missionUpdate.mockReset().mockResolvedValue({ count: 1 });
 });
 
 describe("plan mode with confirmed milestones", () => {

@@ -102,7 +102,7 @@ test("a listener that never answers initialize: one UNKNOWN (budget) line inside
     const r = run(["--text", "fix relatedActivity now"], { config: configFor(hang.port, "hang"), env: { NOURCITY_STATE_DIR: join(SCRATCH, "state-hang") } });
     assert.equal(r.code, 0, r.err);
     assert.equal(r.out.trim(), "[graph-recall] UNKNOWN (budget)");
-    assert.ok(r.ms < 4500, `took ${r.ms} ms`);
+    assert.ok(r.ms < 5500, `took ${r.ms} ms`);
   } finally { hang.close(); }
 });
 
@@ -124,11 +124,96 @@ test("at most 6 lines even when 10 symbols resolve", () => {
   for (const l of lines(r.out)) assert.match(l, LINE);
 });
 
-test("budget: a symbol the server answers after 3 s is dropped; the hook returns inside 1.5 s + process start and prints nothing", () => {
+test("budget: a symbol the server answers after 5 s is dropped; the hook returns inside 3.5 s + process start and prints nothing", () => {
   const r = run(["--text", "look at slowSymbol please"]);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out, "", r.out);
-  assert.ok(r.ms < 4000, `took ${r.ms} ms`);
+  assert.ok(r.ms < 5500, `took ${r.ms} ms`);
+});
+
+// Manager measurement on the primary, 2026-11-03 17:26Z, 5 runs of the configured hook: 311 / 1867 / 1916 / 1748 / 369 ms;
+// runs 2 and 3 printed NOTHING at the old 1.5 s budget while the MCP answered. The settings.json hook timeout is 5 s.
+test("budget: a server that answers every request after 1,200 ms still prints the line (the 1.5 s budget printed nothing under load)", async () => {
+  const slow = await startMcpStubProcess({ mode: "slow:1200" });
+  try {
+    const r = run(["--text", "fix relatedActivity so the Home card shows the latest row"], { config: configFor(slow.port, "slow1200") });
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^\[graph-recall\] fn relatedActivity\(\) -> apps\/statenour\/lib\/services\/related-activity\.ts:75 · community goal-pace\.ts/, r.out);
+    assert.ok(r.ms < 5500, `took ${r.ms} ms`);
+  } finally { slow.close(); }
+});
+
+test("budget: a server that answers after 4,000 ms gets one UNKNOWN (budget) line inside the hook's 5 s timeout, not a hang", async () => {
+  const slow = await startMcpStubProcess({ mode: "slow:4000" });
+  try {
+    const r = run(["--text", "fix relatedActivity so the Home card shows the latest row"], { config: configFor(slow.port, "slow4000"), env: { NOURCITY_STATE_DIR: join(SCRATCH, "state-slow4000") } });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out.trim(), "[graph-recall] UNKNOWN (budget)");
+    assert.ok(r.ms < 5000, `took ${r.ms} ms; the settings.json hook timeout is 5 s`);
+  } finally { slow.close(); }
+});
+
+test("settings: the hook timeout leaves at least 1 s over the budget", () => {
+  const hook = (SETTINGS.hooks.UserPromptSubmit ?? []).flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-recall.mjs"));
+  const budget = Number(/const BUDGET_MS = (\d+);/.exec(readFileSync(SCRIPT, "utf8"))?.[1]);
+  assert.ok(budget >= 3500, `BUDGET_MS ${budget}`);
+  assert.ok(hook.timeout * 1000 - budget >= 1000, `timeout ${hook.timeout} s vs budget ${budget} ms`);
+});
+
+// Nour, 2026-11-03: "Well the graph needs to be used whenever possible not just when I ask". The hook printed only when a
+// prompt named a code symbol; he writes in plain words ("And still the graph isnt being used to context and history?").
+test("plain words: 'commitments vs missions vs goals' prints the Commitment, Mission and LifeGoal model lines, one per word, and nothing for 'vs'", () => {
+  const r = run(["--text", "commitments vs missions vs goals"]);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(lines(r.out), [
+    "[graph-recall] model Commitment -> apps/statenour/prisma/schema.prisma:812 · community Commitments",
+    "[graph-recall] model Mission -> apps/statenour/prisma/schema.prisma:300 · community Missions",
+    "[graph-recall] model LifeGoal -> apps/statenour/prisma/schema.prisma:250 · community Goals",
+  ]);
+});
+
+test("plain words: a file named for the word prints (commitments.ts), at most 3 lines, never a doc heading, a .md file, a test-file node or a SQL column", () => {
+  const r = run(["--text", "where do the commitments live in the code"]);
+  assert.deepEqual(lines(r.out), [
+    "[graph-recall] model Commitment -> apps/statenour/prisma/schema.prisma:812 · community Commitments",
+    "[graph-recall] file commitments.ts -> apps/statenour/lib/services/commitments.ts:1 · community ref_node_crypto",
+  ]);
+});
+
+test("plain words: every word gets its first line before any word gets a second (3 hits for alpha must not crowd out beta)", () => {
+  assert.deepEqual(lines(run(["--text", "compare alpha with beta"]).out), [
+    "[graph-recall] model Alpha -> a/one.ts:1 · community a",
+    "[graph-recall] model Beta -> b/one.ts:1 · community b",
+    "[graph-recall] model Alpha -> a/two.ts:2 · community a",
+  ]);
+});
+
+test("plain words: a prompt with no content word (hb now?), a stopword-only prompt and a no-match prompt print nothing", () => {
+  for (const p of ["hb now?", "hb now ok so then it is", "please tell me what that was about", "something unrelated entirely"]) {
+    const r = run(["--text", p]);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "", `printed on ${JSON.stringify(p)}:\n${r.out}`);
+  }
+});
+
+test("plain words: a match that is only a markdown heading or .md file prints nothing, and so does one that is only in a test file", () => {
+  assert.equal(run(["--text", "show me the roadmap again"]).out, "", "docs and headings are not code");
+  assert.equal(run(["--text", "check the fixture helpers"]).out, "", "test-file nodes are not context");
+  assert.equal(run(["--text", "what does scratchy do"]).out, "", "a one-off scratch script is not context");
+});
+
+test("plain words: the fallback runs only when the prompt names no symbol (a symbol prompt prints the symbol line alone)", () => {
+  const r = run(["--text", "fix relatedActivity for the commitments page"]);
+  assert.equal(lines(r.out).length, 1, r.out);
+  assert.match(lines(r.out)[0], /^\[graph-recall\] fn relatedActivity\(\)/);
+});
+
+test("plain words: a slow answer is UNKNOWN (budget) once per 30 min, inside the budget", () => {
+  const env = { NOURCITY_STATE_DIR: join(SCRATCH, "state-slowword") };
+  const r1 = run(["--text", "tell me about slowword please"], { env });
+  assert.equal(r1.out.trim(), "[graph-recall] UNKNOWN (budget)");
+  assert.ok(r1.ms < 5500, `took ${r1.ms} ms`);
+  assert.equal(run(["--text", "tell me about slowword please"], { env }).out, "", "the second UNKNOWN inside 30 min is silent");
 });
 
 test("budget: the fast symbol still prints when a slow one is in the same prompt", () => {
@@ -265,8 +350,29 @@ test("MUTANT no-cap: MAX_SYMBOLS 60 prints all 10 symbols (the cap arm is live)"
 });
 
 test("MUTANT no-budget: BUDGET_MS 10000 waits for the slow symbol and prints it (the budget arm is live)", () => {
-  const r = run(["--text", "look at slowSymbol please"], { script: mutant("nobudget", "const BUDGET_MS = 1500;", "const BUDGET_MS = 10000;") });
+  const r = run(["--text", "look at slowSymbol please"], { script: mutant("nobudget", "const BUDGET_MS = 3500;", "const BUDGET_MS = 10000;") });
   assert.match(r.out, /^\[graph-recall\] fn slowSymbol\(\) -> x\/slow\.ts:9/, r.out);
+});
+
+test("MUTANT plain-words no-test-filter: dropping the test-file arm prints the fixture nodes (the arm is live)", () => {
+  const r = run(["--text", "check the fixture helpers"], { script: mutant("wordtest", "|| TEST_PATH.test(src)) continue;", ") continue;") });
+  assert.match(r.out, /^\[graph-recall\] model Fixture -> apps\/statenour\/tests\/e2e\/fixtures\/x\.ts:3/, r.out);
+});
+
+test("MUTANT plain-words no-doc-filter: dropping the heading, markdown and docs arms prints the roadmap nodes (the arm is live)", () => {
+  const r = run(["--text", "show me the roadmap again"], { script: mutant("worddoc", "/\\s/.test(label) || /\\.md$/i.test(label) || /\\.(md|sql)$/i.test(src) || /(^|\\/)(?:docs|scratch)\\//.test(src) ||", "") });
+  assert.match(r.out, /roadmap/i, r.out);
+  assert.match(run(["--text", "what does scratchy do"], { script: mutant("wordscratch", "/(^|\\/)(?:docs|scratch)\\//.test(src) ||", "") }).out, /scratchy/, "the scratch arm is live");
+});
+
+test("MUTANT plain-words no-line-cap: MAX_WORD_LINES 9 prints the fourth line (the cap arm is live)", () => {
+  const r = run(["--text", "commitments vs missions vs goals"], { script: mutant("wordcap", "const MAX_WORD_LINES = 3;", "const MAX_WORD_LINES = 9;") });
+  assert.equal(lines(r.out).length, 4, r.out);
+});
+
+test("MUTANT plain-words no-lead: without one line per word first, alpha's three hits crowd beta out (the ordering arm is live)", () => {
+  const r = run(["--text", "compare alpha with beta"], { script: mutant("wordlead", "return [...lead, ...rest].slice(", "return hits.slice(") });
+  assert.doesNotMatch(r.out, /Beta/, r.out);
 });
 
 test("MUTANT no-floor: MIN_PROMPT_CHARS 0 prints on a short prompt that names a symbol (the floor arm is live)", () => {

@@ -48,7 +48,7 @@ describe("getMissions tool execution", () => {
         status: "ACTIVE",
         deletedAt: null,
       },
-      select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
+      select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true, lifeGoalId: true, lifeGoal: { select: { id: true, title: true, deletedAt: true } } },
       orderBy: { priority: "desc" },
     });
   });

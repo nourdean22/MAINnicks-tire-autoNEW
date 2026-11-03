@@ -901,6 +901,17 @@ test("bar: a kill criterion with no ISO live-check date is refused for the date,
   assert.match(reasons[0], /"kill criterion with a live-check date".*no live-check date/);
 });
 
+// Pins for the heading parser kill-reads.mjs shares (bodySections): both held before the extraction and must keep holding.
+test("bar: a kill criterion dated only in its heading text passes", () => {
+  const { reasons } = bar({ body: bodyOf("self", "tenx", "reader") + "\n## Kill criterion by 2026-11-17\nRevert if the card disagrees.\n" });
+  assert.deepEqual(reasons, []);
+});
+
+test("bar: an empty first kill heading then a second with text passes", () => {
+  const { reasons } = bar({ body: bodyOf("self", "tenx", "reader") + "\n## Kill criterion\n\n## Kill criterion + live check\nRevert if X. Live check: 2026-11-08.\n" });
+  assert.deepEqual(reasons, []);
+});
+
 test("bar: a heading with nothing under it does not count (an empty template is not a review)", () => {
   const { reasons } = bar({ body: bodyOf("self", "kill", "reader") + "\n## 10x\n\n" });
   assert.equal(reasons.length, 1, JSON.stringify(reasons));

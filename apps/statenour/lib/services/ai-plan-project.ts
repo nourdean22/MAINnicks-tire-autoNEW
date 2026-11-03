@@ -25,6 +25,7 @@
  */
 
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import {
@@ -96,6 +97,14 @@ export type PlanProjectResult =
       model?: string;
       /** "skeleton": every provider failed, so the confirmed milestones became the plan (one checkpoint step each). */
       fallback?: "skeleton";
+      /** Round 1 P2-16: why the skeleton was used. */
+      fallbackReason?: SkeletonReason;
+      /** Round 1 P0-2: this mission already had a plan with phase 0 spawned (a retry); nothing was asked or written. */
+      alreadyPlanned?: boolean;
+      /** W8a: tasks created for phase 0 right after the save (undefined when no missionId was given). */
+      spawned?: number;
+      /** W8a: the phase-0 spawn threw; the plan is saved, the tasks are not. */
+      spawnFailed?: string;
     }
   | { mode: "learn"; learning: LearningPath; provider?: string }
   | { mode: "guide"; entry: CoachEntry; provider?: string };
@@ -129,11 +138,31 @@ function assertAiAvailable(result: { provider?: string; content?: string }): voi
 /** Under the tRPC route's 180 s maxDuration, with room for the brain-context reads. */
 const PLAN_WITH_MILESTONES_TIMEOUT_MS = 170_000;
 
+/**
+ * W8a (audit A9): every confirmed milestone is a phase, in order, NAMED by the milestone (the ladder and the
+ * spawner key phases by name). A phase the model left out is filled from the skeleton (one checkpoint step);
+ * extra phases keep their steps, appended to the last milestone, so no step the model wrote is lost.
+ */
+function alignPhasesToMilestones(plan: ProjectPlanData, milestones: readonly string[], title: string): ProjectPlanData {
+  if (milestones.length === 0) return plan;
+  const skeleton = skeletonPlan(milestones, title);
+  const phases = milestones.map((m, i) => {
+    const got = plan.phases[i];
+    return got ? { ...got, name: m, milestone: got.milestone || m } : skeleton.phases[i];
+  });
+  const extra = plan.phases.slice(milestones.length).flatMap((p) => p.steps ?? []);
+  if (extra.length > 0) phases[phases.length - 1] = { ...phases[phases.length - 1], steps: [...(phases[phases.length - 1].steps ?? []), ...extra] };
+  return { ...plan, phases };
+}
+
+/** Why the plan is a skeleton (round 1 P2-16: a budget stop used to read as "the planner did not answer"). */
+type SkeletonReason = "no_answer" | "budget";
+
 /** The confirmed milestones as a plan: one phase each, its single step the checkpoint. */
-function skeletonPlan(milestones: readonly string[], title: string): ProjectPlanData {
+function skeletonPlan(milestones: readonly string[], title: string, reason: SkeletonReason = "no_answer"): ProjectPlanData {
   return normalizeRawPlan(
     {
-      summary: "Plan skeleton from your confirmed milestones: the AI planner did not answer in time. Each milestone is one checkpoint; add steps as you go.",
+      summary: `Plan skeleton from your confirmed milestones: ${reason === "budget" ? "today's AI budget is used up" : "the AI planner did not answer in time"}. Each milestone is one checkpoint; add steps as you go.`,
       phases: milestones.map((m) => ({
         name: m,
         milestone: m,
@@ -425,12 +454,30 @@ Respond ONLY with valid JSON:
 
   // ─── MODE 2: PLAN ────────────────────────────────────────────────
   if (mode === "plan") {
-    const confirmedMilestones = input.milestones ?? [];
-    // 2026-11-02 · with confirmed milestones the ladder is already decided, so the plan is
-    // small: 2-4 steps per milestone and nothing else. The full prompt below asks for 15-30
-    // steps plus costs, tools, risks and a weekend schedule (~8,000 output tokens), which a
-    // local model cannot finish inside the 100 s provider timeout: 3 of 3 goal plans that day
-    // ended provider_emergency at 53-58 s and the mission was left with no plan.
+    const confirmedMilestones = (input.milestones ?? []).map((m) => m.trim()).filter(Boolean);
+    // W8a (audit A12): the only caller is Plan it with confirmed milestones. The old 15-30-step
+    // "ultimate plan" prompt (costs, tools, risks, a weekend schedule, ~8,000 output tokens) had
+    // no caller and never finished on a local model; it is gone. 2026-11-02: with confirmed
+    // milestones the ladder is already decided, so the plan is small: 2-4 steps per milestone.
+    if (confirmedMilestones.length === 0) {
+      throw new PlanProjectError("plan mode needs the confirmed milestones (use mode=milestones first)", 400);
+    }
+    // Round 1 P0-2: a retried Plan it (the phone timed out while the 170 s server call finished) must not re-ask the
+    // model, overwrite the saved plan with steps that carry no task ids, and spawn phase 0 a second time. Read first;
+    // the write below is a compare-and-swap on this read's updatedAt.
+    const read = missionId
+      ? await prisma.mission.findUnique({ where: { id: missionId }, select: { planData: true, updatedAt: true } })
+      : null;
+    if (missionId && !read) throw new PlanProjectError("Mission not found", 404);
+    const alreadyPlanned = (pd: unknown) => isProjectPlanData(pd) && (pd.phases[0]?.steps ?? []).some((st) => st.taskId);
+    const existingResult = (pd: ProjectPlanData) => ({
+      mode: "plan" as const,
+      plan: pd,
+      flatSteps: pd.phases.flatMap((ph) => (ph.steps ?? []).map((st) => ({ ...st, phase: ph.name, title: `[${ph.name}] ${st.title}` }))),
+      alreadyPlanned: true,
+      spawned: 0,
+    });
+    if (read && alreadyPlanned(read.planData)) return existingResult(read.planData as unknown as ProjectPlanData);
     const compactPrompt = `You are a project planner turning Nour's confirmed milestones into a short, concrete plan.
 
 PROJECT: ${title}
@@ -461,102 +508,54 @@ Respond ONLY with valid JSON:
     }
   ]
 }`;
-    const fullPrompt = `You are a world-class project planner creating a COMPREHENSIVE, BATTLE-TESTED plan.
-
-PROJECT: ${title}
-${description ? `DETAILS: ${description}` : ""}
-${answers ? `NOUR'S STRATEGIC ANSWERS:\n${answers}` : ""}
-${memoryContext}
-${decisionContext}
-
-CREATE THE ULTIMATE PROJECT PLAN. Think like you're being paid $10K for this plan.
-
-REQUIREMENTS:
-- 5-7 distinct phases with clear milestones
-- 15-30 specific steps total (more is better than less)
-- Each step = a PHYSICAL action someone can start doing RIGHT NOW
-- Include WHO does each step (Nour, contractor, supplier, wife, employee)
-- Cost estimates for EVERY step that costs money (materials + labor)
-- Time estimates using: M5, M15, M30, H1, H2PLUS
-- Dependencies: what MUST happen before each step
-- Risk for each phase: what could go wrong + how to prevent it
-- Include "checkpoint" steps where you verify before moving on
-- Include "decision points" where Nour needs to choose between options
-- Pro tips from someone who's done this 100 times
-- Common mistakes and how to avoid them
-- A "done checklist" with 5-10 verification items
-- Tools and materials list with quantities
-- A "weekend warrior" schedule showing how to do this in weekends if applicable
-
-Respond ONLY with valid JSON:
-{
-  "summary": "2-3 sentence executive summary of the plan",
-  "phases": [
-    {
-      "name": "Phase name",
-      "milestone": "What's true when this phase is done",
-      "estimatedDays": 1,
-      "steps": [
-        {
-          "title": "Specific step",
-          "nextAction": "The literal FIRST physical thing to do",
-          "effort": "M30",
-          "estimatedCost": 0,
-          "who": "Nour",
-          "reasoning": "Why this matters — what breaks if you skip it",
-          "dependsOn": null,
-          "isCheckpoint": false,
-          "isDecisionPoint": false,
-          "proTip": "Optional insider tip"
-        }
-      ]
-    }
-  ],
-  "totalEstimatedCost": { "low": 0, "high": 0, "breakdown": "Where the money goes" },
-  "estimatedTimeline": "Total time estimate",
-  "weekendSchedule": "How to do this over weekends",
-  "keyRisks": [{ "risk": "What could go wrong", "likelihood": "low|medium|high", "mitigation": "How to prevent it", "costIfHappens": "Impact" }],
-  "proTips": ["Insider tip 1", "Tip 2", "Tip 3"],
-  "commonMistakes": ["Mistake 1 and how to avoid it"],
-  "doneChecklist": ["Verification 1", "Verification 2"],
-  "toolsAndMaterials": [{ "item": "Name", "quantity": "Amount", "estimatedCost": 0, "where": "Where to buy" }],
-  "decisionPoints": [{ "decision": "What to decide", "options": ["A", "B"], "recommendation": "What I'd choose and why" }]
-}`;
-    const withMilestones = confirmedMilestones.length > 0;
-
-    const result = await tracedAiChat(
-      { label: "plan-project:plan", source: "tool", metadata: { missionId } },
-      [
-        {
-          role: "system",
-          content:
-            "You are the world's best project planner. You've managed $100M+ in projects. Return only valid JSON. Be obsessively detailed and specific. Include costs, timelines, risks, and insider tips that only someone with 20 years of experience would know. This plan should be so good that Nour doesn't need to think — just follow the steps." +
-            (lensBlock ? `\n\n${lensBlock}` : ""),
-        },
-        { role: "user", content: withMilestones ? compactPrompt : fullPrompt },
-      ],
-      "deep",
-      // The tRPC route allows 180 s (app/api/trpc/[trpc]/route.ts maxDuration); the 100 s default is for chat.
-      withMilestones ? { timeoutMs: PLAN_WITH_MILESTONES_TIMEOUT_MS } : {},
-    );
 
     let plan: ProjectPlanData;
     let fallback: "skeleton" | undefined;
-    if (withMilestones && isAiSentinel(result)) {
-      // Every provider failed. The milestones are Nour's own reviewed input, so they become the
-      // plan: one phase each, one checkpoint step each. A plan with no steps blocks spawnTasks
-      // (400) and leaves the goal with a mission that does nothing; this never dead-ends.
-      plan = skeletonPlan(confirmedMilestones, title);
-      fallback = "skeleton";
-    } else {
-      assertAiAvailable(result);
-      plan = normalizeRawPlan(parseJson(result.content), title);
-      // A reply that parsed to no phases (prose, broken JSON) is the same dead end as no reply.
-      if (withMilestones && plan.phases.length === 0) {
+    let fallbackReason: SkeletonReason | undefined;
+    let provider: string | undefined;
+    let model: string | undefined;
+    try {
+      const result = await tracedAiChat(
+        { label: "plan-project:plan", source: "tool", metadata: { missionId } },
+        [
+          {
+            role: "system",
+            content:
+              "You are the world's best project planner. Return only valid JSON. Be specific: every step is a physical action Nour can start now." +
+              (lensBlock ? `\n\n${lensBlock}` : ""),
+          },
+          { role: "user", content: compactPrompt },
+        ],
+        "deep",
+        // The tRPC route allows 180 s (app/api/trpc/[trpc]/route.ts maxDuration); the 100 s default is for chat.
+        { timeoutMs: PLAN_WITH_MILESTONES_TIMEOUT_MS },
+      );
+      provider = result.provider;
+      model = result.model;
+      if (isAiSentinel(result)) {
+        // Every provider failed. The milestones are Nour's own reviewed input, so they become the
+        // plan: one phase each, one checkpoint step each. A plan with no steps blocks spawnTasks
+        // (400) and leaves the goal with a mission that does nothing; this never dead-ends.
         plan = skeletonPlan(confirmedMilestones, title);
         fallback = "skeleton";
+      } else {
+        plan = normalizeRawPlan(parseJson(result.content), title);
+        // A reply that parsed to no phases (prose, broken JSON) is the same dead end as no reply.
+        if (plan.phases.length === 0) {
+          plan = skeletonPlan(confirmedMilestones, title);
+          fallback = "skeleton";
+        }
       }
+    } catch (err) {
+      // W8a (audit A10): a budget stop is the same dead end as an outage for Nour; the skeleton saves his
+      // milestones. Any other error is a real failure and still throws.
+      if (!(err instanceof Error && err.name === "BudgetExceededError")) throw err;
+      log.warn("plan_budget_exceeded_skeleton", { missionId, err: err.message });
+      plan = skeletonPlan(confirmedMilestones, title, "budget");
+      fallback = "skeleton";
+      fallbackReason = "budget";
     }
+    plan = alignPhasesToMilestones(plan, confirmedMilestones, title);
     if (answers) plan.strategicAnswers = answers;
 
     // Flatten phases into steps for backward-compat with callers that
@@ -574,20 +573,40 @@ Respond ONLY with valid JSON:
 
     // Persist the plan data if a missionId was provided. A failed write used to be a warn
     // and a "success" to the caller, which then spawned from a plan that did not exist.
+    // W8a (audit A4): phase 0 spawns HERE, after the save, so a backgrounded PWA cannot skip it and
+    // a retry (same mission id) spawns nothing twice (spawnProjectTasks writes task ids into the plan).
+    let spawned: number | undefined;
+    let spawnFailed: string | undefined;
     if (missionId) {
-      await prisma.mission.update({
-        where: { id: missionId },
+      const swap = await prisma.mission.updateMany({
+        where: { id: missionId, updatedAt: read!.updatedAt },
         data: { planData: JSON.parse(JSON.stringify(plan)) },
       });
+      if (swap.count !== 1) {
+        // Another Plan it on this mission saved first: return what it saved and spawn nothing (it spawns its own).
+        const winner = await prisma.mission.findUnique({ where: { id: missionId }, select: { planData: true } });
+        log.warn("plan_swap_lost", { missionId });
+        if (winner && isProjectPlanData(winner.planData)) return existingResult(winner.planData);
+        throw new PlanProjectError("The project changed while the plan was written; open it and try Plan it again", 400);
+      }
+      try {
+        spawned = (await spawnProjectTasks({ missionId, phaseIndex: 0 })).spawned;
+      } catch (err) {
+        spawned = 0;
+        spawnFailed = err instanceof Error ? err.message.slice(0, 200) : String(err);
+        log.warn("plan_phase0_spawn_failed", { missionId, err: spawnFailed });
+      }
     }
 
     return {
       mode: "plan",
       plan,
       flatSteps,
-      provider: result.provider,
-      model: result.model,
-      ...(fallback ? { fallback } : {}),
+      provider,
+      model,
+      ...(fallback ? { fallback, fallbackReason: fallbackReason ?? "no_answer" } : {}),
+      ...(spawned !== undefined ? { spawned } : {}),
+      ...(spawnFailed ? { spawnFailed } : {}),
     };
   }
 

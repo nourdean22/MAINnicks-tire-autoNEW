@@ -262,7 +262,7 @@ const tasksCoreTools = {
 
   createTask: tool({
     description:
-      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
+      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` (from getGoals): completing the task counts it on that goal's card; for a milestone or narrative goal it is one step of the goal's task %, for a metric goal it is logged (the number moves only through a check-in or an edit). A task under a goal-linked mission counts for that goal without a goalId. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     // v10.0.529.85 · Wave 29 · audit-driven shape upgrade. Pre-Wave-29
     // this hardcoded loopKind=ONCE with no goal link · no due date ·
     // no promise. Operator saying "add daily workout tied to fitness
@@ -299,7 +299,7 @@ const tasksCoreTools = {
       goalId: z
         .string()
         .optional()
-        .describe("Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue"),
+        .describe("The goal this task serves (id from getGoals). An unknown id is dropped and said. Omit under a goal-linked mission: the task inherits the mission's goal."),
       promiseTo: z
         .string()
         .optional()
@@ -325,6 +325,10 @@ const tasksCoreTools = {
       const parentOk = parentTaskId
         ? Boolean(await prisma.task.findFirst({ where: { id: parentTaskId, deletedAt: null }, select: { id: true } }))
         : false;
+      // W8a (audit A8): the same rule for goalId, said in the result instead of a silent null from createTaskAndEnrich.
+      const goalOk = goalId
+        ? Boolean(await prisma.lifeGoal.findFirst({ where: { id: goalId, deletedAt: null }, select: { id: true } }))
+        : false;
       // classification spine · createTaskAndEnrich gap-fills mission/goal/
       // statHints (compare-and-set won't override what the model chose).
       const task = await createTaskAndEnrich({
@@ -341,7 +345,7 @@ const tasksCoreTools = {
         finishCondition: title,
         loopKind,
         dueDate: dueDate ? new Date(dueDate) : null,
-        goalId: goalId ?? null,
+        goalId: goalOk ? goalId! : null,
         promiseTo: promiseTo ?? null,
         parentTaskId: parentOk ? parentTaskId : null,
       });
@@ -350,7 +354,9 @@ const tasksCoreTools = {
         taskId: task.id,
         title,
         loopKind,
-        goalLinked: !!goalId,
+        // Round 1 P2-13: from the SAVED row (createTaskAndEnrich can return an existing duplicate without the goal).
+        goalLinked: goalOk && task.goalId === goalId,
+        ...(goalId && !goalOk ? { goalNote: `goal ${goalId} not found; created without a goal link (use an id from getGoals)` } : {}),
         promised: !!promiseTo,
         // Read from the saved task: createTaskAndEnrich can return an existing duplicate with no parent.
         ...(parentTaskId
@@ -362,7 +368,7 @@ const tasksCoreTools = {
 
   completeTask: tool({
     description:
-      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
+      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE; finishing the last task of a plan phase creates the next phase's tasks (nextPhaseSpawned). For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
     // v10.0.529.85 · Wave 29 · CRITICAL fix · pre-Wave-29 this set
     // status:DONE blindly · DAILY tasks lost their streak on every
     // check-off via chat (streak silently killed).
@@ -370,6 +376,7 @@ const tasksCoreTools = {
     // completion now goes through checkTask, the same spine the UI's
     // checkbox uses, so a chat check-off writes its `completed` event
     // (uncheckTask reads them) and credits per-day XP like the UI does.
+    // W8a (audit A1): checkTask also spawns the next plan phase and lifts the task's goal (own, else its mission's).
     inputSchema: z.object({
       taskId: z.string(),
       completedOn: z
@@ -407,7 +414,7 @@ const tasksCoreTools = {
       });
       if (!task) return { completed: false, error: "task not found" };
       try {
-        const r = await checkTask({ id: taskId, action: "complete", eventSource: "chat" });
+        const r = await checkTask({ id: taskId, action: "complete", eventSource: "nick:completeTask" });
         if ("idempotent" in r && r.idempotent) {
           return {
             completed: true,
@@ -426,6 +433,10 @@ const tasksCoreTools = {
           loopKind: task.loopKind ?? "ONCE",
           ...(typeof row?.streakCount === "number" ? { streakCount: row.streakCount } : {}),
           ...(reward ? { xpCredited: reward.xpCredited, goalLifted: reward.goalLifted } : {}),
+          ...("nextPhaseSpawned" in r && r.nextPhaseSpawned ? { nextPhaseSpawned: r.nextPhaseSpawned } : {}),
+          ...("nextPhaseSpawnFailed" in r && r.nextPhaseSpawnFailed
+            ? { nextPhaseSpawnFailed: true, nextPhaseNote: "the next milestone's tasks were NOT created; say so and offer to retry" }
+            : {}),
         };
       } catch (err) {
         if (err instanceof ServiceError) return { completed: false, error: err.message };

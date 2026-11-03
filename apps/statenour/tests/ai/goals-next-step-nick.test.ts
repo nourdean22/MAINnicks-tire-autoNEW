@@ -1,56 +1,51 @@
 /**
- * Nick's "Active Goals" block (job 2026-10-30-goals-system W3). Each goal line carries the
- * same date/pace label the goal card shows (a derived date says "(from horizon)") and says
- * "no next step" when the goal has no open linked task, so Nick can propose one. One line
- * per goal in the existing block, no new section. An unknown task count claims nothing.
+ * Nick's "Active Goals" block (job 2026-10-30-goals-system W3; W8a 2026-11-03 routes it through the one goals
+ * read, lib/services/goal-health.ts). Each goal line carries the same date/pace label the goal card shows (a
+ * derived date says "(from horizon)"), the one computed progress number, and says "no next step" when the goal
+ * has no open linked task, so Nick can propose one. An unknown task count or progress claims nothing.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { toGoalSummary } from "@/lib/ai/context/command-center-state";
+import { goalSummaryFromHealth } from "@/lib/ai/context/command-center-state";
+import type { ActiveGoalHealth } from "@/lib/services/goal-health";
 import { renderWhyBlock } from "@/lib/ai/prompt/v2/renderer";
 import type { NickPrimeContext } from "@/lib/ai/context/nick-prime-context";
 
-const NOW = Date.parse("2026-10-30T15:30:00.000Z"); // Fri 11:30 ET
-const row = {
+const health: ActiveGoalHealth = {
   id: "g1",
   title: "Week goal",
+  kind: "milestone",
   domain: "business",
   metric: "",
-  targetValue: 0,
-  currentValue: 0,
-  unit: "",
-  progress: 0,
   horizon: "WEEK",
+  unit: "",
+  currentValue: 0,
+  targetValue: 0,
+  status: "active",
   deadline: null,
-  createdAt: new Date("2026-10-28T16:00:00.000Z"),
+  createdAt: "2026-10-28T16:00:00.000Z",
+  due: { at: "2026-11-01T03:59:59.999Z", source: "horizon" } as ActiveGoalHealth["due"],
+  pace: "2d left · end of week (from horizon) · no target set",
+  paceKind: null,
+  health: { state: "no_check_in", at: null },
+  openTasks: 0,
+  tasksDone: 0,
+  tasksTotal: 0,
+  progress: 0,
 };
 
-describe("toGoalSummary · the card's label and the next-step count", () => {
-  it("carries the derived date label and the open task count", () => {
-    const s = toGoalSummary({ ...row, _count: { tasks: 0 }, events: [] }, { now: NOW });
+describe("goalSummaryFromHealth · the card's label, number and next-step count, from the one read", () => {
+  it("carries the pace label, the open task count and the computed progress", () => {
+    const s = goalSummaryFromHealth(health);
     expect(s.paceLine).toBe("2d left · end of week (from horizon) · no target set");
     expect(s.openTasks).toBe(0);
+    expect(s.progress).toBe(0);
   });
 
-  it("counts the period from the latest horizon_set", () => {
-    const s = toGoalSummary(
-      { ...row, createdAt: new Date("2026-09-20T15:00:00.000Z"), _count: { tasks: 1 }, events: [{ createdAt: new Date("2026-10-30T15:00:00.000Z") }] },
-      { now: NOW },
-    );
-    expect(s.paceLine).toBe("2d left · end of week (from horizon) · no target set");
-    expect(s.openTasks).toBe(1);
-  });
-
-  afterEach(() => vi.useRealTimers());
-
-  it("is safe inside Array.map: the index is never read as the clock (W3 review P0)", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-    const out = [row, row].map((g) => ({ ...g, _count: { tasks: 0 }, events: [] })).map(toGoalSummary);
-    expect(out.map((s) => s.paceLine)).toEqual([
-      "2d left · end of week (from horizon) · no target set",
-      "2d left · end of week (from horizon) · no target set",
-    ]);
+  it("passes an unread count and progress through as null, never zero", () => {
+    const s = goalSummaryFromHealth({ ...health, openTasks: null, progress: null });
+    expect(s.openTasks).toBeNull();
+    expect(s.progress).toBeNull();
   });
 });
 
@@ -74,25 +69,27 @@ describe("Active Goals block · 'no next step' is one flag on the goal's own lin
         },
       ],
     }) as unknown as NickPrimeContext;
-  const goalLine = (c: NickPrimeContext) =>
-    renderWhyBlock(c).split("\n").find((l) => l.includes("Week goal")) ?? "";
+  const goalLine = (c: NickPrimeContext) => renderWhyBlock(c).split("\n").find((l) => l.includes("Week goal")) ?? "";
 
-  it("flags a goal with no open linked task and shows the card's label", () => {
+  it("says no next step with the pace label on the same line", () => {
     const line = goalLine(ctx({ openTasks: 0, paceLine: "2d left · end of week (from horizon) · no target set" }));
     expect(line).toContain("2d left · end of week (from horizon) · no target set");
     expect(line).toContain("no next step");
+    expect(line).toContain("[id:g1]");
   });
 
-  it("no flag when the goal has an open task", () => {
+  it("stays quiet when a task is open, and when the count is unknown", () => {
     expect(goalLine(ctx({ openTasks: 2 }))).not.toContain("no next step");
-  });
-
-  it("an unknown task count claims nothing", () => {
     expect(goalLine(ctx({ openTasks: null }))).not.toContain("no next step");
   });
 
-  it("adds no new section heading", () => {
+  it("an unread progress is said, never rendered as 0%", () => {
+    expect(goalLine(ctx({ progress: null }))).toContain("progress unread");
+    expect(goalLine(ctx({ progress: null }))).not.toContain("0%");
+  });
+
+  it("the block has no second goals section", () => {
     const block = renderWhyBlock(ctx({ openTasks: 0 }));
-    expect(block.match(/^## /gm)).toEqual(["## "]);
+    expect(block.match(/## Active Goals/g)?.length).toBe(1);
   });
 });
