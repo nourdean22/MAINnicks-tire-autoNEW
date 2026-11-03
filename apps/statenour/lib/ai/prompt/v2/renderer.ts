@@ -445,8 +445,9 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
         ? ` · ${safe(g.paceLine, 80)}`
         : g.daysToDeadline != null ? ` · ${g.daysToDeadline}d left` : "";
       const next = g.openTasks === 0 ? " · no next step" : "";
+      // nour-os-interconnect W1 · the id, so createTask.goalId / logGoalCheckIn / getRelated can be filled.
       lines.push(
-        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress}% · ${value}${dl}${next}`,
+        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress}% · ${value}${dl}${next} [id:${safe(g.id, 40)}]`,
       );
     }
   }

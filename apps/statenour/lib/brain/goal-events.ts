@@ -47,7 +47,9 @@ export type GoalEventKind =
   | "linked_project"
   | "unlinked_project"
   /** The horizon changed (payload { from, to }); a derived due date counts from here. */
-  | "horizon_set";
+  | "horizon_set"
+  /** Nour's check-in (payload { health, value?, note, day }); written by Nick's logGoalCheckIn, one per goal per ET day. */
+  | "check_in";
 
 export interface GoalEventInput {
   goalId: string;

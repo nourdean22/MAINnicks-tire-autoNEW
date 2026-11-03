@@ -248,8 +248,13 @@ export const missionsTools = {
         promiseTo: z.string().optional().describe("Promised to who"),
         personId: z.string().optional().describe("Associated person ID"),
       })).min(1).max(20),
+      lifeGoalId: z.string().optional().describe("The goal this mission serves (id from getGoals); its tasks then count toward that goal"),
     }),
-    execute: async ({ title, domain, priority, successMetric, tasks }) => {
+    execute: async ({ title, domain, priority, successMetric, tasks, lifeGoalId }) => {
+      // A hallucinated goal id would FK-throw on insert; link only a live goal and say when it was dropped.
+      const goalOk = lifeGoalId
+        ? Boolean(await prisma.lifeGoal.findFirst({ where: { id: lifeGoalId, deletedAt: null }, select: { id: true } }))
+        : false;
       // Create mission first
       // The tool contract is 1-100 (model-friendly); Mission.priority is
       // 1-10 (validators + rankMissions clamp). Writing 1-100 raw saturated
@@ -263,6 +268,7 @@ export const missionsTools = {
           neglectCost: Math.round(priority * 0.7),
           successMetric,
           status: "ACTIVE",
+          ...(goalOk ? { lifeGoalId } : {}),
         },
       });
       // Create tasks linked to mission
@@ -292,6 +298,8 @@ export const missionsTools = {
         created: true,
         missionId: mission.id,
         title: mission.title,
+        lifeGoalId: goalOk ? lifeGoalId : null,
+        ...(lifeGoalId && !goalOk ? { goalLinkNote: `goal ${lifeGoalId} not found; mission created without a goal link` } : {}),
         taskCount: createdTasks.length,
         tasks: createdTasks.map(t => ({ id: t.id, title: t.title, action: t.nextPhysicalAction })),
       };
