@@ -64,6 +64,23 @@ describe("relatedActivity · goal", () => {
     expect(h.chatConversation).not.toHaveBeenCalled();
   });
 
+  it("W6: a task_completed GoalEvent and the same task's own rows collapse to one item, titled with the task", async () => {
+    h.goalEvent.mockResolvedValue([
+      { id: "ge2", kind: "task_completed", payload: { taskId: "t9" }, createdAt: at(1) },
+      { id: "ge3", kind: "task_completed", payload: { taskId: "t8" }, createdAt: at(2) },
+      { id: "ge4", kind: "task_completed", payload: { taskId: "t7" }, createdAt: at(3) },
+    ]);
+    h.taskEvent.mockResolvedValue([{ id: "te9", taskId: "t9", kind: "completed", createdAt: at(1), task: { title: "Call the bank" } }]);
+    h.task.mockResolvedValue([{ id: "t8", title: "Send quote", status: "DONE", goalId: "g1", updatedAt: at(2) }]);
+    const r = await relatedActivity({ goalId: "g1" });
+    const titles = r.items.map((i) => i.title);
+    expect(titles.filter((t) => t.startsWith("Call the bank"))).toEqual(["Call the bank: completed"]);
+    expect(titles.filter((t) => t.startsWith("Send quote"))).toEqual(["Send quote (DONE)"]);
+    // Neither row of t7 was read: the goal event stays, it is the only trace of that task.
+    expect(r.items.filter((i) => i.ref.id === "ge4")).toHaveLength(1);
+    expect(r.items.some((i) => i.ref.id === "ge2" || i.ref.id === "ge3")).toBe(false);
+  });
+
   it("a task inherits the goal from its mission when its own goalId is empty (Linear L1, read time)", async () => {
     await relatedActivity({ goalId: "g1" });
     const where = h.task.mock.calls[0][0].where;

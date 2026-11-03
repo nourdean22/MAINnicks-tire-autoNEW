@@ -41,6 +41,8 @@ export interface RelatedItem {
   source: string;
   title: string;
   ref: { table: string; id: string };
+  /** The task this row is about, when known (task, task_event, a task_completed goal_event). */
+  taskId?: string;
 }
 
 export interface RelatedKey {
@@ -136,7 +138,7 @@ export async function relatedActivity(
         select: { id: true, title: true, status: true, goalId: true, updatedAt: true },
         orderBy: { updatedAt: "desc" },
         take,
-      })).map((t) => ({ at: t.updatedAt, kind: "task", source: source(t.goalId), title: `${clip(t.title, 100)} (${t.status})`, ref: { table: "Task", id: t.id } })),
+      })).map((t) => ({ at: t.updatedAt, kind: "task", source: source(t.goalId), title: `${clip(t.title, 100)} (${t.status})`, ref: { table: "Task", id: t.id }, taskId: t.id })),
   });
 
   if (goalId) {
@@ -148,16 +150,22 @@ export async function relatedActivity(
             where: { goalId, ...created },
             select: { id: true, kind: true, payload: true, createdAt: true },
             ...desc,
-          })).map((e) => ({ at: e.createdAt, kind: "goal_event", source: "goal", title: goalEventTitle(e.kind, e.payload), ref: { table: "GoalEvent", id: e.id } })),
+          })).map((e) => {
+            const taskId = e.kind === "task_completed" ? (e.payload as { taskId?: unknown } | null)?.taskId : undefined;
+            return {
+              at: e.createdAt, kind: "goal_event", source: "goal", title: goalEventTitle(e.kind, e.payload), ref: { table: "GoalEvent", id: e.id },
+              ...(typeof taskId === "string" ? { taskId } : {}),
+            };
+          }),
       },
       {
         name: "task_event",
         run: async () =>
           (await prisma.taskEvent.findMany({
             where: { goalId, ...created },
-            select: { id: true, kind: true, createdAt: true, task: { select: { title: true } } },
+            select: { id: true, taskId: true, kind: true, createdAt: true, task: { select: { title: true } } },
             ...desc,
-          })).map((e) => ({ at: e.createdAt, kind: "task_event", source: "task", title: `${clip(e.task?.title, 100)}: ${e.kind}`, ref: { table: "TaskEvent", id: e.id } })),
+          })).map((e) => ({ at: e.createdAt, kind: "task_event", source: "task", title: `${clip(e.task?.title, 100)}: ${e.kind}`, ref: { table: "TaskEvent", id: e.id }, taskId: e.taskId })),
       },
       tasks({ OR: [{ goalId }, { goalId: null, mission: { lifeGoalId: goalId } }] }, (g) => (g ? "task" : "task via mission")),
       ...journal("goalId", goalId),
@@ -220,6 +228,11 @@ export async function relatedActivity(
       items.push(item);
     }
   });
-  items.sort((a, b) => b.at.getTime() - a.at.getTime());
-  return { items: items.slice(0, take), failed };
+  // W6: a metric goal's task_completed GoalEvent says what the task's own rows already say, untitled. When the
+  // task or its event is in the result, that titled row is the one item; the goal event stays only when it is
+  // the task's sole trace here (its rows fell outside the window or their read failed).
+  const taskRows = new Set(items.filter((i) => i.kind !== "goal_event" && i.taskId).map((i) => i.taskId));
+  const merged = items.filter((i) => !(i.kind === "goal_event" && i.taskId && taskRows.has(i.taskId)));
+  merged.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return { items: merged.slice(0, take), failed };
 }

@@ -14,12 +14,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
-import { CHECK_IN_HEALTH, goalDue, goalPaceView } from "@/lib/brain/goal-pace";
-import { NEXT_STEP_STATUSES } from "@/lib/services/goal-next-step";
+import { CHECK_IN_HEALTH } from "@/lib/brain/goal-pace";
 import { RELATED_DEFAULT_DAYS, RELATED_MAX_DAYS } from "@/lib/services/related-activity";
-import { logger as rootLogger } from "@/lib/logger";
-
-const log = rootLogger.withSurface("ai/tools/goals");
 
 
 export const goalsTools = {
@@ -31,70 +27,12 @@ export const goalsTools = {
     description:
       "List Nour's active goals with their ids: title, kind, horizon, unit, current/target value, due date, pace, health (from the latest check-in, or no_check_in) and open linked tasks. Use the id with createTask.goalId, createMissionPlan.lifeGoalId, getRelated and logGoalCheckIn.",
     inputSchema: z.object({}),
+    // W6: the read lives in lib/services/goal-health.ts (recall reads the same shape); health is goalHealthFrom
+    // with the horizon's cadence, as on the goal card.
     execute: async () => {
-      const goals = await prisma.lifeGoal.findMany({
-        where: { status: "active", deletedAt: null },
-        orderBy: [{ horizon: "asc" }, { progress: "desc" }],
-        take: 20,
-        select: {
-          id: true, title: true, kind: true, horizon: true, unit: true, currentValue: true, targetValue: true,
-          status: true, deadline: true, createdAt: true,
-          _count: { select: { tasks: { where: { deletedAt: null, status: { in: [...NEXT_STEP_STATUSES] } } } } },
-        },
-      });
-      const failed: string[] = [];
-      const latest = new Map<string, { health?: string; checkInAt?: Date; horizonSetAt?: Date }>();
-      try {
-        const events = await prisma.goalEvent.findMany({
-          where: { goalId: { in: goals.map((g) => g.id) }, kind: { in: ["check_in", "horizon_set"] } },
-          // The newest row per (goal, kind): a cap across all goals would hide an older check-in as "none".
-          orderBy: { createdAt: "desc" },
-          distinct: ["goalId", "kind"],
-          select: { goalId: true, kind: true, payload: true, createdAt: true },
-        });
-        for (const e of events) {
-          const row = latest.get(e.goalId) ?? {};
-          if (e.kind === "check_in" && !row.checkInAt) {
-            row.health = String((e.payload as { health?: unknown } | null)?.health ?? "unknown");
-            row.checkInAt = e.createdAt;
-          }
-          if (e.kind === "horizon_set" && !row.horizonSetAt) row.horizonSetAt = e.createdAt;
-          latest.set(e.goalId, row);
-        }
-      } catch (err) {
-        log.warn("check_in_read_failed", { err: err instanceof Error ? err.message : String(err) });
-        failed.push("check_ins");
-      }
-      return {
-        goals: goals.map((g) => {
-          const l = latest.get(g.id);
-          const dates = {
-            deadline: g.deadline?.toISOString() ?? null,
-            horizon: g.horizon,
-            createdAt: g.createdAt.toISOString(),
-            horizonSetAt: l?.horizonSetAt?.toISOString() ?? null,
-          };
-          const view = goalPaceView({ ...dates, currentValue: g.currentValue, targetValue: g.targetValue, unit: g.unit, status: g.status });
-          return {
-            id: g.id,
-            title: g.title,
-            kind: g.kind,
-            horizon: g.horizon,
-            unit: g.unit,
-            currentValue: g.currentValue,
-            targetValue: g.targetValue,
-            due: goalDue(dates),
-            pace: view ? (view.kind === "note" ? view.text : view.label) : null,
-            health: failed.length
-              ? { state: "unknown", at: null }
-              : l?.checkInAt
-                ? { state: l.health, at: l.checkInAt.toISOString() }
-                : { state: "no_check_in", at: null },
-            openTasks: g._count.tasks,
-          };
-        }),
-        failed,
-      };
+      const { activeGoalsWithHealth } = await import("@/lib/services/goal-health");
+      const r = await activeGoalsWithHealth();
+      return { goals: r.goals.map(({ status: _s, paceKind: _p, ...g }) => g), failed: r.failed };
     },
   }),
 
