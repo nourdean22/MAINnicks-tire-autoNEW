@@ -16,7 +16,7 @@ vi.mock("@/lib/logger", async (orig) => {
   return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: logWarn }) } };
 });
 
-import { dayActivity, etDayBounds } from "@/lib/services/journal-day";
+import { DAY_ROWS_CAP, dayActivity, etDayBounds } from "@/lib/services/journal-day";
 import { DayActivityPanel } from "@/components/journal/day-activity";
 
 const ev = (id: string, taskId: string, title: string, over: Record<string, unknown> = {}) => ({
@@ -49,9 +49,13 @@ describe("etDayBounds", () => {
     expect(end.getTime() - start.getTime()).toBe(25 * 3_600_000);
   });
 
-  it("refuses anything but a YYYY-MM-DD date", () => {
+  it("refuses anything but a real YYYY-MM-DD date, as a BAD_REQUEST", () => {
     expect(() => etDayBounds("2026-11-2")).toThrow();
     expect(() => etDayBounds("2026-13-01")).toThrow();
+    // Feb 31 used to roll over to Mar 3 and read the wrong day.
+    expect(() => etDayBounds("2026-02-31")).toThrow(expect.objectContaining({ code: "BAD_REQUEST" }));
+    expect(() => etDayBounds("2026-04-31")).toThrow();
+    expect(etDayBounds("2028-02-29").start).toEqual(new Date("2028-02-29T05:00:00Z"));
   });
 });
 
@@ -60,13 +64,18 @@ describe("dayActivity", () => {
     h.events.mockResolvedValue([
       ev("e1", "t1", "Call the supplier", { task: { id: "t1", title: "Call the supplier", goal: { id: "g-t", title: "Save $15k", deletedAt: null }, mission: null } }),
       ev("e2", "t2", "Sweep the bay"),
-      ev("e3", "t1", "Call the supplier"),
+      // The same task completed twice that day (a recurring task): one row.
+      ev("e3", "t1", "Call the supplier", { task: { id: "t1", title: "Call the supplier", goal: { id: "g-t", title: "Save $15k", deletedAt: null }, mission: null } }),
     ]);
     h.ledger.mockResolvedValue([row("l1")]);
     const day = await dayActivity("2026-11-02");
 
     const bounds = { gte: new Date("2026-11-02T05:00:00Z"), lt: new Date("2026-11-03T05:00:00Z") };
     expect(h.events.mock.calls[0][0].where).toEqual({ kind: "completed", createdAt: bounds });
+    // Newest first, so a cap drops the OLDEST rows of the day, never the latest; shown oldest-first.
+    expect(h.events.mock.calls[0][0].orderBy).toEqual({ createdAt: "desc" });
+    expect(h.ledger.mock.calls[0][0].orderBy).toEqual({ createdAt: "desc" });
+    expect(day.truncated).toEqual([]);
     expect(h.ledger.mock.calls[0][0].where).toEqual({ createdAt: bounds });
     expect(day.failed).toEqual([]);
     expect(day.tasksDone).toEqual([
@@ -103,8 +112,21 @@ describe("dayActivity", () => {
   });
 });
 
+describe("dayActivity · caps", () => {
+  it("returns rows oldest-first and names a read that filled its cap", async () => {
+    h.events.mockResolvedValue(
+      Array.from({ length: DAY_ROWS_CAP }, (_, i) => ev(`e${i}`, `t${i}`, `task ${i}`, { createdAt: new Date(Date.UTC(2026, 10, 2, 22, 0, 0) - i * 60_000) })),
+    );
+    h.ledger.mockResolvedValue([row("l2", null), { ...row("l1"), createdAt: new Date("2026-11-02T14:00:00Z") }]);
+    const day = await dayActivity("2026-11-02");
+    expect(day.truncated).toEqual(["tasks"]);
+    expect(day.tasksDone[0].taskId).toBe(`t${DAY_ROWS_CAP - 1}`);
+    expect(day.contacts.map((c) => c.id)).toEqual(["l1", "l2"]);
+  });
+});
+
 describe("DayActivityPanel", () => {
-  const base = { date: "2026-11-02", tasksDone: [], contacts: [], failed: [] as string[] };
+  const base = { date: "2026-11-02", tasksDone: [], contacts: [], failed: [] as string[], truncated: [] as string[] };
 
   it("lists done tasks with their goal and contacts with the person's dossier link", () => {
     const html = renderToStaticMarkup(
@@ -126,6 +148,10 @@ describe("DayActivityPanel", () => {
     const html = renderToStaticMarkup(<DayActivityPanel read={{ ...base, failed: ["tasks"] }} />);
     expect(html).toContain("Done tasks couldn&#x27;t load");
     expect(html).not.toContain("Nothing done");
+  });
+
+  it("a capped read says older rows are not shown", () => {
+    expect(renderToStaticMarkup(<DayActivityPanel read={{ ...base, truncated: ["tasks"] }} />)).toContain("only the latest");
   });
 
   it("a measured empty day says so; a whole failed query says unknown", () => {

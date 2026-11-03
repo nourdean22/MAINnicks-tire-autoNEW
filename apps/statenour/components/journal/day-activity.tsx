@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import type { DayActivity } from "@/lib/services/journal-day";
+import { DAY_ROWS_CAP, type DayActivity } from "@/lib/services/journal-day";
 import { trpc } from "@/lib/trpc/client";
 
 const READ_LABEL: Record<string, string> = { tasks: "Done tasks", contacts: "Contacts" };
@@ -30,6 +30,11 @@ export function DayActivityPanel({ read }: { read: DayActivity | "loading" | "fa
       {read.failed.map((f) => (
         <p key={f} role="status" className="text-[12px] text-amber-300">
           {READ_LABEL[f] ?? f} couldn&apos;t load
+        </p>
+      ))}
+      {read.truncated.map((t) => (
+        <p key={t} role="status" className="text-[12px] text-amber-300">
+          {READ_LABEL[t] ?? t}: only the latest {DAY_ROWS_CAP} shown
         </p>
       ))}
       {empty && <p className="text-fg-tertiary">No tasks done and no contacts logged that day.</p>}

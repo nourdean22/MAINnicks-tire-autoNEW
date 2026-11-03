@@ -7,6 +7,8 @@
  * task completions (TaskEvent kind "completed") and relationship-ledger CONTACT rows (contactRowsOnly). The day is
  * an America/New_York calendar day. Each read fails on its own and is named in `failed` (empty-vs-error).
  */
+import { TRPCError } from "@trpc/server";
+
 import { prisma } from "@/lib/prisma";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { etMidnightToUtc } from "@/lib/utils/datetime";
@@ -23,13 +25,19 @@ export interface DayActivity {
   contacts: { id: string; person: { id: string; name: string }; note: string; source: string; at: string }[];
   /** "tasks" | "contacts": reads that threw. Their rows are missing, not zero. */
   failed: string[];
+  /** "tasks" | "contacts": reads that filled DAY_ROWS_CAP. The latest rows are shown, older ones are not. */
+  truncated: string[];
 }
 
 /** [start, end) of an ET calendar day given as YYYY-MM-DD; the DST days are 23 and 25 hours long. */
 export function etDayBounds(date: string): { start: Date; end: Date } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const [y, mo, d] = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
-  if (!m || mo < 1 || mo > 12 || d < 1 || d > 31) throw new Error(`not a YYYY-MM-DD date: ${date}`);
+  // Rebuilt through Date.UTC: a day the month does not have (Feb 31) rolls over, and is refused rather than read.
+  const check = new Date(Date.UTC(y, mo - 1, d));
+  if (!m || check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `not a calendar date: ${date}` });
+  }
   return { start: etMidnightToUtc(y, mo, d), end: etMidnightToUtc(y, mo, d + 1) };
 }
 
@@ -42,7 +50,8 @@ export async function dayActivity(date: string): Promise<DayActivity> {
   const [events, ledger] = await Promise.allSettled([
     prisma.taskEvent.findMany({
       where: { kind: "completed", createdAt },
-      orderBy: { createdAt: "asc" },
+      // Newest first: when a day overflows the cap, the oldest rows drop, never the latest.
+      orderBy: { createdAt: "desc" },
       take: DAY_ROWS_CAP,
       select: {
         id: true,
@@ -59,7 +68,7 @@ export async function dayActivity(date: string): Promise<DayActivity> {
     }),
     prisma.relationshipLedger.findMany({
       where: { createdAt },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       take: DAY_ROWS_CAP,
       select: {
         id: true,
@@ -78,10 +87,12 @@ export async function dayActivity(date: string): Promise<DayActivity> {
     failed.push(read);
   };
 
+  const truncated: string[] = [];
   const tasksDone: DayActivity["tasksDone"] = [];
   if (events.status === "fulfilled") {
+    if (events.value.length >= DAY_ROWS_CAP) truncated.push("tasks");
     const seen = new Set<string>();
-    for (const e of events.value) {
+    for (const e of [...events.value].reverse()) {
       // A recurring task completed twice in a day is one done task on this list.
       if (!e.task || seen.has(e.task.id)) continue;
       seen.add(e.task.id);
@@ -93,7 +104,8 @@ export async function dayActivity(date: string): Promise<DayActivity> {
 
   const contacts: DayActivity["contacts"] = [];
   if (ledger.status === "fulfilled") {
-    for (const l of contactRowsOnly(ledger.value)) {
+    if (ledger.value.length >= DAY_ROWS_CAP) truncated.push("contacts");
+    for (const l of contactRowsOnly([...ledger.value].reverse())) {
       if (!l.person || l.person.deletedAt) continue;
       contacts.push({
         id: l.id,
@@ -105,5 +117,5 @@ export async function dayActivity(date: string): Promise<DayActivity> {
     }
   } else fail("contacts", ledger.reason);
 
-  return { date, tasksDone, contacts, failed };
+  return { date, tasksDone, contacts, failed, truncated };
 }

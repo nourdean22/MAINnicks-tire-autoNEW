@@ -19,6 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { toDateString } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/journal-feed");
 
@@ -307,7 +308,7 @@ export async function buildJournalFeed(args: {
       id: s.id,
       source: "situation",
       createdAt: s.createdAt,
-      date: s.createdAt.toISOString().split("T")[0],
+      date: toDateString(s.createdAt), // ET day, like dumps: the day view reads ET days
       entryType: "reflection",
       title: truncateAtWord(s.situation, 120),
       body: s.situation,
@@ -331,7 +332,7 @@ export async function buildJournalFeed(args: {
       id: d.id,
       source: "decision",
       createdAt: d.createdAt,
-      date: d.createdAt.toISOString().split("T")[0],
+      date: toDateString(d.createdAt), // ET day, like dumps: the day view reads ET days
       entryType: "decision",
       title: truncateAtWord(d.title, 120),
       body: d.context ?? "",
@@ -359,7 +360,7 @@ export async function buildJournalFeed(args: {
       id: m.id,
       source: "retro",
       createdAt: m.createdAt,
-      date: m.createdAt.toISOString().split("T")[0],
+      date: toDateString(m.createdAt), // ET day, like dumps: the day view reads ET days
       entryType: "retro",
       title: (missionTitle ? `Mission retro · ${missionTitle}` : retroText).slice(
         0,

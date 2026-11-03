@@ -31,6 +31,7 @@ import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
 import type { MissionChatsRead } from "./mission-chats-line";
 import { trpc } from "@/lib/trpc/client";
+import { MISSION_CHATS_IDS_MAX, MISSION_CHATS_PER_MISSION } from "@/lib/missions/mission-chats";
 
 export interface MissionFeedProps {
   missions: Project[];
@@ -53,12 +54,17 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
     [missions, tasks],
   );
   // W7 · one read for every card's linked chats (map gap 8). A failed read is per card "couldn't load".
+  const readIds = activeMissions.map((m) => m.id).slice(0, MISSION_CHATS_IDS_MAX);
   const chatsQ = trpc.task.missionChats.useQuery(
-    { missionIds: activeMissions.map((m) => m.id).slice(0, 100) },
+    { missionIds: readIds },
     { enabled: activeMissions.length > 0, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
-  const chatsFor = (id: string): MissionChatsRead =>
-    chatsQ.data ? (chatsQ.data[id] ?? []) : chatsQ.isError ? "failed" : "loading";
+  const chatsFor = (id: string): MissionChatsRead => {
+    if (!readIds.includes(id)) return "unread";
+    if (!chatsQ.data) return chatsQ.isError ? "failed" : "loading";
+    const chats = chatsQ.data.byMission[id] ?? [];
+    return { chats, truncated: chatsQ.data.truncated && chats.length < MISSION_CHATS_PER_MISSION };
+  };
 
   // Drag and drop states for Missions
   const [draggedMissionIdx, setDraggedMissionIdx] = useState<number | null>(null);
