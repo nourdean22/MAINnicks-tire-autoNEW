@@ -217,15 +217,35 @@ export function missingDodFragment(files, branch) {
 
 // The PR body bar (manager rule 2026-10-30, quality-audit P1 #16). One case-insensitive regex per section, matched against a
 // markdown HEADING's text; spellings read from merged bodies 3486, 3485, 3477 and 3470 on 2026-11-01.
-const BAR_SECTIONS = [
+export const BAR_SECTIONS = [
   { name: "hostile self-review", heading: "## Self-review", re: /^(?:hostile\s+)?self[- ]review\b/i },
   { name: "kill criterion with a live-check date", heading: "## Kill criterion + live check", re: /^kill[- ]criteri(?:on|a)\b/i, dated: true },
   { name: "10x option", heading: "## 10x", re: /^10x\b/i },
   { name: "second reader", heading: "## Second reader", re: /^(?:second[- ]reader|reader\s+of\s+record)\b/i },
 ];
-const ISO_DATE = /\b20\d\d-[01]\d-[0-3]\d\b/;
+export const ISO_DATE = /\b20\d\d-[01]\d-[0-3]\d\b/;
 // test.yml's docs_only filter patterns ('**/*.md', 'docs/**'), applied to EVERY path here rather than to any one of them.
 const isDocPath = (p) => /\.md$/.test(p) || p.startsWith("docs/");
+
+/**
+ * The markdown headings of `body` whose text matches `re`, each as { i, level, text, content } with the text under it up to
+ * the next heading of the same or a higher level. A heading inside a code fence or an HTML comment, bold text and prose do
+ * not count. Shared by the bar below and by kill-reads.mjs, so the two never disagree on what a section is.
+ */
+export function bodySections(body, re) {
+  const lines = body
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
+    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm, "")
+    .split(/\r?\n/);
+  const headings = lines.flatMap((l, i) => {
+    const m = /^ {0,3}(#{1,6})\s+(.*?)[\s#]*$/.exec(l);
+    return m ? [{ i, level: m[1].length, text: m[2] }] : [];
+  });
+  return headings.filter((h) => re.test(h.text)).map((h) => {
+    const end = headings.find((n) => n.i > h.i && n.level <= h.level)?.i ?? lines.length;
+    return { ...h, content: lines.slice(h.i + 1, end).join("\n") };
+  });
+}
 
 /**
  * The PR body bar. `body`/`author` come from `gh pr view --json body,author`, `files` from the REST files list (strings are
@@ -241,20 +261,9 @@ export function assessBody({ body, author, files }) {
   if (author?.is_bot === true && /^(?:app\/)?dependabot(?:\[bot\])?$/.test(String(author.login))) return { reasons: [], exempt: "dependabot PR: the body bar does not apply" };
   if (typeof body !== "string") return { reasons: ["the PR body was not returned by gh: the four bar sections are UNKNOWN, which is not a pass"], exempt: null };
   if (!body.trim()) return { reasons: ["the PR body is empty: all four bar sections are missing"], exempt: null };
-  const lines = body
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
-    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm, "")
-    .split(/\r?\n/);
-  const headings = lines.flatMap((l, i) => {
-    const m = /^ {0,3}(#{1,6})\s+(.*?)[\s#]*$/.exec(l);
-    return m ? [{ i, level: m[1].length, text: m[2] }] : [];
-  });
   const reasons = [];
   for (const s of BAR_SECTIONS) {
-    const found = headings.filter((h) => s.re.test(h.text)).map((h) => {
-      const end = headings.find((n) => n.i > h.i && n.level <= h.level)?.i ?? lines.length;
-      return { ...h, content: lines.slice(h.i + 1, end).join("\n") };
-    });
+    const found = bodySections(body, s.re);
     const hint = `add a "${s.heading}" heading with text under it`;
     if (!found.length) reasons.push(`missing section "${s.name}": ${hint}`);
     else if (!found.some((h) => h.content.trim())) reasons.push(`section "${s.name}" has a heading but no text under it: ${hint}`);

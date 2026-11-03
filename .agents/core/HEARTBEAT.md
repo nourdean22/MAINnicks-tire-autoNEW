@@ -28,6 +28,7 @@ returned and had to be stopped by hand.
 | 8 | Errors | Sentry MCP `search_issues`, unresolved, last 12 h, limit 10 (the manager loads the Sentry read tools) | no new high-volume issue | no |
 | 9 | AI traces | Langfuse, only if keys are already in the shell; last 12 h, small sample | no error spike; traces still arriving | no |
 | 10 | Observability | `GET https://nickstire.org/api/system/observability-status` with `Authorization: Bearer $ADMIN_API_KEY`, only if the key is already in the shell (404 until #3094 deploys = SKIPPED) | every probe reports a real state; an `UNKNOWN` probe is a finding, never fine | no |
+| 11 | Kill reads due | `node scripts/agent-os/kill-reads.mjs --due` (line 1 is the count; a `prs: UNKNOWN` line after it means gh failed and the count covers the ledger and ship records only) | informational: never lowers the overall state; N above 0 is listed by `node scripts/agent-os/kill-reads.mjs`, oldest first, for the manager to run | no |
 
 Before any `gh` call clear the dummy token: `[Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')`.
 Classify each failure: TIMEOUT, AUTH (401/403), MALFORMED (bad JSON), STALE, DOWN. A required check that cannot run
@@ -42,6 +43,7 @@ HEARTBEAT <AM|PM> <YYYY-MM-DD HH:MM ET> base <origin/main short SHA>: <HEALTHY|D
 5 branches  <state>                 6 memory    <state>
 7 graph     <state> <age>           8 sentry    <state | SKIPPED>
 9 langfuse  <state | SKIPPED>
+11 kill reads <N due | SKIPPED>
 Changed since last run: <none | list>
 Proposed jobs (max 3, lane named): <none | 1. ... >
 ```
