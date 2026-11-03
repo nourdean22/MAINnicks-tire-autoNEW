@@ -525,6 +525,10 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
   if (data.status === "achieved" && before.status !== "achieved") {
     emitGoalEventAsync({ goalId: id, kind: "achieved", source: "api:goals.PATCH" });
   }
+  // W6 (2026-11-03): a missed goal is a brain moment too (lib/brain/goal-brain.ts reads the event).
+  if (data.status === "missed" && before.status !== "missed") {
+    emitGoalEventAsync({ goalId: id, kind: "missed", source: "api:goals.PATCH" });
+  }
   if (data.status === "paused" && before.status !== "paused") {
     emitGoalEventAsync({ goalId: id, kind: "paused", source: "api:goals.PATCH" });
   }

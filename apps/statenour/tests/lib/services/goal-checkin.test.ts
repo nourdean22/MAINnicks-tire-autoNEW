@@ -63,15 +63,20 @@ beforeEach(() => {
 });
 
 describe("logGoalCheckIn (the shared writer)", () => {
-  it("W6: a logged check-in writes its brain moment keyed by the new GoalEvent's id; a duplicate writes none", async () => {
+  it("W6: a logged check-in writes its brain moment keyed by the new GoalEvent's id", async () => {
     await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "supplier slipped", source: "goal-card" });
     await vi.waitFor(() => expect(h.afterGoalMoment).toHaveBeenCalledTimes(1));
     expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_new", goalId: "goal_A", kind: "check_in", text: "supplier slipped", health: "at_risk" });
+  });
+
+  it("W6: a duplicate (same-day retry or a racing create) retries the brain write for the EXISTING event, with its stored note", async () => {
+    h.eventFindFirst.mockResolvedValueOnce({ id: "ge_prior", payload: { health: "on_track", note: "first note" }, createdAt: new Date() });
+    await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "second try", source: "goal-card" });
+    await vi.waitFor(() => expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_prior", goalId: "goal_A", kind: "check_in", text: "first note", health: "on_track" }));
     h.afterGoalMoment.mockClear();
-    h.idempotentCreate.mockResolvedValueOnce({ created: false, row: { id: "ge_old", payload: { health: "on_track" }, createdAt: new Date() } });
-    await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "again", source: "goal-card" });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(h.afterGoalMoment).not.toHaveBeenCalled();
+    h.idempotentCreate.mockResolvedValueOnce({ created: false, row: { id: "ge_race", payload: { health: "off_track", note: "won" }, createdAt: new Date() } });
+    await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "lost", source: "goal-card" });
+    await vi.waitFor(() => expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_race", goalId: "goal_A", kind: "check_in", text: "won", health: "off_track" }));
   });
 
   it("W6: a failed brain hook is caught and logged; the check-in still reports logged", async () => {

@@ -39,35 +39,45 @@ export type GoalMomentResult = { written: true; id: string } | { written: false;
 
 const errMsg = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Every no-write except a duplicate is logged: a moment that never reaches the brain must leave a trace. */
 export async function afterGoalMoment(m: GoalMomentInput): Promise<GoalMomentResult> {
-  if (!isGoalBrainKind(m.kind)) return { written: false, reason: `kind ${m.kind} is not written to the brain` };
+  let r: GoalMomentResult;
   try {
-    const goal = await prisma.lifeGoal.findFirst({ where: { id: m.goalId }, select: { id: true, title: true } });
-    if (!goal) return { written: false, reason: "goal not found" };
-    const content =
-      m.kind === "check_in"
-        ? `Check-in on "${goal.title}" (${m.health ?? "unknown"}): ${m.text?.trim() || "no note"}`
-        : `${m.kind === "achieved" ? "Achieved" : "Missed"} "${goal.title}"`;
-    const key = `goal_event:${m.goalEventId}`;
-    const prior = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: BRAIN_CATEGORIES.GOAL_MOMENT, key } },
-      select: { id: true },
-    });
-    if (prior) return { written: false, reason: "duplicate" };
-    try {
-      const { brainMemory } = await import("@/lib/brain/memory-manager");
-      const row = await brainMemory.remember(BRAIN_CATEGORIES.GOAL_MOMENT, key, content, GOAL_MOMENT_SOURCE, {
-        goalId: goal.id,
-        kind: m.kind,
-        goalEventId: m.goalEventId,
-      });
-      return { written: true, id: row.id };
-    } catch (err) {
-      if ((err as { code?: string }).code === "P2002") return { written: false, reason: "duplicate" };
-      throw err;
-    }
+    r = await writeGoalMoment(m);
   } catch (err) {
     log.warn("goal_memory_write_failed", { goalEventId: m.goalEventId, goalId: m.goalId, err: errMsg(err) });
     return { written: false, reason: errMsg(err) };
+  }
+  if (!r.written && r.reason !== "duplicate") {
+    log.warn("goal_memory_not_written", { goalEventId: m.goalEventId, goalId: m.goalId, kind: m.kind, reason: r.reason });
+  }
+  return r;
+}
+
+async function writeGoalMoment(m: GoalMomentInput): Promise<GoalMomentResult> {
+  if (!isGoalBrainKind(m.kind)) return { written: false, reason: `kind ${m.kind} is not written to the brain` };
+  const goal = await prisma.lifeGoal.findFirst({ where: { id: m.goalId }, select: { id: true, title: true } });
+  if (!goal) return { written: false, reason: "goal not found" };
+  const content =
+    m.kind === "check_in"
+      ? `Check-in on "${goal.title}" (${m.health ?? "unknown"}): ${m.text?.trim() || "no note"}`
+      : `${m.kind === "achieved" ? "Achieved" : "Missed"} "${goal.title}"`;
+  const key = `goal_event:${m.goalEventId}`;
+  const prior = await prisma.brainMemory.findUnique({
+    where: { category_key: { category: BRAIN_CATEGORIES.GOAL_MOMENT, key } },
+    select: { id: true },
+  });
+  if (prior) return { written: false, reason: "duplicate" };
+  try {
+    const { brainMemory } = await import("@/lib/brain/memory-manager");
+    const row = await brainMemory.remember(BRAIN_CATEGORIES.GOAL_MOMENT, key, content, GOAL_MOMENT_SOURCE, {
+      goalId: goal.id,
+      kind: m.kind,
+      goalEventId: m.goalEventId,
+    });
+    return { written: true, id: row.id };
+  } catch (err) {
+    if ((err as { code?: string }).code === "P2002") return { written: false, reason: "duplicate" };
+    throw err;
   }
 }

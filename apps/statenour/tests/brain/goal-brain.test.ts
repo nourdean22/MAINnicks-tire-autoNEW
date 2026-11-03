@@ -92,11 +92,20 @@ describe("afterGoalMoment", () => {
     expect(h.warn).toHaveBeenCalledWith("goal_memory_write_failed", expect.objectContaining({ goalEventId: "ge_6" }));
   });
 
-  it("an unknown goal writes nothing", async () => {
+  it("an unknown goal writes nothing, and says so in the log", async () => {
     h.goalFindFirst.mockResolvedValueOnce(null);
     const r = await afterGoalMoment({ goalEventId: "ge_7", goalId: "nope", kind: "achieved" });
     expect(r).toEqual({ written: false, reason: "goal not found" });
     expect(h.remember).not.toHaveBeenCalled();
+    expect(h.warn).toHaveBeenCalledWith("goal_memory_not_written", expect.objectContaining({ goalEventId: "ge_7", reason: "goal not found" }));
+  });
+
+  it("a duplicate is the only quiet no-write", async () => {
+    h.memoryFindUnique.mockResolvedValueOnce({ id: "mem_1" });
+    await afterGoalMoment({ goalEventId: "ge_1", goalId: "goal_A", kind: "achieved" });
+    await afterGoalMoment({ goalEventId: "ge_8", goalId: "goal_A", kind: "task_completed" });
+    expect(h.warn).toHaveBeenCalledTimes(1);
+    expect(h.warn).toHaveBeenCalledWith("goal_memory_not_written", expect.objectContaining({ goalEventId: "ge_8" }));
   });
 
   it("the goal_moment category rides chat recall", () => {

@@ -92,8 +92,9 @@ export async function emitGoalEvent(input: GoalEventInput): Promise<void> {
         idempotencyKey: key,
       },
     });
-    // W6: an achieved or missed goal is a brain moment, keyed by this event's id (lib/brain/goal-brain.ts).
-    if (res.created && (input.kind === "achieved" || input.kind === "missed")) {
+    // W6: an achieved or missed goal is a brain moment, keyed by this event's id (lib/brain/goal-brain.ts). A replay
+    // (created:false) retries the write for the existing event: the key makes it a no-op when the row is there.
+    if (input.kind === "achieved" || input.kind === "missed") {
       void import("@/lib/brain/goal-brain")
         .then((b) => b.afterGoalMoment({ goalEventId: res.row.id, goalId: input.goalId, kind: input.kind }))
         .catch((err) => log.warn("goal_brain_hook_failed", { goalId: input.goalId, err: err instanceof Error ? err.message : String(err) }));

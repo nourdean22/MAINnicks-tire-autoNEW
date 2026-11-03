@@ -36,9 +36,13 @@ describe("emitGoalEvent -> brain", () => {
     expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_9", goalId: "goal_A", kind: "achieved" });
   });
 
-  it("a replayed emit and any other kind write nothing", async () => {
+  it("a replayed emit retries the brain write with the existing event id (the key makes it safe)", async () => {
     h.idempotentCreate.mockResolvedValueOnce({ created: false, row: { id: "ge_old" } });
     await emitGoalEvent({ goalId: "goal_A", kind: "achieved" });
+    await vi.waitFor(() => expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_old", goalId: "goal_A", kind: "achieved" }));
+  });
+
+  it("any other kind writes nothing", async () => {
     await emitGoalEvent({ goalId: "goal_A", kind: "progress_logged", payload: { delta: 1 } });
     await emitGoalEvent({ goalId: "goal_A", kind: "task_completed", payload: { taskId: "t1" } });
     await settle();
