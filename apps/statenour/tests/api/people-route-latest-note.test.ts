@@ -37,6 +37,29 @@ async function people() {
 beforeEach(() => vi.clearAllMocks());
 
 describe("GET /api/people · the newest contact note per person", () => {
+  // W8b (audit B10): the card said the same thing twice (a journal contact row IS the journal line beneath it) and
+  // showed the backfill's "interaction reported in chat (...)" boilerplate as the newest thing known about a person.
+  it("skips a journal-source row (the journal line shows that entry) and the generic backfill note", async () => {
+    h.findMany.mockResolvedValue([
+      {
+        ...base,
+        ledger: [
+          { note: "Talked to P about the move", createdAt: new Date("2026-11-02T14:00:00Z"), source: "journal", metadata: { via: "journal_ingest" } },
+          { note: "Interaction reported in chat (2026-10-20)", createdAt: new Date("2026-10-31T12:00:00Z"), source: "chat", metadata: null },
+          { note: "Helped move the couch", createdAt: new Date("2026-10-20T12:00:00Z"), source: "chat", metadata: null },
+        ],
+      },
+    ]);
+    expect((await people())[0].latestNote).toEqual({ note: "Helped move the couch", at: "2026-10-20T12:00:00.000Z", source: "chat" });
+  });
+
+  it("only journal and generic rows: null, never the boilerplate", async () => {
+    h.findMany.mockResolvedValue([
+      { ...base, ledger: [{ note: "interaction reported in chat (x)", createdAt: new Date(), source: "chat", metadata: null }] },
+    ]);
+    expect((await people())[0].latestNote).toBeNull();
+  });
+
   it("a backfilled chat note shows on the list row; a newer status flip is skipped", async () => {
     h.findMany.mockResolvedValue([
       {

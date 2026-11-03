@@ -27,6 +27,12 @@ export interface LedgerRowShape {
   metadata: unknown;
 }
 
+/**
+ * The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the
+ * person. It is a contact for the counters, and it is NOT shown as "the newest thing known" about them (W8b).
+ */
+export const GENERIC_NOTE = /^interaction reported in chat \(/i;
+
 import { z } from "zod";
 
 /**

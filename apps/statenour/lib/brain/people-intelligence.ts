@@ -20,7 +20,7 @@ const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { isNeglected } from "@/lib/services/people/neglect";
-import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { contactRowsOnly, GENERIC_NOTE } from "@/lib/services/people/contact-rows";
 import { nameMatcher } from "@/lib/services/people/backfill-plan";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
@@ -28,8 +28,6 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/people-intelligence");
 
-/** The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the person. */
-const GENERIC_NOTE = /^interaction reported in chat \(/i;
 const CONTEXT_MAX = 3;
 /** A dismissed role/notes suggestion stays away this long, like a dismissed cadence (second reader on 3519). */
 const ENRICH_REPROPOSE_DAYS = 30;

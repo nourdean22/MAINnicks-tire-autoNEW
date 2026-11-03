@@ -32,7 +32,7 @@ export function EngineLine({ engine }: { engine: EngineLineData | undefined }) {
       ? `Engine ${WORDS[e.state]}.`
       : `Engine ran${when}: ${WORDS[e.state]}${e.reason ? ` (${e.reason})` : ""}.`;
   return (
-    <p role="status" className={failed ? "mt-2 font-mono text-[11px] text-amber-200" : "mt-2 font-mono text-[11px] text-fg-tertiary"}>
+    <p className={failed ? "mt-2 font-mono text-[11px] text-amber-200" : "mt-2 font-mono text-[11px] text-fg-tertiary"}>
       {text}
     </p>
   );

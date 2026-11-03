@@ -22,7 +22,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
-import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { contactRowsOnly, GENERIC_NOTE } from "@/lib/services/people/contact-rows";
 import { journalExcerpt, type LatestJournal } from "@/lib/services/people/journal-link";
 import { PEOPLE_RUN_EVENT, PEOPLE_RUN_STALE_MS, type PeopleRunState } from "@/lib/brain/people-intelligence-run";
 import { logger as rootLogger } from "@/lib/logger";
@@ -178,7 +178,8 @@ export const GET = apiHandler(
         daysSinceInteraction,
         isNeglected: isNeglected(r, nowDate),
         latestNote: (() => {
-          const n = contactRowsOnly(r.ledger)[0];
+          // W8b (audit B10): a journal row IS the journal line beneath; the generic backfill note says nothing about them.
+          const n = contactRowsOnly(r.ledger).find((row) => row.source !== "journal" && !GENERIC_NOTE.test(row.note));
           return n ? { note: n.note, at: n.createdAt.toISOString(), source: n.source } : null;
         })(),
         latestJournal: journal.get(r.id) ?? null,

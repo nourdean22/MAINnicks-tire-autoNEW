@@ -61,7 +61,6 @@ import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
 import SocialProof from "@/components/power-atlas/SocialProof";
 import ReciprocityCard from "@/components/power-atlas/ReciprocityCard";
 import ToneShiftCard from "@/components/power-atlas/ToneShiftCard";
-import TopicGoalOverlapCard from "@/components/power-atlas/TopicGoalOverlapCard";
 import PowerPlaysHistory from "@/components/power-atlas/PowerPlaysHistory";
 import {
   PendingClassificationBanner,
@@ -72,6 +71,7 @@ import { rawFetch } from "@/lib/utils/api-fetch";
 import { etDaysBetween } from "@/lib/brain/goal-pace";
 import { JournalReadStatus, PersonJournalLine } from "@/components/people/journal-line";
 import { EngineLine, SuggestionsWaiting } from "@/components/people/engine-line";
+import { PersonStoryPanel } from "@/components/people/person-story";
 import type { EngineLine as EngineLineData } from "@/app/api/people/route";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
@@ -965,6 +965,8 @@ function DetailPanel({
             }
           />
           <OpenPromisesPanel tasks={openTasks} personName={person.name} />
+          {/* W8b: the journal entries that name them and the goals they relate to (research mechanism T1). */}
+          <PersonStoryPanel personId={person.id} />
           <LedgerTimeline
             personId={person.id}
             entries={ledger.map((e) => ({
@@ -1045,7 +1047,6 @@ function DetailPanel({
           <span aria-hidden="true">▸ </span>deeper signals
         </summary>
         <div className="border-t border-edge-subtle p-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <TopicGoalOverlapCard metadata={person.metadata} />
           <PowerPlaysHistory plays={plays} personId={person.id} />
           <ArcProjection
             personId={person.id}

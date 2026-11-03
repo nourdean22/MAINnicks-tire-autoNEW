@@ -100,6 +100,16 @@ export const powerAtlasProcedures = {
       return { person, ledger, plays, applicableLawTexts, openTasks, xp };
     }),
 
+  /** W8b: the dossier's story (journal entries naming the person + the goals they relate to). Throws on a failed read. */
+  personStory: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const person = await prisma.personProfile.findUnique({ where: { id: input.personId }, select: { name: true } });
+      if (!person) throw new Error("Person not found");
+      const { personStory } = await import("@/lib/services/people/person-story");
+      return personStory({ personId: input.personId, personName: person.name });
+    }),
+
   logLedger: operatorProcedure
     .input(
       z.object({

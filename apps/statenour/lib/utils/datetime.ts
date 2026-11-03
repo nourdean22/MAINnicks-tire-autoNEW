@@ -5,7 +5,12 @@
  *  IMPORTANT: The system operates in ET (Cleveland). Using UTC would
  *  return tomorrow's date when crons run at 5am UTC (midnight ET). */
 export function today(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return etDateKey(new Date());
+}
+
+/** The ET calendar day of `at` as YYYY-MM-DD: the key every day-bucketed row (brain_dumps.date) carries. */
+export function etDateKey(at: Date): string {
+  return at.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 /** Current hour (0-23) in Eastern Time. The server runs UTC (Railway), so
