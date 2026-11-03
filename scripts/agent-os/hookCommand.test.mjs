@@ -23,7 +23,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
@@ -279,7 +279,7 @@ test("graph hooks (2026-11-03): the CONFIGURED graph-ensure-mcp and graph-recall
   assert.ok(ensure && recall, "both graph hooks must be configured");
   assert.ok(nodeHooks.includes(ensure) && nodeHooks.includes(recall), "both are node hooks, so the backslash arm judges them");
   const scratch = mkdtempSync(join(tmpdir(), "hook-command-graph-"));
-  const config = (port) => { const f = join(scratch, `ls-${port}.json`); writeFileSync(f, JSON.stringify({ version: 1, hosts: [(process.env.COMPUTERNAME || require("node:os").hostname()).toUpperCase()], servers: [{ name: "graphify", port, path: "/mcp", kind: "graphify" }], clients: [] })); return f; };
+  const config = (port) => { const f = join(scratch, `ls-${port}.json`); writeFileSync(f, JSON.stringify({ version: 1, hosts: [(process.env.COMPUTERNAME || hostname()).toUpperCase()], servers: [{ name: "graphify", port, path: "/mcp", kind: "graphify" }], clients: [] })); return f; };
   const graphEnv = (port) => ({ GRAPH_LOCAL_SERVICES: config(port), NOURCITY_STATE_DIR: join(scratch, "state"), GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, "-e", "process.exit(0)"]) });
   const run = (command, stdin, extra) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
