@@ -49,6 +49,8 @@ export const NEVER_HARD_DELETE_CATEGORIES: readonly string[] = [
   // 2026-10-29 · curated Greene seeds; pruneNoise skips them, the data-cleanup hard delete must too.
   "greene_law",
   "insight",
+  // 2026-11-03 (W6) · one goal moment per GoalEvent: no decay, no hard delete.
+  "goal_moment",
   "pattern",
   "blind_spot",
   "principle",

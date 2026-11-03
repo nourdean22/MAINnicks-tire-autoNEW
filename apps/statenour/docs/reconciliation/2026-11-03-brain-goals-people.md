@@ -1,0 +1,14 @@
+> ## 2026-11-03 · The brain knows goals and people (job 2026-11-02-nour-os-interconnect W6) · 1 ship
+>
+> Research map gap 7: the brain was keyed by chat topic, not by goals or people. Now goal moments are written into the brain, recall carries goal state and each person's newest fact, and /brain can filter by goal or person.
+>
+> - **Goal moments into BrainMemory.** A check-in, an achieved goal and a missed goal each write one row, category `goal_moment`, key `goal_event:<GoalEvent.id>`, metadata `{ goalId, kind, goalEventId }`, through `brainMemory.remember`. `goal_moment` is a one-shot record (memory-manager `ONE_SHOT_RECORD_CATEGORIES`, no TTL): no 24 h probation, never merged, decayed or swept, so pruneNoise cannot delete moments a day after they are written (the spaced_review and chat_summary incident). `lib/brain/goal-brain.ts`, called from `logGoalCheckIn` and `emitGoalEvent`; a replayed or duplicate event retries the write (the key makes it a no-op), and every non-duplicate no-write is logged. `updateGoal` now emits `missed`.
+> - **maximForGoalMoment** (`lib/brain/goal-maxim.ts`, pure, client-safe): one maxim from his books (MAXIM_POOL) per goal moment. States off_track > behind_pace > at_risk > check_in_due, achieved wins; tags decisions, timing, focus, focus, learning. The goal card (W5) and recall pick the same line.
+> - **Recall.** A turn whose raw message says goals, on/off track or check-in, or that shares a whole word with a goal title, gets up to 3 goal lines with id, health and pace (`lib/brain/goal-people-recall.ts`, reading `activeGoalsWithHealth`). A goal off track or behind pace adds one maxim, which takes a wisdom slot (`selectWisdomSlots` `goalMaximSlots`). Each recalled person's line carries their own newest journal entry and last contact, read one person at a time. A failed goals or people read says "unknown, not none". The goals read starts after semantic, so phase B's pool peak stays 4.
+> - **Nick's getGoals** health is `goalHealthFrom` with the horizon cadence (`lib/services/goal-health.ts`), so Nick and the card agree.
+> - **Spine.** A metric goal's `task_completed` GoalEvent collapses only into the task's DONE row or completed event; otherwise it stays, titled with the task.
+> - **/brain.** The Memory tab's Context fold has goal and person filters (`brain.goalPeopleMemories`); goal mode lists goal moments plus the extractors' free-text `goal` facts; a capped list says so; a failed read renders "couldn't load", never an empty brain.
+>
+> **Flagged · NOT fixed**
+> - Live recall quality is unmeasured: whether the goal lines and the goal maxim help Nick's replies needs a read of real turns after deploy.
+> - `check:soft-delete` is red on main, outside this PR: `lib/services/contradictions.ts:135` and `:162` count without `deletedAt: null`.

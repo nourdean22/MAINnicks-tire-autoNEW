@@ -326,7 +326,8 @@ const SCHEDULE_CATEGORY = "spaced_review";
 // 2026-10-29 · curated wisdom has no TTL and sits at confidence 1.0, so neither sweep reaches it
 // today (read-only prod check: 0 curated live rows with a TTL or under 0.2). contradict() lowers
 // confidence by 0.2 a time and nothing stops a future writer setting a TTL, so the sweeps guard it.
-const SWEEP_SKIP_CATEGORIES = [SCHEDULE_CATEGORY, BRAIN_CATEGORIES.GREENE_LAW];
+// 2026-11-03 (W6) · goal moments are one-shot records with no TTL; the second guard, as for spaced_review.
+const SWEEP_SKIP_CATEGORIES = [SCHEDULE_CATEGORY, BRAIN_CATEGORIES.GREENE_LAW, BRAIN_CATEGORIES.GOAL_MOMENT];
 
 export async function pruneNoise(): Promise<{ pruned: number }> {
   // TTL expiry now SOFT-deletes. It hard-deleted until 2026-08-16, and that is

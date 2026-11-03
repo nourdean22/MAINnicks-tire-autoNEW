@@ -64,6 +64,43 @@ describe("relatedActivity · goal", () => {
     expect(h.chatConversation).not.toHaveBeenCalled();
   });
 
+  it("W6: a task_completed GoalEvent collapses only into the task's DONE row or its completed event", async () => {
+    h.goalEvent.mockResolvedValue([
+      { id: "ge2", kind: "task_completed", payload: { taskId: "t9" }, createdAt: at(1) },
+      { id: "ge3", kind: "task_completed", payload: { taskId: "t8" }, createdAt: at(2) },
+    ]);
+    h.taskEvent.mockResolvedValue([{ id: "te9", taskId: "t9", kind: "completed", createdAt: at(1), task: { title: "Call the bank" } }]);
+    h.task.mockResolvedValue([{ id: "t8", title: "Send quote", status: "DONE", goalId: "g1", updatedAt: at(2) }]);
+    const r = await relatedActivity({ goalId: "g1" });
+    const titles = r.items.map((i) => i.title);
+    expect(titles.filter((t) => t.startsWith("Call the bank"))).toEqual(["Call the bank: completed"]);
+    expect(titles.filter((t) => t.startsWith("Send quote"))).toEqual(["Send quote (DONE)"]);
+    expect(r.items.some((i) => i.ref.id === "ge2" || i.ref.id === "ge3")).toBe(false);
+  });
+
+  it("W6: a reopened task row or an edit event does not swallow the completion; it stays, titled with the task", async () => {
+    h.goalEvent.mockResolvedValue([
+      { id: "ge6", kind: "task_completed", payload: { taskId: "t6" }, createdAt: at(3) },
+      { id: "ge5", kind: "task_completed", payload: { taskId: "t5" }, createdAt: at(4) },
+      { id: "ge7", kind: "task_completed", payload: { taskId: "t7" }, createdAt: at(5) },
+    ]);
+    h.taskEvent.mockResolvedValue([{ id: "te5", taskId: "t5", kind: "reframed", createdAt: at(1), task: { title: "Order rotors" } }]);
+    h.task.mockImplementation(async ({ where }: { where: { id?: { in: string[] } } }) =>
+      where.id
+        ? [
+            { id: "t6", title: "Fix brakes" },
+            { id: "t5", title: "Order rotors" },
+          ].filter((t) => where.id!.in.includes(t.id))
+        : [{ id: "t6", title: "Fix brakes", status: "READY", goalId: "g1", updatedAt: at(1) }],
+    );
+    const r = await relatedActivity({ goalId: "g1" });
+    const byRef = (id: string) => r.items.find((i) => i.ref.id === id)?.title;
+    expect(byRef("ge6")).toBe("Fix brakes: completed");
+    expect(byRef("ge5")).toBe("Order rotors: completed");
+    // No row and no title for t7: the goal event stays as the only trace, untitled.
+    expect(byRef("ge7")).toBe("task completed");
+  });
+
   it("a task inherits the goal from its mission when its own goalId is empty (Linear L1, read time)", async () => {
     await relatedActivity({ goalId: "g1" });
     const where = h.task.mock.calls[0][0].where;

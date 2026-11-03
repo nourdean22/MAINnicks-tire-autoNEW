@@ -84,6 +84,7 @@ vi.mock("@/components/ultron/preferences-card", () => ({ PreferencesCard: stub("
 vi.mock("@/components/brain/nudge-panel", () => ({ NudgePanel: stub("NudgePanel") }));
 vi.mock("@/components/brain/pinned-context-panel", () => ({ PinnedContextPanel: stub("PinnedContextPanel") }));
 vi.mock("@/components/brain/recall-preview-panel", () => ({ RecallPreviewPanel: stub("RecallPreviewPanel") }));
+vi.mock("@/components/brain/goal-people-memories", () => ({ GoalPeopleMemories: stub("GoalPeopleMemories") }));
 // Moved to Health: if the Memory tab still imports any of these, the stub renders and the test fails.
 vi.mock("@/components/brain/tool-telemetry-panel", () => ({ ToolTelemetryPanel: stub("ToolTelemetryPanel") }));
 vi.mock("@/components/brain/suggestion-telemetry-panel", () => ({ SuggestionTelemetryPanel: stub("SuggestionTelemetryPanel") }));
@@ -199,7 +200,7 @@ describe("Memory tab: three closed folds that count what they hide", () => {
       "DecisionReplayCard",
       "AntiPatternsPanel",
     ]);
-    expect(members("Context")).toEqual(["NudgePanel", "PinnedContextPanel", "RecallPreviewPanel"]);
+    expect(members("Context")).toEqual(["NudgePanel", "PinnedContextPanel", "RecallPreviewPanel", "GoalPeopleMemories"]);
   });
 
   it("counts the rows that rendered in each summary", async () => {
@@ -208,7 +209,7 @@ describe("Memory tab: three closed folds that count what they hide", () => {
     // Six stubs plus the Settings identity line (calibration, streaks and Ghost Nick left for Stats and
     // preferences for Settings, wave E2).
     expect(summary("Self-model")).toMatch(/^Self-model \(7\)$/);
-    expect(summary("Context")).toMatch(/^Context \(3\)$/);
+    expect(summary("Context")).toMatch(/^Context \(4\)$/);
   });
 
   it("says (n unreadable) when a child's read failed, in every fold", async () => {
@@ -216,7 +217,7 @@ describe("Memory tab: three closed folds that count what they hide", () => {
     await mount();
     expect(summary("Signals")).toBe("Signals (4) (1 unreadable)");
     expect(summary("Self-model")).toBe("Self-model (7) (1 unreadable)");
-    expect(summary("Context")).toBe("Context (3) (1 unreadable)");
+    expect(summary("Context")).toBe("Context (4) (1 unreadable)");
   });
 
   // Wave E2: the skill library carries its own failed, offline and stale markers; the fold counting the REAL
