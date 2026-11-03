@@ -27,7 +27,8 @@ const RECALL_MAXIM_STATES: readonly GoalMomentState[] = ["off_track", "behind_pa
 /** Also RECALL_ADDENDUM_HEADINGS.goals (contextual-recall.ts imports it from here). */
 export const GOAL_RECALL_HEADING = "### Goals in this turn";
 
-const GOAL_WORDS = /\b(goals?|targets?|on track|off track|behind|pace|progress|check[- ]?ins?)\b/i;
+// Not "behind", "pace" or "progress": "behind on emails" is not about a goal (self-review, W6).
+const GOAL_WORDS = /\b(goals?|targets?|on track|off track|check[- ]?ins?)\b/i;
 
 const clip = (s: string | null | undefined, n: number) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();

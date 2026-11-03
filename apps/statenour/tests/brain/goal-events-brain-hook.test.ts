@@ -4,7 +4,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const h = vi.hoisted(() => ({ idempotentCreate: vi.fn(), afterGoalMoment: vi.fn() }));
+const h = vi.hoisted(() => ({ idempotentCreate: vi.fn(), afterGoalMoment: vi.fn(), warn: vi.fn() }));
+vi.mock("@/lib/logger", async (orig) => {
+  const m = await orig<typeof import("@/lib/logger")>();
+  return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: h.warn }) } };
+});
 vi.mock("@/lib/prisma", () => ({ prisma: { goalEvent: {} } }));
 vi.mock("@/lib/db/idempotency", () => ({
   idempotentCreate: h.idempotentCreate,
@@ -19,6 +23,7 @@ const settle = () => new Promise((r) => setTimeout(r, 10));
 beforeEach(() => {
   h.idempotentCreate.mockReset().mockResolvedValue({ created: true, row: { id: "ge_9" } });
   h.afterGoalMoment.mockReset();
+  h.warn.mockReset();
 });
 
 describe("emitGoalEvent -> brain", () => {
@@ -38,5 +43,11 @@ describe("emitGoalEvent -> brain", () => {
     await emitGoalEvent({ goalId: "goal_A", kind: "task_completed", payload: { taskId: "t1" } });
     await settle();
     expect(h.afterGoalMoment).not.toHaveBeenCalled();
+  });
+
+  it("a failed brain hook is caught and logged, never an unhandled rejection", async () => {
+    h.afterGoalMoment.mockRejectedValueOnce(new Error("module load failed"));
+    await emitGoalEvent({ goalId: "goal_A", kind: "achieved" });
+    await vi.waitFor(() => expect(h.warn).toHaveBeenCalledWith("goal_brain_hook_failed", expect.objectContaining({ err: "module load failed" })));
   });
 });

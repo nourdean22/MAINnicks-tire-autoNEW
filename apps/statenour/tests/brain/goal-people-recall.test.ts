@@ -73,6 +73,12 @@ describe("goalRecallBlock", () => {
     expect(r.lines.at(-1)).toBe('- Maxim for "Revenue this month" (behind pace): Move before the window shuts. (Gracián)');
   });
 
+  it("everyday words like behind, pace or progress do not pull goals into an unrelated turn", () => {
+    for (const q of ["I'm behind on emails", "slow pace at the shop today", "any progress on the brake job"]) {
+      expect(goalRecallBlock([goal({})], ["emails"], q, POOL, DAY)).toEqual({ lines: [], maxim: null });
+    }
+  });
+
   it("goal words reach every active goal, capped at the named line cap", () => {
     const many = Array.from({ length: GOAL_RECALL_LINES + 3 }, (_, i) => goal({ id: `g${i}`, title: `Goal ${i}`, paceKind: null, health: { state: "on_track", at: null } }));
     const r = goalRecallBlock(many, ["goals"], "am I on track with my goals", POOL, DAY);

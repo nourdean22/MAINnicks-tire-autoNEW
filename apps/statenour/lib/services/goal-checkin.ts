@@ -92,7 +92,7 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     };
   }
   if (!result.created) return duplicate(result.row, valueSet);
-  void import("@/lib/brain/goal-brain").then((b) => b.afterGoalMoment({ goalEventId: result.row.id, goalId: goal.id, kind: "check_in", text: note, health }));
+  void import("@/lib/brain/goal-brain").then((b) => b.afterGoalMoment({ goalEventId: result.row.id, goalId: goal.id, kind: "check_in", text: note, health })).catch((err) => log.warn("goal_brain_hook_failed", { goalId: goal.id, err: err instanceof Error ? err.message : String(err) }));
   return {
     logged: true as const,
     goalId: goal.id,

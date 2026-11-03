@@ -74,6 +74,13 @@ describe("logGoalCheckIn (the shared writer)", () => {
     expect(h.afterGoalMoment).not.toHaveBeenCalled();
   });
 
+  it("W6: a failed brain hook is caught and logged; the check-in still reports logged", async () => {
+    h.afterGoalMoment.mockRejectedValueOnce(new Error("module load failed"));
+    const r = await logGoalCheckIn({ goalId: "goal_A", health: "on_track", note: "fine", source: "goal-card" });
+    expect(r).toMatchObject({ logged: true });
+    await vi.waitFor(() => expect(logWarn).toHaveBeenCalledWith("goal_brain_hook_failed", expect.objectContaining({ err: "module load failed" })));
+  });
+
   it("matches the goal by id only: an id inside the note is never the target (guard canary)", async () => {
     await logGoalCheckIn({ goalId: "goal_A", health: "on_track", note: "moved goal_B forward, see goal_B", source: "goal-card" });
     expect(h.goalFindFirst).toHaveBeenCalledTimes(1);
