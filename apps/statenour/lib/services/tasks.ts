@@ -1486,6 +1486,7 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
   let lifted: { currentValue: number; targetValue: number };
   try {
     lifted = await prisma.$transaction(async (tx) => {
+      // brain-memory-direct-write: the goal_lift row is a once-per-(goal, task) claim key, not a semantic memory.
       await tx.brainMemory.create({ data: marker });
       const row = await tx.lifeGoal.update({
         where: { id: goalId },
