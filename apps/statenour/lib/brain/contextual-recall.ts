@@ -278,7 +278,8 @@ interface WisdomSlotCandidate {
 export function selectWisdomSlots<T extends WisdomSlotCandidate>(
   scored: T[],
   slots: number,
-  opts: { useEmbeddings: boolean; now: Date },
+  /** goalMaximSlots (W6): slots a goal maxim already took this turn (goal-people-recall.ts); wisdom yields them. */
+  opts: { useEmbeddings: boolean; now: Date; goalMaximSlots?: number },
 ): T[] {
   const floor = wisdomSlotFloor(opts.useEmbeddings);
   const rank = (m: T) =>
@@ -298,7 +299,7 @@ export function selectWisdomSlots<T extends WisdomSlotCandidate>(
       authors.add(author);
       return true;
     })
-    .slice(0, slots);
+    .slice(0, Math.max(0, slots - (opts.goalMaximSlots ?? 0)));
 }
 
 const wisdomSlotEligible = (m: WisdomSlotCandidate) =>
@@ -357,6 +358,7 @@ export function renderMemoryLine(m: RelevantMemory): string {
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { classifyTrustTier, canRenderAsKnowledge, fenceUntrustedMemory } from "@/lib/brain/memory-trust";
+import { GOAL_RECALL_HEADING, personFactSuffix, readGoalRecall, readPeopleFacts } from "@/lib/brain/goal-people-recall";
 
 /**
  * S-1 (2026-09-01 audit) · recalled memory was the one path external content
@@ -1188,6 +1190,7 @@ export const RECALL_ADDENDUM_HEADINGS = {
   commitments: "### Related Commitments",
   tasks: "### Related Active Tasks",
   people: "### Related People",
+  goals: GOAL_RECALL_HEADING,
 } as const;
 
 export type ValidityRow = {
@@ -1465,6 +1468,9 @@ export async function getContextualMemories(
       return out;
     }),
   );
+  // W6 (2026-11-02) · goals touched by this turn: lines + at most one goal maxim (lib/brain/goal-people-recall.ts).
+  // readGoalRecall never throws; it is awaited before the wisdom slots, since its maxim takes one.
+  const goalsP = timed("goals", () => readGoalRecall(topicLower, queryText));
 
   const lexicalRows = lexicalAll.filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
@@ -1729,11 +1735,13 @@ export async function getContextualMemories(
   // 300 highest-confidence rows and curated wisdom can be most of it.
   const wisdomFloor = wisdomSlotFloor(useEmbeddings);
   const wisdomMetaOk = await attachWisdomOrigins(scored.filter((m) => m.category === "wisdom" && (m.semantic ?? 0) >= wisdomFloor));
-  const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now) });
+  const goalRecall = await goalsP;
+  const wisdoms = selectWisdomSlots(scored, wisdomSlots, { useEmbeddings, now: new Date(now), goalMaximSlots: goalRecall.maxim ? 1 : 0 });
   // Pool sizes ride along so an empty pool (a failed lane) is not read as "nothing relevant".
   console.log("[brain-recall] wisdom_slots", {
     ...wisdomSlotCounts(scored, { useEmbeddings, scoredIds: semanticScores ? new Set(semanticScores.scores.keys()) : undefined }),
     wisdomInjected: wisdoms.length,
+    goalMaxim: goalRecall.maxim?.id ?? null,
     wisdomMetaOk,
     candidatePool: candidatePool.length,
     knnRows: knnRows.length,
@@ -1988,6 +1996,7 @@ export async function getContextualMemories(
   if (!related.ok) throw related.error;
   const relatedLines = related.value.length;
   lines.push(...related.value);
+  lines.push(...goalRecall.lines);
 
   const skipRate = lexicalSkipRate();
   console.log("[brain-recall]", {
@@ -2367,7 +2376,7 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
   const allPeople = await prisma.personProfile
     .findMany({
       take: 30,
-      select: { name: true, role: true, relationship: true },
+      select: { id: true, name: true, role: true, relationship: true },
     })
     .catch(() => []);
 
@@ -2375,9 +2384,12 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
     (p) => matchesTopic(p.name) || matchesTopic(p.relationship)
   );
   if (relevantPeople.length > 0) {
+    const shown = relevantPeople.slice(0, 3);
+    // W6 · the newest journal line and last contact ride each person's line (never a new line), read by id.
+    const facts = await readPeopleFacts(shown.map((p) => p.id));
     lines.push(RECALL_ADDENDUM_HEADINGS.people);
-    for (const p of relevantPeople.slice(0, 3)) {
-      lines.push(`- ${p.name} (${p.role}): ${p.relationship.slice(0, 80)}`);
+    for (const p of shown) {
+      lines.push(`- ${p.name} (${p.role}): ${p.relationship.slice(0, 80)}${personFactSuffix(facts, p.id)}`);
     }
   }
 }
