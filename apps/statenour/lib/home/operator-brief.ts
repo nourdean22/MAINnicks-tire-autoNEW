@@ -57,6 +57,7 @@ import { getMit } from "@/lib/services/mit";
 import { recordShownBounded } from "@/lib/services/outcome-ledger";
 import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
 import { isInboxMission } from "@/lib/services/mission-helpers";
+import { journalExcerpt } from "@/lib/services/people/journal-link";
 
 // ── Contracts ───────────────────────────────────────────────────────────
 
@@ -198,9 +199,6 @@ export interface LeadContext {
   goal: { id: string; title: string } | null;
 }
 
-/** CONTROLS RULE: the Home journal line's excerpt length, named once. */
-export const HOME_JOURNAL_EXCERPT_CHARS = 120;
-
 export interface JournalLine {
   id: string;
   excerpt: string;
@@ -248,8 +246,8 @@ async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
     return "unknown";
   }
   if (!dump) return null;
-  const text = dump.rawThoughts.replace(/\s+/g, " ").trim();
-  const excerpt = text.length > HOME_JOURNAL_EXCERPT_CHARS ? `${text.slice(0, HOME_JOURNAL_EXCERPT_CHARS - 3)}...` : text;
+  // The people page's excerpt rule (journal-link.ts), on one line.
+  const excerpt = journalExcerpt(dump.rawThoughts.replace(/\s+/g, " "));
   let people: JournalLine["people"] = [];
   if (dump.personIds.length > 0) {
     try {

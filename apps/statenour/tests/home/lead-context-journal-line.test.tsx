@@ -25,7 +25,8 @@ vi.mock("@/lib/logger", async (orig) => {
 });
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: vi.fn(async () => "led") }));
 
-import { __testInternals, HOME_JOURNAL_EXCERPT_CHARS } from "@/lib/home/operator-brief";
+import { __testInternals } from "@/lib/home/operator-brief";
+import { JOURNAL_EXCERPT_CHARS } from "@/lib/services/people/journal-link";
 import { JournalLineView, leadContextDetail } from "@/components/home/journal-line";
 
 const { loadLeadContext, loadJournalLine } = __testInternals;
@@ -90,7 +91,7 @@ describe("loadJournalLine (Home's latest journal line)", () => {
     expect(h.peopleFindMany.mock.calls[0][0].where).toEqual({ id: { in: ["p2", "p1", "gone"] }, deletedAt: null });
     expect(line).not.toBe("unknown");
     if (!line || line === "unknown") throw new Error("expected a line");
-    expect(line.excerpt.length).toBeLessThanOrEqual(HOME_JOURNAL_EXCERPT_CHARS);
+    expect(line.excerpt.length).toBeLessThanOrEqual(JOURNAL_EXCERPT_CHARS + 1);
     expect(line.people).toEqual([
       { id: "p2", name: "Samir" },
       { id: "p1", name: "Dania" },

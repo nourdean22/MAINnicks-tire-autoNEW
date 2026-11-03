@@ -37,6 +37,7 @@ import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { buildJournalFeed } from "@/lib/services/journal-feed";
 import { dayActivity } from "@/lib/services/journal-day";
+import { readWeeklyReview, saveWeeklyReview } from "@/lib/services/weekly-review";
 import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
 // 2026-05-24 · Wave S · feature-mining wire-ups · 7 new procedures
 // surface existing lib/brain/* helpers on /journal. The helpers were
@@ -120,6 +121,30 @@ export const journalRouter = router({
         cursor: input?.cursor ?? undefined,
       }),
     ),
+
+  /** W7 (Sunsama S3/S4) · per active goal, done tasks and grounded entries since the last review. */
+  weeklyReview: operatorProcedure.query(async () => readWeeklyReview()),
+
+  /** W7 · the review's notes become journal entries grounded to their goals; extend/close act on WEEK goals by id. */
+  saveWeeklyReview: operatorProcedure
+    .input(
+      z.object({
+        week: z.string().max(4000),
+        notes: z.array(z.object({ goalId: z.string().min(1).max(64), text: z.string().max(4000) })).max(20),
+        extend: z.array(z.string().min(1).max(64)).max(20),
+        close: z.array(z.string().min(1).max(64)).max(20),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await saveWeeklyReview(input);
+      } catch (err) {
+        if (err instanceof Error && /write one line/i.test(err.message)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
 
   /** W7 (Tana T3) · one ET day's done tasks and contacts, for the feed's day view. */
   day: operatorProcedure
