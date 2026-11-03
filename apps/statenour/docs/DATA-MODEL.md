@@ -186,6 +186,10 @@ touch:
 goes here as a typed key/value pair. Query: `category: "X"`, `key: "Y"`,
 `content: JSON`, `confidence`, `expiresAt`, `embedding` (vector).
 
+| BrainMemory category | Key | Metadata | Writer |
+|---|---|---|---|
+| `goal` (2026-11-02) | `goal_event:<GoalEvent.id>` (the claim: one row per event) | `{ goalId, kind: check_in \| achieved \| missed, goalEventId }` | `lib/brain/goal-brain.ts`, after `logGoalCheckIn` and `emitGoalEvent`; older free-text goal facts share the category |
+
 ---
 
 ## Relations today · relations coming

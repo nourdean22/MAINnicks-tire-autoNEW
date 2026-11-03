@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   updateGoal: vi.fn(),
   relatedActivity: vi.fn(),
   aiChat: vi.fn(),
+  afterGoalMoment: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/lib/db/idempotency", () => ({
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
 vi.mock("@/lib/services/related-activity", () => ({ relatedActivity: h.relatedActivity }));
 vi.mock("@/lib/ai/provider", () => ({ aiChat: h.aiChat }));
+vi.mock("@/lib/brain/goal-brain", () => ({ afterGoalMoment: h.afterGoalMoment }));
 const logWarn = vi.hoisted(() => vi.fn());
 // The dev logger prints only the message, so the reason is asserted at the logger, not on console.
 vi.mock("@/lib/logger", async (orig) => {
@@ -56,11 +58,22 @@ beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
   h.goalFindFirst.mockResolvedValue(GOAL);
   h.eventFindFirst.mockResolvedValue(null);
-  h.idempotentCreate.mockImplementation(async ({ data }) => ({ created: true, row: { payload: data.payload, createdAt: new Date("2026-11-02T15:00:00Z") } }));
+  h.idempotentCreate.mockImplementation(async ({ data }) => ({ created: true, row: { id: "ge_new", payload: data.payload, createdAt: new Date("2026-11-02T15:00:00Z") } }));
   h.relatedActivity.mockResolvedValue({ items: [], failed: [] });
 });
 
 describe("logGoalCheckIn (the shared writer)", () => {
+  it("W6: a logged check-in writes its brain moment keyed by the new GoalEvent's id; a duplicate writes none", async () => {
+    await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "supplier slipped", source: "goal-card" });
+    await vi.waitFor(() => expect(h.afterGoalMoment).toHaveBeenCalledTimes(1));
+    expect(h.afterGoalMoment).toHaveBeenCalledWith({ goalEventId: "ge_new", goalId: "goal_A", kind: "check_in", text: "supplier slipped", health: "at_risk" });
+    h.afterGoalMoment.mockClear();
+    h.idempotentCreate.mockResolvedValueOnce({ created: false, row: { id: "ge_old", payload: { health: "on_track" }, createdAt: new Date() } });
+    await logGoalCheckIn({ goalId: "goal_A", health: "at_risk", note: "again", source: "goal-card" });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(h.afterGoalMoment).not.toHaveBeenCalled();
+  });
+
   it("matches the goal by id only: an id inside the note is never the target (guard canary)", async () => {
     await logGoalCheckIn({ goalId: "goal_A", health: "on_track", note: "moved goal_B forward, see goal_B", source: "goal-card" });
     expect(h.goalFindFirst).toHaveBeenCalledTimes(1);

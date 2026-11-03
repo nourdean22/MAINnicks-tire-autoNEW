@@ -68,7 +68,7 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     }
   }
 
-  let result: Awaited<ReturnType<typeof idempotentCreate<{ payload: unknown; createdAt: Date }, unknown>>>;
+  let result: Awaited<ReturnType<typeof idempotentCreate<{ id: string; payload: unknown; createdAt: Date }, unknown>>>;
   try {
     result = await idempotentCreate({
       model: prisma.goalEvent,
@@ -92,6 +92,7 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     };
   }
   if (!result.created) return duplicate(result.row, valueSet);
+  void import("@/lib/brain/goal-brain").then((b) => b.afterGoalMoment({ goalEventId: result.row.id, goalId: goal.id, kind: "check_in", text: note, health }));
   return {
     logged: true as const,
     goalId: goal.id,

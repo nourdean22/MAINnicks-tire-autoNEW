@@ -81,7 +81,7 @@ export async function emitGoalEvent(input: GoalEventInput): Promise<void> {
       payloadHash,
       bucketSeconds: 60,
     });
-    await idempotentCreate({
+    const res = await idempotentCreate<{ id: string }, unknown>({
       model: prisma.goalEvent,
       key,
       data: {
@@ -92,6 +92,10 @@ export async function emitGoalEvent(input: GoalEventInput): Promise<void> {
         idempotencyKey: key,
       },
     });
+    // W6: an achieved or missed goal is a brain moment, keyed by this event's id (lib/brain/goal-brain.ts).
+    if (res.created && (input.kind === "achieved" || input.kind === "missed")) {
+      void import("@/lib/brain/goal-brain").then((b) => b.afterGoalMoment({ goalEventId: res.row.id, goalId: input.goalId, kind: input.kind }));
+    }
   } catch (err) {
     log.warn("emit_failed", {
       kind: input.kind,

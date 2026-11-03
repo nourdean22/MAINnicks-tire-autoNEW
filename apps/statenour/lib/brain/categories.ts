@@ -201,6 +201,10 @@ export const BRAIN_CATEGORIES = {
   SPIRITUAL: "spiritual",
   TOMORROW_NOTE: "tomorrow_note",
   WEEKLY_TARGET: "weekly_target",
+  /** 2026-11-02 · W6 · goal moments (check-in, achieved, missed), key `goal_event:<GoalEvent.id>`, metadata
+   *  { goalId, kind, goalEventId }; written by lib/brain/goal-brain.ts. Also the free-text goal facts the
+   *  extractors already wrote under the same string (memory-recall DURABLE_PERSONAL_CATEGORIES). */
+  GOAL: "goal",
 
   // ── Relationships + people ──
   RELATIONSHIPS: "relationships",
