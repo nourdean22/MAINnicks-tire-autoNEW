@@ -41,6 +41,11 @@ describe("SinceCheckInView", () => {
     expect(html).toMatch(/couldn.*t read chat/);
     expect(html).toContain("+2 more");
   });
+  it("a goal the read could not find says so, not 'couldn't read' (second reader P3-2)", () => {
+    const html = renderToStaticMarkup(<SinceCheckInView read="not_found" />);
+    expect(html).toContain("Goal not found");
+    expect(html).not.toMatch(/Couldn.*t read/);
+  });
   it("a measured empty read says nothing was logged", () => {
     const html = renderToStaticMarkup(<SinceCheckInView read={{ since: at, total: 0, items: [], failed: [] }} />);
     expect(html).toContain("Nothing logged since the last check-in");

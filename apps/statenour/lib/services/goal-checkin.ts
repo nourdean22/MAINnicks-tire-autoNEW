@@ -190,7 +190,8 @@ export async function draftGoalCheckIn(goalId: string): Promise<CheckInDraft> {
   const parsed = extractJsonObject<{ health?: unknown; note?: unknown; value?: unknown }>(res.content);
   const note = parsed.ok && typeof parsed.value.note === "string" ? parsed.value.note.trim().slice(0, CHECK_IN_NOTE_MAX) : "";
   if (!parsed.ok || !isCheckInHealth(parsed.value.health) || !note) {
-    log.warn("draft_parse_failed", { goalId: goal.id, raw: parsed.ok ? undefined : parsed.raw });
+    // Log what was rejected on every branch: bad JSON, an off-list health, or an empty note (second reader P3-1).
+    log.warn("draft_parse_failed", { goalId: goal.id, raw: parsed.ok ? res.content.slice(0, 500) : parsed.raw });
     return { unavailable: true, reason: "Nick's draft didn't come back readable", failed };
   }
   const v = parsed.value.value;

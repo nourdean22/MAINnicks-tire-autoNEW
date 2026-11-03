@@ -40,6 +40,9 @@
 import { readCalendarDay, type CalendarRead } from "@/lib/calendar/day-events";
 import { prisma } from "@/lib/prisma";
 import { pickCheckInDue } from "@/lib/brain/goal-pace";
+import { logger as rootLogger } from "@/lib/logger";
+
+const briefLog = rootLogger.withSurface("home/operator-brief");
 import { deriveBriefing, type Briefing } from "@/lib/home/derive-briefing";
 import { homeHealthState, type ChipState } from "@/lib/home/health-state";
 import { buildNextMove, type NextMove } from "@/lib/services/next-move";
@@ -206,7 +209,9 @@ async function loadGoalCheckInDue(now: Date): Promise<GoalCheckInDue | null | "u
       goals.map((g) => ({ ...g, lastCheckInAt: last.get(g.id) ?? null })),
       now.getTime(),
     );
-  } catch {
+  } catch (err) {
+    // Named in judgment.failedSources too (collectFailedSources), so the brief says which read failed.
+    briefLog.warn("goal_check_in_read_failed", { err: err instanceof Error ? err.message : String(err) });
     return "unknown";
   }
 }
@@ -240,8 +245,11 @@ function collectFailedSources(r: {
   followUps: unknown;
   pendingActions: unknown;
   approvalRequests: unknown;
+  /** "unknown" = the goal check-in read failed (loadGoalCheckInDue). */
+  goalCheckInDue?: unknown;
 }): string[] {
   const failed: string[] = [];
+  if (r.goalCheckInDue === "unknown") failed.push("goal check-ins");
   if (r.contradictions === null) failed.push("contradictions");
   if (r.proposals === null) failed.push("commitments");
   if (r.followUps === null) failed.push("follow-ups");
@@ -463,7 +471,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
-  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests });
+  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests, goalCheckInDue });
 
   const judgmentAll: JudgmentItem[] = [];
 

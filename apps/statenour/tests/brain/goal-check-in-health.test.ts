@@ -50,6 +50,24 @@ describe("goalHealthFrom", () => {
   });
 });
 
+describe("the cadence boundary (second reader, 2026-11-02)", () => {
+  const exactly = new Date(NOW - 7 * DAY);
+  const justPast = new Date(NOW - 7 * DAY - 1);
+  it("a WEEK check-in exactly 7 days old keeps its health and is not yet due", () => {
+    expect(goalHealthFrom({ payload: { health: "on_track" }, createdAt: exactly }, "WEEK", NOW).state).toBe("on_track");
+    expect(checkInOverdueDays({ horizon: "WEEK", createdAt: ago(40), lastCheckInAt: exactly }, NOW)).toBe(-1);
+    expect(pickCheckInDue([{ id: "a", title: "A", horizon: "WEEK", createdAt: ago(40), lastCheckInAt: exactly }], NOW)).toBeNull();
+  });
+  it("one millisecond later it is gray and due, 0 days over", () => {
+    expect(goalHealthFrom({ payload: { health: "on_track" }, createdAt: justPast }, "WEEK", NOW).state).toBe("no_check_in");
+    expect(pickCheckInDue([{ id: "a", title: "A", horizon: "WEEK", createdAt: ago(40), lastCheckInAt: justPast }], NOW)).toEqual({
+      goalId: "a",
+      title: "A",
+      daysOverdue: 0,
+    });
+  });
+});
+
 describe("checkInOverdueDays / pickCheckInDue", () => {
   it("counts from the last check-in, else from creation", () => {
     expect(checkInOverdueDays({ horizon: "WEEK", createdAt: ago(40), lastCheckInAt: ago(10) }, NOW)).toBe(3);

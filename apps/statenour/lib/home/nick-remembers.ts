@@ -6,11 +6,15 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("home/nick-remembers");
 
 export async function readNickRemembers(): Promise<{ anticipatedQuestions: string[]; followUps: string[]; failed: string[] }> {
   const failed: string[] = [];
   const [anticipated, recentDigests] = await Promise.all([
-    getTodaysAnticipated().catch(() => {
+    getTodaysAnticipated().catch((err) => {
+      log.warn("anticipated_read_failed", { err: err instanceof Error ? err.message : String(err) });
       failed.push("anticipated questions");
       return null;
     }),
@@ -21,7 +25,8 @@ export async function readNickRemembers(): Promise<{ anticipatedQuestions: strin
         take: 5,
         select: { payload: true },
       })
-      .catch(() => {
+      .catch((err) => {
+        log.warn("digest_read_failed", { err: err instanceof Error ? err.message : String(err) });
         failed.push("conversation digests");
         return [] as Array<{ payload: unknown }>;
       }),

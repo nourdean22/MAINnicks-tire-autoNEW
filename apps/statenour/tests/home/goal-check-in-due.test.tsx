@@ -18,6 +18,12 @@ vi.mock("@/lib/prisma", () => ({
     auditEvent: { findMany: h.auditFindMany },
   },
 }));
+const logWarn = vi.hoisted(() => vi.fn());
+// The dev logger prints only the message, so the reason is asserted at the logger, not on console.
+vi.mock("@/lib/logger", async (orig) => {
+  const m = await orig<typeof import("@/lib/logger")>();
+  return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: logWarn }) } };
+});
 vi.mock("@/lib/brain/anticipated-questions", () => ({ getTodaysAnticipated: h.anticipated }));
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: vi.fn(async () => "led") }));
 
@@ -49,6 +55,18 @@ describe("loadGoalCheckInDue (the brief's read)", () => {
     h.eventFindMany.mockRejectedValue(new Error("timeout"));
     expect(await __testInternals.loadGoalCheckInDue(NOW)).toBe("unknown");
   });
+
+  it("a thrown goals read is logged with its reason and named in the failed sources (second reader P2-2)", async () => {
+    logWarn.mockClear();
+    const warn = logWarn;
+    h.goalFindMany.mockRejectedValue(new Error("goals-read-marker"));
+    const due = await __testInternals.loadGoalCheckInDue(NOW);
+    expect(due).toBe("unknown");
+    expect(JSON.stringify(warn.mock.calls)).toContain("goals-read-marker");
+    const OK = { contradictions: [], proposals: [], followUps: [], pendingActions: [], approvalRequests: [] };
+    expect(__testInternals.collectFailedSources({ ...OK, goalCheckInDue: due })).toEqual(["goal check-ins"]);
+    expect(__testInternals.collectFailedSources({ ...OK, goalCheckInDue: null })).toEqual([]);
+  });
 });
 
 describe("the Goals card's check-in row", () => {
@@ -73,6 +91,16 @@ describe("readNickRemembers (map gap 6)", () => {
     const r = await readNickRemembers();
     expect(r.failed).toEqual(["conversation digests"]);
     expect(r.followUps).toEqual([]);
+  });
+  it("each failed read is logged with its reason (second reader P2-3)", async () => {
+    logWarn.mockClear();
+    const warn = logWarn;
+    h.anticipated.mockRejectedValue(new Error("anticipated-marker"));
+    h.auditFindMany.mockRejectedValue(new Error("digest-marker"));
+    await readNickRemembers();
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("anticipated-marker");
+    expect(logged).toContain("digest-marker");
   });
   it("a failed anticipated read is named too; a measured empty day has failed = []", async () => {
     h.anticipated.mockRejectedValue(new Error("x"));

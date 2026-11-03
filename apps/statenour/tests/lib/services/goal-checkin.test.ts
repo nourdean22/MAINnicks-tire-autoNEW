@@ -27,6 +27,12 @@ vi.mock("@/lib/db/idempotency", () => ({
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
 vi.mock("@/lib/services/related-activity", () => ({ relatedActivity: h.relatedActivity }));
 vi.mock("@/lib/ai/provider", () => ({ aiChat: h.aiChat }));
+const logWarn = vi.hoisted(() => vi.fn());
+// The dev logger prints only the message, so the reason is asserted at the logger, not on console.
+vi.mock("@/lib/logger", async (orig) => {
+  const m = await orig<typeof import("@/lib/logger")>();
+  return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: logWarn }) } };
+});
 vi.mock("@/lib/utils/datetime", async (orig) => ({ ...(await orig<object>()), today: () => "2026-11-02" }));
 
 import {
@@ -172,6 +178,19 @@ describe("draftGoalCheckIn (Linear L4/L5)", () => {
   it("an unparseable or off-list health returns unavailable", async () => {
     h.aiChat.mockResolvedValue({ provider: "ollama", content: '{"health":"great","note":"x"}' });
     expect(await draftGoalCheckIn("goal_A")).toMatchObject({ unavailable: true });
+  });
+
+  it("a prose reply (no JSON) is unavailable, not a throw", async () => {
+    h.aiChat.mockResolvedValue({ provider: "ollama", content: "Sure, here is the check-in for your goal." });
+    await expect(draftGoalCheckIn("goal_A")).resolves.toMatchObject({ unavailable: true });
+  });
+
+  it("an off-list health logs the content it rejected (second reader P3-1)", async () => {
+    logWarn.mockClear();
+    const warn = logWarn;
+    h.aiChat.mockResolvedValue({ provider: "ollama", content: '{"health":"great","note":"rejected-marker"}' });
+    await draftGoalCheckIn("goal_A");
+    expect(JSON.stringify(warn.mock.calls)).toContain("rejected-marker");
   });
 
   it("nothing logged since the last check-in: no model call, says so", async () => {

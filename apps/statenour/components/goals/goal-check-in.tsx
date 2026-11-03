@@ -56,11 +56,13 @@ export function GoalHealthChip({ health, onOpen }: { health: GoalHealth | undefi
 export type SinceRead =
   | "loading"
   | "error"
+  | "not_found"
   | { since: string | null; total: number; items: Array<{ at: string; kind: string; title: string }>; failed: string[] };
 
 export function SinceCheckInView({ read, now = Date.now() }: { read: SinceRead; now?: number }) {
   if (read === "loading") return <p className="text-[12px] text-fg-tertiary">Reading what happened since the last check-in</p>;
   if (read === "error") return <p className="text-[12px] text-amber-300">Couldn&apos;t read what happened since the last check-in</p>;
+  if (read === "not_found") return <p className="text-[12px] text-fg-tertiary">Goal not found: it may have been archived</p>;
   return (
     <div className="space-y-1">
       <p className="text-[11px] font-mono text-fg-tertiary">Since last check-in{read.since ? ` (${read.since.slice(0, 10)})` : ""}</p>
@@ -189,16 +191,22 @@ export function GoalCheckInPanel({
   const inFlight = useRef(false);
   const metric = (goal.kind ?? "metric") === "metric";
 
-  const read: SinceRead = sinceQ.isError || (sinceQ.data && !sinceQ.data.found)
+  const read: SinceRead = sinceQ.isError
     ? "error"
     : sinceQ.data
-      ? sinceQ.data
+      ? sinceQ.data.found
+        ? sinceQ.data
+        : "not_found"
       : "loading";
 
   const start = async () => {
     setOpen(true);
     setSaved(null);
     setError(null);
+    // A fresh check-in never carries the last one's words (second reader P2-1).
+    setHealth(null);
+    setNote("");
+    setValue("");
     setDraftState({ kind: "drafting" });
     try {
       const d = await draftMut.mutateAsync({ goalId: goal.id });

@@ -81,6 +81,23 @@ describe("GoalCheckInPanel", () => {
     expect(h.save).toHaveBeenCalledWith({ goalId: "goal_A", health: "on_track", note: "steady week" });
   });
 
+  it("after a save, a reopened check-in with no draft starts empty, never yesterday's words (second reader P2-1)", async () => {
+    h.draft.mockResolvedValueOnce({ unavailable: false, health: "off_track", note: "yesterday's words", valueSuggestion: 9, items: 2, failed: [] });
+    h.save.mockResolvedValue({ logged: true });
+    act(() => root.render(<GoalCheckInPanel goal={{ id: "goal_A", kind: "metric", unit: "$" }} onSaved={() => {}} />));
+    await act(async () => button("Check in").click());
+    await flush();
+    await act(async () => button("Save check-in").click());
+    await flush();
+    h.draft.mockResolvedValueOnce({ unavailable: true, reason: "Nick couldn't draft it right now", failed: [] });
+    await act(async () => button("Check in").click());
+    await flush();
+    expect((host.querySelector('[aria-label="Check-in note"]') as HTMLTextAreaElement).value).toBe("");
+    expect((host.querySelector('[aria-label="Value now"]') as HTMLInputElement).value).toBe("");
+    expect(host.querySelector('[aria-pressed="true"]')).toBeNull();
+    expect(button("Save check-in").disabled).toBe(true);
+  });
+
   it("a not-logged answer (already checked in today) is shown, not swallowed", async () => {
     h.draft.mockResolvedValue({ unavailable: false, health: "on_track", note: "fine", items: 1, failed: [] });
     h.save.mockResolvedValue({ logged: false, duplicate: true, reason: "already checked in on this goal today" });
