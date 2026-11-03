@@ -97,13 +97,14 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
   const ids = [...rows.keys()];
   const [events, dumps] = await Promise.allSettled([
     prisma.taskEvent.findMany({
-      where: { kind: "completed", createdAt: { gte: since } },
+      // gt, not gte: the last review's own rows sit exactly at `since` and are not this week's work.
+      where: { kind: "completed", createdAt: { gt: since } },
       orderBy: { createdAt: "desc" },
       take: REVIEW_ROWS_CAP,
       select: { createdAt: true, task: { select: { id: true, title: true, goalId: true, mission: { select: { lifeGoalId: true } } } } },
     }),
     prisma.brainDump.findMany({
-      where: { goalId: { in: ids }, deletedAt: null, createdAt: { gte: since } },
+      where: { goalId: { in: ids }, deletedAt: null, createdAt: { gt: since } },
       orderBy: { createdAt: "desc" },
       take: REVIEW_ROWS_CAP,
       select: { id: true, goalId: true, rawThoughts: true, createdAt: true },
@@ -159,7 +160,7 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   const skipped: string[] = [];
 
   const date = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const entry = (rawThoughts: string, goalId: string | null) =>
+  const entry = (rawThoughts: string, goalId: string | null, at: Date) =>
     prisma.brainDump.create({
       data: {
         date,
@@ -170,20 +171,21 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
         linkConfidence: goalId ? 1 : null,
         linkStatus: goalId ? "confirmed" : null,
         enrichedAt: now,
+        createdAt: at,
       },
       select: { id: true },
     });
 
-  // The week entry is written LAST: it is the newest review row, so the next review's window starts after the notes.
-  const saved: string[] = [];
-  for (const n of notes) {
-    if (!goals.has(n.goalId)) {
-      skipped.push(n.goalId);
-      continue;
-    }
-    saved.push((await entry(n.text, n.goalId)).id);
-  }
-  if (week) saved.push((await entry(week, null)).id);
+  const grounded = notes.filter((n) => {
+    if (goals.has(n.goalId)) return true;
+    skipped.push(n.goalId);
+    return false;
+  });
+  // One transaction: a failure saves nothing, so a retry cannot duplicate entries. Each row gets its own instant,
+  // the week entry last, so the newest review row (the next review's `since`) is never one of this review's notes.
+  const rows = [...grounded.map((n) => [n.text, n.goalId] as const), ...(week ? [[week, null] as const] : [])];
+  const created = await prisma.$transaction(rows.map(([text, goalId], i) => entry(text, goalId, new Date(now.getTime() + i))));
+  const saved = created.map((c) => c.id);
 
   const extended: string[] = [];
   const closed: string[] = [];

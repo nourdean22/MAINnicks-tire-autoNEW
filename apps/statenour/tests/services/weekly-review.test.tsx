@@ -13,12 +13,14 @@ const h = vi.hoisted(() => ({
   lastReview: vi.fn(),
   create: vi.fn(),
   updateGoal: vi.fn(),
+  tx: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.goals },
     taskEvent: { findMany: h.events },
     brainDump: { findMany: h.dumps, findFirst: h.lastReview, create: h.create },
+    $transaction: (ops: Promise<unknown>[]) => h.tx(ops),
   },
 }));
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
@@ -53,6 +55,7 @@ beforeEach(() => {
   logWarn.mockReset();
   h.create.mockImplementation(async ({ data }: { data: { goalId: string | null } }) => ({ id: `d-${data.goalId ?? "week"}` }));
   h.updateGoal.mockResolvedValue({});
+  h.tx.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
 });
 
 describe("readWeeklyReview", () => {
@@ -70,7 +73,8 @@ describe("readWeeklyReview", () => {
     const r = await readWeeklyReview(NOW);
     expect(r.since).toBe(new Date(NOW.getTime() - 5 * DAY).toISOString());
     expect(r.lastReviewAt).toBe(r.since);
-    expect(h.events.mock.calls[0][0].where).toMatchObject({ kind: "completed", createdAt: { gte: new Date(r.since) } });
+    expect(h.events.mock.calls[0][0].where).toMatchObject({ kind: "completed", createdAt: { gt: new Date(r.since) } });
+    expect(h.dumps.mock.calls[0][0].where.createdAt).toEqual({ gt: new Date(r.since) });
     expect(h.dumps.mock.calls[0][0].where).toMatchObject({ goalId: { in: ["g1", "g2"] }, deletedAt: null });
     const by = Object.fromEntries(r.goals.map((g) => [g.goal.id, g]));
     expect(by.g1.doneTasks.map((t) => t.taskId)).toEqual(["t1"]);
@@ -119,6 +123,9 @@ describe("saveWeeklyReview", () => {
       date: "2026-11-02",
     });
     expect(data[1]).toMatchObject({ rawThoughts: "Solid week.", goalId: null, entryType: REVIEW_ENTRY_TYPE, enrichedAt: NOW });
+    // The week entry is the newest row, so it (not a note) is the next review's `since`.
+    expect(data[1].createdAt.getTime()).toBeGreaterThan(data[0].createdAt.getTime());
+    expect(h.tx).toHaveBeenCalledTimes(1);
     expect(r.saved).toEqual(["d-g1", "d-week"]);
   });
 
@@ -155,6 +162,15 @@ describe("saveWeeklyReview", () => {
     expect(r.closed).toEqual([]);
     expect(r.skipped.sort()).toEqual(["g2", "ghost", "ghost", "nope"].sort());
     expect(h.create.mock.calls.map((c) => c[0].data.goalId)).toEqual(["g1", null]);
+  });
+
+  it("a failed entry write saves nothing and touches no goal (one transaction, retry-safe)", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.tx.mockRejectedValue(new Error("write failed"));
+    await expect(saveWeeklyReview({ week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] }, NOW)).rejects.toThrow(
+      "write failed",
+    );
+    expect(h.updateGoal).not.toHaveBeenCalled();
   });
 
   it("a goal both extended and closed is closed, not extended", async () => {
