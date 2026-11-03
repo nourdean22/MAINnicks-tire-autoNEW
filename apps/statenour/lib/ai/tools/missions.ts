@@ -288,7 +288,8 @@ export const missionsTools = {
           loopKind: t.loopKind as any,
           recurringDays: t.recurringDays ?? [],
           dueDate: t.dueDate ? new Date(t.dueDate) : null,
-          goalId: t.goalId ?? null,
+          // W8a (audit A2): a plan task serves the mission's goal unless the model named another (createTaskAndEnrich drops an unknown id).
+          goalId: t.goalId ?? (goalOk ? lifeGoalId! : null),
           promiseTo: t.promiseTo ?? null,
           personId: t.personId ?? null,
         });

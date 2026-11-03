@@ -98,6 +98,9 @@ export type PlanProjectWireResult =
       model?: string;
       /** "skeleton": the confirmed milestones became the plan because every provider failed. */
       fallback?: "skeleton";
+      /** W8a: tasks created for phase 0 on the server right after the save; spawnFailed names a failed spawn. */
+      spawned?: number;
+      spawnFailed?: string;
     }
   | {
       mode: "learn";

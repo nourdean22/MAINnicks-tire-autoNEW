@@ -322,15 +322,13 @@ export async function buildPageData(page: string): Promise<string> {
     // the same data shape the operator sees on screen.
 
     case "goals": {
-      const [goals, scores] = await Promise.all([
-        prisma.lifeGoal.findMany({
-          where: { deletedAt: null, status: "active" },
-          orderBy: [{ horizon: "asc" }, { progress: "desc" }],
-          take: 12,
-          select: { id: true, title: true, domain: true, progress: true, horizon: true },
-        }),
+      // W8a: the one goal number (lib/services/goal-health.ts goalProgress), never the stored column.
+      const { activeGoalsWithHealth } = await import("@/lib/services/goal-health");
+      const [{ goals: allGoals }, scores] = await Promise.all([
+        activeGoalsWithHealth(),
         prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 8 }),
       ]);
+      const goals = allGoals.slice(0, 12);
       return [
         `${goals.length} active life goals.`,
         goals.length > 0
@@ -338,7 +336,7 @@ export async function buildPageData(page: string): Promise<string> {
               .slice(0, 6)
               .map(
                 (g) =>
-                  `"${g.title.slice(0, 50)}" [id:${g.id}] ${g.progress}% (${g.domain}${g.horizon ? `/${g.horizon}` : ""})`,
+                  `"${g.title.slice(0, 50)}" [id:${g.id}] ${g.progress == null ? "progress unread" : `${g.progress}%`} (${g.domain}${g.horizon ? `/${g.horizon}` : ""})`,
               )
               .join(" · ")}`
           : "",

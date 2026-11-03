@@ -17,6 +17,7 @@ import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 import type { Maxim } from "@/lib/wisdom/maxims";
 import { logger as rootLogger } from "@/lib/logger";
+import { clip } from "@/lib/utils/clip";
 
 const log = rootLogger.withSurface("brain/goal-people-recall");
 
@@ -32,11 +33,6 @@ export const GOAL_RECALL_HEADING = "### Goals in this turn";
 const GOAL_WORDS = /\b(goals?|on track|off track|check[- ]?ins?)\b/i;
 /** Rendered when the goals read fails on a goal turn: the goals are unknown this turn, not absent. */
 export const GOAL_READ_FAILED_LINE = "- Goals: couldn't read this turn (unknown, not none)";
-
-const clip = (s: string | null | undefined, n: number) => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
-  return t.length > n ? `${t.slice(0, n - 1)}...` : t;
-};
 
 const words = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
 

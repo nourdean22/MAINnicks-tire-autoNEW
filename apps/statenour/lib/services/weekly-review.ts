@@ -14,6 +14,8 @@
 import { prisma } from "@/lib/prisma";
 import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
+import { clip } from "@/lib/utils/clip";
 import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -45,11 +47,6 @@ export interface WeeklyReviewRead {
   /** A side read filled REVIEW_ROWS_CAP: older rows in the window are not shown. */
   truncated: boolean;
 }
-
-const clip = (s: string, n = 160) => {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > n ? `${t.slice(0, n).trimEnd()}…` : t;
-};
 
 async function activeGoals() {
   return prisma.lifeGoal.findMany({
@@ -112,7 +109,7 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
       },
       orderBy: { createdAt: "desc" },
       take: REVIEW_ROWS_CAP,
-      select: { createdAt: true, task: { select: { id: true, title: true, goalId: true, mission: { select: { lifeGoalId: true } } } } },
+      select: { createdAt: true, task: { select: { id: true, title: true, ...TASK_GOAL_SELECT } } },
     }),
     prisma.brainDump.findMany({
       where: { goalId: { in: ids }, deletedAt: null, createdAt: { gt: since } },
@@ -126,8 +123,8 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
   if (events.status === "fulfilled") {
     if (events.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const e of events.value) {
-      // The task's own goal overrides its mission's (lib/missions/task-goal.ts taskGoal).
-      const gid = e.task?.goalId ?? e.task?.mission?.lifeGoalId ?? null;
+      // The ONE task-goal rule (lib/services/task-goal-server.ts): own live goal, else the mission's.
+      const gid = e.task ? (taskGoalServer(e.task)?.id ?? null) : null;
       const row = gid ? rows.get(gid) : undefined;
       if (!row || !e.task || row.doneTasks.some((t) => t.taskId === e.task!.id)) continue;
       row.doneTasks.push({ taskId: e.task.id, title: e.task.title, at: e.createdAt.toISOString() });
@@ -138,7 +135,7 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
     if (dumps.value.length >= REVIEW_ROWS_CAP) truncated = true;
     for (const d of dumps.value) {
       const row = d.goalId ? rows.get(d.goalId) : undefined;
-      if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts), at: d.createdAt.toISOString() });
+      if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts, 160), at: d.createdAt.toISOString() });
     }
   } else warn("entries", dumps.reason);
 

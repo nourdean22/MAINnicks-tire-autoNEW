@@ -155,7 +155,8 @@ export async function spawnProjectTasks(
             : "Step complete",
         loopKind: "ONCE",
         phaseName: phase.name,
-        goalId: args.goalId ?? null,
+        // The ONE task-goal rule at write time (W8a): a plan task serves its mission's goal unless the caller says otherwise.
+        goalId: args.goalId ?? mission.lifeGoalId ?? null,
       });
       // createTask returns a view-model that can be null when the
       // post-create hydration query misses · skip back-reference

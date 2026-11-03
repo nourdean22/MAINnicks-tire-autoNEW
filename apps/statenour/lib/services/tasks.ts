@@ -11,8 +11,6 @@ import { serializeForJson } from "@/lib/utils/serialize";
 import { ServiceError } from "@/lib/utils/service-error";
 import { taskCreateSchema, taskUpdateSchema } from "@/lib/validators/tasks";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
-import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
-import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import type { TaskReward } from "@/lib/mastery/task-reward";
@@ -751,6 +749,7 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
         missionId: true,
         goalId: true,
         statHints: true,
+        mission: { select: { lifeGoalId: true } },
       },
     });
     if (!task) return;
@@ -776,7 +775,9 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
         where: activeOnly({ status: "ACTIVE" }),
         // successMetric = the mission's "what done looks like" (its description);
         // systemKind lets us drop GENERAL anchors from the candidate list.
-        select: { id: true, title: true, domain: true, successMetric: true, systemKind: true },
+        // completionCriteria is the mission's "what done looks like" (W8a: successMetric stays readable until a
+        // migration drops it; the planner and Plan it write completionCriteria).
+        select: { id: true, title: true, domain: true, successMetric: true, completionCriteria: true, systemKind: true, lifeGoalId: true },
       }),
       prisma.lifeGoal.findMany({
         where: { status: "active", deletedAt: null },
@@ -809,7 +810,9 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     const missionUnset = !task.missionId || inboxIds.has(task.missionId);
     // Every re-file below is a compare-and-set on the mission value read above.
     const unsetFrom = [...inboxIds];
-    const goalUnset = !task.goalId;
+    // W8a (audit A2): a task under a goal-linked mission already serves that goal (lib/services/task-goal-server.ts);
+    // the classifier's guess never overrides it.
+    const goalUnset = !task.goalId && !task.mission?.lifeGoalId;
     const statsUnset = !task.statHints || task.statHints.length === 0;
     // Already fully linked → skip the AI call (gap-fill only).
     if (!missionUnset && !goalUnset && !statsUnset) return;
@@ -822,7 +825,8 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
       // description (richer signal for specific-vs-general).
       missions: missions
         .filter((m) => !inboxIds.has(m.id))
-        .map((m) => ({ id: m.id, title: m.title, domain: m.domain, description: m.successMetric })),
+        // completionCriteria is a Json? column that the drawer and Plan it write as a string.
+        .map((m) => ({ id: m.id, title: m.title, domain: m.domain, description: typeof m.completionCriteria === "string" ? m.completionCriteria : m.successMetric })),
       goals,
       stats: DOMAINS.map((d) => ({ key: d.key, label: d.label })),
       // Few-shot from the operator's recent re-files (empty until 0010 + corrections capture).
@@ -843,7 +847,9 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
         })
         .catch(() => {});
     }
-    if (goalUnset && result.goalId) {
+    // A re-file into a goal-linked mission makes that mission's goal the task's; the classifier's goal is dropped.
+    const refiledIntoGoalMission = Boolean(missionUnset && result.missionId && missions.find((m) => m.id === result.missionId)?.lifeGoalId);
+    if (goalUnset && result.goalId && !refiledIntoGoalMission) {
       await prisma.task
         .updateMany({
           where: { id: taskId, goalId: null },
@@ -1275,11 +1281,6 @@ export async function updateTask(id: string, input: unknown) {
   // state into every call site.
   const before = existing.status;
   const after = result.task.status;
-  // v10.0.529.76 · Wave 21 · auto-learn report attached to the
-  // response so /tasks UI can toast the cross-engine wins (Mastery
-  // lift · Knowledge insight · Learn tutorial complete). Null when
-  // nothing learned · falsy-checked client-side.
-  let autoLearnReport: AutoLearnReport | null = null;
   // Wire #2 · set only on a real DONE transition (with the credited XP). Stays
   // undefined for non-completion updates → no reward surfaced.
   let completionReward: TaskReward | undefined;
@@ -1301,158 +1302,6 @@ export async function updateTask(id: string, input: unknown) {
         goalLifted: false,
         streak: payload.streakCount ?? null,
       };
-    } else if (after === "DONE") {
-      // ★ UNREACHABLE since the isCompletionTransition short-circuit above
-      // (2026-07-16): every real TODO→DONE PATCH returns early through
-      // checkTask, and `after` can only be DONE here when `before` already
-      // was (excluded by `before !== after`). Kept because deleting a
-      // 130-line branch is its own risk, but DO NOT "fix" logic here
-      // believing it runs — adversarial review 2026-08-19 caught exactly
-      // that mistake. checkTask owns completion side effects.
-      emitTaskEventAsync({ taskId: id, kind: "completed", source: "service:updateTask" });
-      // v10.0.529.106 · Wave 52 · CRITICAL · pre-Wave-52 this path never
-      // emitted task.completed to the brain-bus, only TaskEvent. The
-      // /api/tasks/[id]/check route DID emit it. Result: tasks completed
-      // via the standard PATCH (the most common path) never landed in
-      // BrainMemory task_completion · so the chat query "what did I get
-      // done today" missed them. The /check route's identical emit is
-      // dedupe-keyed by (taskId, YYYY-MM-DD) so calling from both paths
-      // when a task is double-completed is safe. Hydrate the missing
-      // fields (mission, loopKind) from the result.task; both are
-      // already in the transaction's findUnique scope.
-      const hydratedForBus = await prisma.task.findUnique({
-        where: { id: result.task.id },
-        select: {
-          title: true,
-          missionId: true,
-          loopKind: true,
-          mission: { select: { domain: true } },
-        },
-      });
-      if (hydratedForBus) {
-        void emitTaskCompleted({
-          taskId: id,
-          title: hydratedForBus.title ?? "(untitled)",
-          missionId: hydratedForBus.missionId ?? null,
-          domain: hydratedForBus.mission?.domain ?? null,
-          loopKind: hydratedForBus.loopKind ?? "ONCE",
-          completedAt: new Date().toISOString(),
-        }).catch((err) =>
-          log.warn("brain_bus_emit_completed_failed", {
-            taskId: id,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
-      }
-      // Apr 27 · S3 — Task→Goal lift. When a task with goalId
-      // completes, bump the linked goal's currentValue + emit
-      // progress_logged. Default delta = 1 (one task = one unit
-      // toward the goal). Goals with explicit metric units can
-      // override via payload in a future iteration; this default
-      // is what makes "0/50000 social_media_interactions" actually
-      // tick up as Nour finishes related tasks.
-      // 2026-06-01 · credit character-sheet stat XP for EVERY completion
-      // (goal-tagged → goal stats · else statHints · else domain inference),
-      // scaled by effort/ROI. This is the path that actually moves /stats.
-      // Await the credit so the REAL credited XP can ride back on the response
-      // for the /missions reward toast. Idempotent per sourceKey (credit still
-      // happens exactly once); .catch ⇒ 0 keeps it non-fatal + never fakes XP.
-      const credit = await creditTaskStats(result.task.id).catch((err) => {
-        log.warn("task_stat_credit_failed", {
-          taskId: result.task.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return { statsCredited: 0, xpCredited: 0 };
-      });
-      completionReward = {
-        xpCredited: credit.xpCredited,
-        statsCredited: credit.statsCredited,
-        goalLifted: !!existing.goalId,
-        streak: null,
-      };
-      // currentValue lift stays goal-only (stat crediting handled above).
-      if (existing.goalId) {
-        void liftGoalOnTaskComplete(existing.goalId, result.task.id).catch(
-          (err) =>
-            log.warn("goal_lift_failed", {
-              goalId: existing.goalId,
-              error: err instanceof Error ? err.message : String(err),
-            }),
-        );
-      }
-      // v10.0.529.76 · Wave 21 · auto-learn cross-engine propagation.
-      // Mastery (domain-bump) + Knowledge (BrainMemory:task_insight if
-      // task reads like a learning) + Learn (BrainMemory:learn_complete
-      // if title has a tutorial prefix). Awaited so the autoLearn
-      // report can ride back on the PATCH response and the /tasks UI
-      // can toast the win. See lib/services/auto-learn.ts.
-      try {
-        // Hydrate the mission + goal domains for the report. The
-        // mission is already on `result.vm`, but goal is not — fetch
-        // both with a single roundtrip.
-        const enriched = await prisma.task.findUnique({
-          where: { id: result.task.id },
-          select: {
-            title: true,
-            finishCondition: true,
-            roiScore: true,
-            effort: true,
-            loopKind: true,
-            streakCount: true,
-            goalId: true,
-            outcomeScore: true,
-            completionNote: true,
-            outcomeRating: true,
-            outcomeLesson: true,
-            mission: { select: { title: true, domain: true } },
-            goal: { select: { domain: true } },
-          },
-        });
-        if (enriched) {
-          autoLearnReport = await runAutoLearn({
-            taskId: result.task.id,
-            task: {
-              title: enriched.title,
-              finishCondition: enriched.finishCondition,
-              mission: enriched.mission
-                ? { title: enriched.mission.title, domain: enriched.mission.domain }
-                : null,
-              goal: enriched.goal ? { domain: enriched.goal.domain } : null,
-              roiScore: enriched.roiScore,
-              effort: enriched.effort,
-              loopKind: enriched.loopKind,
-              streakCount: enriched.streakCount,
-              hasGoalId: !!enriched.goalId,
-              outcomeScore: enriched.outcomeScore,
-              completionNote: enriched.completionNote,
-              outcomeRating: enriched.outcomeRating,
-              outcomeLesson: enriched.outcomeLesson,
-            },
-          });
-        }
-      } catch (err) {
-        log.warn("auto_learn_failed", {
-          taskId: result.task.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      // Apr 27 · P4 — phase progression auto-spawn. When the LAST
-      // task of a phase completes, spawn the NEXT phase's tasks so
-      // NOW always has the in-flight work surfaced. Skipped when:
-      //   · task isn't tied to a phase (phaseName null)
-      //   · its mission has no planData
-      //   · it's not actually the last task of its phase
-      //   · the next phase is already spawned
-      if (existing.phaseName && existing.missionId) {
-        void maybeSpawnNextPhase(existing.missionId, existing.phaseName).catch(
-          (err) =>
-            log.warn("phase_progression_failed", {
-              missionId: existing.missionId,
-              phaseName: existing.phaseName,
-              error: err instanceof Error ? err.message : String(err),
-            }),
-        );
-      }
     } else if (after === "ARCHIVED" && before !== "DONE") {
       emitTaskEventAsync({ taskId: id, kind: "abandoned", source: "service:updateTask" });
     } else if ((before === "ARCHIVED" || before === "DONE") && (after === "READY" || after === "INBOX")) {
@@ -1512,9 +1361,6 @@ export async function updateTask(id: string, input: unknown) {
     };
   }
 
-  if (autoLearnReport) {
-    (result.vm as unknown as Record<string, unknown>).autoLearn = autoLearnReport;
-  }
   // Wire #2 · attach the reward at runtime (same cast pattern as autoLearn) so
   // the vm type is unchanged — backward-compatible, view-model consumers ignore it.
   if (completionReward) {
@@ -1625,7 +1471,12 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
       },
     })
     .then(() => true)
-    .catch(() => false);
+    .catch((err: unknown) => {
+      // W8a (audit A11): only a duplicate key means "already lifted"; any other failure must not be read as one.
+      if ((err as { code?: string })?.code === "P2002") return false;
+      log.warn("goal_lift_marker_failed", { goalId, taskId, error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    });
   if (!liftMarked) return; // a prior completion already lifted this task
   if (isMetric) {
     emitGoalEventAsync({ goalId, kind: "task_completed", source: "service:updateTask.goalLift", payload: { taskId } });
@@ -1681,7 +1532,8 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
  * Idempotent (uses the same taskId back-references the spawn
  * endpoint writes), fault-tolerant (failures only log).
  *
- * Triggers from the task-completion hook above. Reads mission.planData
+ * Triggers from checkTask (lib/services/task-actions.ts), the one completion path (W8a 2026-11-03;
+ * the old call sat in updateTask's UNREACHABLE branch, so milestones 2..N never spawned). Reads mission.planData
  * directly to keep the call site cheap — one query for tasks, one
  * for the mission, one upsert for the new tasks.
  *
@@ -1692,7 +1544,7 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
  *   · the next phase already has spawned tasks
  *   · this is the final phase (no next phase)
  */
-export async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promise<void> {
+export async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promise<number> {
   // 1. Are there any other open tasks in this phase? If yes, the
   //    current task isn't the "last" — bail.
   const openInPhase = await prisma.task.count({
@@ -1703,27 +1555,27 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
       status: { in: ["INBOX", "READY", "DOING", "WAITING"] },
     },
   });
-  if (openInPhase > 0) return;
+  if (openInPhase > 0) return 0;
 
-  // 2. Load the mission's plan
+  // 2. Load the mission's plan (and its goal: spawned tasks inherit it, audit A2)
   const mission = await prisma.mission.findUnique({
     where: { id: missionId },
-    select: { planData: true },
+    select: { planData: true, lifeGoalId: true },
   });
-  if (!mission) return;
+  if (!mission) return 0;
   const plan = mission.planData as unknown;
-  if (!isProjectPlanData(plan)) return;
+  if (!isProjectPlanData(plan)) return 0;
 
   // 3. Find the index of this phase + the next un-spawned phase
   const phaseIdx = plan.phases.findIndex((p) => p.name === phaseName);
-  if (phaseIdx === -1 || phaseIdx >= plan.phases.length - 1) return;
+  if (phaseIdx === -1 || phaseIdx >= plan.phases.length - 1) return 0;
   const nextPhase = plan.phases[phaseIdx + 1];
-  if (!nextPhase || !nextPhase.steps || nextPhase.steps.length === 0) return;
+  if (!nextPhase || !nextPhase.steps || nextPhase.steps.length === 0) return 0;
 
   // If the next phase already has any spawned tasks, skip — we
   // don't want to double-spawn after a phase rollback or partial.
   const alreadySpawned = nextPhase.steps.filter((s) => s.taskId).length;
-  if (alreadySpawned > 0) return;
+  if (alreadySpawned > 0) return 0;
 
   // Verify those taskIds actually exist (handle deleted-task edge)
   // — empty result list, so we're clear to spawn.
@@ -1763,6 +1615,8 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
               : "Step complete",
           loopKind: "ONCE",
           phaseName: nextPhase.name,
+          // The ONE task-goal rule at write time: a plan task serves its mission's goal.
+          goalId: mission.lifeGoalId ?? null,
           lastTouchedAt: new Date(),
         },
         select: { id: true },
@@ -1782,8 +1636,8 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
     });
   });
   // Post-commit: emit events + gap-fill linkage (classification spine ·
-  // spawned tasks inherit the parent mission but no goal/stats — enrich
-  // fills goalId/statHints; compare-and-set leaves the inherited mission).
+  // spawned tasks inherit the mission and its goal; enrich fills statHints and,
+  // for a mission with no goal, a goal; compare-and-set leaves the inherited mission).
   for (const evt of taskEventsToEmit) {
     emitTaskEventAsync({
       taskId: evt.taskId,
@@ -1804,6 +1658,7 @@ export async function maybeSpawnNextPhase(missionId: string, phaseName: string):
     spawnedPhase: nextPhase.name,
     spawnedSteps: updatedSteps.filter((s) => s.taskId).length,
   });
+  return taskEventsToEmit.length;
 }
 
 const VALID_EFFORT_BANDS = ["M5", "M15", "M30", "H1", "H2PLUS"] as const;

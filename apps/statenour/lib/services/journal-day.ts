@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 
 import { prisma } from "@/lib/prisma";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { taskGoalServer } from "@/lib/services/task-goal-server";
 import { etMidnightToUtc } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -97,8 +98,9 @@ export async function dayActivity(date: string): Promise<DayActivity> {
       // A recurring task completed twice in a day is one done task on this list.
       if (!e.task || seen.has(e.task.id)) continue;
       seen.add(e.task.id);
-      // The task's own goal overrides its mission's (lib/missions/task-goal.ts taskGoal).
-      const goal = live(e.task.goal) ?? live(e.task.mission?.lifeGoal);
+      // The ONE task-goal rule (lib/services/task-goal-server.ts): own live goal, else the mission's.
+      const resolved = taskGoalServer(e.task);
+      const goal = resolved ? { id: resolved.id, title: resolved.title } : null;
       tasksDone.push({ taskId: e.task.id, title: e.task.title, at: e.createdAt.toISOString(), goal });
     }
   } else fail("tasks", events.reason);

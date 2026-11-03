@@ -20,8 +20,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { effortField, contextField, LOOP_KIND_LEGEND } from "@/lib/ai/tools/task-field-legends";
 import { prisma } from "@/lib/prisma";
-import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
-import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { createTaskAndEnrich } from "@/lib/services/tasks";
+import { checkTask } from "@/lib/services/task-actions";
 import { recordError } from "@/lib/errors/record-error";
 import { daysAgo, hourET, startOfDayET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -360,93 +360,26 @@ const tasksCoreTools = {
 
   completeTask: tool({
     description:
-      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
-    // v10.0.529.85 · Wave 29 · CRITICAL fix · pre-Wave-29 this set
-    // status:DONE blindly · DAILY tasks lost their streak on every
-    // check-off via chat (streak silently killed). Now routes through
-    // the same /check pipeline the UI uses · streak preserved.
+      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE; finishing the last task of a plan phase creates the next phase's tasks (nextPhaseSpawned). Example: {\"taskId\":142}",
+    // W8a (2026-11-03, audit A1): one completion path. This tool used to write status DONE itself, so a
+    // chat completion skipped every hook in checkTask (phase spawn, inherited-goal lift, outcome bridge,
+    // the completed TaskEvent). Now it IS checkTask, the same spine the UI checkbox uses.
     inputSchema: z.object({ taskId: z.string() }),
     execute: async ({ taskId }) => {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { loopKind: true, streakCount: true, lastCompletedAt: true, status: true, goalId: true },
-      });
+      const task = await prisma.task.findUnique({ where: { id: taskId }, select: { loopKind: true } });
       if (!task) return { completed: false, error: "task not found" };
-
-      const now = new Date();
-      if (task.loopKind === "DAILY") {
-        // Same streak logic as /api/tasks/[id]/check route. Day boundaries
-        // are ET calendar days (toDateString), NOT server-UTC days — the UTC
-        // floor flipped "today" at 8pm ET (double bump / false reset).
-        let nextStreak = 1;
-        if (task.lastCompletedAt) {
-          const lastDayET = toDateString(new Date(task.lastCompletedAt));
-          const todayET = toDateString(now);
-          const gap = Math.round((Date.parse(todayET) - Date.parse(lastDayET)) / 86_400_000);
-          if (gap === 0) {
-            return {
-              completed: true,
-              idempotent: true,
-              loopKind: "DAILY",
-              streakCount: task.streakCount,
-              note: "already checked off today · streak preserved",
-            };
-          }
-          nextStreak = gap === 1 ? task.streakCount + 1 : 1;
-        }
-        await prisma.task.update({
-          where: { id: taskId },
-          data: {
-            lastCompletedAt: now,
-            lastTouchedAt: now,
-            streakCount: nextStreak,
-            status: "READY", // DAILY stays in the loop
-            snoozedUntil: null,
-          },
-        });
-
-        // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
-        const settled = await Promise.allSettled([
-          creditTaskStats(taskId),
-          ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
-        ]);
-        for (const r of settled) {
-          if (r.status === "rejected") {
-            recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-daily" });
-          }
-        }
-
-        return {
-          completed: true,
-          loopKind: "DAILY",
-          streakCount: nextStreak,
-          taskId,
-        };
+      const r = await checkTask({ id: taskId, action: "complete", eventSource: "nick:completeTask" });
+      if (r.idempotent) {
+        return { completed: true, idempotent: true, loopKind: task.loopKind ?? "ONCE", streakCount: r.streakCount, taskId, note: "already checked off today · streak preserved" };
       }
-
-      // ONCE / PROMISE / etc. → DONE
-      await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          status: "DONE",
-          lastCompletedAt: now,
-          lastTouchedAt: now,
-          snoozedUntil: null,
-        },
-      });
-
-      // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
-      const settled = await Promise.allSettled([
-        creditTaskStats(taskId),
-        ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
-      ]);
-      for (const r of settled) {
-        if (r.status === "rejected") {
-          recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-once" });
-        }
-      }
-
-      return { completed: true, taskId, loopKind: task.loopKind ?? "ONCE" };
+      return {
+        completed: true,
+        taskId,
+        loopKind: task.loopKind ?? "ONCE",
+        ...(r.streakCount !== undefined ? { streakCount: r.streakCount } : {}),
+        ...(r.nextPhaseSpawned ? { nextPhaseSpawned: r.nextPhaseSpawned } : {}),
+        ...(r.reward?.goalLifted ? { goalLifted: true } : {}),
+      };
     },
   }),
 
