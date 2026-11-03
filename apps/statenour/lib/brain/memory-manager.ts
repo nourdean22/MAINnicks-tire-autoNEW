@@ -58,6 +58,10 @@ const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set([
   // 2026-10-30 (brain backfill W1) · one distill per conversation, written once and never re-sighted:
   // the probation hid it from recall a day later. category-ttl gives it no TTL.
   "chat_summary",
+  // 2026-11-03 (W6 second reader) · one goal moment per GoalEvent (key goal_event:<id>), written once and never
+  // re-sighted: the probation let pruneNoise soft-delete every check-in a day later. category-ttl gives it no TTL.
+  // Plain `goal` stays out: the extractors' free-text goal facts can be re-seen and corroborated.
+  "goal_moment",
 ]);
 
 /**

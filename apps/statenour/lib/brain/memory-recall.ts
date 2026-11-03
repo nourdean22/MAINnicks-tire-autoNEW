@@ -144,6 +144,8 @@ export const CONTEXT_CATEGORIES = new Set<string>([
   //   high signal. Both are operator-authored so noise risk is ~zero.
   "weekly_review",
   "mission_retro",
+  // 2026-11-03 (W6) · goal moments: check-ins, achieved and missed goals, one row per GoalEvent.
+  "goal_moment",
   // 2026-05-29 · two more verified dead lanes (embedded, high-signal):
   // · relationships_weekly_synthesis — Sunday 3-paragraph synthesis of
   //   the week's relationship movement; 1/week, AI-synthesized, already

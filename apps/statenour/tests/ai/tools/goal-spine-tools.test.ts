@@ -98,13 +98,27 @@ describe("getGoals", () => {
     expect(h.goalFindMany.mock.calls[0][0].where).toEqual({ status: "active", deletedAt: null });
   });
 
+  it("W6: health goes through goalHealthFrom with the cadence, so Nick and the card agree", async () => {
+    // A MONTH goal checked in 31 days ago is past its 30-day cadence: gray, with the old date kept.
+    h.goalFindMany.mockResolvedValue([goal, { ...goal, id: "g2", title: "Lift" }]);
+    h.eventFindMany.mockResolvedValue([
+      { goalId: "g1", kind: "check_in", payload: { health: "on_track" }, createdAt: new Date(NOW - 31 * 86_400_000) },
+      { goalId: "g2", kind: "check_in", payload: { health: "great" }, createdAt: new Date(NOW - 3_600_000) },
+    ]);
+    const r = await run("getGoals");
+    const [g1, g2] = r.goals as Array<{ health: unknown }>;
+    expect(g1.health).toEqual({ state: "no_check_in", at: new Date(NOW - 31 * 86_400_000).toISOString() });
+    // An off-list stored health is unknown, never echoed as if it were a state.
+    expect(g2.health).toEqual({ state: "unknown", at: new Date(NOW - 3_600_000).toISOString() });
+  });
+
   it("a failed check-in read says unknown, never 'no check-in'", async () => {
     h.goalFindMany.mockResolvedValue([goal]);
     h.eventFindMany.mockRejectedValue(new Error("db down"));
     const r = await run("getGoals");
     expect((r.goals as Array<{ health: unknown }>)[0].health).toEqual({ state: "unknown", at: null });
     expect(r.failed).toEqual(["check_ins"]);
-    expect(h.warn).toHaveBeenCalledWith("ai/tools/goals", "check_in_read_failed", expect.objectContaining({ err: "db down" }));
+    expect(h.warn).toHaveBeenCalledWith("services/goal-health", "check_in_read_failed", expect.objectContaining({ err: "db down" }));
   });
 });
 

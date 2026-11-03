@@ -269,6 +269,19 @@ describe("Goals Service", () => {
     });
   });
 
+  describe("updateGoal · missed (W6 second reader)", () => {
+    it("a goal moving to missed emits a missed GoalEvent once; staying missed emits none", async () => {
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 0, targetValue: 100 });
+      mocks.lifeGoal.update.mockResolvedValue({ id: "g1", title: "Old", status: "missed", currentValue: 0, targetValue: 100 });
+      await updateGoal({ id: "g1", status: "missed" });
+      expect(mocks.emitGoalEventAsync).toHaveBeenCalledWith({ goalId: "g1", kind: "missed", source: "api:goals.PATCH" });
+      mocks.emitGoalEventAsync.mockClear();
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "missed", currentValue: 0, targetValue: 100 });
+      await updateGoal({ id: "g1", status: "missed" });
+      expect(mocks.emitGoalEventAsync).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "missed" }));
+    });
+  });
+
   describe("getGoals · suggestedStep from the journal (2026-10-30 goals-system W3)", () => {
     it("offers a journal action item only to a goal with no open task, never one already a task", async () => {
       mocks.lifeGoal.findMany.mockResolvedValue([

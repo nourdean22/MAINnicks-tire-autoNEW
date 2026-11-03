@@ -44,13 +44,32 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
   if (!goal) return { logged: false as const, reason: "goal not found: pass an id from getGoals" };
   const day = today();
   const key = mintIdempotencyKey({ goalId: goal.id, kind: "check_in", day });
-  const duplicate = (row: { payload: unknown; createdAt: Date }, valueSet: boolean) => ({
-    logged: false as const,
-    duplicate: true,
-    reason: "already checked in on this goal today",
-    existing: { health: (row.payload as { health?: string } | null)?.health ?? null, at: row.createdAt.toISOString() },
-    valueSet,
-  });
+  // W6: the brain moment for a check-in event. A duplicate retries it for the EXISTING event (its stored note and
+  // health): a write that failed the first time is not lost, and the key makes a present row a no-op.
+  const toBrain = (goalEventId: string, payload: unknown) => {
+    const p = (payload ?? {}) as { health?: unknown; note?: unknown };
+    void import("@/lib/brain/goal-brain")
+      .then((b) =>
+        b.afterGoalMoment({
+          goalEventId,
+          goalId: goal.id,
+          kind: "check_in",
+          text: typeof p.note === "string" ? p.note : undefined,
+          health: typeof p.health === "string" ? p.health : undefined,
+        }),
+      )
+      .catch((err) => log.warn("goal_brain_hook_failed", { goalId: goal.id, err: err instanceof Error ? err.message : String(err) }));
+  };
+  const duplicate = (row: { id: string; payload: unknown; createdAt: Date }, valueSet: boolean) => {
+    toBrain(row.id, row.payload);
+    return {
+      logged: false as const,
+      duplicate: true,
+      reason: "already checked in on this goal today",
+      existing: { health: (row.payload as { health?: string } | null)?.health ?? null, at: row.createdAt.toISOString() },
+      valueSet,
+    };
+  };
   const prior = await prisma.goalEvent.findFirst({ where: { idempotencyKey: key } });
   if (prior) return duplicate(prior, false);
 
@@ -68,7 +87,7 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     }
   }
 
-  let result: Awaited<ReturnType<typeof idempotentCreate<{ payload: unknown; createdAt: Date }, unknown>>>;
+  let result: Awaited<ReturnType<typeof idempotentCreate<{ id: string; payload: unknown; createdAt: Date }, unknown>>>;
   try {
     result = await idempotentCreate({
       model: prisma.goalEvent,
@@ -92,6 +111,7 @@ export async function logGoalCheckIn({ goalId, health, value, note, source }: Ch
     };
   }
   if (!result.created) return duplicate(result.row, valueSet);
+  toBrain(result.row.id, result.row.payload);
   return {
     logged: true as const,
     goalId: goal.id,

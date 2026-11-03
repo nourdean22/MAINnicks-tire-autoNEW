@@ -201,6 +201,12 @@ export const BRAIN_CATEGORIES = {
   SPIRITUAL: "spiritual",
   TOMORROW_NOTE: "tomorrow_note",
   WEEKLY_TARGET: "weekly_target",
+  /** Free-text goal facts the extractors write (memory-recall DURABLE_PERSONAL_CATEGORIES); re-seeable. */
+  GOAL: "goal",
+  /** 2026-11-03 · W6 · goal moments (check-in, achieved, missed): one RECORD row per GoalEvent, key
+   *  `goal_event:<GoalEvent.id>`, metadata { goalId, kind, goalEventId }; written by lib/brain/goal-brain.ts.
+   *  One-shot (memory-manager ONE_SHOT_RECORD_CATEGORIES), no TTL, never merged, decayed or swept. */
+  GOAL_MOMENT: "goal_moment",
 
   // ── Relationships + people ──
   RELATIONSHIPS: "relationships",
@@ -833,6 +839,9 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // ate 158 conversation summaries could merge the odometer into a
   // benchmark blob.
   BRAIN_CATEGORIES.EVAL_RUN,
+  // 2026-11-03 · W6 · goal moments are one row per GoalEvent: a merge of the near-identical daily
+  // "Check-in on X (on_track): no note" rows would keep one and soft-delete the rest.
+  BRAIN_CATEGORIES.GOAL_MOMENT,
   // 2026-08-27 · the personal-memory eating, measured on prod: between
   // 2026-08-15 and 08-20 (nightly, 03:00-04:15Z) this engine soft-deleted
   // 38 of the operator's curated pm_* rows and REWROTE 13 more as keeper

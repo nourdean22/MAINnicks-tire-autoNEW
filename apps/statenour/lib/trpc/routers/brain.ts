@@ -1568,6 +1568,17 @@ export const brainRouter = router({
     .input(z.object({ since: z.number().int().nonnegative() }))
     .query(async ({ input }) => buildBrainChangesSince(input.since)),
 
+  /**
+   * W6 (2026-11-02) · the Memory tab's goal and person filters (lib/services/brain-goal-people.ts). Throws on a
+   * failed read so the panel renders "couldn't load", never an empty brain.
+   */
+  goalPeopleMemories: operatorProcedure
+    .input(z.object({ by: z.enum(["goal", "person"]), id: z.string().min(1).max(64).optional() }))
+    .query(async ({ input }) => {
+      const { goalPeopleMemories } = await import("@/lib/services/brain-goal-people");
+      return goalPeopleMemories(input);
+    }),
+
   memoryById: operatorProcedure
     .input(z.object({ id: z.string().min(1).max(200) }))
     .query(async ({ input }) => getMemoryDetail(input.id)),
