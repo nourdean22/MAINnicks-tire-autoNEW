@@ -29,6 +29,8 @@ You get FEWER automated safety nets than a Claude session in this repo. What tha
   (per-app lint/typecheck on staged globs; `pnpm run build:affected` on push), so the push gate
   runs regardless of which agent staged the change. Never bypass it with `--no-verify`.
 
+- **Graph MCP.** `.gemini/settings.json` (generated, never hand-edited) points at the graphify MCP (MAIN checkout's
+  graph). Before editing a symbol, read its neighbours there or with `graphify query "<symbol>"`.
 Add Gemini-only notes HERE; repository policy belongs in `AGENTS.md`.
 
 <!-- Thinness + the @AGENTS.md pointer are enforced by scripts/agent-os/check-adapters.mjs:102-105

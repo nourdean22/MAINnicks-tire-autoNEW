@@ -23,6 +23,8 @@
  *   5. once MERGED, tears down the local worktree(s) holding the merged head that prove LANDED (repo-status.mjs
  *      sweepAfterMerge, through worktree-teardown.ps1) and prints what it removed or kept. A sweep failure is logged and
  *      never changes the exit code.
+ *   6. once MERGED, queues the incremental graph rebuild on the primary checkout (graph-rebuild.mjs, detached under
+ *      heavy.mjs), so the graphify MCP serves main as of this merge; a failure to queue is logged, never an exit code.
  *
  * Exit codes:
  *   0 ready (without --merge) or merged
@@ -344,7 +346,7 @@ const pushedAt = (view, codexView) => {
  * The whole protocol. `gh(args)` returns stdout; injected so the order of calls can be proven. `codexCheck` exists only so
  * the canary can switch the Codex wait off and prove the tests see the difference; the CLI never passes it.
  */
-export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep, codexWait = CODEX_WAIT_MINUTES, codexCheck = assessCodex, barCheck = assessBody }) {
+export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, sweep, rebuild, codexWait = CODEX_WAIT_MINUTES, codexCheck = assessCodex, barCheck = assessBody }) {
   // A NaN deadline never arrives, which would turn the bounded wait into an endless poll.
   if (!Number.isFinite(wait) || wait < 0) throw new Error("--wait-minutes must be a finite number of minutes, 0 or more");
   if (!Number.isFinite(codexWait) || codexWait < 0) throw new Error("--codex-wait-minutes must be a finite number of minutes, 0 or more");
@@ -418,12 +420,24 @@ export async function mergeGate({ gh, pr, sha, wait, merge, sleep, now, log, swe
       log(`SWEEP failed: ${firstLine(e)}; the merge is unaffected. Run node scripts/agent-os/repo-status.mjs --sweep to see why`);
     }
   };
+  // Step 6 (2026-11-03): queue the incremental graph rebuild on the primary (graph-rebuild.mjs), once per MERGED, detached.
+  // Like the sweep it can never change the merge's exit code.
+  const rebuildGraph = async () => {
+    if (!rebuild) return;
+    try {
+      await rebuild(log);
+    } catch (e) {
+      log(`GRAPH REBUILD not queued: ${firstLine(e)}; the merge is unaffected. Run scripts/graphify-sync-launcher.ps1 in the primary`);
+    }
+  };
   try {
     const after = json(["pr", "view", String(pr), "--json", "state,mergeCommit"]);
     if (after.state !== "MERGED") {
       log(`NOT MERGED: #${pr} reads ${after.state}; the branch ${before.headRefName} is kept`);
       return 4;
     }
+    // The rebuild is queued as soon as MERGED reads true: a branch-delete failure below (exit 6) must not lose it.
+    await rebuildGraph();
     if (before.isCrossRepository) {
       // headRefName names a branch in the fork; deleting that name in the base repository could remove an unrelated branch.
       log(`MERGED: #${pr} as ${after.mergeCommit?.oid}; cross-repository PR, branch ${before.headRefName} left in the fork`);
@@ -563,6 +577,8 @@ if (isMainModule(import.meta.url)) {
       log,
       // Imported only after a merge, so a broken sweep module can never stop a merge (the throw lands in the SWEEP failed log).
       sweep: async (head, log) => (await import("./repo-status.mjs")).sweepAfterMerge(head, { cwd: process.cwd(), log }),
+      // Same lazy import: the graph rebuild is queued after a merge and can never block one.
+      rebuild: async (log) => (await import("./graph-rebuild.mjs")).queueGraphRebuild({ cwd: process.cwd(), log }),
     });
   process.exit(await retryGate({ run: pass, minutes: retryMinutes, sleep, now, log }));
 }

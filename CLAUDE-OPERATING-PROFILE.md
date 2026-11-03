@@ -129,6 +129,8 @@ Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explo
 
 7. SCOPE TIGHT — for audits say "read-only · do not modify files". For implementation, name exactly which files the agent may touch. Never let an agent free-roam edit.
 
+8. GRAPH FIRST — the brief names the symbols the lane will edit (GRAPH line), so the lane's `[graph-recall]` hook prints each one's file:line, community and callers on its first turn; before editing a symbol the lane reads that line or runs `graphify query "<symbol>"`. MCP `graphify` reflects MAIN, not the branch (2026-11-03).
+
 Agents are force multipliers, not autonomous workers — they inherit your standards or they don't run.
 ## graphify
 

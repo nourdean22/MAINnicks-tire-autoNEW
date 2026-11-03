@@ -1034,3 +1034,40 @@ test("CLI --body-fixture probes: exit code AND text, for each shape the brief na
   assert.equal(probe("garbage", "{not json").status, 64);
   assert.equal(spawnSync(process.execPath, [GATE, "--body-fixture", join(fixtureDir, "absent.json")], { encoding: "utf8" }).status, 64);
 });
+
+// Graph rebuild after a merge (job 2026-11-03-graphify-always-on): like the sweep, it runs only once the PR reads MERGED,
+// exactly once, and can never change the merge's exit code. The real queue is graph-rebuild.mjs (graphRebuild.test.mjs).
+test("after MERGED, the graph rebuild is queued exactly once and its log line is printed; exit stays 0", async () => {
+  const g = fakeGh();
+  let called = 0;
+  const rebuild = async (log) => { called++; log("GRAPH REBUILD queued: incremental graphify update on /primary (pid 1, heavy lease, log graphify-out/.sync.log)"); };
+  const { code, logs } = await logsOf(g, { rebuild });
+  assert.equal(code, 0);
+  assert.equal(called, 1);
+  assert.ok(logs.some((l) => l.startsWith("MERGED:")) && logs.some((l) => l.startsWith("GRAPH REBUILD queued:")), JSON.stringify(logs));
+});
+
+test("a rebuild that throws is logged with the manual command and the merge still exits 0", async () => {
+  const g = fakeGh();
+  const { code, logs } = await logsOf(g, { rebuild: async () => { throw new Error("heavy exploded"); } });
+  assert.equal(code, 0);
+  assert.ok(logs.some((l) => /GRAPH REBUILD not queued: heavy exploded; the merge is unaffected\. Run scripts\/graphify-sync-launcher\.ps1 in the primary/.test(l)), JSON.stringify(logs));
+});
+
+test("no rebuild when the PR does not read MERGED, when blocked, or without --merge; a cross-repository merge still queues it", async () => {
+  for (const over of [{ g: fakeGh({ afterMerge: { state: "OPEN" } }) }, { g: fakeGh({ prs: { 3100: view({ isDraft: true }) } }) }, { g: fakeGh(), merge: false }]) {
+    let called = 0;
+    await logsOf(over.g, { rebuild: async () => called++, ...(over.merge === false ? { merge: false } : {}) });
+    assert.equal(called, 0);
+  }
+  let cross = 0;
+  await logsOf(fakeGh({ prs: { 3100: view({ isCrossRepository: true }) } }), { rebuild: async () => cross++ });
+  assert.equal(cross, 1);
+});
+
+test("a branch delete that fails after MERGED (exit 6) still queued the rebuild once (round-2 reader)", async () => {
+  let called = 0;
+  const { code } = await logsOf(fakeGh({ fail: { delete: true } }), { rebuild: async () => called++ });
+  assert.equal(code, 6);
+  assert.equal(called, 1);
+});
