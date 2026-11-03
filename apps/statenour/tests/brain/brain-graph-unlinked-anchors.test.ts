@@ -128,7 +128,8 @@ describe("requeueDanglingLinks · a deleted goal/mission does not leave a claime
     await requeueDanglingLinks("brain_dump");
     await requeueDanglingLinks("reflection");
     await requeueDanglingLinks("situation_log");
-    expect(h.prisma.brainDump.updateMany).toHaveBeenCalledOnce();
+    // brain_dump writes twice: the requeue, then the review rows ungrounded in place (journal-review-rows.test.ts).
+    expect(h.prisma.brainDump.updateMany).toHaveBeenCalledTimes(2);
     expect(h.prisma.reflection.updateMany).toHaveBeenCalledOnce();
     expect(h.prisma.situationLog.updateMany).toHaveBeenCalledOnce();
     h.prisma.reflection.updateMany.mockRejectedValue(new Error("db down"));

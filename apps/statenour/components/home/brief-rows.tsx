@@ -45,6 +45,7 @@ import { useBriefFeedback } from "@/hooks/use-brief-feedback";
 import { hiddenKinds, keptKinds } from "@/lib/ui/brief-feedback";
 import { BRIEF_ROW_CAP, composeBriefRows, type BriefRow, type BriefRowKind, type BriefRowsInput } from "@/lib/home/brief-rows";
 import type { BriefLeadSection, PendingApproval } from "@/lib/home/operator-brief";
+import { leadContextDetail } from "./journal-line";
 
 const KIND_LABEL: Record<BriefRowKind, string> = {
   lead: "Move",
@@ -316,6 +317,7 @@ export function BriefRows({ brief, loading }: { brief: BriefRowsInput | null; lo
           switch (row.kind) {
             case "lead":
               text = row.lead.headline;
+              detail = leadContextDetail(brief?.leadContext);
               tone = LEAD_TONE[row.lead.kind];
               canHide = !row.pinned;
               action = (

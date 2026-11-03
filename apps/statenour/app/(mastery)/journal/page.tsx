@@ -1,12 +1,15 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { StandardPage } from "@/components/layout/standard-page";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
+import { WeeklyReview } from "@/components/journal/weekly-review";
 
 import { JournalFeedView } from "./_components/journal-feed-view";
 import { JournalInsightsView } from "./_components/journal-insights-view";
@@ -35,6 +38,8 @@ export default function JournalPage() {
 function JournalPageInner() {
   // Shared state for the Thread Radar / Rail refresh signal
   const [threadRefresh, setThreadRefresh] = useState(0);
+  // W7 · ?review=week swaps the page body for the weekly review (Sunsama S3/S4); the journal is one tap back.
+  const reviewing = useSearchParams().get("review") === "week";
 
   return (
     <StandardPage
@@ -48,6 +53,18 @@ function JournalPageInner() {
     >
       <MissionBreadcrumb />
       <CoachEventBanner surface="journal" />
+
+      <Link
+        href={reviewing ? "/journal" : "/journal?review=week"}
+        className="inline-flex min-h-11 items-center self-start text-[13px] text-fg-secondary underline-offset-2 hover:text-fg hover:underline"
+      >
+        {reviewing ? "Back to the journal" : "Weekly review"}
+      </Link>
+
+      {reviewing ? (
+        <WeeklyReview />
+      ) : (
+      <>
 
       {/*
         Desktop Split-Pane Architecture
@@ -83,6 +100,8 @@ function JournalPageInner() {
         </div>
 
       </div>
+      </>
+      )}
     </StandardPage>
   );
 }

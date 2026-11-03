@@ -30,6 +30,7 @@ beforeEach(() => {
   h.prisma.task.updateMany.mockResolvedValue({ count: 2 });
   h.prisma.brainDump.findUnique.mockResolvedValue({ extractedItems: JSON.stringify({ actionItems: [], createdTaskIds: ["t1", "t2"] }), goalId: "g1", missionId: null });
   h.prisma.brainDump.update.mockResolvedValue({});
+  h.prisma.brainDump.updateMany.mockResolvedValue({ count: 1 });
   h.prisma.lifeGoal.findUnique.mockResolvedValue(null);
 });
 

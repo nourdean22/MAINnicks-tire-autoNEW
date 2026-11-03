@@ -42,6 +42,8 @@ vi.mock("@/app/(mastery)/journal/_hooks/use-journal-feed", () => ({
 vi.mock("@/components/journal/entry-row", () => ({
   JournalEntryRow: ({ entry }: { entry: { title: string } }) => <div data-row>{entry.title}</div>,
 }));
+// W7 · the day view reads tRPC when opened; its states are tested in tests/services/journal-day.test.tsx.
+vi.mock("@/components/journal/day-activity", () => ({ DayActivityToggle: () => null }));
 
 import { JournalFeedView } from "@/app/(mastery)/journal/_components/journal-feed-view";
 

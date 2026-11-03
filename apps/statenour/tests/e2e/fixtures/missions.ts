@@ -296,3 +296,9 @@ export const MISSION_GOALS = {
     },
   ],
 };
+/**
+ * task.missionChats (job 2026-11-02 W7, map gap 8): no demo chat is linked to a mission, so the chats line
+ * renders nothing and the /missions snapshots do not move. Its rendered states are unit-tested
+ * (tests/missions/mission-chats.test.tsx).
+ */
+export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMission: {}, truncated: false };

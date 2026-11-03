@@ -29,6 +29,9 @@ import { useMemo, useState } from "react";
 import type { Project, Task } from "@/components/actions/shared";
 import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
+import { missionChatsReadFor } from "./mission-chats-line";
+import { trpc } from "@/lib/trpc/client";
+import { MISSION_CHATS_IDS_MAX } from "@/lib/missions/mission-chats-limits";
 
 export interface MissionFeedProps {
   missions: Project[];
@@ -50,6 +53,13 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
     () => groupMissionFeed(missions, tasks),
     [missions, tasks],
   );
+  // W7 · one read for every card's linked chats (map gap 8). A failed read is per card "couldn't load".
+  const readIds = activeMissions.map((m) => m.id).slice(0, MISSION_CHATS_IDS_MAX);
+  const chatsQ = trpc.task.missionChats.useQuery(
+    { missionIds: readIds },
+    { enabled: activeMissions.length > 0, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+  );
+  const chatsFor = (id: string) => missionChatsReadFor(id, readIds, chatsQ);
 
   // Drag and drop states for Missions
   const [draggedMissionIdx, setDraggedMissionIdx] = useState<number | null>(null);
@@ -172,6 +182,7 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
               tasks={tasksByMission.get(mission.id) ?? []}
               defaultExpanded={activeMissions.length <= 3}
               taskRank={taskRank}
+              chats={chatsFor(mission.id)}
               isDragged={draggedMissionIdx === missionIdx}
               isDraggedOver={draggedOverMissionIdx === missionIdx}
               onDragStart={(e) => handleMissionDragStart(e, missionIdx)}

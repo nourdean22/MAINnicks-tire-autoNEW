@@ -60,6 +60,7 @@ import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
 import { buildTaskRescue, buildDomainAnchors } from "@/lib/services/task-rescue";
 import { buildMissionsDeck } from "@/lib/missions/deck";
+import { MISSION_CHATS_IDS_MAX, missionChats } from "@/lib/missions/mission-chats";
 import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
 import {
   createMissionLink,
@@ -281,6 +282,11 @@ export const taskRouter = router({
    * (failures land in `unmeasured`, never as fake zeros).
    */
   deck: operatorProcedure.query(async () => buildMissionsDeck()),
+
+  /** W7 (map gap 8) · the chats the conversation-mission-link cron tied to each mission on the board. */
+  missionChats: operatorProcedure
+    .input(z.object({ missionIds: z.array(z.string().min(1)).max(MISSION_CHATS_IDS_MAX) }))
+    .query(async ({ input }) => missionChats(input.missionIds)),
 
   /**
    * Phase PP · owner-only · list goals with optional horizon / domain
