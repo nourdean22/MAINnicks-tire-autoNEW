@@ -175,6 +175,24 @@ export async function linkJournalPeople(args: {
   return { personIds, recorded, skipped, failed, rejected, linkedNames, rejectedNames };
 }
 
+/**
+ * The save-time link with no model (W8b): every live person whose name appears whole-word in the text is linked as a
+ * MENTION (never a contact: only the extraction knows "interacted"). The /journal composer and the weekly review's
+ * notes use it so a saved line reaches People before any model runs. Returns the names linked; throws on a failed read.
+ */
+export async function linkNamedPeople(args: {
+  silo: "brain_dump" | "reflection";
+  dumpId: string;
+  createdAt: Date;
+  rawText: string;
+}): Promise<{ names: string[] }> {
+  const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
+  const named = people.filter((p) => p.name.trim().length >= 2 && nameMatcher(p.name).test(args.rawText)).map((p) => p.name);
+  if (named.length === 0) return { names: [] };
+  const linked = await linkJournalPeople({ ...args, people: named.map((name) => ({ name, interacted: false })) });
+  return { names: linked.linkedNames };
+}
+
 export interface LatestJournal {
   at: string;
   excerpt: string;

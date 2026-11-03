@@ -131,21 +131,8 @@ export async function createReflection(
   // Awaited (a few ms) so the composer toast can name them; a failure is unknown, never a failed save.
   let peopleLinked: ReflectResult["peopleLinked"] = null;
   try {
-    const { nameMatcher } = await import("@/lib/services/people/backfill-plan");
-    const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
-    const named = people.filter((p) => p.name.trim().length >= 2 && nameMatcher(p.name).test(insight)).map((p) => p.name);
-    if (named.length === 0) peopleLinked = { names: [] };
-    else {
-      const { linkJournalPeople } = await import("@/lib/services/people/journal-link");
-      const linked = await linkJournalPeople({
-        silo: "reflection",
-        dumpId: reflection.id,
-        createdAt: reflection.createdAt,
-        rawText: insight,
-        people: named.map((name) => ({ name, interacted: false })),
-      });
-      peopleLinked = { names: linked.linkedNames };
-    }
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    peopleLinked = await linkNamedPeople({ silo: "reflection", dumpId: reflection.id, createdAt: reflection.createdAt, rawText: insight });
   } catch (err) {
     log.warn("reflect_people_link_failed", { reflectionId: reflection.id, error: sanitizeError(err) });
   }

@@ -20,7 +20,7 @@ vi.mock("@/lib/brain/journal-ingest", () => ({ ingestJournal: vi.fn(async () => 
 vi.mock("@/lib/brain/journal-brain", () => ({ enrichJournalEntry: h.enrich }));
 vi.mock("@/lib/services/people/journal-link", async (orig) => ({
   ...(await orig<typeof import("@/lib/services/people/journal-link")>()),
-  linkJournalPeople: h.link,
+  linkNamedPeople: h.link,
 }));
 
 import { createReflection } from "@/lib/services/journal-reflect";
@@ -38,40 +38,28 @@ beforeEach(() => {
     { id: "p_mo", name: "Mo" },
     { id: "p_moh", name: "Mohammed" },
   ]);
-  h.link.mockImplementation(async (a: { people: Array<{ name: string }> }) => ({
-    personIds: a.people.map((p) => `p_${p.name.toLowerCase()}`),
-    recorded: 0,
-    skipped: 0,
-    failed: 0,
-    rejected: 0,
-    linkedNames: a.people.map((p) => p.name),
-    rejectedNames: [],
+  // The real linkNamedPeople is pinned in tests/services/people-journal-link.test.ts; here it is the seam.
+  h.link.mockImplementation(async (a: { rawText: string }) => ({
+    names: ["Dania", "Mo"].filter((n) => a.rawText.toLowerCase().includes(n.toLowerCase())),
   }));
 });
 
 describe("createReflection · people at save", () => {
-  it("links every live person named whole-word in the text, as a mention (not a contact), with the toggle OFF", async () => {
+  it("runs the save-time name link on the reflection (silo, id, createdAt, his text) with the toggle OFF, and names the people", async () => {
     const r = await createReflection(input);
     expect(h.link).toHaveBeenCalledTimes(1);
-    const call = h.link.mock.calls[0][0];
-    expect(call).toMatchObject({ silo: "reflection", dumpId: "r1", createdAt });
-    // "mo" matches Mo whole-word and case-insensitively; "Mohammed" is not in the text.
-    expect(call.people).toEqual([
-      { name: "Dania", interacted: false },
-      { name: "Mo", interacted: false },
-    ]);
+    expect(h.link.mock.calls[0][0]).toMatchObject({ silo: "reflection", dumpId: "r1", createdAt });
+    expect(h.link.mock.calls[0][0].rawText).toContain("Talked to Dania and mo about the lease.");
     expect(r.peopleLinked).toEqual({ names: ["Dania", "Mo"] });
-    expect(h.peopleFindMany.mock.calls[0][0].where).toEqual({ deletedAt: null });
   });
 
-  it("no name in the text: no link call, peopleLinked names empty", async () => {
+  it("no name in the text: peopleLinked names empty, never null", async () => {
     const r = await createReflection({ ...input, fields: { what: "Quiet day, nothing about anyone." } });
-    expect(h.link).not.toHaveBeenCalled();
     expect(r.peopleLinked).toEqual({ names: [] });
   });
 
   it("a failed people read or link never fails the save: peopleLinked is null (unknown), the reflection is returned", async () => {
-    h.peopleFindMany.mockRejectedValue(new Error("down"));
+    h.link.mockRejectedValue(new Error("down"));
     const r = await createReflection(input);
     expect(r.reflection.id).toBe("r1");
     expect(r.peopleLinked).toBeNull();

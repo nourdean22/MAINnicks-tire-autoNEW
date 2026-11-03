@@ -256,6 +256,22 @@ describe("linkJournalPeople · the resolver gate", () => {
   });
 });
 
+describe("linkNamedPeople · the save-time link with no model (W8b)", () => {
+  it("links every live person named whole-word in the text as a mention, through the same gate, and names them", async () => {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    const r = await linkNamedPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: "Talked to dania; Samir came by. Danya did not." });
+    expect(r.names.sort()).toEqual(["Dania", "Samir"]);
+    expect(h.reflUpdate.mock.calls[0][0].data.personIds.sort()).toEqual(["p_dania", "p_sam"]);
+    // A mention, never a contact: no ledger row, whatever the words say.
+    expect(h.once).not.toHaveBeenCalled();
+  });
+  it("no name in the text: nothing read from the resolver, nothing written", async () => {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    expect(await linkNamedPeople({ silo: "brain_dump", dumpId: "d1", createdAt, rawText: "Quiet day." })).toEqual({ names: [] });
+    expect(h.dumpUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("normalizeJournalPeople · the model's list", () => {
   it("keeps names, reads interacted only as boolean true, caps at 6", () => {
     const out = normalizeJournalPeople([
