@@ -11,7 +11,10 @@
  *              the guard, proven by tests/scripts/backfill-journal-person-ids.test.ts, which asserts the writer is
  *              never reached without --execute AND the env flag).
  *   --execute: writes, only when JOURNAL_PERSON_IDS_EXECUTE=1 is also set; otherwise exits 2 BEFORE any
- *              connection opens. Nour's to run, after the dry-run counts.
+ *              connection opens. Each write is a compare-and-swap on the still-empty column, and the rows it
+ *              stamped go to ./backfill-journal-person-ids.applied.json (ids only).
+ *   --revert <manifest>: clears exactly those rows, each only while it still holds what was stamped (a row the live
+ *              link has changed since keeps its ids). Same env flag.
  *   --limit N: entries read per table (default 5000).
  *
  *   railway run -s statenour-web -- pnpm exec tsx scripts/backfill-journal-person-ids.ts
@@ -37,19 +40,30 @@ loadEnvConfig(process.cwd());
 
 export const EXECUTE_ENV = "JOURNAL_PERSON_IDS_EXECUTE";
 
+/** --execute writes what it stamped here (cwd), the input --revert takes. Ids only, never a name or a note. */
+export const MANIFEST_FILE = "backfill-journal-person-ids.applied.json";
+
 export interface Args {
-  mode: "dry" | "execute";
+  mode: "dry" | "execute" | "revert";
   limit: number;
+  /** --revert <file>: the manifest an --execute run wrote. */
+  revertFile: string | null;
 }
 
-/** Refuses (throws) when --execute is asked for without the env flag: nothing after this opens a connection. */
+/** Refuses (throws) when --execute or --revert is asked for without the env flag: nothing after this opens a connection. */
 export function parseArgs(argv: string[], env: Record<string, string | undefined>): Args {
   const execute = argv.includes("--execute");
-  if (execute && env[EXECUTE_ENV] !== "1") throw new Error(`--execute needs ${EXECUTE_ENV}=1 in the environment`);
+  const ri = argv.indexOf("--revert");
+  const revertFile = ri >= 0 ? (argv[ri + 1] ?? "") : null;
+  if (execute && revertFile !== null) throw new Error("--execute and --revert cannot run together");
+  if ((execute || revertFile !== null) && env[EXECUTE_ENV] !== "1") {
+    throw new Error(`${execute ? "--execute" : "--revert"} needs ${EXECUTE_ENV}=1 in the environment`);
+  }
+  if (revertFile === "") throw new Error("--revert needs the manifest path");
   const li = argv.indexOf("--limit");
   const limit = li >= 0 ? Number(argv[li + 1]) : 5000;
   if (!Number.isInteger(limit) || limit < 1) throw new Error("--limit must be a positive integer");
-  return { mode: execute ? "execute" : "dry", limit };
+  return { mode: revertFile !== null ? "revert" : execute ? "execute" : "dry", limit, revertFile };
 }
 
 /** The ids of the people whose name appears, whole-word and case-insensitively, in the text. */
@@ -66,7 +80,10 @@ export function planPersonIds(
 interface Table {
   label: string;
   rows: () => Promise<Array<{ id: string; text: string }>>;
-  write: (id: string, personIds: string[]) => Promise<unknown>;
+  /** Compare-and-swap: stamps only a row whose person_ids is still empty (the live link may have written since the read). */
+  write: (id: string, personIds: string[]) => Promise<{ count: number }>;
+  /** Revert: clears a row only while it still holds exactly what this script stamped. */
+  clear: (id: string, personIds: string[]) => Promise<{ count: number }>;
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
@@ -77,6 +94,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     console.error(`refused: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(2);
   }
+  const fs = await import("node:fs");
+  // --revert reads its manifest BEFORE the Prisma import: a wrong path fails before any connection opens.
+  const manifest =
+    args.mode === "revert"
+      ? (JSON.parse(String(fs.readFileSync(args.revertFile!, "utf8"))) as Array<{ table: string; id: string; personIds: string[] }>)
+      : null;
   const { prisma } = await import("@/lib/prisma");
   const { nameMatcher } = await import("@/lib/services/people/backfill-plan");
 
@@ -93,7 +116,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
             select: { id: true, rawThoughts: true },
           })
         ).map((d) => ({ id: d.id, text: d.rawThoughts })),
-      write: (id, personIds) => prisma.brainDump.update({ where: { id }, data: { personIds } }),
+      write: (id, personIds) => prisma.brainDump.updateMany({ where: { id, personIds: { isEmpty: true } }, data: { personIds } }),
+      clear: (id, personIds) => prisma.brainDump.updateMany({ where: { id, personIds: { equals: personIds } }, data: { personIds: [] } }),
     },
     {
       label: "reflections",
@@ -106,9 +130,27 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
             select: { id: true, insight: true },
           })
         ).map((r) => ({ id: r.id, text: r.insight })),
-      write: (id, personIds) => prisma.reflection.update({ where: { id }, data: { personIds } }),
+      write: (id, personIds) => prisma.reflection.updateMany({ where: { id, personIds: { isEmpty: true } }, data: { personIds } }),
+      clear: (id, personIds) => prisma.reflection.updateMany({ where: { id, personIds: { equals: personIds } }, data: { personIds: [] } }),
     },
   ];
+
+  if (manifest) {
+    // Revert: each row only while it still holds exactly the ids this script stamped; a row the live link has
+    // changed since keeps its ids ("kept").
+    let reverted = 0;
+    let kept = 0;
+    for (const m of manifest) {
+      const table = tables.find((t) => t.label === m.table);
+      if (!table) throw new Error(`manifest names an unknown table: ${m.table}`);
+      const r = await table.clear(m.id, m.personIds);
+      if (r.count === 1) reverted++;
+      else kept++;
+    }
+    console.log(`reverted=${reverted} kept=${kept}`);
+    await prisma.$disconnect();
+    return;
+  }
 
   console.log(`mode=${args.mode} people=${people.length} limit=${args.limit}`);
   const plans: Array<{ table: Table; id: string; personIds: string[] }> = [];
@@ -135,17 +177,24 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   }
 
   let written = 0;
+  let skipped = 0;
   let failed = 0;
+  const applied: Array<{ table: string; id: string; personIds: string[] }> = [];
   for (const p of plans) {
     try {
-      await p.table.write(p.id, p.personIds);
-      written++;
+      const r = await p.table.write(p.id, p.personIds);
+      if (r.count === 1) {
+        written++;
+        applied.push({ table: p.table.label, id: p.id, personIds: p.personIds });
+      } else skipped++;
     } catch (err) {
       failed++;
       console.error(`write failed ${p.table.label} …${p.id.slice(-6)}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  console.log(`written=${written} failed=${failed}`);
+  // The revert input: exactly what was stamped, ids only. Written even when some writes failed.
+  fs.writeFileSync(MANIFEST_FILE, JSON.stringify(applied, null, 2));
+  console.log(`written=${written} skipped_already_linked=${skipped} failed=${failed} manifest=${MANIFEST_FILE}`);
   await prisma.$disconnect();
   if (failed > 0) process.exit(1);
 }
