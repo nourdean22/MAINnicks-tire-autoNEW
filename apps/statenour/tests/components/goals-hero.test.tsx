@@ -58,7 +58,7 @@ describe("GoalsHeroView", () => {
   const base = {
     goal,
     reason: "due_soonest" as const,
-    pulse: { total: 3, behind: 1, offTrack: 0, checkInDue: 2 },
+    pulse: { total: 3, behind: 1, offTrack: 0, checkInDue: 2, unknown: 0 },
     maxim: null,
     moved: "Moved 2d ago",
     now: NOW,
@@ -103,8 +103,28 @@ describe("GoalsHeroView", () => {
 
 describe("pulseLine", () => {
   it("names only what needs him, and says so when nothing does", () => {
-    expect(pulseLine({ total: 3, behind: 1, offTrack: 1, checkInDue: 2 })).toBe("3 goals · 1 off track · 1 behind · 2 need a check-in");
-    expect(pulseLine({ total: 1, behind: 0, offTrack: 0, checkInDue: 0 })).toBe("1 goal · none behind");
+    expect(pulseLine({ total: 3, behind: 1, offTrack: 1, checkInDue: 2, unknown: 0 })).toBe("3 goals · 1 off track · 1 behind · 2 need a check-in");
+    expect(pulseLine({ total: 1, behind: 0, offTrack: 0, checkInDue: 0, unknown: 0 })).toBe("1 goal · none behind");
+  });
+
+  it("an unknown health is said, and never reads as 'none behind'", () => {
+    const line = pulseLine({ total: 3, behind: 0, offTrack: 0, checkInDue: 0, unknown: 3 });
+    expect(line).toBe("3 goals · 3 unknown (health couldn't load)");
+    expect(line).not.toContain("none behind");
+    const html = renderToStaticMarkup(
+      <GoalsHeroView
+        goal={{ ...goal, health: { state: "unknown", at: null, note: null } }}
+        reason="first"
+        pulse={{ total: 3, behind: 0, offTrack: 0, checkInDue: 0, unknown: 3 }}
+        maxim={null}
+        moved="Moved today"
+        now={NOW}
+        onOpen={noop}
+        onAskNick={noop}
+      />,
+    );
+    expect(html).toContain("3 unknown (health couldn&#x27;t load)");
+    expect(html).not.toContain("none behind");
   });
 });
 

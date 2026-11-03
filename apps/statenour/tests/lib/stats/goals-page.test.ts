@@ -97,6 +97,12 @@ describe("goalMomentState (W6 contract, via momentInput)", () => {
     expect(state({ currentValue: 2, deadline: new Date(NOW - 3 * DAY).toISOString() })).toBe("off_track");
   });
 
+  it("precedence: off track beats behind pace, behind pace beats check-in due", () => {
+    const behind = { currentValue: 1, createdAt: new Date(NOW - 10 * DAY).toISOString(), deadline: new Date(NOW + 10 * DAY).toISOString() };
+    expect(state({ ...behind, health: { state: "off_track", at: null, note: null } })).toBe("off_track");
+    expect(state({ ...behind, health: { state: "no_check_in", at: null, note: null } })).toBe("behind_pace");
+  });
+
   it("an unknown or missing health is no moment (unknown never reads as a state)", () => {
     expect(state({ health: { state: "unknown", at: null, note: null } })).toBeNull();
     expect(state({ health: undefined })).toBeNull();
@@ -170,6 +176,19 @@ describe("pickHeroGoal", () => {
     expect(pickHeroGoal([a, b], NOW)).toMatchObject({ goal: { id: "b" }, reason: "due_soonest" });
   });
 
+  it("a date from a horizon counts: a QUARTER goal (quarter end) beats a deadline years out", () => {
+    const quarter = goal({ id: "q", horizon: "QUARTER", deadline: null });
+    const far = goal({ id: "far", deadline: new Date(NOW + 900 * DAY).toISOString() });
+    expect(pickHeroGoal([far, quarter], NOW)).toMatchObject({ goal: { id: "q" }, reason: "due_soonest" });
+  });
+
+  it("ties go to the first goal in the server's order (due and behind alike)", () => {
+    const due = new Date(NOW + 5 * DAY).toISOString();
+    expect(pickHeroGoal([goal({ id: "a", deadline: due }), goal({ id: "b", deadline: due })], NOW)?.goal.id).toBe("a");
+    const past = new Date(NOW - 4 * DAY).toISOString();
+    expect(pickHeroGoal([goal({ id: "a", deadline: past }), goal({ id: "b", deadline: past })], NOW)?.goal.id).toBe("a");
+  });
+
   it("with no upcoming date, the goal furthest behind pace wins", () => {
     const a = goal({ id: "a", currentValue: 1, deadline: new Date(NOW - 2 * DAY).toISOString() });
     const b = goal({ id: "b", currentValue: 1, deadline: new Date(NOW - 9 * DAY).toISOString() });
@@ -201,7 +220,19 @@ describe("goalsPulse", () => {
       ],
       NOW,
     );
-    expect(p).toEqual({ total: 4, behind: 1, offTrack: 1, checkInDue: 1 });
+    expect(p).toEqual({ total: 4, behind: 1, offTrack: 1, checkInDue: 1, unknown: 0 });
+  });
+
+  it("a failed or missing health read counts as unknown, never as fine (empty-vs-error)", () => {
+    const p = goalsPulse(
+      [
+        goal({ id: "1", health: { state: "unknown", at: null, note: null } }),
+        goal({ id: "2", health: undefined }),
+        goal({ id: "3" }),
+      ],
+      NOW,
+    );
+    expect(p).toEqual({ total: 3, behind: 0, offTrack: 0, checkInDue: 0, unknown: 2 });
   });
 });
 

@@ -34,13 +34,15 @@ export interface HeroGoal extends PageGoal {
   nextMove?: { id: string; title: string; status: string } | null;
 }
 
-export type GoalsPulse = { total: number; behind: number; offTrack: number; checkInDue: number };
+export type GoalsPulse = { total: number; behind: number; offTrack: number; checkInDue: number; unknown: number };
 
 export function pulseLine(p: GoalsPulse): string {
   const parts = [`${p.total} goal${p.total === 1 ? "" : "s"}`];
   if (p.offTrack > 0) parts.push(`${p.offTrack} off track`);
   if (p.behind > 0) parts.push(`${p.behind} behind`);
   if (p.checkInDue > 0) parts.push(`${p.checkInDue} need${p.checkInDue === 1 ? "s" : ""} a check-in`);
+  // A failed health read is said; "none behind" only when every goal's health was read.
+  if (p.unknown > 0) parts.push(`${p.unknown} unknown (health couldn't load)`);
   if (parts.length === 1) parts.push("none behind");
   return parts.join(" · ");
 }

@@ -86,6 +86,7 @@ vi.mock("@/components/actions/milestones-flow", () => ({ MilestonesFlow: () => n
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { GoalBoard } from "@/components/goals/goal-board";
+import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -166,6 +167,46 @@ describe("GoalBoard · W5 hero, ladder and focus", () => {
   it("the expanded card shows the maxim for its moment (no check-in yet: a focus maxim)", async () => {
     await click(container.querySelector("#goal-g-life [role='button']")!);
     expect(container.querySelector("#goal-g-life blockquote")?.textContent?.length ?? 0).toBeGreaterThan(10);
+  });
+});
+
+describe("GoalBoard · W5 with no deadline on any goal (prod's shape on 2026-11-02: 3 goals, 0 deadlines)", () => {
+  it("the hero still leads, says 'Your first goal', and the pace line says why it is unscored", async () => {
+    act(() => root.unmount());
+    h.fetchGoals.mockImplementation(async () => ({
+      goals: h.goals.map((g) => ({ ...g, deadline: null, horizon: null, nextMove: null, missions: [] })),
+    }));
+    root = createRoot(container);
+    act(() => root.render(<GoalBoard onFocusGoal={onFocusGoal} />));
+    await flush();
+    await flush();
+    const hero = container.querySelector(`section[aria-label="Today's goal"]`);
+    expect(hero?.textContent).toContain("Your first goal");
+    expect(hero?.textContent).toContain("Write a book");
+    expect(hero?.textContent).toContain("unscored: no deadline or horizon set");
+    expect(hero?.textContent).toContain("No next step yet: add one");
+    expect(container.textContent).not.toContain("Milestones");
+    h.fetchGoals.mockImplementation(async () => ({ goals: h.goals }));
+  });
+});
+
+describe("GoalBoard · W5 maxims Nour skipped on Home never show", () => {
+  it("with every focus maxim but one skipped, the hero and the open card both show that one", async () => {
+    const focus = MAXIM_POOL.filter((m) => m.tags.includes("focus"));
+    const keep = focus[0]!;
+    const skipped = focus.slice(1).map((m) => m.id);
+    act(() => root.unmount());
+    h.fetchGoals.mockImplementation(async () => ({ goals: h.goals.map((g) => ({ ...g, skippedMaximIds: skipped })) }));
+    root = createRoot(container);
+    act(() => root.render(<GoalBoard onFocusGoal={onFocusGoal} />));
+    await flush();
+    await flush();
+    // Both goals have no check-in yet: the moment is check_in_due, the tag "focus".
+    const heroQuote = container.querySelector(`section[aria-label="Today's goal"] blockquote`);
+    expect(heroQuote?.textContent, "the hero shows the one focus maxim not skipped").toBe(keep.text);
+    await click(container.querySelector("#goal-g-life [role='button']")!);
+    expect(container.querySelector("#goal-g-life blockquote")?.textContent).toBe(keep.text);
+    h.fetchGoals.mockImplementation(async () => ({ goals: h.goals }));
   });
 });
 

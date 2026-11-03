@@ -182,17 +182,20 @@ export function pickHeroGoal<T extends PageGoal>(goals: readonly T[], now: numbe
   return { goal: pool[0]!, reason: "first" };
 }
 
+/** The pulse of all goals. `unknown` = health not read (a failed check-in read, or no field): never fine. */
 export function goalsPulse(goals: readonly PageGoal[], now: number) {
   let behind = 0;
   let offTrack = 0;
   let checkInDue = 0;
+  let unknown = 0;
   for (const g of goals) {
+    if (!g.health || g.health.state === "unknown") unknown++;
     const m = goalMomentState(momentInput(g, now));
     if (m === "behind_pace" || m === "at_risk") behind++;
     else if (m === "off_track") offTrack++;
     else if (m === "check_in_due") checkInDue++;
   }
-  return { total: goals.length, behind, offTrack, checkInDue };
+  return { total: goals.length, behind, offTrack, checkInDue, unknown };
 }
 
 /** The since-list read (task.goalSinceCheckIn) as the hero sees it. */
