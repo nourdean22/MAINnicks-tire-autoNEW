@@ -112,6 +112,15 @@ export async function goalTaskCounts(goalIds: readonly string[]): Promise<Map<st
   return counts;
 }
 
+/** Active goals by id and title only: the cheap read recall uses to decide whether the full read is needed (C17). */
+export async function activeGoalTitles(): Promise<Array<{ id: string; title: string }>> {
+  return prisma.lifeGoal.findMany({
+    where: { status: "active", deletedAt: null },
+    take: ACTIVE_GOALS_CAP,
+    select: { id: true, title: true },
+  });
+}
+
 export async function activeGoalsWithHealth(now: number = Date.now()): Promise<{ goals: ActiveGoalHealth[]; failed: string[] }> {
   const goals = await prisma.lifeGoal.findMany({
     where: { status: "active", deletedAt: null },
