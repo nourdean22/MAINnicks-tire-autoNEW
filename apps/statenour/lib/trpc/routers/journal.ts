@@ -36,6 +36,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { buildJournalFeed } from "@/lib/services/journal-feed";
+import { dayActivity } from "@/lib/services/journal-day";
 import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
 // 2026-05-24 · Wave S · feature-mining wire-ups · 7 new procedures
 // surface existing lib/brain/* helpers on /journal. The helpers were
@@ -119,6 +120,11 @@ export const journalRouter = router({
         cursor: input?.cursor ?? undefined,
       }),
     ),
+
+  /** W7 (Tana T3) · one ET day's done tasks and contacts, for the feed's day view. */
+  day: operatorProcedure
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ input }) => dayActivity(input.date)),
 
   /**
    * Phase TT · owner-only · most-recent learning-journal entry ·
