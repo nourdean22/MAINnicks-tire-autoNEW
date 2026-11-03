@@ -451,7 +451,7 @@ export async function postToFacebook(params: {
    * through `postFacebookVideo`.
    */
   videoUrl?: string;
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
+}): Promise<{ success: boolean; postId?: string; videoId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const pageId = await getPageId();
@@ -543,7 +543,12 @@ export async function postToFacebook(params: {
  * request shapes come from the doc text above; the response field names used
  * (`video_id`, `upload_url`, `success`, `post_id`, `id`) are the documented
  * ones. Step 3 returning `success` without `post_id` is handled: the video_id
- * is returned as the post id so insights can still be pulled on `/{video_id}`.
+ * is returned as the post id.
+ *
+ * `postId` is the finish step's `post_id`; `videoId` is the id Facebook's reel
+ * numbers are read from (`fetchFacebookReelInsights`). Reading the `post_id`
+ * fails with Meta (#12), proven on four live reels 2026-11-03, so BOTH come back
+ * and the publish ledger keeps both.
  *
  * Module-private on purpose: the ONE door to a Page video is `postToFacebook`
  * (videoUrl), reached through `publishToSocial` and its kill switches.
@@ -552,7 +557,7 @@ async function postFacebookVideo(params: {
   videoUrl: string;
   description: string;
   title?: string;
-}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
+}): Promise<{ success: boolean; postId?: string; videoId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const pageId = await getPageId();
@@ -612,7 +617,7 @@ async function postFacebookVideo(params: {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       log.error("Facebook reel finish ambiguous (no answer):", { error: errMsg, videoId });
-      return { success: false, error: errMsg, ambiguous: true, postId: videoId };
+      return { success: false, error: errMsg, ambiguous: true, postId: videoId, videoId };
     }
     const fin = await finRes.json().catch(() => null);
     if (!finRes.ok || fin?.success === false) {
@@ -622,7 +627,7 @@ async function postFacebookVideo(params: {
     }
     const postId = String(fin?.post_id ?? fin?.id ?? videoId);
     log.info(`Facebook reel published: ${postId}`, { videoId });
-    return { success: true, postId };
+    return { success: true, postId, videoId };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Facebook video post error:", { error: errMsg });
@@ -710,6 +715,95 @@ export async function fetchFacebookPostInsights(postId: string): Promise<
     log.error("Facebook post insights error:", { error: errMsg, postId });
     return { ok: false, error: errMsg };
   }
+}
+
+// ─── Facebook Reel numbers ─────────────────────────────
+
+interface FacebookReelInsights {
+  /** fb_reels_total_plays: reel sessions of 1 ms or more, replays included. */
+  plays?: number;
+  /** post_video_avg_time_watched: average MILLISECONDS per play, replays included, so it can exceed the reel's length. */
+  avgWatchMs?: number;
+  /** Reactions on the reel: the node's `reactions` summary, or its `likes` summary when Meta rejects that field. */
+  reactions?: number;
+  /** Comments on the reel: the node's `comments` summary. */
+  comments?: number;
+}
+
+/**
+ * The numbers of a Facebook REEL, read from its VIDEO id (`postFacebookVideo` returns it as `videoId`).
+ *
+ * `fetchFacebookPostInsights` cannot serve a reel: the reel's `post_id` answers Meta (#12) and the video
+ * node has no `/insights` edge (#100) (live, 4 of 4 reels, 2026-11-03). What answers is
+ * `/{video_id}/video_insights?metric=<one metric>` (names and units: Meta's video_insights reference, read
+ * 2026-11-03: fb_reels_total_plays includes replays; post_video_avg_time_watched is milliseconds) plus the
+ * node's reactions and comments summaries.
+ *
+ * One metric per call, on purpose: single-metric calls are what was verified live, and one metric Meta
+ * rejects then costs only its own field. A read that fails or returns no numeric row leaves its field
+ * UNDEFINED, never 0 (a reel nobody played is a measured 0, an unread reel is unknown). `ok:false` only
+ * when EVERY read failed.
+ */
+export async function fetchFacebookReelInsights(videoId: string): Promise<
+  ({ ok: true } & FacebookReelInsights) | { ok: false; error: string }
+> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return { ok: false, error: "Facebook not configured (need META_PAGE_ACCESS_TOKEN)" };
+  const id = encodeURIComponent(videoId);
+  type Read = { data: unknown } | { error: string };
+  const read = async (pathAndQuery: string): Promise<Read> => {
+    try {
+      const res = await fetch(`${GRAPH_URL}/${pathAndQuery}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+      const data = await res.json().catch(() => null);
+      const apiError = (data as { error?: { message?: string } } | null)?.error?.message;
+      if (!res.ok || apiError) return { error: apiError || `HTTP ${res.status}` };
+      return { data };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+  const metric = (r: Read, name: string): number | undefined => {
+    if (!("data" in r)) return undefined;
+    const rows = (r.data as { data?: unknown[] } | null)?.data;
+    for (const raw of Array.isArray(rows) ? rows : []) {
+      const row = raw as { name?: unknown; values?: Array<{ value?: unknown }> };
+      const value = Array.isArray(row.values) ? row.values[0]?.value : undefined;
+      if (row.name === name && typeof value === "number") return value;
+    }
+    return undefined;
+  };
+  const summaryCount = (r: Read, edge: string): number | undefined => {
+    if (!("data" in r)) return undefined;
+    const count = (r.data as Record<string, { summary?: { total_count?: unknown } } | undefined> | null)?.[edge]?.summary?.total_count;
+    return typeof count === "number" ? count : undefined;
+  };
+
+  const plays = await read(`${id}/video_insights?metric=fb_reels_total_plays`);
+  const avgWatch = await read(`${id}/video_insights?metric=post_video_avg_time_watched`);
+  let reactionEdge = "reactions";
+  let node = await read(`${id}?fields=reactions.summary(true).limit(0),comments.summary(true).limit(0)`);
+  if ("error" in node) {
+    reactionEdge = "likes";
+    node = await read(`${id}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0)`);
+  }
+
+  const reads = [plays, avgWatch, node];
+  if (reads.every((r) => "error" in r)) {
+    const errMsg = (reads[0] as { error: string }).error;
+    log.error("Facebook reel insights fetch failed:", { error: errMsg, videoId });
+    return { ok: false, error: errMsg };
+  }
+  const out: FacebookReelInsights = {};
+  const totalPlays = metric(plays, "fb_reels_total_plays");
+  if (totalPlays !== undefined) out.plays = totalPlays;
+  const avgWatchMs = metric(avgWatch, "post_video_avg_time_watched");
+  if (avgWatchMs !== undefined) out.avgWatchMs = avgWatchMs;
+  const reactions = summaryCount(node, reactionEdge);
+  if (reactions !== undefined) out.reactions = reactions;
+  const comments = summaryCount(node, "comments");
+  if (comments !== undefined) out.comments = comments;
+  return { ok: true, ...out };
 }
 
 // ─── Instagram Post (Image Required) ──────────────────

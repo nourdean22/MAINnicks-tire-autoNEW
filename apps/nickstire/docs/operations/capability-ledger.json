@@ -5889,6 +5889,37 @@
         "liveRuns": "NONE yet. Proof after deploy and after the statenour consumer half is live: the bdnick Shop line's open count and dollar total equal a read-only COUNT/SUM over work_order_items for the same definition; kill read at that time."
       },
       "blockers": []
+    },
+    {
+      "capabilityId": "facebook-reel-numbers",
+      "name": "Facebook reel numbers: plays, watch time, reactions and comments read by video id into fb: snapshots",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "2026-11-03 branch nickstire/fb-reel-numbers: a reel post_id answers Meta (#12) on read, proven on four live reels, so postFacebookVideo also returns videoId; it rides in publishToSocial results into the publish ledger platformResults (all three doors pass results unchanged). syncInstagramPosts runs syncFacebookReelInsights after the IG loop: candidates from findPublishedFacebookReelVideoIds (14 days), numbers from fetchFacebookReelInsights (video_insights fb_reels_total_plays and post_video_avg_time_watched, node reactions and comments summaries, likes fallback), one fb:<videoId> ig_metric_snapshots row each; unread numbers stay NULL. Read-only helper scripts/fb-reel-numbers.ts. No schema change.",
+        "tests": [
+          "server/metaSocial.fbReelInsights.test.ts (8): exact URLs, measured zero stays 0, unread field stays undefined, non-numeric ignored, likes fallback, every read failing is ok:false, network throw, no token. Red first 8/8.",
+          "server/instagram-data.fbReelInsights.test.ts (5), driven through the real nightly entry syncInstagramPosts: column mapping in native units, NOT NULL likes/comments never fabricated, insert failure counted, unreadable ledger is one error with no Graph call, empty window. Red first.",
+          "server/publishAttemptLedger.test.ts (+7): candidate parsing from real platformResults, de-dupe newest first, ambiguous and id-less rows skipped, handoff object ignored, broken JSON survived, sync throw and async rejection both THROW. Red first 7.",
+          "server/socialPublish.facebook.test.ts (+1, 2 updated): videoId on success and on an ambiguous finish. Red first 3.",
+          "Mutation: 12 of 12 mutants killed (scratch mutate script, 2026-11-03)."
+        ],
+        "verifiedAgainst": "Meta developer docs read 2026-11-03: developers.facebook.com/docs/graph-api/reference/video/video_insights/ : fb_reels_total_plays includes replays; blue_reels_play_count excludes them; post_video_avg_time_watched is milliseconds per play. Live read-only probe 2026-11-03 (env token) on a posted reel: those metrics answered single-metric calls; post_video_views and post_impressions_unique did not.",
+        "limits": "Not yet exercised by the nightly job in production. Nothing displays fb: rows yet (display waits for the operator). Reels posted outside the publish doors (four hand-posted 2026-11-03) are not in the ledger and are read only through the helper script."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No production nightly run has written an fb:<videoId> row yet; needs a cron reel that cross-posts to Facebook after deploy. No reader displays the rows."
+        }
+      ],
+      "deferredScope": [
+        "display of Facebook reel numbers (operator to pick: Admin card, Telegram note, or reports)",
+        "shares from post_video_social_actions (key names unverified)"
+      ],
+      "lastVerifiedAt": "2026-11-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

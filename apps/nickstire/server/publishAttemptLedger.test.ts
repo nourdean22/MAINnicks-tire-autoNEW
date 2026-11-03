@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 let inserted: Array<Record<string, unknown>>;
 let insertThrows: boolean;
+let selectThrows: boolean;
+let queryRejects: boolean;
 let rows: { attempts: Array<Record<string, unknown>>; outcomes: Array<{ codes: string; decision?: string | null; contextJson?: string | null; occurredAt?: Date }> };
 
 vi.mock("./db", () => ({
@@ -20,22 +22,32 @@ vi.mock("./db", () => ({
         return [{ affectedRows: 1 }];
       },
     }),
-    select: (proj?: unknown) => ({
-      from: () => ({
-        where: () => ({
-          orderBy: () => ({ limit: async () => (proj ? rows.outcomes : rows.attempts) }),
-          limit: async () => (proj ? rows.outcomes : rows.attempts),
+    select: (proj?: unknown) => {
+      if (selectThrows) throw new Error("db read down");
+      // A real driver failure is an async REJECTION of the query, not a synchronous throw from select().
+      const answer = async () => {
+        if (queryRejects) throw new Error("query failed");
+        return proj ? rows.outcomes : rows.attempts;
+      };
+      return {
+        from: () => ({
+          where: () => ({
+            orderBy: () => ({ limit: answer }),
+            limit: answer,
+          }),
         }),
-      }),
-    }),
+      };
+    },
   }),
 }));
 
-import { recordPublishAttempt, recordPublishOutcome, findUnreconciledAttempts, OUTCOME } from "./services/publishAttemptLedger";
+import { recordPublishAttempt, recordPublishOutcome, findUnreconciledAttempts, findPublishedFacebookReelVideoIds, OUTCOME } from "./services/publishAttemptLedger";
 
 beforeEach(() => {
   inserted = [];
   insertThrows = false;
+  selectThrows = false;
+  queryRejects = false;
   rows = { attempts: [], outcomes: [] };
 });
 
@@ -181,5 +193,79 @@ describe("findUnreconciledAttempts", () => {
 
   it("returns nothing when there are no attempts at all", async () => {
     expect(await findUnreconciledAttempts()).toEqual([]);
+  });
+});
+
+/**
+ * findPublishedFacebookReelVideoIds — the nightly Facebook reel numbers lane reads its candidates from the
+ * ledger's `publish_outcome` rows, whose `platformResults` is the publishToSocial results array the three
+ * publish doors (daily reel cron, instagramAdmin.publishPost, scheduledPosts) store unchanged.
+ */
+describe("findPublishedFacebookReelVideoIds", () => {
+  const outcomeRow = (platformResults: unknown, extra: Record<string, unknown> = {}) => ({
+    codes: "pub_1",
+    decision: "CONFIRMED",
+    occurredAt: new Date(),
+    contextJson: JSON.stringify({ attemptId: "pub_1", outcome: "CONFIRMED", igPostId: "ig_1", platformResults, ...extra }),
+  });
+  const ig = { platform: "instagram", success: true, postId: "ig_1" };
+  const fb = (videoId: string | undefined, over: Record<string, unknown> = {}) => ({
+    platform: "facebook",
+    success: true,
+    postId: "page_post_9",
+    ...(videoId ? { videoId } : {}),
+    ...over,
+  });
+
+  it("returns the video id of a Facebook reel that went live, from the stored publishToSocial results", async () => {
+    rows = { attempts: [], outcomes: [outcomeRow([ig, fb("vid_1")])] };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual(["vid_1"]);
+  });
+
+  it("returns each video once and keeps the newest-first order of the ledger read", async () => {
+    rows = { attempts: [], outcomes: [outcomeRow([fb("vid_2")]), outcomeRow([ig, fb("vid_1")]), outcomeRow([fb("vid_2")])] };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual(["vid_2", "vid_1"]);
+  });
+
+  it("skips a Facebook result that did not succeed, even an ambiguous one that carries a video id", async () => {
+    rows = { attempts: [], outcomes: [outcomeRow([fb("vid_1", { success: false, ambiguous: true, error: "socket hang up" })])] };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual([]);
+  });
+
+  it("skips rows with no video id (written before the id was kept): the post_id cannot be read, so it is never guessed", async () => {
+    rows = { attempts: [], outcomes: [outcomeRow([ig, fb(undefined)])] };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual([]);
+  });
+
+  it("ignores Instagram-only results and a non-array platformResults (the operator-handoff object shape)", async () => {
+    rows = {
+      attempts: [],
+      outcomes: [
+        outcomeRow([ig]),
+        outcomeRow({ detail: "Review these candidates", candidates: [], handoffReason: "facebook_unverifiable" }),
+        outcomeRow(null),
+      ],
+    };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual([]);
+  });
+
+  it("survives unreadable context JSON and keeps reading the other rows", async () => {
+    rows = {
+      attempts: [],
+      outcomes: [
+        { codes: "pub_x", decision: "CONFIRMED", occurredAt: new Date(), contextJson: "{broken" },
+        { codes: "pub_y", decision: "CONFIRMED", occurredAt: new Date(), contextJson: null },
+        outcomeRow([fb("vid_1")]),
+      ],
+    };
+    expect(await findPublishedFacebookReelVideoIds(14)).toEqual(["vid_1"]);
+  });
+
+  it("THROWS when the ledger cannot be read: an unreadable ledger must not look like no reels", async () => {
+    selectThrows = true;
+    await expect(findPublishedFacebookReelVideoIds(14)).rejects.toThrow("db read down");
+    selectThrows = false;
+    queryRejects = true; // the production shape: the query promise rejects
+    await expect(findPublishedFacebookReelVideoIds(14)).rejects.toThrow("query failed");
   });
 });
