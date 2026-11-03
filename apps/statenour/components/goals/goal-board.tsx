@@ -103,7 +103,8 @@ import { MilestonesFlow } from "@/components/actions/milestones-flow";
 import { ExecutionCoachSandbox } from "./execution-coach-sandbox";
 import { GoalLadder } from "./goal-ladder";
 import { GoalsHero, askNickAboutGoal } from "./goals-hero";
-import { etDay, goalsPulse, maximForGoalMoment, maximPoolWithout, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
+import { maximForGoalMoment } from "@/lib/brain/goal-maxim";
+import { etDay, goalsPulse, maximPoolWithout, momentInput, pickHeroGoal, type LadderPhase } from "@/lib/stats/goals-page";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
 
 import { trpc } from "@/lib/trpc/client";

@@ -5,14 +5,14 @@
  *  - missionPhaseLadder: the milestone ladder on a goal card, from the linked mission's plan phases
  *    (Asana: goal progress comes from the linked work). Read on the server in lib/services/goals.ts.
  *  - pickHeroGoal: the one goal the hero shows (Tability "My focus": the item that needs you now).
- *  - goalMomentState + maximForGoalMoment: one maxim from his books, only at a goal moment, the tag
- *    chosen by the state. A copy of W6's lib/brain/goal-maxim.ts contract until W6 merges (see SEAM).
+ *  - momentInput: a board goal as W6's maximForGoalMoment (lib/brain/goal-maxim.ts) reads it, so the card
+ *    and Nick's recall pick the same maxim for the same goal on the same day.
  *  - goalsPulse + movedLine: the hero's one-line band and its accountability line.
  * Every input is plain data; nothing here reads a clock it was not given.
  */
 import { etDaysBetween, goalDue, goalPaceView, type GoalHealth, type GoalHealthState, type PaceVerdict } from "@/lib/brain/goal-pace";
-import { today } from "@/lib/utils/datetime";
-import { etHourKey, pickMaximForDay, type Maxim, type MaximTag } from "@/lib/wisdom/maxims";
+import { goalMomentState, type GoalMomentInput } from "@/lib/brain/goal-maxim";
+import { etHourKey, type Maxim } from "@/lib/wisdom/maxims";
 
 
 // ── Milestone ladder ─────────────────────────────────────────────────────────────────────────────
@@ -67,57 +67,6 @@ export interface PageGoal {
   createdAt: string;
   horizonSetAt?: string | null;
   health?: GoalHealth;
-}
-
-/**
- * The goal moment and its maxim. SEAM (manager ruling 2026-11-03): the one selector is W6's
- * `maximForGoalMoment` in lib/brain/goal-maxim.ts, so the card and Nick's recall pick the same line.
- * Until W6 is on main, the block below is a copy of W6's file at e6bbf5d0e8 (same names, signature,
- * states, tags, key and cap); the swap is: delete the block, import the same names from
- * "@/lib/brain/goal-maxim". `momentInput` adapts a board goal to its input.
- */
-export const GOAL_MOMENT_STATES = ["behind_pace", "off_track", "at_risk", "check_in_due", "achieved"] as const;
-export type GoalMomentState = (typeof GOAL_MOMENT_STATES)[number];
-
-export const GOAL_MOMENT_TAG: Readonly<Record<GoalMomentState, MaximTag>> = {
-  off_track: "decisions",
-  behind_pace: "timing",
-  at_risk: "focus",
-  check_in_due: "focus",
-  achieved: "learning",
-};
-
-export const MAXIM_TEXT_MAX = 160;
-
-export interface GoalMomentInput {
-  id: string;
-  status: string;
-  health: GoalHealthState | null;
-  pace: { kind: string } | null;
-}
-
-export interface GoalMaxim {
-  id: string;
-  text: string;
-  origin: string;
-  state: GoalMomentState;
-}
-
-/** Highest first: achieved > off_track > behind_pace > at_risk > check_in_due; on track or unknown is none. */
-export function goalMomentState(g: Omit<GoalMomentInput, "id">): GoalMomentState | null {
-  if (g.status === "achieved") return "achieved";
-  if (g.status === "missed" || g.health === "off_track" || g.pace?.kind === "missed") return "off_track";
-  if (g.pace?.kind === "behind") return "behind_pace";
-  if (g.health === "at_risk") return "at_risk";
-  if (g.health === "no_check_in") return "check_in_due";
-  return null;
-}
-
-export function maximForGoalMoment(goal: GoalMomentInput, pool: readonly Maxim[], day: string = today()): GoalMaxim | null {
-  const state = goalMomentState(goal);
-  if (!state) return null;
-  const m = pickMaximForDay(pool, GOAL_MOMENT_TAG[state], `${day}:${goal.id}:${state}`);
-  return m ? { id: m.id, text: m.text.slice(0, MAXIM_TEXT_MAX), origin: m.source, state } : null;
 }
 
 // ── Board goals into the moment contract ──────────────────────────────────────────────────────────

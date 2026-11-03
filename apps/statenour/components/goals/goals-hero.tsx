@@ -14,7 +14,8 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { GoalHealthChip } from "./goal-check-in";
 import { goalPaceView, type GoalHealthState } from "@/lib/brain/goal-pace";
-import { movedLine, type GoalMaxim, type GoalMomentState, type HeroReason, type PageGoal, type SinceForHero } from "@/lib/stats/goals-page";
+import type { GoalMaxim, GoalMomentState } from "@/lib/brain/goal-maxim";
+import { movedLine, type HeroReason, type PageGoal, type SinceForHero } from "@/lib/stats/goals-page";
 
 const REASON_LABEL: Record<HeroReason, string> = {
   furthest_behind: "Furthest behind",

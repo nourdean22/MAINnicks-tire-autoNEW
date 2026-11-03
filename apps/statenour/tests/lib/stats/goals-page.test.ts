@@ -3,14 +3,10 @@
  * mission's plan, the hero pick, the maxim at a goal moment, the pulse line and the "moved" line.
  */
 import { describe, expect, it } from "vitest";
+import { goalMomentState, GOAL_MOMENT_STATES, GOAL_MOMENT_TAG, MAXIM_TEXT_MAX, maximForGoalMoment } from "@/lib/brain/goal-maxim";
 import {
   etDay,
-  goalMomentState,
   goalsPulse,
-  GOAL_MOMENT_STATES,
-  GOAL_MOMENT_TAG,
-  MAXIM_TEXT_MAX,
-  maximForGoalMoment,
   maximPoolWithout,
   missionPhaseLadder,
   momentInput,
