@@ -132,6 +132,8 @@ describe("draftGoalCheckIn (Linear L4/L5)", () => {
     expect(prompt).toContain("item 0");
     expect(prompt).toContain("item 1");
     expect(prompt).toMatch(/never claim/i);
+    // stored titles reach the prompt fenced as data (statenour-verify: every assembler names its fence)
+    expect(messages[1].content).toMatch(/<tool_data[^>]*>[\s\S]*item 0[\s\S]*<\/tool_data/);
     expect(r).toMatchObject({ health: "at_risk", note: "Two tasks closed; journal says the bank call slipped.", valueSuggestion: 5200 });
   });
 
@@ -158,6 +160,12 @@ describe("draftGoalCheckIn (Linear L4/L5)", () => {
 
   it("a provider sentinel returns unavailable, never a blank draft", async () => {
     h.aiChat.mockResolvedValue({ provider: "none", content: "" });
+    expect(await draftGoalCheckIn("goal_A")).toMatchObject({ unavailable: true });
+  });
+
+  it("the sentinel check stands on its own: an emergency answer is never a draft, even if it parses", async () => {
+    // Pinned apart from the parse layer (positive-control-first, mutation survived 2026-11-02).
+    h.aiChat.mockResolvedValue({ provider: "emergency", content: '{"health":"on_track","note":"canned"}' });
     expect(await draftGoalCheckIn("goal_A")).toMatchObject({ unavailable: true });
   });
 

@@ -93,6 +93,26 @@ describe("CheckInFormView", () => {
     expect(html).toContain("No draft: nothing logged since the last check-in");
     expect(html).not.toContain('aria-label="Value now"');
     // no health picked: Save is disabled, so a blank check-in cannot be saved
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Save check-in/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Save check-in/);
+  });
+  it("a note without a health still cannot save (pinned apart from the empty-note rule)", () => {
+    const html = renderToStaticMarkup(
+      <CheckInFormView
+        metric={false}
+        unit=""
+        health={null}
+        note="written, but no health picked"
+        value=""
+        draftState={{ kind: "manual" }}
+        saving={false}
+        error={null}
+        onHealth={() => {}}
+        onNote={() => {}}
+        onValue={() => {}}
+        onSave={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Save check-in/);
   });
 });
