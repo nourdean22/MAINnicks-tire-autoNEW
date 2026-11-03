@@ -190,8 +190,15 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
   // A note whose goal left the active list is saved ungrounded, never dropped: his words outlive the goal.
   const worded = notes.filter((n) => n.text);
   const ungrounded = worded.filter((n) => !goals.has(n.goalId)).map((n) => n.goalId);
-  const rows = [...worded.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const), ...(week ? [[week, null] as const] : [])];
-  if (rows.length === 0 && !notes.some((n) => n.health && goals.has(n.goalId))) throw new Error("Write one line before saving the review.");
+  const rows: (readonly [string, string | null])[] = [
+    ...worded.map((n) => [n.text, goals.has(n.goalId) ? n.goalId : null] as const),
+    ...(week ? [[week, null] as const] : []),
+  ];
+  const chipped = notes.filter((n) => n.health && goals.has(n.goalId));
+  if (rows.length === 0 && chipped.length === 0) throw new Error("Write one line before saving the review.");
+  // Round 2: a chips-only review still writes ONE row. It is the reviewId's claim (a retry after a lost response finds
+  // it and replays: no second extend, no false "not saved") and the next review's `since`.
+  if (rows.length === 0) rows.push([`Weekly review: checked in on ${chipped.map((n) => goals.get(n.goalId)!.title).join(", ")}`, null]);
 
   // One serializable transaction keyed by the form's reviewId: a failure saves nothing, and a retry after a commit
   // whose response was lost (a phone dropping signal) finds its own rows and writes nothing twice. Two concurrent

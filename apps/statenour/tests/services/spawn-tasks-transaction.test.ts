@@ -13,6 +13,10 @@ const h = vi.hoisted(() => ({
   createTask: vi.fn(),
   txCalls: 0,
   sync: vi.fn(),
+  /** Rollback-aware store: a create inside a transaction is pending until the callback returns. */
+  committed: [] as string[],
+  failSecond: false,
+  log: [] as string[],
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -21,7 +25,11 @@ vi.mock("@/lib/prisma", () => ({
     task: { findUnique: h.taskFind },
     $transaction: async (fn: (tx: unknown) => unknown) => {
       h.txCalls++;
-      return fn({ mission: { findUnique: h.missionFind, update: h.missionUpdate }, task: { findUnique: h.taskFind } });
+      const pending: string[] = [];
+      const out = await fn({ mission: { findUnique: h.missionFind, update: h.missionUpdate }, task: { findUnique: h.taskFind }, pending });
+      h.committed.push(...pending); // a throw above discards `pending`: the rollback
+      h.log.push("commit");
+      return out;
     },
   },
 }));
@@ -45,12 +53,23 @@ beforeEach(() => {
   h.createTask.mockReset();
   h.sync.mockReset();
   h.txCalls = 0;
+  h.committed = [];
+  h.log = [];
+  // A create joins the tx it is handed (pending until commit); without one it commits on the spot, as the
+  // pre-transaction code (3378eaafcf) did. It queues its post-create work on afterCommit like the real createTask.
+  h.createTask.mockImplementation(async (input: { title: string }, tx?: { pending: string[] }, afterCommit?: Array<() => void>) => {
+    if (input.title === "Run 3 km" && h.failSecond) throw new Error("db down");
+    const id = input.title === "Buy shoes" ? "t1" : "t2";
+    if (tx) tx.pending.push(id);
+    else h.committed.push(id);
+    afterCommit?.push(() => h.log.push(`effect:${id}`));
+    return { id };
+  });
+  h.failSecond = false;
 });
 
 describe("spawnProjectTasks", () => {
   it("creates every task and saves the task ids inside one transaction (createTask gets the tx client)", async () => {
-    h.createTask.mockResolvedValueOnce({ id: "t1" }).mockResolvedValueOnce({ id: "t2" });
-
     const r = await spawnProjectTasks({ missionId: "m1", phaseIndex: 0 });
 
     expect(h.txCalls).toBe(1);
@@ -61,15 +80,21 @@ describe("spawnProjectTasks", () => {
     expect(h.sync).toHaveBeenCalledTimes(1); // the global re-score runs once, after the commit
   });
 
-  it("a failure on the second task throws out of the transaction: nothing reports as spawned, no plan write", async () => {
-    h.createTask.mockResolvedValueOnce({ id: "t1" }).mockRejectedValueOnce(new Error("db down"));
+  it("a failure on the second task rolls the first back: zero tasks committed, no plan write, no post-create work", async () => {
+    h.failSecond = true;
 
     await expect(spawnProjectTasks({ missionId: "m1", phaseIndex: 0 })).rejects.toThrow("db down");
+    expect(h.committed).toEqual([]); // t1 was created inside the transaction that failed
     expect(h.missionUpdate).not.toHaveBeenCalled();
+    expect(h.log.filter((l) => l.startsWith("effect:"))).toEqual([]);
+  });
+
+  it("round 2: each task's post-create work (event, audit, enrich) runs only AFTER the commit", async () => {
+    await spawnProjectTasks({ missionId: "m1", phaseIndex: 0 });
+    expect(h.log).toEqual(["commit", "effect:t1", "effect:t2"]);
   });
 
   it("a spawned task carries no goalId unless the caller passes one (round 1 P1-10)", async () => {
-    h.createTask.mockResolvedValue({ id: "t" });
     await spawnProjectTasks({ missionId: "m1", phaseIndex: 0 });
     expect(h.createTask.mock.calls.every((c) => (c[0] as { goalId: unknown }).goalId === null)).toBe(true);
     h.createTask.mockClear();

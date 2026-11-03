@@ -123,6 +123,8 @@ export async function spawnProjectTasks(
   let alreadyExisted = 0;
   let lastPhaseName = "";
   const events: Array<{ taskId: string; phase: string; phaseIndex: number }> = [];
+  // createTask's own post-create work (event, audit, enrich: statHints) queued until this transaction commits.
+  const afterCommit: Array<() => void> = [];
 
   // Round 1 P1-5: every task and the plan's task ids commit together. A failure part-way used to leave the tasks
   // already made with no ids in the plan, report 0, and let a retry make them again.
@@ -165,6 +167,7 @@ export async function spawnProjectTasks(
         goalId: args.goalId ?? null,
         },
         tx,
+        afterCommit,
       );
       // createTask returns a view-model that can be null when the
       // post-create hydration query misses · skip back-reference
@@ -188,7 +191,8 @@ export async function spawnProjectTasks(
   });
   });
 
-  // After the commit: the supplemental project-spawn events and the one global re-score (createTask on a tx skips it).
+  // After the commit: each task's post-create work, the supplemental project-spawn events and the one global re-score.
+  for (const run of afterCommit) run();
   for (const e of events) {
     emitTaskEventAsync({ taskId: e.taskId, kind: "created", source: "api:project-spawn", payload: { projectId: mission.id, phase: e.phase, phaseIndex: e.phaseIndex } });
   }

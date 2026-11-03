@@ -1433,7 +1433,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                         <Badge className="bg-surface-interactive text-fg-tertiary text-[11px] h-4 border-0">
                           {g.domain}
                         </Badge>
-                        {(g.linkedTaskCount ?? 0) > 0 && g.loopsThisWeek != null && (
+                        {(g.linkedTaskCount ?? 0) > 0 && (
                           <span>
                             {g.linkedDoneCount}/{g.linkedTaskCount}{" "}
                             {g.kind === "milestone" ? "milestones" : "loops"}
@@ -1457,17 +1457,18 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                             "is this goal alive?" pulse. Pulled from
                             TaskEvent log; rendered emerald when > 0,
                             zinc when 0 with a "0 this week" callout. */}
-                        {(g.linkedTaskCount ?? 0) > 0 && (
+                        {/* W8a round 2: a failed weekly read is null (unknown); the chip hides rather than say 0. */}
+                        {(g.linkedTaskCount ?? 0) > 0 && g.loopsThisWeek != null && (
                           <span
                             className={cn(
                               "inline-flex items-center gap-0.5 px-1 rounded-control border",
-                              (g.loopsThisWeek ?? 0) > 0
+                              g.loopsThisWeek > 0
                                 ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
                                 : "border-edge-subtle text-fg-tertiary"
                             )}
                             title="Tasks completed on this goal in the last 7 days"
                           >
-                            {g.loopsThisWeek ?? 0} this week
+                            {g.loopsThisWeek} this week
                           </span>
                         )}
                         {(g.minutesInvested ?? 0) > 0 && (

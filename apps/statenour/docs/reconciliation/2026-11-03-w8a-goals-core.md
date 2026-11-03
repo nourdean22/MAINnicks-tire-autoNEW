@@ -21,6 +21,8 @@
 >
 > - **Manager round 1 part 2 (test-gap reader):** the soft-delete scanner reads the call's own argument, not 12 lines (a count could borrow the next call's `deletedAt`); that surfaced 5 real tombstone counts, fixed (output-guardian `task_count`, consolidation gate, brain-health contradictions + people, todo-desk parked) and 3 hoisted-where files allowlisted with reasons; an archived own goal is never lifted (the lift resolves through `taskGoalServer`); tests for the concurrent spawn through `checkTask`, lift failures, a milestone duplicate check-in, the recall people filter, `horizon_set` pace and "progress unread", each with a mutant shown red.
 
+> - **Manager round 2 (verification reader):** the goal card's "this week" chip hides on an unread count; a chips-only weekly review writes one review row, so a retry replays instead of extending twice; `createTask` inside a caller's transaction queues its event, audit and enrichment until that commit (spawned plan tasks get statHints again); two tests that only checked their mocks now fail on the old code.
+
 > **Flagged · NOT fixed**
 > - `lib/home/operator-brief.ts` (`loadLeadContext` :228 copy of the task-goal rule, `loadGoalCheckInDue` :269 third check-in query) is W8b's path; W8b swaps both to `taskGoalServer` / `activeGoalsWithHealth` (which now carries `createdAt` and `health.at` for `pickCheckInDue`).
 > - Not checked on a real phone: the Home due-row Link, the check-in panel opening from the deep link, the one-step chip, the task sheet from `?taskId=`. Live recall not exercised.

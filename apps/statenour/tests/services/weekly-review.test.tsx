@@ -193,13 +193,38 @@ describe("saveWeeklyReview", () => {
     expect(r.alreadyCheckedIn).toEqual(["g1"]);
   });
 
-  it("manager round 1 P1-8: a health chip with no note still logs the check-in (empty note) and writes no journal row", async () => {
+  it("manager round 1 P1-8: a health chip with no note still logs the check-in (empty note); its only row is the review claim", async () => {
     h.goals.mockResolvedValue([goal("g1")]);
     h.logGoalCheckIn.mockResolvedValue({ logged: true });
     const r = await saveWeeklyReview({ reviewId: RID, week: "", notes: [{ goalId: "g1", text: "  ", health: "at_risk" }], extend: [], achieved: [], missed: [] }, NOW);
     expect(h.logGoalCheckIn).toHaveBeenCalledWith({ goalId: "g1", health: "at_risk", note: "", source: "weekly-review" });
     expect(r.checkedIn).toEqual(["g1"]);
-    expect(h.create).not.toHaveBeenCalled();
+    // Round 2: one ungrounded review row is still written: it is the reviewId's claim and the next review's `since`.
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.create.mock.calls[0][0].data).toMatchObject({ goalId: null, extractedItems: JSON.stringify({ reviewId: RID }) });
+  });
+
+  it("manager round 2: a health-only review submitted twice (lost response, phone retry) extends once; the retry is a replay", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.logGoalCheckIn.mockResolvedValue({ logged: true });
+    const stored: { id: string; extractedItems: string }[] = [];
+    h.create.mockImplementation(async ({ data }: { data: { extractedItems: string } }) => {
+      const row = { id: `d-${stored.length + 1}`, extractedItems: data.extractedItems };
+      stored.push(row);
+      return { id: row.id };
+    });
+    h.prior.mockImplementation(async ({ where }: { where: { extractedItems: string } }) =>
+      stored.filter((r) => r.extractedItems === where.extractedItems).map((r) => ({ id: r.id })),
+    );
+    const input = { reviewId: RID, week: "", notes: [{ goalId: "g1", text: "", health: "on_track" as const }], extend: ["g1"], achieved: [], missed: [] };
+
+    const first = await saveWeeklyReview(input, NOW);
+    const retry = await saveWeeklyReview(input, NOW);
+
+    expect(first).toMatchObject({ replayed: false, extended: ["g1"], checkedIn: ["g1"] });
+    expect(retry).toMatchObject({ replayed: true, extended: [], checkedIn: [], alreadyCheckedIn: [] });
+    expect(h.updateGoal).toHaveBeenCalledTimes(1); // one 7-day extend, not two
+    expect(h.logGoalCheckIn).toHaveBeenCalledTimes(1);
   });
 
   it("manager round 1 P0-1: the saved screen says a duplicate's health was not saved", () => {

@@ -9,6 +9,10 @@ const h = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
   memoryCreate: vi.fn(),
+  /** The transaction client's create: DISTINCT from prisma.brainMemory.create, so a marker write is attributable. */
+  txMemoryCreate: vi.fn(),
+  /** Markers that survived their transaction (a throw inside the callback discards them: the rollback). */
+  committedMarkers: [] as string[],
   emit: vi.fn(),
   warn: vi.fn(),
 }));
@@ -18,7 +22,17 @@ vi.mock("@/lib/prisma", () => ({
     lifeGoal: { findUnique: h.findUnique, update: h.update },
     brainMemory: { create: h.memoryCreate },
     // Round 1 P2-17: a non-metric lift writes its marker and the increment in one transaction.
-    $transaction: (fn: (tx: unknown) => unknown) => fn({ lifeGoal: { findUnique: h.findUnique, update: h.update }, brainMemory: { create: h.memoryCreate } }),
+    $transaction: async (fn: (tx: unknown) => unknown) => {
+      const pending: string[] = [];
+      const create = async (args: { data: { key: string } }) => {
+        const r = await h.txMemoryCreate(args);
+        pending.push(args.data.key);
+        return r;
+      };
+      const out = await fn({ lifeGoal: { findUnique: h.findUnique, update: h.update }, brainMemory: { create } });
+      h.committedMarkers.push(...pending);
+      return out;
+    },
   },
 }));
 vi.mock("@/lib/brain/goal-events", () => ({ emitGoalEventAsync: h.emit }));
@@ -35,8 +49,10 @@ import { liftGoalOnTaskComplete } from "@/lib/services/tasks";
 const goal = (kind: string, unit = "$") => ({ id: "g1", kind, unit, currentValue: 4000, targetValue: 15000, status: "active", achievedAt: null });
 
 beforeEach(() => {
-  for (const fn of Object.values(h)) fn.mockReset();
+  for (const fn of Object.values(h)) if (typeof fn === "function") fn.mockReset();
+  h.committedMarkers = [];
   h.memoryCreate.mockResolvedValue({});
+  h.txMemoryCreate.mockResolvedValue({});
   h.update.mockResolvedValue({ currentValue: 4001, targetValue: 15000, status: "active" });
 });
 
@@ -71,9 +87,16 @@ describe("liftGoalOnTaskComplete by goal kind", () => {
 
   it("round 1 P2-17: a failed increment throws, so the marker rolls back with it and a later completion can retry", async () => {
     h.findUnique.mockResolvedValue(goal("milestone", ""));
-    h.update.mockRejectedValue(new Error("deadlock"));
+    h.update.mockRejectedValueOnce(new Error("deadlock"));
     await expect(liftGoalOnTaskComplete("g1", "t1")).rejects.toThrow("deadlock");
+    expect(h.memoryCreate, "the marker is never written on the global client (it would commit alone)").not.toHaveBeenCalled();
+    expect(h.txMemoryCreate).toHaveBeenCalledTimes(1);
+    expect(h.committedMarkers).toEqual([]);
     expect(h.emit).not.toHaveBeenCalled();
+    // The retry is open: the next completion lifts and its marker commits.
+    h.update.mockResolvedValue({ currentValue: 4001, targetValue: 15000, status: "active" });
+    expect(await liftGoalOnTaskComplete("g1", "t1")).toBe(true);
+    expect(h.committedMarkers).toEqual(["goal-lift:g1:t1"]);
   });
 
   it("round 1 P1-9: the lift says whether the value moved (metric: false, milestone: true, repeat: false)", async () => {
@@ -81,7 +104,7 @@ describe("liftGoalOnTaskComplete by goal kind", () => {
     expect(await liftGoalOnTaskComplete("g1", "t1")).toBe(false);
     h.findUnique.mockResolvedValue(goal("milestone", ""));
     expect(await liftGoalOnTaskComplete("g1", "t2")).toBe(true);
-    h.memoryCreate.mockRejectedValue(Object.assign(new Error("Unique constraint"), { code: "P2002" }));
+    h.txMemoryCreate.mockRejectedValue(Object.assign(new Error("Unique constraint"), { code: "P2002" }));
     expect(await liftGoalOnTaskComplete("g1", "t2")).toBe(false);
   });
 

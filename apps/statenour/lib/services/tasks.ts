@@ -549,7 +549,13 @@ export async function getTaskById(id: string) {
   return buildTaskViewModels([task], missions, { withBreakdown: true })[0];
 }
 
-export async function createTask(input: unknown, tx?: Prisma.TransactionClient) {
+/**
+ * `tx` joins a caller's transaction. Then `afterCommit` is required: the event, audit, caches, due reminder and the
+ * linkage enrichment are queued there for the caller to run after ITS commit (W8a round 2: fired on the global client
+ * before the commit, enrich found no row and gave up, so spawned plan tasks never got statHints).
+ */
+export async function createTask(input: unknown, tx?: Prisma.TransactionClient, afterCommit?: Array<() => void>) {
+  if (tx && !afterCommit) throw new Error("createTask inside a transaction needs afterCommit for its post-commit work");
   const payload = taskCreateSchema.parse(input);
 
   // A bare quick-add task carries no explicit "next physical action";
@@ -697,29 +703,33 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
   // caller owns the refresh, exactly as createMission/updateMission already do.
   if (!tx) scheduleGlobalPrioritySync("createTask");
 
-  // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
-  // commits so analytics never blocks the user-facing write path.
-  emitTaskEventAsync({ taskId: result.task.id, kind: "created", source: "service:createTask" });
-  // Execution Deck (2026-09-01): arm the due-time reminder sleeper when the
-  // task is born with a future due date (fire-and-forget).
-  if (result.task.dueDate) {
-    void import("@/lib/services/task-due-reminders").then(({ syncDueReminder }) =>
-      syncDueReminder(result.task.id, null, result.task.dueDate),
-    );
-  }
-  // v8.0 Phase 2A — entity-audit create.
-  void logCreate("task", result.task.id, result.task as unknown as Record<string, unknown>, {
-    source: "service:createTask",
-  });
-  // v9.1.23 · cache invalidation — dashboard_brief etc.
-  invalidateMutationCaches();
+  const sideEffects = () => {
+    // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
+    // commits so analytics never blocks the user-facing write path.
+    emitTaskEventAsync({ taskId: result.task.id, kind: "created", source: "service:createTask" });
+    // Execution Deck (2026-09-01): arm the due-time reminder sleeper when the
+    // task is born with a future due date (fire-and-forget).
+    if (result.task.dueDate) {
+      void import("@/lib/services/task-due-reminders").then(({ syncDueReminder }) =>
+        syncDueReminder(result.task.id, null, result.task.dueDate),
+      );
+    }
+    // v8.0 Phase 2A — entity-audit create.
+    void logCreate("task", result.task.id, result.task as unknown as Record<string, unknown>, {
+      source: "service:createTask",
+    });
+    // v9.1.23 · cache invalidation — dashboard_brief etc.
+    invalidateMutationCaches();
 
-  // 2026-06-01 · classification spine · fire-and-forget enrichment AFTER the
-  // task exists (snappy create, no AI on the write path). Fills mission/goal/
-  // statHints when they're unset — so EVERY creation path (this service, the
-  // AI tool, follow-ups, auto-spawn) lands a task that correlates to a
-  // mission + goal + stats, not a generic Inbox orphan.
-  void enrichTaskLinkage(result.task.id);
+    // 2026-06-01 · classification spine · fire-and-forget enrichment AFTER the
+    // task exists (snappy create, no AI on the write path). Fills mission/goal/
+    // statHints when they're unset — so EVERY creation path (this service, the
+    // AI tool, follow-ups, auto-spawn) lands a task that correlates to a
+    // mission + goal + stats, not a generic Inbox orphan.
+    void enrichTaskLinkage(result.task.id);
+  };
+  if (tx) afterCommit!.push(sideEffects);
+  else sideEffects();
 
   return result.vm;
 }
