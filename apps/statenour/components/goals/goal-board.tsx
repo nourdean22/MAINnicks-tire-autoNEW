@@ -797,6 +797,8 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
   useEffect(() => {
     onFocusGoal?.(focusId && focusTitle ? { id: focusId, title: focusTitle } : null);
   }, [onFocusGoal, focusId, focusTitle]);
+  // Leaving the Goals tab unmounts the board: Nick no longer has a goal open.
+  useEffect(() => () => onFocusGoal?.(null), [onFocusGoal]);
 
   return (
     <div className="space-y-3">
