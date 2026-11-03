@@ -53,12 +53,15 @@ function hasEnrichProposal(pc: unknown): boolean {
   return !!o && (!!o.role || !!o.leverageNotes || (typeof o.trustAdjustment === "number" && o.trustAdjustment !== 0));
 }
 
-/** Up to `max` snippets of HIS OWN chat messages naming the person (whole word), newest first. */
-async function chatSnippets(name: string, max: number): Promise<string[]> {
+/**
+ * Up to `max` snippets of HIS OWN chat messages naming the person (whole word), newest first. `conversationId`
+ * keeps them to one chat (scripts/backfill-interconnect.ts: a dated ledger row gets words from its own conversation).
+ */
+export async function chatSnippets(name: string, max: number, conversationId?: string): Promise<string[]> {
   const re = nameMatcher(name);
   // shortcut: a short name inside many longer words can fill the 20 rows with non-matches; widen take if a name that short appears.
   const rows = await prisma.chatMessage.findMany({
-    where: { role: "user", content: { contains: name.trim(), mode: "insensitive" } },
+    where: { role: "user", content: { contains: name.trim(), mode: "insensitive" }, ...(conversationId ? { conversationId } : {}) },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: { content: true },
