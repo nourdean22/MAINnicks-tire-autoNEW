@@ -17,6 +17,13 @@
  *                         script name; only its command string is replaced; every other key is kept.
  *   skills/<name>         byte copies of the always-on skills that have a repo copy in .claude/skills (whole folder)
  *   CLAUDE.md             the block between the nourcity-always-on markers, from config/agent-os/global-claude-md-block.md
+ *   settings.json hooks   (2026-11-03) SessionStart -> graph-ensure-mcp.mjs --scope global and UserPromptSubmit ->
+ *                         graph-recall.mjs --scope global from this checkout, so every repo on the machine gets the graph
+ *                         MCP launched and queried; both stay silent inside a project whose own settings run them.
+ * And one file beside it: <home>/.claude.json `mcpServers.graphify` = the user-scope MCP entry (what `claude mcp add
+ * --transport http --scope user` writes; docs: code.claude.com/docs/en/mcp, read 2026-11-03), the mirror of the repo's
+ * .mcp.json for other repos on the machine. Every other key in that file is kept; a file that is not valid JSON is
+ * never touched (DRIFT with a fix-by-hand note).
  * A file is backed up to <home>/.claude/bootstrap-backup/ before it is changed. A second run changes nothing.
  *
  * The hook line also names each plugin in config/agent-os/required-plugins.json that this account or machine has not
@@ -27,7 +34,7 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { matcherCovers, SKILLS } from "./always-on-skills.mjs";
 import { configDir, enabledPlugins, readRouting } from "./plugin-index.mjs";
@@ -76,7 +83,9 @@ export function plan(home) {
   const items = [];
   const backup = (file) => {
     if (!existsSync(file)) return;
-    const to = join(claude, "bootstrap-backup", `${new Date().toISOString().replace(/[:.]/g, "-")}`, relative(claude, file));
+    // ~/.claude.json sits beside the config dir, not inside it: keep its backup inside bootstrap-backup/ by base name.
+    const rel = relative(claude, file);
+    const to = join(claude, "bootstrap-backup", `${new Date().toISOString().replace(/[:.]/g, "-")}`, rel.startsWith("..") ? basename(file) : rel);
     mkdirSync(dirname(to), { recursive: true });
     copyFileSync(file, to);
   };
@@ -119,6 +128,8 @@ export function plan(home) {
     { event: "UserPromptSubmit", matcher: "", key: "find-skills-turn.mjs", command: `node "${fwd(join(claude, "hooks", "find-skills-turn.mjs"))}"`, timeout: 5 },
     { event: "UserPromptSubmit", matcher: "", key: "skill-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "skill-recall.mjs"))}" --scope global` },
     { event: "UserPromptSubmit", matcher: "", key: "prompt-sharpen.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "prompt-sharpen.mjs"))}" --scope global`, timeout: 5 },
+    { event: "SessionStart", matcher: "", key: "graph-ensure-mcp.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-ensure-mcp.mjs"))}" --scope global`, timeout: 5 },
+    { event: "UserPromptSubmit", matcher: "", key: "graph-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-recall.mjs"))}" --scope global`, timeout: 5 },
   ];
   let settings;
   let settingsErr = null;
@@ -155,6 +166,29 @@ export function plan(home) {
       writeFileSync(settingsFile, `${JSON.stringify(s, null, 2)}\n`);
     } });
   }
+
+  // User-scope MCP entry in ~/.claude.json (beside the config dir: <configDir>/../.claude.json, or <home>/.claude.json).
+  const claudeJson = join(dirname(claude), ".claude.json");
+  const graph = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "local-services.json"), "utf8")).servers.find((s) => s.kind === "graphify");
+  const wantMcp = { type: "http", url: `http://127.0.0.1:${graph.port}${graph.path}` };
+  const mcpLabel = "~/.claude.json mcpServers graphify";
+  let cj = null;
+  let cjErr = null;
+  try {
+    cj = existsSync(claudeJson) ? JSON.parse(readFileSync(claudeJson, "utf8")) : {};
+  } catch {
+    cjErr = ".claude.json is not valid JSON: fix it by hand first";
+  }
+  const have = cj?.mcpServers?.graphify;
+  const mcpState = cjErr ? "DRIFT" : !have ? "MISSING" : have.type === wantMcp.type && have.url === wantMcp.url ? "ok" : "DRIFT";
+  items.push({ label: cjErr ? `${mcpLabel} (${cjErr})` : mcpLabel, state: mcpState, apply() {
+    if (cjErr) throw new Error(cjErr);
+    const s = existsSync(claudeJson) ? JSON.parse(readFileSync(claudeJson, "utf8")) : {};
+    s.mcpServers = { ...(s.mcpServers ?? {}), graphify: wantMcp };
+    backup(claudeJson);
+    mkdirSync(dirname(claudeJson), { recursive: true });
+    writeFileSync(claudeJson, `${JSON.stringify(s, null, 2)}\n`);
+  } });
 
   // Global CLAUDE.md pointer block.
   const mdFile = join(claude, "CLAUDE.md");

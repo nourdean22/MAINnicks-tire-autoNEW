@@ -136,6 +136,17 @@ foreach ($server in @($config.servers)) {
     }
     if (-not $Start) { Write-Output "DOWN  $($server.name)  $url"; continue }
 
+    # DOWN with the recorded pid still alive = a listener that died under its process (2026-11-03: asyncio's accept loop
+    # ended with WinError 64 during a graph rebuild; graph_stats had answered minutes before). Our own pid, so end it
+    # before starting a fresh one; anything else on the port is WRONG SERVICE above and is never touched.
+    if (Test-Path $pidFile) {
+        $stalePid = [int]((Get-Content $pidFile -Raw).Trim())
+        $stale = Get-Process -Id $stalePid -ErrorAction SilentlyContinue
+        if ($stale -and $stale.ProcessName -match 'graphify|python') {
+            Stop-Process -Id $stalePid -Force -ErrorAction SilentlyContinue
+            Write-Output "STOPPED  $($server.name)  pid $stalePid was alive but not listening on $($server.port)"
+        }
+    }
     $launch = Get-Launch $server
     if ($launch.Problem) { Write-Output "DOWN  $($server.name)  $url - cannot start: $($launch.Problem)"; $down++; continue }
     New-Item -ItemType Directory -Force $logDir | Out-Null

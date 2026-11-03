@@ -71,6 +71,7 @@ App code under `apps/**`: write it under "Cross-lane needs" and stop there.
 2. Any guard, policy, hook or lint rule -> `guard-red-team` and `positive-control-first` (ship the canary: a test that
    breaks the gate and asserts it fails).
 3. Root adapters have line caps (`scripts/agent-os/check-adapters.mjs`). Never reflow lines to fit.
+4. Before editing a symbol, read its graph neighbours: the `[graph-recall]` line in your turn (file:line, community, callers), or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not your branch.
 
 ## Checkpoint commits
 

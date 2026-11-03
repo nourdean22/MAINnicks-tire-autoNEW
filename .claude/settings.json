@@ -35,6 +35,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-health.mjs\"",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/graph-ensure-mcp.mjs\"",
+            "timeout": 15
           }
         ]
       },
@@ -107,6 +112,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/memory-recall.mjs\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/graph-recall.mjs\"",
+            "timeout": 5
           },
           {
             "type": "command",

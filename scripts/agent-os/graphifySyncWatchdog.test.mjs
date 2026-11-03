@@ -105,3 +105,14 @@ test("session start: HUNG for a live sync held 5 h, STALE LOCK for a dead one, q
     holder.kill();
   }
 });
+
+// Rebuild on merge (job 2026-11-03-graphify-always-on): while a sync holds a FRESH lock the graph line says so, so a
+// session reading "N commits ahead" knows the rebuild is already underway instead of launching another.
+test("session start: a fresh lock (5 min) adds `rebuild queued` to the freshness line; 89 min too; no lock says nothing", { skip: win }, () => {
+  const holder = spawn("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep 120"], { stdio: "ignore" });
+  try {
+    assert.match(sessionContext({ ageMin: 5, pid: holder.pid }), /graph freshness: [^\n]* - rebuild queued \(sync lock held 5 min, pid \d+\)/);
+    assert.match(sessionContext({ ageMin: 89, pid: holder.pid }), /rebuild queued \(sync lock held 89 min/);
+    assert.doesNotMatch(sessionContext(null), /rebuild queued/);
+  } finally { holder.kill(); }
+});

@@ -208,6 +208,14 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
   another machine), prints nothing. Fails open: `[memory-recall] off: <reason>`, exit 0. Canary `memoryRecall.test.mjs`
   (planted memory directory, real script, configured command verbatim, three mutants: no floor, `_bak_` copies indexed,
   no line cap; plus a consumer check that the default resolution finds the real directory where one exists).
+- **UserPromptSubmit** (`graph-recall.mjs`, 2026-11-03, right after memory-recall) prints, for the symbols a prompt names
+  (backticked words, paths, file names, camelCase, snake_case; 1 to 6), one `[graph-recall] <symbol> -> <file:line> ·
+  community <name> · callers: a, b, c` line each, from the graphify MCP over HTTP (one initialize, get_node per symbol,
+  get_neighbors per hit; 10-30 ms a call, measured; `graphify query` on the CLI takes 14 s). Caps in one block: a prompt
+  under 12 chars or a bare slash command prints nothing, 6 symbols, 1.5 s budget (a slow answer is dropped, never
+  waited for). Silent when nothing resolves and when the MCP is down; one `[graph-recall] mcp down, next: <command>` line
+  only when graph-ensure-mcp recorded a real DOWN this session. Fails open: `[graph-recall] off: <reason>`, exit 0.
+  Canary `graphRecall.test.mjs` (stub MCP in a child process, configured command verbatim, three mutants: cap, budget, floor).
 - **UserPromptSubmit** (`prompt-sharpen.mjs`, 2026-10-31, after `operator-asks.mjs --refresh`) prints one `[sharpen]` block for a
   short, open-ended ask ("what about the rest", "?", "improve"): likely intent, deliverable, this session's last 3 asks as
   referents, other active sessions, unknowns, a rewrite. Deterministic, no model call; private-tagged asks print nothing.
@@ -237,6 +245,18 @@ github-client canaries 403'd every PR whenever another workflow had spent the bu
     the MAIN checkout; Serena was trialled and rejected, `docs/UPSTREAMS.md`), `scripts/register-local-mcp-task.ps1`
     (AtLogOn task NOURCITY-Local-MCP), `scripts/graphify-sync-launcher.ps1` and `scripts/register-graphify-sync-task.ps1`
     (daily 04:00; brain ingest only with `-IngestBrain`).
+- **SessionStart** (`graph-ensure-mcp.mjs`, 2026-11-03, every source, right after session-health; 3 s budget inside a 15 s
+  hook timeout: in a real session the probe took 35 ms and the process 7.2 s wall under startup load) probes the graphify MCP with session-health's own initialize and, when it is DOWN, launches it through
+  `scripts/local-mcp-servers.ps1 -Start` (Start-Process, hidden, its own console: a powershell spawned `detached` from
+  node reports exit 0 after 0.7 s while its script runs on, measured), re-probing every 250 ms. One line: `[graph] mcp up
+  (<ms>)` | `mcp started (<ms>)` | `mcp started (not answering yet ...; graphify listens in about 20 s)` | `mcp DOWN:
+  launcher exited N, next: <command>` | `mcp UNKNOWN (no answer in 1 s)` (something holds the port; never launches a
+  second) | `mcp: not expected on host X; fallback: GRAPH_REPORT.md + graphify query`. Exit 0 always; `[graph] off:`
+  on an own error. Writes its verdict to `%LOCALAPPDATA%/nourcity/graph-mcp.json` for graph-recall. Seen live
+  2026-11-03: the server process was alive while its listener had died (asyncio accept loop, WinError 64, during a
+  rebuild); `-Start` now ends a recorded pid that is alive but not listening before starting a fresh one. Canary
+  `graphEnsureMcp.test.mjs` (stub MCP + stub launcher: up, started, launcher fails, launcher missing, wrong service,
+  budget, host gate, broken config, configured command verbatim).
 - **Session workflow (2026-10-16, job session-workflow-upgrade PR 1).** All machine-local state lives in
   `%LOCALAPPDATA%/nourcity/`, outside the repo. Tested, not live until merged: hooks load from the primary checkout.
   - `heavy.mjs run -- <cmd>`: one machine-wide lease for heavy runs (20 min expiry, dead-pid takeover); waits while the
@@ -433,6 +453,31 @@ Job 2026-10-26-always-on-hardening. Four pieces:
 Required plugins (each with its reason and enable line in the JSON): agentic-council, receipts-check, desktop-commander
 (account plugins), avoid-ai-writing, pr-review-toolkit, hookify (machine installs). Not live until the primary checkout
 is fast-forwarded, because hooks load from there.
+
+### Graph always on: fresh to the last merge, in every program (2026-11-03)
+
+Nour, 2026-11-03: "update the hooks to always use graphify launch the mcp whenever working and to always query the graph
+and make it global so no matter what account or program i use no context is lost". Job 2026-11-03-graphify-always-on.
+The two hooks above (launch, query) plus:
+
+1. **Rebuild on every merge.** `merge-gate.mjs` step 6 calls `graph-rebuild.mjs` once a PR reads MERGED: it spawns,
+   detached and unreferenced, `heavy.mjs run --max-wait 1800s -- powershell ... graphify-obsidian-sync.ps1 -GraphOnly`
+   on the PRIMARY checkout (steps 0, 1 and the governance receipt: fast-forward, `graphify update .` under the 45 min
+   watchdog, receipt; no labels, render, vault, rotation or ingest). A fresh `.sync-running` lock (under 90 min) means a
+   rebuild is already running: nothing is spawned. Measured 2026-11-03 on 80,993 nodes: `graphify update .` re-extracts
+   every code file (7,381, "uncached"), 8 min 40 s, 4.0 GB peak RSS (python), hence the heavy lease. The MCP hot-reloads
+   graph.json by mtime (graphify serve.py), so no restart; the daily NOURCITY-Graphify-Sync task stays the fallback and
+   the only path that relabels communities. The SessionStart graph line adds `- rebuild queued (sync lock held N min,
+   pid P)` while the lock is fresh. heavy's lines: `graphify-out/.sync.log`; the sync's: `graphify-out/obsidian-sync.log`.
+   Canaries: `graphRebuild.test.mjs`, the rebuild arms in `mergeGate.test.mjs`, the lock arm in `graphifySyncWatchdog.test.mjs`.
+2. **Every program, every account.** `scripts/agent-os/mcp-adapters.mjs --write` generates `.mcp.json` (Claude Code
+   project scope, approved once per user interactively), `.codex/config.toml` (trusted projects), `.cursor/mcp.json`,
+   `.gemini/settings.json` (`httpUrl`) and `.vscode/mcp.json` (`servers`) from `config/agent-os/local-services.json`;
+   `check-adapters.mjs` section 7 (`pnpm agent:parity`, lefthook, CI) fails on a hand edit. `bootstrap-machine.mjs`
+   mirrors it at user level: `~/.claude.json mcpServers.graphify` and the two graph hooks with `--scope global` (silent
+   where the project runs them). Canaries: `mcpAdapters.test.mjs`, the graph arms in `bootstrapMachine.test.mjs`.
+3. **Policy, one line each.** AGENTS.md > Context routing, every `.claude/agents/lane-*.md`, the operating profile's
+   SUBAGENT POLICY rule 8, the brief template's `GRAPH:` line, GEMINI.md and `.cursor/rules/repo-core.mdc`.
 
 ## MCP and native-runner coverage (2026-10-15)
 

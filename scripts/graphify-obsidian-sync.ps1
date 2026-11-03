@@ -4,12 +4,17 @@
 # python step backs up the previous vault export before replacing it,
 # and everything appends to graphify-out/obsidian-sync.log.
 #
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/graphify-obsidian-sync.ps1 [-IngestBrain]
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/graphify-obsidian-sync.ps1 [-IngestBrain] [-GraphOnly]
 #   -IngestBrain  also run step 5 (vault notes -> statenour's PRODUCTION brain_memories). Off by default since
 #                 2026-10-19 (Nour): a code-graph refresh must not write production rows as a side effect.
+#   -GraphOnly    steps 0, 1 and the governance receipt only (no labels, render, vault, rotation or ingest): the
+#                 door merge-gate.mjs uses after every merge to main (scripts/agent-os/graph-rebuild.mjs, 2026-11-03),
+#                 so the MCP serves main as of the merge; the daily task still runs the full sync. Community names
+#                 stay hub-derived until that run (graphify update re-clusters and never relabels, see step 1.5).
 param(
     [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent),
-    [switch]$IngestBrain
+    [switch]$IngestBrain,
+    [switch]$GraphOnly
 )
 
 $ErrorActionPreference = "Continue"
@@ -147,6 +152,10 @@ if ($updateExit -ne 0) {
     exit 1
 }
 
+# Provenance for the done line (set again below when labeling runs): hub-derived until an LLM relabel succeeds.
+$labelStatus = "hub-derived"
+if ($GraphOnly) { $labelStatus = "skipped (graph-only)"; Log "graph-only run (merge rebuild): skipping labels, render, vault, rotation and ingest" }
+
 # 1.5. Refresh community NAMES with the LLM.
 #
 # WHY THIS EXISTS. `graphify update` re-clusters but never relabels. When the
@@ -170,6 +179,7 @@ if ($updateExit -ne 0) {
 # must never cost the daily graph + vault refresh, so every failure path here logs
 # and continues; graphify keeps its deterministic hub labels when labeling fails,
 # which is exactly the pre-existing behaviour.
+if (-not $GraphOnly) {
 $labelBackend = if ($env:GRAPHIFY_LABEL_BACKEND) { $env:GRAPHIFY_LABEL_BACKEND } else { "ollama" }
 $labelModel   = if ($env:GRAPHIFY_LABEL_MODEL)   { $env:GRAPHIFY_LABEL_MODEL }   else { "glm-5.2:cloud" }
 
@@ -258,8 +268,6 @@ if (-not $labelSkip -and $labelBackend -eq "ollama") {
 # or fell back to graphify's deterministic hub labels. A skipped labeling step
 # exits 0 and looks identical to a healthy run in every other respect, so without
 # this the log cannot distinguish "named" from "silently rotting".
-$labelStatus = "hub-derived"
-
 if ($labelSkip) {
     $labelStatus = "skipped"
     Log "WARN: SKIPPING community labeling - $labelSkip. Hub-derived names retained (skipped ~24 min of doomed retries)."
@@ -306,6 +314,7 @@ if ($LASTEXITCODE -ne 0) {
     Release-GraphLock
     exit 1
 }
+} # end of the -not GraphOnly block (labels, render, vault)
 
 # 3.5. GOVERNED CODE-INTELLIGENCE RECEIPTS.
 #
@@ -326,7 +335,9 @@ if (-not $nodeCommand) {
         Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}$' -and (Test-Path (Join-Path $_.FullName "graph.json")) } |
         Sort-Object Name)
 
-    if ($snapshotDirs.Count -ge 2) {
+    if ($GraphOnly) {
+        Log "graphify necropsy skipped - graph-only run (the daily sync compares snapshots)"
+    } elseif ($snapshotDirs.Count -ge 2) {
         Log "running graphify importer-death necropsy over newest snapshots"
         & $nodeCommand.Source (Join-Path $RepoRoot "scripts\graphify-necropsy.mjs") 2>&1 | Add-Content -Path $log
         if ($LASTEXITCODE -ne 0) {
@@ -361,7 +372,9 @@ $keepBackups = 7
 $backups = @(Get-ChildItem -Path (Join-Path $RepoRoot "graphify-out") -Directory -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -match '^obsidian-backup-\d{4}-\d{2}-\d{2}$' } |
     Sort-Object Name)
-if ($backups.Count -gt $keepBackups) {
+if ($GraphOnly) {
+    Log "vault backups: rotation skipped (graph-only run)"
+} elseif ($backups.Count -gt $keepBackups) {
     $drop = $backups[0..($backups.Count - $keepBackups - 1)]
     foreach ($d in $drop) {
         Remove-Item -Path $d.FullName -Recurse -Force -ErrorAction SilentlyContinue
@@ -398,7 +411,7 @@ $statenour = Join-Path $RepoRoot "apps\statenour"
 # brain_memories, so a scheduled code-graph refresh no longer does it as a side
 # effect. Pass -IngestBrain (to this script or the launcher) to run it.
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-if (-not $IngestBrain) {
+if (-not $IngestBrain -or $GraphOnly) {
     Log "brain ingest skipped (opt-in -IngestBrain, Nour 2026-10-19)"
 } elseif (-not $pnpmCommand) {
     # PowerShell command-not-found is non-terminating here and leaves

@@ -388,6 +388,23 @@ if (requireFile("config/agent-os/required-plugins.json", "required-plugin list f
   }
 }
 
+// ── 7 · MCP adapters (2026-11-03): the five program-side MCP files are generated from local-services.json ──
+// .mcp.json, .codex/config.toml, .cursor/mcp.json, .gemini/settings.json and .vscode/mcp.json all point at the same
+// graphify URL; a hand edit to one is drift (mcp-adapters.mjs --write regenerates). Imported lazily: a broken generator
+// is one violation here, never a crash of the whole parity check.
+// Skipped where there is no local-services.json to generate from (the canary fixture trees); the real repo has one, and
+// mcpAdapters.test.mjs fails on the real repo if it ever goes missing.
+if (exists("config/agent-os/local-services.json")) try {
+  const { adapterDrift } = await import("./mcp-adapters.mjs");
+  for (const it of adapterDrift(ROOT)) {
+    checks++;
+    if (it.state !== "ok") errors.push(`${it.state.padEnd(8)} ${it.file} — generated from config/agent-os/local-services.json; run node scripts/agent-os/mcp-adapters.mjs --write`);
+  }
+} catch (err) {
+  checks++;
+  errors.push(`BROKEN   scripts/agent-os/mcp-adapters.mjs — ${String(err?.message || err).split(/\r?\n/)[0]}`);
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 if (errors.length) {
   console.error(`agent-os parity: ${errors.length} violation(s) across ${checks} checks\n`);

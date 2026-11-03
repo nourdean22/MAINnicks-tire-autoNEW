@@ -182,12 +182,19 @@ try {
     }
 
     Write-Output '=== CODE GRAPH (graphify) ==='
-    Write-Output ($verdict + $via)
     # A sync lock held 90+ min means the nightly sync hung (2026-11-01: 5 h with task result 0; a normal run is 8 min).
+    # A FRESH lock is a rebuild underway (the daily task, or merge-gate.mjs after a merge since 2026-11-03): say so on the
+    # freshness line, so "N commits ahead" is read as "being fixed", not as a reason to start another.
     $syncLock = Join-Path (Split-Path -Parent $report) '.sync-running'
     $lockItem = Get-Item $syncLock -ErrorAction SilentlyContinue
+    $lockMin = if ($lockItem) { [int]((Get-Date) - $lockItem.LastWriteTime).TotalMinutes } else { -1 }
+    if ($lockItem -and $lockMin -lt 90) {
+        $lockText = "$(Get-Content $syncLock -Raw -ErrorAction SilentlyContinue)".Trim()
+        $lockPid = if ($lockText -match 'pid=(\d+)') { $Matches[1] } else { '?' }
+        $verdict += " - rebuild queued (sync lock held $lockMin min, pid $lockPid)"
+    }
+    Write-Output ($verdict + $via)
     if ($lockItem) {
-        $lockMin = [int]((Get-Date) - $lockItem.LastWriteTime).TotalMinutes
         if ($lockMin -ge 90) {
             $lockText = "$(Get-Content $syncLock -Raw -ErrorAction SilentlyContinue)".Trim()
             $lockPid = if ($lockText -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
