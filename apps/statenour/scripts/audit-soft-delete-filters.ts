@@ -121,6 +121,18 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
       "FALSE POSITIVE, same shape: dumpWhere carries `deletedAt: null` at its definition (~:1139). Verified 2026-09-01.",
   },
   {
+    file: "lib/services/contradictions.ts",
+    contains: "prisma.contradiction.count({ where: OPEN_WHERE })",
+    reason:
+      "FALSE POSITIVE, same shape: OPEN_WHERE is `{ deletedAt: null, resolved: false }` at its definition just above. Verified 2026-11-03.",
+  },
+  {
+    file: "lib/services/contradictions.ts",
+    contains: "prisma.contradiction.count({ where }),",
+    reason:
+      "FALSE POSITIVE, same shape: listStoredContradictions' `where` is OPEN_WHERE or a literal carrying `deletedAt: null`, and the findMany beside it shares the same const. Verified 2026-11-03.",
+  },
+  {
     file: "app/api/cron/data-cleanup/route.ts",
     contains: "brainGcWhere",
     reason:
