@@ -130,17 +130,27 @@ export const GET = apiHandler(
     if (rows.length > 0) {
       try {
         // ONE query, the newest live entry PER listed person however old (Prisma has no DISTINCT ON over an array).
-        const latest = await prisma.$queryRaw<Array<{ person_id: string; id: string; created_at: Date; raw_thoughts: string }>>`
-          SELECT DISTINCT ON (pid) pid AS person_id, d.id, d.created_at, d.raw_thoughts
-          FROM brain_dumps d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
-          WHERE d.deleted_at IS NULL AND pid = ANY(${rows.map((r) => r.id)}::text[])
+        // W8b: over brain_dumps AND reflections (the /journal composer writes reflections; both carry person_ids).
+        const latest = await prisma.$queryRaw<Array<{ person_id: string; id: string; created_at: Date; raw_thoughts: string; kind: string }>>`
+          SELECT DISTINCT ON (pid) pid AS person_id, d.id, d.created_at, d.raw_thoughts, d.kind
+          FROM (
+            SELECT d.id, d.created_at, d.raw_thoughts, d.person_ids, 'journal' AS kind FROM brain_dumps d WHERE d.deleted_at IS NULL
+            UNION ALL
+            SELECT r.id, r.created_at, r.insight AS raw_thoughts, r.person_ids, 'reflection' AS kind FROM reflections r WHERE r.deleted_at IS NULL
+          ) d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
+          WHERE pid = ANY(${rows.map((r) => r.id)}::text[])
           ORDER BY pid, d.created_at DESC`;
         const nameOf = new Map(rows.map((r) => [r.id, r.name]));
         journal = new Map(
           latest.map((l) => [
             l.person_id,
             // Windowed around the person's name (W8b), so the line is the sentence about them.
-            { at: new Date(l.created_at).toISOString(), excerpt: journalExcerpt(l.raw_thoughts, nameOf.get(l.person_id)), dumpId: l.id },
+            {
+              at: new Date(l.created_at).toISOString(),
+              excerpt: journalExcerpt(l.raw_thoughts, nameOf.get(l.person_id)),
+              dumpId: l.id,
+              kind: l.kind === "reflection" ? ("reflection" as const) : ("journal" as const),
+            },
           ]),
         );
       } catch (err) {

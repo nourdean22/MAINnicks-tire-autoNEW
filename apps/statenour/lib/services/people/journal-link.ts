@@ -86,11 +86,17 @@ async function resolveUnique(name: string): Promise<{ id: string; name: string; 
 
 /** Resolve, store the ids on the entry, then write one contact row per interacted person. Throws only on the id write. */
 export async function linkJournalPeople(args: {
+  /** The entry's table (W8b): brain_dumps by default; the /journal composer's reflections carry person_ids too. */
+  silo?: "brain_dump" | "reflection";
+  /** Keep the ids already on the row and add to them (W8b): the model pass must never un-link the save-time exact matches. */
+  merge?: boolean;
+  /** The entry's id in its silo (named for the first silo; a reflection id goes here too). */
   dumpId: string;
   createdAt: Date;
   rawText: string;
   people: JournalPersonMention[];
 }): Promise<JournalLinkResult> {
+  const silo = args.silo ?? "brain_dump";
   const resolved = new Map<string, { name: string; tier: "exact" | "case_insensitive"; interacted: boolean }>();
   const rejectedNames: string[] = [];
   for (const m of args.people.slice(0, JOURNAL_PEOPLE_MAX)) {
@@ -103,10 +109,19 @@ export async function linkJournalPeople(args: {
     resolved.set(hit.id, { name: hit.name, tier: prev?.tier ?? hit.tier, interacted: (prev?.interacted ?? false) || m.interacted });
   }
   const rejected = rejectedNames.length;
-  const personIds = [...resolved.keys()];
+  let personIds = [...resolved.keys()];
   const linkedNames = [...resolved.values()].map((r) => r.name);
-  // Always written, even empty: a re-process that resolves no one clears ids the last pass set.
-  await prisma.brainDump.update({ where: { id: args.dumpId }, data: { personIds } });
+  if (args.merge) {
+    const row =
+      silo === "reflection"
+        ? await prisma.reflection.findUnique({ where: { id: args.dumpId }, select: { personIds: true } })
+        : await prisma.brainDump.findUnique({ where: { id: args.dumpId }, select: { personIds: true } });
+    personIds = [...new Set([...(row?.personIds ?? []), ...personIds])];
+  }
+  // Always written, even empty (unless merging): a re-process that resolves no one clears ids the last pass set.
+  if (silo === "reflection") await prisma.reflection.update({ where: { id: args.dumpId }, data: { personIds } });
+  else await prisma.brainDump.update({ where: { id: args.dumpId }, data: { personIds } });
+  const via = silo === "reflection" ? { via: "journal_reflect", reflectionId: args.dumpId } : { via: "journal_ingest", dumpId: args.dumpId };
 
   let recorded = 0;
   let skipped = 0;
@@ -127,7 +142,7 @@ export async function linkJournalPeople(args: {
         noRowSince: startOfDayET(args.createdAt),
         noRowBefore: endOfDayET(args.createdAt),
         creditXp: false,
-        metadata: { auto: true, via: "journal_ingest", dumpId: args.dumpId, matchTier: r.tier },
+        metadata: { auto: true, ...via, matchTier: r.tier },
       });
     try {
       let outcome = await write();
@@ -163,7 +178,10 @@ export async function linkJournalPeople(args: {
 export interface LatestJournal {
   at: string;
   excerpt: string;
+  /** The entry's id in its table; the feed anchors every entry as bd-<id>, whatever the table. */
   dumpId: string;
+  /** W8b: which table the newest entry came from. */
+  kind: "journal" | "reflection";
 }
 
 /**

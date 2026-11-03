@@ -6,6 +6,7 @@ import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { JournalEntryRow } from "@/components/journal/entry-row";
 import { DayActivityToggle } from "@/components/journal/day-activity";
+import { DayPicker } from "@/components/journal/day-picker";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { useJournalFeed } from "../_hooks/use-journal-feed";
@@ -141,6 +142,8 @@ export function JournalFeedView() {
       {/* Feed List */}
       <div className="flex-1 overflow-y-auto pb-20">
         <div className="space-y-5">
+            {/* W8b: the day view for a day with no entry (a date input and "Yesterday"); the feed's own day headers keep their toggle. */}
+            <DayPicker />
             {isLoading && entries.length === 0 ? (
               <div className="space-y-2">
                 {[0, 1, 2].map((i) => (

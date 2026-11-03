@@ -37,6 +37,10 @@ test.describe("v3 fixtures render", () => {
     await expect(page.getByText(DEMO.homeHeadline).first()).toBeVisible();
     // W2: approvals are rows of their own; the first pending DEMO approval is the anchor.
     await expect(page.getByText(DEMO.homeApproval).first()).toBeVisible();
+    // W2 check-in due row (W8b: it had no e2e assertion), W8b weekly review row, W8b today's done-and-contacts panel.
+    await expect(page.getByText(`Check-in due: ${DEMO.homeCheckIn}`).first()).toBeVisible();
+    await expect(page.getByText(/Weekly review due/).first()).toBeVisible();
+    await expect(page.getByText(DEMO.homeToday).first()).toBeVisible();
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
     await expect(page.getByText(PAGE_ERRORS.home)).toHaveCount(0);
     expect(disallowedUnstubbed(report.unstubbed), "Home read page data the fixtures do not answer").toEqual([]);

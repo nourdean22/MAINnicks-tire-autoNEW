@@ -70,6 +70,11 @@ export interface ReflectResult {
   pushback: string | null;
   nextStep: "bet" | "memory-check" | "done";
   extractionFired: boolean;
+  /**
+   * W8b: the people this reflection names, linked at save time by the exact whole-word name rule (no model,
+   * no toggle); the composer toast reads them. null = the people read or link failed (unknown, not "no one").
+   */
+  peopleLinked: { names: string[] } | null;
 }
 
 /**
@@ -119,6 +124,31 @@ export async function createReflection(
       },
     },
   });
+
+  // W8b (audit B2): every reflection reaches People at save, with no toggle and no model call: each live person
+  // whose name appears whole-word in the text is linked as a MENTION (ids on reflections.person_ids) through the
+  // journal gate. The enrich pass below adds contact rows for people he reports talking to (merge, never un-link).
+  // Awaited (a few ms) so the composer toast can name them; a failure is unknown, never a failed save.
+  let peopleLinked: ReflectResult["peopleLinked"] = null;
+  try {
+    const { nameMatcher } = await import("@/lib/services/people/backfill-plan");
+    const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
+    const named = people.filter((p) => p.name.trim().length >= 2 && nameMatcher(p.name).test(insight)).map((p) => p.name);
+    if (named.length === 0) peopleLinked = { names: [] };
+    else {
+      const { linkJournalPeople } = await import("@/lib/services/people/journal-link");
+      const linked = await linkJournalPeople({
+        silo: "reflection",
+        dumpId: reflection.id,
+        createdAt: reflection.createdAt,
+        rawText: insight,
+        people: named.map((name) => ({ name, interacted: false })),
+      });
+      peopleLinked = { names: linked.linkedNames };
+    }
+  } catch (err) {
+    log.warn("reflect_people_link_failed", { reflectionId: reflection.id, error: sanitizeError(err) });
+  }
 
   // Silo wave (audit 2026-07-15) · reflections carried the grounding
   // columns but were never enriched live (brain_dump was the only silo
@@ -227,5 +257,6 @@ export async function createReflection(
     pushback,
     nextStep,
     extractionFired,
+    peopleLinked,
   };
 }

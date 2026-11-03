@@ -5,11 +5,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ dumps: vi.fn(), tasks: vi.fn(), memories: vi.fn(), goals: vi.fn() }));
+const h = vi.hoisted(() => ({ dumps: vi.fn(), refls: vi.fn(), tasks: vi.fn(), memories: vi.fn(), goals: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     brainDump: { findMany: h.dumps },
+    reflection: { findMany: h.refls },
     task: { findMany: h.tasks },
     brainMemory: { findMany: h.memories },
     lifeGoal: { findMany: h.goals },
@@ -23,6 +24,7 @@ const dump = (i: number) => ({ id: `d${i}`, createdAt: new Date(2026, 10, 1, 12,
 beforeEach(() => {
   vi.clearAllMocks();
   h.dumps.mockResolvedValue([]);
+  h.refls.mockResolvedValue([]);
   h.tasks.mockResolvedValue([]);
   h.memories.mockResolvedValue([]);
   h.goals.mockResolvedValue([]);
@@ -40,6 +42,15 @@ describe("personStory · entries", () => {
     expect(q.where).toEqual({ deletedAt: null, personIds: { has: "p1" } });
     expect(q.orderBy).toEqual({ createdAt: "desc" });
     expect(q.take).toBe(PERSON_STORY_ENTRY_CAP + 1);
+  });
+
+  it("reflections are entries too: merged by time with the dumps, one cap over both", async () => {
+    h.dumps.mockResolvedValue([dump(1)]);
+    h.refls.mockResolvedValue([{ id: "r1", createdAt: new Date(2026, 10, 1, 12, 5), insight: "**WHAT**: Dania came by" }]);
+    const s = await personStory({ personId: "p1", personName: "Dania" });
+    expect(s.entries.map((e) => [e.id, e.kind])).toEqual([["r1", "reflection"], ["d1", "journal"]]);
+    expect(s.entries[0].href).toBe("/journal#bd-r1");
+    expect(h.refls.mock.calls[0][0].where).toEqual({ deletedAt: null, personIds: { has: "p1" } });
   });
 
   it("reads one past the cap and says the list was cut", async () => {

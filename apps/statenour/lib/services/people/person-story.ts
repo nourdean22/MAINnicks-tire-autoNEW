@@ -16,7 +16,7 @@ export const PERSON_STORY_ENTRY_CAP = 10;
 
 export interface PersonStoryEntry {
   id: string;
-  kind: "journal";
+  kind: "journal" | "reflection";
   at: string;
   excerpt: string;
   href: string;
@@ -38,12 +38,19 @@ export interface PersonStory {
 const goalHref = (id: string) => `/stats?tab=goals#goal-${id}`;
 
 export async function personStory(input: { personId: string; personName: string }): Promise<PersonStory> {
-  const [dumps, tasks, moments] = await Promise.all([
+  const [dumps, refls, tasks, moments] = await Promise.all([
     prisma.brainDump.findMany({
       where: { deletedAt: null, personIds: { has: input.personId } },
       orderBy: { createdAt: "desc" },
       take: PERSON_STORY_ENTRY_CAP + 1,
       select: { id: true, createdAt: true, rawThoughts: true },
+    }),
+    // The /journal composer's reflections carry person_ids too (W8b).
+    prisma.reflection.findMany({
+      where: { deletedAt: null, personIds: { has: input.personId } },
+      orderBy: { createdAt: "desc" },
+      take: PERSON_STORY_ENTRY_CAP + 1,
+      select: { id: true, createdAt: true, insight: true },
     }),
     prisma.task.findMany({
       where: { personId: input.personId, deletedAt: null },
@@ -76,15 +83,20 @@ export async function personStory(input: { personId: string; personName: string 
     for (const g of rows) goals.set(g.id, { id: g.id, title: g.title, via: "moment", href: goalHref(g.id) });
   }
 
+  const all = [
+    ...dumps.map((d) => ({ id: d.id, kind: "journal" as const, createdAt: d.createdAt, text: d.rawThoughts })),
+    ...refls.map((r) => ({ id: r.id, kind: "reflection" as const, createdAt: r.createdAt, text: r.insight })),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return {
-    entries: dumps.slice(0, PERSON_STORY_ENTRY_CAP).map((d) => ({
-      id: d.id,
-      kind: "journal" as const,
-      at: d.createdAt.toISOString(),
-      excerpt: journalExcerpt(d.rawThoughts.replace(/\s+/g, " "), input.personName),
-      href: `/journal#bd-${d.id}`,
+    entries: all.slice(0, PERSON_STORY_ENTRY_CAP).map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      at: e.createdAt.toISOString(),
+      excerpt: journalExcerpt(e.text.replace(/\s+/g, " "), input.personName),
+      // The feed anchors every entry as bd-<id>, whatever its table (entry-row.tsx).
+      href: `/journal#bd-${e.id}`,
     })),
-    entriesTruncated: dumps.length > PERSON_STORY_ENTRY_CAP,
+    entriesTruncated: all.length > PERSON_STORY_ENTRY_CAP,
     goals: [...goals.values()],
   };
 }

@@ -10,6 +10,7 @@
  */
 import type { ComponentType } from "react";
 import {
+  CalendarCheck,
   Circle,
   Eye,
   Flame,
@@ -31,7 +32,8 @@ export type TypeKey =
   | "decision"
   | "reflection"
   | "planning"
-  | "venting";
+  | "venting"
+  | "weekly_review";
 
 export interface FeedEntry {
   id: string;
@@ -79,6 +81,8 @@ export const TYPE_META: Record<
   // 2026-09-01: venting is normal journaling, not an alarm, so it gets the neutral tone and the same
   // Circle mark as raw capture.
   venting: { label: "Venting", icon: Circle, color: "text-fg-tertiary", bg: "bg-surface-interactive", border: "border-edge-default" },
+  // W8b: a weekly-review row (lib/brain/journal-review-marker.ts) used to fall back to the raw icon.
+  weekly_review: { label: "Weekly review", icon: CalendarCheck, color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
 };
 
 export const SOURCE_ICON: Record<string, IconComponent> = {

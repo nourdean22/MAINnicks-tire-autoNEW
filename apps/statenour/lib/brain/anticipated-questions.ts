@@ -496,18 +496,22 @@ export function yesterdayKey(): string {
   });
 }
 
-async function fetchSetByKey(key: string): Promise<AnticipatedSet | null> {
-  const row = await prisma.brainMemory
-    .findUnique({
+/** W8b (audit B4): a thrown read is this marker, never null; null is a measured "no set under that key". */
+const READ_FAILED = "read_failed" as const;
+
+async function fetchSetByKey(key: string): Promise<AnticipatedSet | null | typeof READ_FAILED> {
+  let row: { metadata: unknown; updatedAt: Date } | null;
+  try {
+    row = await prisma.brainMemory.findUnique({
       where: {
         category_key: { category: "anticipated_question", key },
       },
       select: { metadata: true, updatedAt: true },
-    })
-    .catch((err) => {
-      log.warn("loadToday_failed", { key, err: errMsg(err) });
-      return null as { metadata: unknown; updatedAt: Date } | null;
     });
+  } catch (err) {
+    log.warn("loadToday_failed", { key, err: errMsg(err) });
+    return READ_FAILED;
+  }
   if (!row || !row.metadata) return null;
   const meta = row.metadata as unknown as AnticipatedSet;
   if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
@@ -517,13 +521,23 @@ async function fetchSetByKey(key: string): Promise<AnticipatedSet | null> {
 }
 
 async function loadTodaysSet(): Promise<AnticipatedSet | null> {
+  const r = await readTodaysAnticipated();
+  return r.set;
+}
+
+/**
+ * W8b (audit B4): today's set WITH the read's own state. `failed` is true when the store threw and no set was
+ * found; that result is never cached, so the next read tries again instead of serving a failure as an empty day.
+ * Home's "Nick remembers" names it; the older callers keep getTodaysAnticipated()'s null.
+ */
+export async function readTodaysAnticipated(): Promise<{ set: AnticipatedSet | null; failed: boolean }> {
   const date = todayKey();
   if (
     todayCache &&
     todayCache.date === date &&
     Date.now() - todayCache.at < TODAY_CACHE_TTL_MS
   ) {
-    return todayCache.set;
+    return { set: todayCache.set, failed: false };
   }
 
   // 2026-06-10 · yesterday-fallback — this function's contract promised
@@ -534,12 +548,14 @@ async function loadTodaysSet(): Promise<AnticipatedSet | null> {
   // pushes, chat match) computed the NEW day's key and silently got
   // null — the feature wrote rows nobody could read. The fallback is
   // bounded to exactly one day; an older set stays honestly absent.
-  const set =
-    (await fetchSetByKey(`anticipated_${date}`)) ??
-    (await fetchSetByKey(`anticipated_${yesterdayKey()}`));
-
-  todayCache = { date, set, at: Date.now() };
-  return set;
+  const today = await fetchSetByKey(`anticipated_${date}`);
+  const picked = today ?? (await fetchSetByKey(`anticipated_${yesterdayKey()}`));
+  if (picked === READ_FAILED || today === READ_FAILED) {
+    // A failed read is not a day with no set: nothing cached, so the next read is a real read.
+    return { set: picked === READ_FAILED ? null : picked, failed: true };
+  }
+  todayCache = { date, set: picked, at: Date.now() };
+  return { set: picked, failed: false };
 }
 
 /**

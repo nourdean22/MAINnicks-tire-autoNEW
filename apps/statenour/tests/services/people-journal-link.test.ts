@@ -29,6 +29,8 @@ const h = vi.hoisted(() => {
     findMany: vi.fn(async ({ where }: { where: { deletedAt?: null } }) => live(where)),
     findUnique: vi.fn(async () => people[0] ?? null),
     dumpUpdate: vi.fn(async () => ({ id: "d1" })),
+    reflUpdate: vi.fn(async () => ({ id: "r1" })),
+    reflFindUnique: vi.fn(async () => ({ personIds: [] as string[] })),
     once: vi.fn(),
     recordError: vi.fn(),
   };
@@ -38,6 +40,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     personProfile: { findFirst: h.findFirst, count: h.count, findMany: h.findMany, findUnique: h.findUnique },
     brainDump: { update: h.dumpUpdate },
+    reflection: { update: h.reflUpdate, findUnique: h.reflFindUnique },
     brainMemory: { create: vi.fn(async () => null) },
   },
 }));
@@ -122,6 +125,36 @@ describe("linkJournalPeople · the resolver gate", () => {
     expect(r.linkedNames).toEqual(["Dania"]);
     expect(r.rejectedNames).toEqual(["Zeinab", "ali"]);
     expect(r.rejected).toBe(2);
+  });
+
+  // W8b (audit B2): the /journal composer's reflections reach People through the same gate; the ids land on
+  // reflections.person_ids and a contact row says which reflection it came from.
+  it("silo reflection: ids go to the reflection row, the contact metadata names the reflection", async () => {
+    const r = await linkJournalPeople({
+      silo: "reflection",
+      dumpId: "r1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: true }],
+    });
+    expect(h.reflUpdate).toHaveBeenCalledWith({ where: { id: "r1" }, data: { personIds: ["p_dania"] } });
+    expect(h.dumpUpdate).not.toHaveBeenCalled();
+    expect(h.once.mock.calls[0][0].metadata).toEqual({ auto: true, via: "journal_reflect", reflectionId: "r1", matchTier: "exact" });
+    expect(r.personIds).toEqual(["p_dania"]);
+  });
+
+  it("merge: the ids already on the row survive a later pass that names fewer people", async () => {
+    h.reflFindUnique.mockResolvedValueOnce({ personIds: ["p_sam"] });
+    const r = await linkJournalPeople({
+      silo: "reflection",
+      merge: true,
+      dumpId: "r1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: false }],
+    });
+    expect(r.personIds.sort()).toEqual(["p_dania", "p_sam"]);
+    expect(h.reflUpdate.mock.calls[0][0].data.personIds.sort()).toEqual(["p_dania", "p_sam"]);
   });
 
   it("asks the resolver for exact tiers only: no fuzzy pass, so no Auto-merged audit row for a name the gate refuses", async () => {

@@ -2135,6 +2135,9 @@ model Reflection {
   enrichedAt     DateTime? @map("enriched_at")
   goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
   mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  /// W8b (2026-11-03) · the people this reflection names (PersonProfile ids), stamped by the journal link
+  /// (lib/services/people/journal-link.ts), like brain_dumps.person_ids. Hand-applied migration 20261103130000.
+  personIds      String[]  @default([]) @map("person_ids")
 
   @@index([date, scope])
   @@index([category, confidence])

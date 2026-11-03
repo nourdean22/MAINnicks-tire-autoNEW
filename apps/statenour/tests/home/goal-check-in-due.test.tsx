@@ -16,6 +16,8 @@ vi.mock("@/lib/prisma", () => ({
     lifeGoal: { findMany: h.goalFindMany },
     goalEvent: { findMany: h.eventFindMany },
     auditEvent: { findMany: h.auditFindMany },
+    // W8b: the anticipated-questions read runs for real over this mock; its failure path is driven here, not faked.
+    brainMemory: { findUnique: h.anticipated },
   },
 }));
 const logWarn = vi.hoisted(() => vi.fn());
@@ -24,12 +26,12 @@ vi.mock("@/lib/logger", async (orig) => {
   const m = await orig<typeof import("@/lib/logger")>();
   return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: logWarn }) } };
 });
-vi.mock("@/lib/brain/anticipated-questions", () => ({ getTodaysAnticipated: h.anticipated }));
 vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: vi.fn(async () => "led") }));
 
 import { GoalsCardView } from "@/components/home/home-cards";
 import { __testInternals } from "@/lib/home/operator-brief";
 import { readNickRemembers } from "@/lib/home/nick-remembers";
+import { _resetTodayCacheForTests } from "@/lib/brain/anticipated-questions";
 import { remembersFailedLine } from "@/components/home/nick-command-line";
 
 const DAY = 86_400_000;
@@ -38,6 +40,7 @@ const READ = { title: "Save $15k", label: "40d left", active: 3 };
 
 beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
+  _resetTodayCacheForTests();
 });
 
 describe("loadGoalCheckInDue (the brief's read)", () => {
@@ -102,14 +105,27 @@ describe("readNickRemembers (map gap 6)", () => {
     expect(logged).toContain("anticipated-marker");
     expect(logged).toContain("digest-marker");
   });
-  it("a failed anticipated read is named too; a measured empty day has failed = []", async () => {
-    h.anticipated.mockRejectedValue(new Error("x"));
+  // W8b (audit B4): the real failure path. fetchSetByKey used to swallow a thrown read into null and cache it, so
+  // readNickRemembers' catch could never fire in production; the old test mocked a rejection prod never produced.
+  it("a failed anticipated read (the store throws) is named, and the failure is not cached as an empty day", async () => {
+    h.anticipated.mockRejectedValue(new Error("anticipated-store-down"));
     h.auditFindMany.mockResolvedValue([{ payload: { followUpNeeded: " call the bank " } }]);
     const r = await readNickRemembers();
     expect(r.failed).toEqual(["anticipated questions"]);
     expect(r.followUps).toEqual(["call the bank"]);
+    expect(JSON.stringify(logWarn.mock.calls)).toContain("anticipated-store-down");
+    // The store recovers: the next read is measured, not served from a cached failure.
     h.anticipated.mockResolvedValue(null);
     expect((await readNickRemembers()).failed).toEqual([]);
+  });
+
+  it("a measured empty day (no set for today or yesterday) is failed = [] with no questions", async () => {
+    h.anticipated.mockResolvedValue(null);
+    h.auditFindMany.mockResolvedValue([]);
+    const r = await readNickRemembers();
+    expect(r).toEqual({ anticipatedQuestions: [], followUps: [], failed: [] });
+    // today's key, then yesterday's: two reads, both measured null.
+    expect(h.anticipated).toHaveBeenCalledTimes(2);
   });
   it("the command line says it couldn't read, and stays quiet on a clean read", () => {
     expect(remembersFailedLine({ failed: ["conversation digests"] }, false)).toBe("Couldn't read what Nick remembers (conversation digests)");

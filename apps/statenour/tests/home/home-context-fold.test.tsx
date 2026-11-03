@@ -40,6 +40,8 @@ vi.mock("@/lib/trpc/client", () => ({
       shopToday: { useQuery: () => ({ data: undefined, isError: false }) },
       goalsSnapshot: { useQuery: () => ({ data: undefined, isError: false }) },
     },
+    // W8b: Home's "Today: done and contacts" panel reads journal.day; a pending read renders its loading state.
+    journal: { day: { useQuery: () => ({ data: undefined, isError: false }) } },
   },
 }));
 vi.mock("@/components/home/brief-state-line", () => ({ BriefStateLine: () => null }));

@@ -5,7 +5,7 @@
  * in `failed`; its list stays empty because it is unknown, not because it is clear.
  */
 import { prisma } from "@/lib/prisma";
-import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
+import { readTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("home/nick-remembers");
@@ -13,11 +13,17 @@ const log = rootLogger.withSurface("home/nick-remembers");
 export async function readNickRemembers(): Promise<{ anticipatedQuestions: string[]; followUps: string[]; failed: string[] }> {
   const failed: string[] = [];
   const [anticipated, recentDigests] = await Promise.all([
-    getTodaysAnticipated().catch((err) => {
-      log.warn("anticipated_read_failed", { err: err instanceof Error ? err.message : String(err) });
-      failed.push("anticipated questions");
-      return null;
-    }),
+    // W8b (audit B4): the store's own failure state, not a rejection it never produced (it swallowed and cached null).
+    readTodaysAnticipated()
+      .then((r) => {
+        if (r.failed) failed.push("anticipated questions");
+        return r.set;
+      })
+      .catch((err) => {
+        log.warn("anticipated_read_failed", { err: err instanceof Error ? err.message : String(err) });
+        failed.push("anticipated questions");
+        return null;
+      }),
     prisma.auditEvent
       .findMany({
         where: { eventType: "conversation_digest" },

@@ -40,6 +40,7 @@
 import { readCalendarDay, type CalendarRead } from "@/lib/calendar/day-events";
 import { prisma } from "@/lib/prisma";
 import { pickCheckInDue } from "@/lib/brain/goal-pace";
+import { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
 
 const briefLog = rootLogger.withSurface("home/operator-brief");
@@ -185,7 +186,17 @@ export interface OperatorBrief {
   leadContext: LeadContext | null | "unknown";
   /** The newest journal entry with the people it names; null = no entries yet. */
   journalLine: JournalLine | null | "unknown";
+  /** W8b: the weekly review's standing (Sunsama S3); "unknown" = the read failed. */
+  weeklyReviewDue: WeeklyReviewDue | "unknown";
   budget: { visibleActionables: number; cap: number };
+}
+
+export interface WeeklyReviewDue {
+  lastReviewAt: string | null;
+  /** Whole ET-agnostic days since the last review entry; null = never reviewed. */
+  daysSince: number | null;
+  /** True when no review exists or the last one is REVIEW_WINDOW_DAYS or more days old. */
+  due: boolean;
 }
 
 export interface GoalCheckInDue {
@@ -205,6 +216,8 @@ export interface JournalLine {
   createdAt: string;
   /** Live people the entry names, in its order; null = the names read failed (couldn't load), not "no one". */
   people: { id: string; name: string }[] | null;
+  /** W8b: which journal table the newest entry came from (the /journal composer writes reflections). */
+  source: "dump" | "reflection";
 }
 
 /**
@@ -232,20 +245,38 @@ async function loadLeadContext(taskId: string | null): Promise<LeadContext | nul
   }
 }
 
-/** The newest live journal entry and the live people it names (brain_dumps.person_ids, names in one query). */
+/**
+ * The newest live journal entry and the live people it names (person_ids, names in one query). W8b: the newest of
+ * brain_dumps AND reflections (the /journal composer writes the latter). A failed side read is logged and the other
+ * side still answers; both failed, or the only possible newer side failed, is unknown.
+ */
 async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
-  let dump: { id: string; rawThoughts: string; createdAt: Date; personIds: string[] } | null;
-  try {
-    dump = await prisma.brainDump.findFirst({
+  type Entry = { id: string; rawThoughts: string; createdAt: Date; personIds: string[]; source: JournalLine["source"] };
+  const warn = (read: string, err: unknown) =>
+    briefLog.warn("journal_line_read_failed", { read, err: err instanceof Error ? err.message : String(err) });
+  const [dumpRes, reflRes] = await Promise.allSettled([
+    prisma.brainDump.findFirst({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { id: true, rawThoughts: true, createdAt: true, personIds: true },
-    });
-  } catch (err) {
-    briefLog.warn("journal_line_read_failed", { err: err instanceof Error ? err.message : String(err) });
-    return "unknown";
+    }),
+    prisma.reflection.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, insight: true, createdAt: true, personIds: true },
+    }),
+  ]);
+  if (dumpRes.status === "rejected") warn("dumps", dumpRes.reason);
+  if (reflRes.status === "rejected") warn("reflections", reflRes.reason);
+  const candidates: Entry[] = [];
+  if (dumpRes.status === "fulfilled" && dumpRes.value) candidates.push({ ...dumpRes.value, source: "dump" });
+  if (reflRes.status === "fulfilled" && reflRes.value) {
+    const r = reflRes.value;
+    candidates.push({ id: r.id, rawThoughts: r.insight, createdAt: r.createdAt, personIds: r.personIds, source: "reflection" });
   }
-  if (!dump) return null;
+  const dump = candidates.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+  // No entry from a side that answered, and a side that did not: the newest entry is unknown, not absent.
+  if (!dump) return dumpRes.status === "rejected" || reflRes.status === "rejected" ? "unknown" : null;
   // The people page's excerpt rule (journal-link.ts), on one line.
   const excerpt = journalExcerpt(dump.rawThoughts.replace(/\s+/g, " "));
   let people: JournalLine["people"] = [];
@@ -262,7 +293,27 @@ async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
       people = null;
     }
   }
-  return { id: dump.id, excerpt, createdAt: dump.createdAt.toISOString(), people };
+  return { id: dump.id, excerpt, createdAt: dump.createdAt.toISOString(), people, source: dump.source };
+}
+
+/**
+ * The newest weekly-review entry (a review IS journal entries, lib/services/weekly-review.ts); due after
+ * REVIEW_WINDOW_DAYS or when none exists. The pickCheckInDue shape: null-safe, "unknown" on a failed read.
+ */
+async function loadWeeklyReviewDue(now: Date): Promise<WeeklyReviewDue | "unknown"> {
+  try {
+    const last = await prisma.brainDump.findFirst({
+      where: { entryType: REVIEW_ENTRY_TYPE, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    if (!last) return { lastReviewAt: null, daysSince: null, due: true };
+    const daysSince = Math.floor((now.getTime() - last.createdAt.getTime()) / 86_400_000);
+    return { lastReviewAt: last.createdAt.toISOString(), daysSince, due: daysSince >= REVIEW_WINDOW_DAYS };
+  } catch (err) {
+    briefLog.warn("weekly_review_due_read_failed", { err: err instanceof Error ? err.message : String(err) });
+    return "unknown";
+  }
 }
 
 /** Active goals and their newest check-in, through the one cadence table (lib/brain/goal-pace.ts). */
@@ -324,9 +375,12 @@ function collectFailedSources(r: {
   approvalRequests: unknown;
   /** "unknown" = the goal check-in read failed (loadGoalCheckInDue). */
   goalCheckInDue?: unknown;
+  /** "unknown" = the weekly review read failed (loadWeeklyReviewDue). */
+  weeklyReviewDue?: unknown;
 }): string[] {
   const failed: string[] = [];
   if (r.goalCheckInDue === "unknown") failed.push("goal check-ins");
+  if (r.weeklyReviewDue === "unknown") failed.push("weekly review");
   if (r.contradictions === null) failed.push("contradictions");
   if (r.proposals === null) failed.push("commitments");
   if (r.followUps === null) failed.push("follow-ups");
@@ -393,6 +447,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     calendarRead,
     goalCheckInDue,
     journalLine,
+    weeklyReviewDue,
   ] = await Promise.all([
     // Active/resume candidates. Ordering mirrors command-center-state.ts's
     // activeTask pick (autoPriority desc nulls last, lastTouchedAt desc) so
@@ -479,6 +534,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     readCalendarDay().catch((err): CalendarRead => ({ state: "read_failed", reason: (err as Error).message })),
     loadGoalCheckInDue(now),
     loadJournalLine(),
+    loadWeeklyReviewDue(now),
   ]);
   const calendarUpcoming =
     calendarRead.state === "ok"
@@ -551,7 +607,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // ── Judgment queue ────────────────────────────────────────────────────
 
-  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests, goalCheckInDue });
+  const failedSources = collectFailedSources({ contradictions, proposals, followUps, pendingActions, approvalRequests, goalCheckInDue, weeklyReviewDue });
 
   const judgmentAll: JudgmentItem[] = [];
 
@@ -673,6 +729,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     goalCheckInDue,
     leadContext,
     journalLine,
+    weeklyReviewDue,
     budget: {
       visibleActionables:
         leadActionables + Math.min(judgmentAll.length, judgmentVisibleCap),
@@ -1019,7 +1076,7 @@ function pendingApprovalRows(
   return live.slice(0, APPROVAL_ROWS_CAP).map(({ at: _at, ...row }) => row);
 }
 
-export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources, loadGoalCheckInDue, loadLeadContext, loadJournalLine };
+export const __testInternals = { mapLead, composeStateSummary, buildHorizon, startOfEtDay, ledgerLeadShown, pendingApprovalRows, loadContradictionItems, loadContradictionsGuarded, collectFailedSources, loadGoalCheckInDue, loadLeadContext, loadJournalLine, loadWeeklyReviewDue };
 
 function firstCalendarEventToday(
   rows: Array<{ content: string; metadata: unknown }>,

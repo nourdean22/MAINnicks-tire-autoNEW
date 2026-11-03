@@ -302,7 +302,9 @@ export function ReflectComposer() {
       // gets a "starting" signal here rather than waiting on
       // completion. The /journal feed will refresh when the BrainDump
       // lands via the data-change event below.
-      toast.success(result.extractionFired ? "reflection logged · extracting…" : "reflection logged");
+      // W8b: say who the entry reached (the save-time exact-name link), so a name that landed on no one is visible.
+      const people = result.peopleLinked?.names.length ? ` · People: ${result.peopleLinked.names.join(", ")}` : "";
+      toast.success(`${result.extractionFired ? "reflection logged · extracting…" : "reflection logged"}${people}`);
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       notifyDataChanged("any", { source: "ultron-reflect", detail: "reflection-saved" });
       // Auto-surface calibration when the model suggests memory-check
