@@ -8,7 +8,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { startMcpStub, startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
 import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE } from "./graph-ensure-mcp.mjs";
 
@@ -239,6 +239,24 @@ test("local-mcp-servers.ps1 -Start: a live recorded pid under 45 s old is not st
   assert.match(r.stdout, new RegExp(`STARTING  graphify  pid ${young.pid} is \\d+ s old and not listening yet; not restarted`), r.stdout + r.stderr);
   assert.equal(r.status, 1, "not UP, so -Start exits 1");
   assert.ok(!existsSync(join(local, "nourcity", "mcp-start-graphify.lock")), "the start lock is released");
+});
+
+// The process-level guard: a main() that outlives GUARD_MS prints `[graph] off: budget` and exits 0 instead of being
+// killed by the 15 s hook timeout. Nothing in the real constants can make main() run that long (every wait is bounded
+// under the guard), so the arm plants a copy whose wrapper wait is 20 s and a wrapper that never exits (round-4).
+test("guard: a planted 20 s wrapper wait with a wrapper that never exits prints `[graph] off: budget (13000 ms) spent before a verdict`, exit 0, before the hook timeout", async () => {
+  const src = readFileSync(SCRIPT, "utf8");
+  assert.ok(src.includes("const LAUNCH_WAIT_MS = 10_000;"), "anchor");
+  const planted = join(SCRATCH, "ensure-slow-wrapper.mjs");
+  writeFileSync(planted, src.replace("const LAUNCH_WAIT_MS = 10_000;", "const LAUNCH_WAIT_MS = 20_000;").replaceAll(/from "\.\/([\w-]+\.mjs)"/g, (_, f) => `from ${JSON.stringify(pathToFileURL(join(HERE, f)).href)}`));
+  const port = await freePort();
+  const { dir, file } = config("guard", port);
+  const t0 = Date.now();
+  const r = spawnSync(process.execPath, [planted, "--config", file, "--primary", dir], { encoding: "utf8", cwd: ROOT, env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT, NOURCITY_STATE_DIR: join(dir, "state"), GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, "-e", "setTimeout(() => {}, 60000)"]) }, timeout: 20000 });
+  const ms = Date.now() - t0;
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), "[graph] off: budget (13000 ms) spent before a verdict", r.stdout);
+  assert.ok(ms >= 13000 && ms < 15000, `took ${ms} ms: the guard must fire under the 15 s hook timeout`);
 });
 
 test("fail open: a broken config prints one `[graph] off:` line and exits 0", () => {

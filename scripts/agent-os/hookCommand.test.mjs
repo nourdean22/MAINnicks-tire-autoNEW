@@ -22,9 +22,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
@@ -266,3 +268,34 @@ test("loop watchdog: the configured PostToolUseFailure string records failed cal
   assert.equal(r.code, 2, `expected a deny (exit 2), got ${r.code}\n${r.out}`);
   assert.match(r.out, /stuck-watch\] DENIED/);
 });
+
+// Graph hooks (job 2026-11-03-graphify-always-on): both configured command strings run VERBATIM through a shell, the
+// way the 2026-09-23 incident demands (a backslash path was MODULE_NOT_FOUND on Linux, exit 1, fail-open), against a
+// stub MCP (GRAPH_LOCAL_SERVICES points the hooks at it: never the live server, never the real state dir), and each
+// must print its one known line. The static backslash arm above already covers both commands (they are node hooks).
+test("graph hooks (2026-11-03): the CONFIGURED graph-ensure-mcp and graph-recall commands run verbatim and print their known line against a stub", async () => {
+  const ensure = hooks.find((h) => h.event === "SessionStart" && h.command.includes("graph-ensure-mcp.mjs"));
+  const recall = hooks.find((h) => h.event === "UserPromptSubmit" && h.command.includes("graph-recall.mjs"));
+  assert.ok(ensure && recall, "both graph hooks must be configured");
+  assert.ok(nodeHooks.includes(ensure) && nodeHooks.includes(recall), "both are node hooks, so the backslash arm judges them");
+  const scratch = mkdtempSync(join(tmpdir(), "hook-command-graph-"));
+  const config = (port) => { const f = join(scratch, `ls-${port}.json`); writeFileSync(f, JSON.stringify({ version: 1, hosts: [(process.env.COMPUTERNAME || require("node:os").hostname()).toUpperCase()], servers: [{ name: "graphify", port, path: "/mcp", kind: "graphify" }], clients: [] })); return f; };
+  const graphEnv = (port) => ({ GRAPH_LOCAL_SERVICES: config(port), NOURCITY_STATE_DIR: join(scratch, "state"), GRAPH_ENSURE_LAUNCHER: JSON.stringify([process.execPath, "-e", "process.exit(0)"]) });
+  const run = (command, stdin, extra) => {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+    const cmd = process.platform === "win32" ? command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : command;
+    const r = spawnSync(cmd, { shell: process.platform === "win32" ? true : "/bin/sh", input: stdin, encoding: "utf8", cwd: ROOT, env: { ...env, CLAUDE_PROJECT_DIR: ROOT, ...extra }, timeout: 30000 });
+    return { code: r.status, out: `${r.stdout ?? ""}`, err: r.stderr ?? "" };
+  };
+  const hang = await startMcpStubProcess({ mode: "hang" });
+  const live = await startMcpStubProcess();
+  try {
+    const e = run(ensure.command, JSON.stringify({ source: "startup" }), graphEnv(hang.port));
+    assert.equal(e.code, 0, e.err);
+    assert.match(e.out.trim(), /^\[graph\] mcp UNKNOWN \(no answer within the probe window\), next: /, `ensure: ${e.out}${e.err}`);
+    const r = run(recall.command, JSON.stringify({ prompt: "fix relatedActivity now", hook_event_name: "UserPromptSubmit" }), graphEnv(live.port));
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out.trim(), "[graph-recall] fn relatedActivity() -> apps/statenour/lib/services/related-activity.ts:75 · community goal-pace.ts · callers: related-activity.test.ts", `recall: ${r.out}${r.err}`);
+  } finally { hang.close(); live.close(); }
+});
+

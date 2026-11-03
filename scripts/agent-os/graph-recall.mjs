@@ -7,7 +7,7 @@
  *
  * UserPromptSubmit hook (stdin JSON with a `prompt` field) and a CLI, same input handling as skill-recall.mjs:
  *   node scripts/agent-os/graph-recall.mjs --text "<prompt>"     one-line prompt
- *   --config <local-services.json> (tests)   --scope global (the ~/.claude/settings.json entry: silent in a project
+ *   --config <local-services.json> (tests; or env GRAPH_LOCAL_SERVICES when no flag can be passed)   --scope global (the ~/.claude/settings.json entry: silent in a project
  *   whose own settings run this script, so the repo hook and the user hook never print twice)
  *
  * Candidates (1 to MAX_SYMBOLS, in order of appearance): backticked words, path-like tokens (a/b.ts), file names
@@ -212,7 +212,7 @@ async function main() {
   const symbols = candidates(text.slice(0, MAX_SCAN_CHARS));
   if (!symbols.length) return;
   const cfg = argv.indexOf("--config");
-  const target = loadUrl(cfg >= 0 ? resolve(argv[cfg + 1]) : join(REPO, "config", "agent-os", "local-services.json"));
+  const target = loadUrl(cfg >= 0 ? resolve(argv[cfg + 1]) : process.env.GRAPH_LOCAL_SERVICES ?? join(REPO, "config", "agent-os", "local-services.json"));
   let lines;
   try {
     lines = await recall(target, symbols);

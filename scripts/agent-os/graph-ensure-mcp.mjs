@@ -30,7 +30,8 @@
  * The verdict goes to <state dir>/graph-mcp.json (machine-wide, last writer wins) so graph-recall.mjs can say "mcp down"
  * only after a real DOWN verdict, never while a launch is in flight.
  *
- * Flags (tests): --config <local-services.json>, --primary <dir> (skips git rev-parse). Env: GRAPH_ENSURE_LAUNCHER (a
+ * Flags (tests): --config <local-services.json>, --primary <dir> (skips git rev-parse). Env: GRAPH_LOCAL_SERVICES (the
+ * config file when no flag can be passed, e.g. the configured command string under test), GRAPH_ENSURE_LAUNCHER (a
  * JSON argv to run instead of the PowerShell wrapper), NOURCITY_STATE_DIR (default %LOCALAPPDATA%/nourcity, the dir
  * heavy.mjs uses). `--scope global` (the ~/.claude/settings.json entry): silent in a project whose own settings run
  * this script, so the repo hook and the user hook never print twice. Canary: graphEnsureMcp.test.mjs.
@@ -54,6 +55,9 @@ const BUDGET_MS = 3000;
 // and a child still running when this hook exits dies with it (round-2 reader), so the wait is generous and the
 // settings.json timeout (15 s) leaves room: 10 s + node start-up stays under it.
 const LAUNCH_WAIT_MS = 10_000;
+// The process-level ceiling: a main() that has not settled by then prints `[graph] off: budget` and exits 0, under the
+// 15 s hook timeout. Independent of the waits above on purpose (a widened wait must not move the guard with it).
+const GUARD_MS = 13_000;
 const REPROBE_EVERY_MS = 250;
 const LAUNCHING_FRESH_MS = 120_000;
 export const STATE_FILE = "graph-mcp.json";
@@ -185,7 +189,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const flag = (name) => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] ? argv[i + 1] : null; };
   if (argv.includes("--scope") && argv[argv.indexOf("--scope") + 1] === "global" && projectAlreadyRuns()) return null;
-  const { hosts, server } = loadConfig(flag("--config") ?? join(REPO, "config", "agent-os", "local-services.json"));
+  // GRAPH_LOCAL_SERVICES: the config for a hook run from its CONFIGURED command string (hookCommand.test.mjs), where no flag can be added.
+  const { hosts, server } = loadConfig(flag("--config") ?? process.env.GRAPH_LOCAL_SERVICES ?? join(REPO, "config", "agent-os", "local-services.json"));
   const host = (process.env.COMPUTERNAME || hostname()).toUpperCase();
   if (!hosts.includes(host)) return `[graph] mcp: not expected on host ${host}; fallback: graphify-out/GRAPH_REPORT.md + \`graphify query\``;
 
@@ -261,7 +266,7 @@ function isEntry() {
 }
 
 if (isEntry()) {
-  const guard = setTimeout(() => process.stdout.write(`[graph] off: budget (${LAUNCH_WAIT_MS + 2000} ms) spent before a verdict\n`, () => process.exit(0)), LAUNCH_WAIT_MS + 2000);
+  const guard = setTimeout(() => process.stdout.write(`[graph] off: budget (${GUARD_MS} ms) spent before a verdict\n`, () => process.exit(0)), GUARD_MS);
   main()
     .catch((err) => `[graph] off: ${short(err)}`)
     .then((line) => { clearTimeout(guard); process.stdout.write(line ? `${line}\n` : "", () => process.exit(0)); });
