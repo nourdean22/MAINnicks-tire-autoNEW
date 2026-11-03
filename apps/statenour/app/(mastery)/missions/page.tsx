@@ -43,6 +43,7 @@ import { DeckDecide } from "@/components/missions/deck-decide";
 import { DeckLanes } from "@/components/missions/deck-lanes";
 import { DeckRhythms } from "@/components/missions/deck-rhythms";
 import { DeckEvidence } from "@/components/missions/deck-evidence";
+import { PromisesSection } from "@/components/missions/promises-section";
 import { ReadFailed } from "@/components/ui/read-failed";
 
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
@@ -515,6 +516,7 @@ function MissionsPageInner() {
               )}
               {deck && <DeckLanes lanes={deck.lanes} tasks={tasks} onEditMission={actions.handleEditMission} />}
             </section>
+            <PromisesSection missions={missions} />
           </div>
           <aside
             aria-label="done today"
