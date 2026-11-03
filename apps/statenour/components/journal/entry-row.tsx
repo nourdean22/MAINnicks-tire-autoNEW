@@ -25,6 +25,8 @@ import {
   type TypeKey,
 } from "@/components/journal/types";
 import { trpc } from "@/lib/trpc/client";
+// Reused as-is: the same "With <name>, <name>" line of 44px dossier links the goal rows show.
+import { GoalPeopleLine } from "@/components/goals/goal-people-line";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { toast } from "sonner";
 
@@ -165,6 +167,18 @@ export function JournalEntryRow({
           <LinkChip entry={entry} silo={silo} />
         </div>
       )}
+
+      {/* W4 (2026-11-02) · the people this entry names, each a link to their dossier. Outside the toggle button
+          for the same reason as the goal chip: a link cannot nest inside a button. */}
+      {entry.people === null ? (
+        <p role="status" className="px-3 pb-2 ml-[calc(13px+12px)] text-[11px] text-fg-tertiary">
+          People on this entry couldn&apos;t load.
+        </p>
+      ) : entry.people && entry.people.length > 0 ? (
+        <div className="px-3 pb-1 ml-[calc(13px+12px)]">
+          <GoalPeopleLine people={entry.people} />
+        </div>
+      ) : null}
 
       {/* Expanded body */}
       {isExpanded && (

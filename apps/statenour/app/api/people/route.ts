@@ -23,6 +23,10 @@ import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { journalExcerpt, type LatestJournal } from "@/lib/services/people/journal-link";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("api/people");
 
 /** Newest ledger rows read per person; the first CONTACT row among them is the note shown on the list. */
 const NOTE_LOOKBACK = 5;
@@ -42,6 +46,8 @@ interface PersonRow {
   isNeglected: boolean;
   /** Newest contact note from the ledger (chat digests and the backfill write here, not to the profile). */
   latestNote: { note: string; at: string; source: string } | null;
+  /** Newest journal entry naming the person (brain_dumps.person_ids); null = none, or the read failed (see `reads`). */
+  latestJournal: LatestJournal | null;
 }
 
 export const GET = apiHandler(
@@ -91,6 +97,29 @@ export const GET = apiHandler(
     // 14.4 days quiet was neglected in one surface and not the other.
     const nowDate = new Date();
 
+    // A failed read is not an empty journal: every latestJournal is null AND reads.journal says "failed".
+    let journal = new Map<string, LatestJournal>();
+    let journalRead: "ok" | "failed" = "ok";
+    if (rows.length > 0) {
+      try {
+        // ONE query, the newest live entry PER listed person however old (Prisma has no DISTINCT ON over an array).
+        const latest = await prisma.$queryRaw<Array<{ person_id: string; id: string; created_at: Date; raw_thoughts: string }>>`
+          SELECT DISTINCT ON (pid) pid AS person_id, d.id, d.created_at, d.raw_thoughts
+          FROM brain_dumps d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
+          WHERE d.deleted_at IS NULL AND pid = ANY(${rows.map((r) => r.id)}::text[])
+          ORDER BY pid, d.created_at DESC`;
+        journal = new Map(
+          latest.map((l) => [
+            l.person_id,
+            { at: new Date(l.created_at).toISOString(), excerpt: journalExcerpt(l.raw_thoughts), dumpId: l.id },
+          ]),
+        );
+      } catch (err) {
+        journalRead = "failed";
+        log.warn("people_latest_journal_failed", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     const people: PersonRow[] = rows.map((r) => {
       const daysSinceInteraction = daysSinceContact(r, nowDate);
       return {
@@ -108,6 +137,7 @@ export const GET = apiHandler(
           const n = contactRowsOnly(r.ledger)[0];
           return n ? { note: n.note, at: n.createdAt.toISOString(), source: n.source } : null;
         })(),
+        latestJournal: journal.get(r.id) ?? null,
       };
     });
 
@@ -122,6 +152,7 @@ export const GET = apiHandler(
     return {
       people,
       totals,
+      reads: { journal: journalRead },
       generatedAt: new Date().toISOString(),
     };
   },

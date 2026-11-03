@@ -270,3 +270,63 @@ describe("recordInteractionOnce — the exclusive variant for automatic writers"
     await expect(recordInteractionOnce(input)).rejects.toThrow("connection reset");
   });
 });
+
+/**
+ * PR 3522 second reader P3-1 · a BOUNDED window for the journal writer. With `noRowBefore`, only a CONTACT row in
+ * [noRowSince, noRowBefore) blocks the write (the backfill's insertWithinWindow rule): a manual row three days later
+ * must not lock a journal contact out forever, and a status flip in the window is not a contact. The fake ledger
+ * applies the where clause the code sends, so a predicate that drops the upper bound sees the later row and fails.
+ */
+describe("recordInteractionOnce — bounded window (noRowBefore)", () => {
+  const ENTRY = new Date("2026-11-02T14:00:00Z");
+  const END = new Date(ENTRY.getTime() + 24 * 3600_000);
+  const bounded = {
+    personId: "p1",
+    amount: 1,
+    note: "Talked to Dania about the move.",
+    source: "journal" as const,
+    at: ENTRY,
+    noRowSince: ENTRY,
+    noRowBefore: END,
+    creditXp: false,
+  };
+  type Row = { createdAt: Date; metadata: unknown };
+  let rows: Row[] = [];
+  beforeEach(() => {
+    rows = [];
+    (tx.relationshipLedger as Record<string, unknown>).findMany = vi.fn(
+      async ({ where }: { where: { createdAt: { gte?: Date; lt?: Date } } }) =>
+        rows.filter(
+          (r) =>
+            (!where.createdAt.gte || r.createdAt >= where.createdAt.gte) &&
+            (!where.createdAt.lt || r.createdAt < where.createdAt.lt),
+        ),
+    );
+  });
+
+  it("a manual contact three days later does not block the journal contact", async () => {
+    rows = [{ createdAt: new Date("2026-11-05T09:00:00Z"), metadata: null }];
+    const out = await recordInteractionOnce(bounded);
+    expect(out.skipped).toBe(false);
+    expect(m.txLedgerCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a contact the same hour blocks it", async () => {
+    rows = [{ createdAt: new Date("2026-11-02T14:30:00Z"), metadata: null }];
+    const out = await recordInteractionOnce(bounded);
+    expect(out).toEqual({ skipped: true, reason: "already_logged_in_window", recorded: null });
+    expect(m.txLedgerCreate).not.toHaveBeenCalled();
+  });
+
+  it("a status flip inside the window is not a contact and does not block", async () => {
+    rows = [{ createdAt: new Date("2026-11-02T15:00:00Z"), metadata: { kind: "status_flip" } }];
+    const out = await recordInteractionOnce(bounded);
+    expect(out.skipped).toBe(false);
+  });
+
+  it("still takes the per-person lock before the window read", async () => {
+    await recordInteractionOnce(bounded);
+    const findMany = (tx.relationshipLedger as Record<string, ReturnType<typeof vi.fn>>).findMany;
+    expect(m.txExecuteRaw.mock.invocationCallOrder[0]).toBeLessThan(findMany.mock.invocationCallOrder[0]);
+  });
+});

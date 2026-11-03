@@ -44,7 +44,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
-import { assertWritableMetadata } from "@/lib/services/people/contact-rows";
+import { assertWritableMetadata, contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("services/people/record-interaction");
 
@@ -58,6 +58,9 @@ export const LEDGER_SOURCES = [
   "gmail",
   "calendar",
   "greene_play",
+  // W4 2026-11-02: a contact he wrote in the journal (lib/services/people/journal-link.ts). Not "chat": every
+  // row keeps its source, and a journal line is his own account, not a digest of a chat conversation.
+  "journal",
 ] as const;
 export type LedgerSource = (typeof LEDGER_SOURCES)[number];
 
@@ -306,7 +309,14 @@ function isDeadlockAbort(err: unknown): boolean {
  * retries.
  */
 export async function recordInteractionOnce(
-  input: RecordInteractionInput & { noRowSince: Date },
+  input: RecordInteractionInput & {
+    noRowSince: Date;
+    /**
+     * Optional upper bound (PR 3522, the journal writer): only a CONTACT row in [noRowSince, noRowBefore) blocks,
+     * the backfill's insertWithinWindow rule. Without it, any row of any kind since noRowSince blocks (the digest).
+     */
+    noRowBefore?: Date;
+  },
 ): Promise<RecordOnceOutcome> {
   const n = normalize(input);
   const prior = await readPrior(input.personId);
@@ -314,9 +324,17 @@ export async function recordInteractionOnce(
   try {
     written = await prisma.$transaction(async (tx) => {
       await lockPerson(tx, input.personId);
-      const existing = await tx.relationshipLedger.count({
-        where: { personId: input.personId, createdAt: { gte: input.noRowSince } },
-      });
+      // Bounded windows fetch-then-filter: a Prisma JSON NOT filter would drop the NULL-metadata rows (contact-rows.ts).
+      const existing = input.noRowBefore
+        ? contactRowsOnly(
+            await tx.relationshipLedger.findMany({
+              where: { personId: input.personId, createdAt: { gte: input.noRowSince, lt: input.noRowBefore } },
+              select: { metadata: true },
+            }),
+          ).length
+        : await tx.relationshipLedger.count({
+            where: { personId: input.personId, createdAt: { gte: input.noRowSince } },
+          });
       if (existing > 0) return null;
       return writeRow(tx, input, n);
     });

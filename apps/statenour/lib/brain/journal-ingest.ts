@@ -79,6 +79,8 @@ interface JournalResult {
   reflectionId?: string;
   /** Set when the dump was classified `decision` and promoted to a silo row. */
   decisionReplayId?: string;
+  /** W4 · people the entry named: ids linked, contact rows written, contact writes that failed. Absent = link did not run. */
+  peopleLinked?: { linked: number; contacts: number; failed: number };
 }
 
 // ─── v10.0.232 · entryType-based extraction gates ──────────────────
@@ -174,6 +176,7 @@ export async function ingestJournal(
   let tasksCreated = 0;
   let insightsStored = 0;
   let commitmentsFound = 0;
+  let peopleLinked: JournalResult["peopleLinked"];
   let summary = "";
   // 2026-09-18 · free-form arena for a `situation` entry ("pricing", "supplier").
   // `situation_logs.context` is a free string in the schema, not an enum, so the
@@ -264,7 +267,8 @@ export async function ingestJournal(
     ? await prisma.brainDump.update({
         where: { id: opts.reuseDumpId },
         data: { rawThoughts: rawText },
-        select: { id: true },
+        // createdAt: the people link dates the ledger row and its once-per-entry window by the ORIGINAL entry.
+        select: { id: true, createdAt: true },
       })
     : await prisma.brainDump.create({
         data: {
@@ -296,6 +300,7 @@ Return ONLY valid JSON with this structure:
   "concerns": ["worries or risks mentioned"],
   "wins": ["positive things mentioned, accomplishments"],
   "linkedTopics": ["tasks, people, missions, or events this connects to"],
+  "people": [{"name": "the person's name as written", "interacted": false}],
   "situationContext": "ONLY when entryType is situation: 2-3 words naming the arena (e.g. pricing, supplier, employee, landlord). Otherwise null."
 }
 
@@ -320,6 +325,7 @@ Other rules:
 - Extract ALL action items, even implied ones
 - "insights" are things worth remembering long-term
 - "linkedTopics" = short tags/names of tasks, people, customers, or missions referenced (max 6)
+- "people" = each specific person named in the entry (max 6), the name exactly as written; never Nour himself, a company or a role word ("the landlord"). "interacted" is true ONLY when Nour reports actually communicating with that person (met, called, texted, ate with, visited); false for thinking or asking ABOUT them or planning to reach out. Empty list when no one is named
 - Be thorough — miss nothing actionable`,
         },
         {
@@ -350,6 +356,7 @@ ${rawText}`,
       patterns?: string;
       domains?: unknown;
       linkedTopics?: unknown;
+      people?: unknown;
       actionItems?: Array<{ title?: string; priority?: string; deadline?: string }>;
       insights?: unknown[];
       commitments?: unknown[];
@@ -420,6 +427,22 @@ ${rawText}`,
           })),
         },
       });
+
+      // 2b. People (W4 2026-11-02): the names the extraction marked as people become person ids on the
+      // entry, and a reported contact becomes one ledger row through the one writer. Never fatal to the ingest.
+      try {
+        const { linkJournalPeople, normalizeJournalPeople } = await import("@/lib/services/people/journal-link");
+        const linked = await linkJournalPeople({
+          dumpId: brainDump.id,
+          createdAt: brainDump.createdAt,
+          rawText,
+          people: normalizeJournalPeople(data.people),
+        });
+        // A failed contact write already reached recordError inside the link; the result says so too.
+        peopleLinked = { linked: linked.personIds.length, contacts: linked.recorded, failed: linked.failed };
+      } catch (err) {
+        recordError("brain:journal-ingest", err, { phase: "people-link", brainDumpId: brainDump.id });
+      }
 
       // 3. Create Task INBOX entries from action items + alert on critical.
       // Apr 18: swapped OpenLoop → Task. Each inbox task carries the
@@ -814,6 +837,7 @@ ${rawText}`,
     summary,
     reflectionId: derived.reflectionId,
     decisionReplayId: derived.decisionReplayId,
+    peopleLinked,
   };
 }
 

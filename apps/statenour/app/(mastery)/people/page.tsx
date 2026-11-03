@@ -70,6 +70,7 @@ import {
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
 import { etDaysBetween } from "@/lib/brain/goal-pace";
+import { JournalReadStatus, PersonJournalLine } from "@/components/people/journal-line";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
@@ -88,6 +89,8 @@ interface PersonRow {
   isNeglected: boolean;
   /** Newest contact note from the ledger (/api/people); null = none on file. */
   latestNote?: { note: string; at: string; source: string } | null;
+  /** Newest journal entry naming the person (/api/people); null = none, or the read failed (`reads.journal`). */
+  latestJournal?: { at: string; excerpt: string; dumpId: string } | null;
 }
 
 interface PeopleResponse {
@@ -98,6 +101,8 @@ interface PeopleResponse {
     high_trust: number;
     sparse: number;
   };
+  /** Which side reads failed; a failed journal read nulls every latestJournal, so it is said once, not hidden. */
+  reads?: { journal: "ok" | "failed" };
   generatedAt: string;
 }
 
@@ -429,6 +434,7 @@ function RelationshipsPageInner() {
               </button>
             </p>
           )}
+          <JournalReadStatus reads={data.reads} />
         </section>
       )}
 
@@ -663,6 +669,8 @@ function RelationshipsPageInner() {
                         {p.latestNote.note}
                       </p>
                     )}
+                    {/* W4 2026-11-02: the newest journal entry that names this person (brain_dumps.person_ids). */}
+                    <PersonJournalLine latestJournal={p.latestJournal} formatDays={relativeTime} />
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-mono text-[11px] text-fg-tertiary">
