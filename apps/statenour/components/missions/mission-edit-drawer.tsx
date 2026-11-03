@@ -16,16 +16,19 @@
  * KILLED. The page operates "complete mission" via the retro modal
  * (Wave AA) which sets COMPLETE on its own · this drawer only flips to
  * PAUSED (snooze) or KILLED (operator decided not to pursue).
+ *
+ * W8c (2026-11-03) · the goal is editable on an existing mission: a select of the active goals (and "No goal")
+ * writes fields.lifeGoalId through the same PATCH (services/missions.updateMission, which refuses any id that is
+ * not an active goal's). Above it, "Suggested: <goal> · Use" (trpc.task.suggestMissionGoal) links in one tap.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import Link from "next/link";
 import { isGeneralAnchor } from "@/lib/services/mission-helpers";
 
 const STATUSES = ["ACTIVE", "PAUSED", "COMPLETE", "KILLED"] as const;
@@ -42,11 +45,15 @@ export interface MissionEditDrawerProps {
     /** "What does done look like" (Mission.completionCriteria). Sent as `description` until 2026-11-02, which no schema accepted. */
     completionCriteria: string | null;
     deadline: string | null;
-    /** The goal this mission was planned from (Mission.lifeGoalId), shown read-only. */
+    /** The goal this mission sits under (Mission.lifeGoalId). */
     goal?: { id: string; title: string } | null;
     /** "GENERAL" for a system lane; such a mission cannot be deleted. */
     systemKind?: string | null;
   };
+  /** The active goals the select offers (the page's task.goals read, status active). */
+  goals?: { id: string; title: string }[];
+  /** The field the drawer opens at: the card's "Align to goal" opens at the goal select. */
+  focusField?: "goal" | null;
   onSaved?: (missionId: string) => void;
 }
 
@@ -59,6 +66,8 @@ function MissionEditDrawerBody({
   onClose,
   missionId,
   initial,
+  goals = [],
+  focusField = null,
   onSaved,
 }: MissionEditDrawerProps) {
   const isCreate = missionId === null;
@@ -69,13 +78,62 @@ function MissionEditDrawerBody({
   const [deadline, setDeadline] = useState(() =>
     initial?.deadline ? initial.deadline.slice(0, 10) : "",
   );
+  // "" is No goal. The value is always an id from `goals` (or the mission's own current goal), never typed text.
+  const [lifeGoalId, setLifeGoalId] = useState(() => initial?.goal?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const goalRef = useRef<HTMLSelectElement>(null);
 
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
   // standalone mode so the delete guard always took the cancel path.
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const createMission = trpc.task.createMission.useMutation();
   const utils = trpc.useUtils();
+  // Ruling: the suggestion is read when the drawer opens, for that one mission, not at page load for all of them.
+  const suggestQ = trpc.task.suggestMissionGoal.useQuery(
+    { missionId: missionId ?? "" },
+    { enabled: !isCreate && !initial?.goal, staleTime: 5 * 60_000, retry: false, refetchOnWindowFocus: false },
+  );
+
+  useEffect(() => {
+    if (focusField === "goal") goalRef.current?.focus();
+  }, [focusField]);
+
+  // The current goal may no longer be active (paused, achieved): keep it selectable so a save leaves it as it is.
+  const currentGoal = initial?.goal ?? null;
+  const goalOptions =
+    currentGoal && !goals.some((g) => g.id === currentGoal.id)
+      ? [...goals, { id: currentGoal.id, title: `${currentGoal.title} (not active)` }]
+      : goals;
+
+  const patchMission = useCallback(
+    async (body: Record<string, unknown>) => {
+      const res = await fetch(`/api/missions/${missionId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(res.status === 400 ? "That goal is not active any more." : `HTTP ${res.status}`);
+      await Promise.all([utils.task.missions.invalidate(), utils.task.deck.invalidate()]);
+    },
+    [missionId, utils],
+  );
+
+  const handleUseSuggestion = useCallback(
+    async (goal: { goalId: string; title: string }) => {
+      setSubmitting(true);
+      try {
+        await patchMission({ lifeGoalId: goal.goalId });
+        setLifeGoalId(goal.goalId);
+        toast.success(`Linked to “${goal.title}”.`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Link failed.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [patchMission],
+  );
 
   const handleSave = useCallback(async () => {
     const trimmed = title.trim();
@@ -101,21 +159,15 @@ function MissionEditDrawerBody({
       } else {
         // Existing /api/missions/[id] PATCH path · uses the same
         // updateMission service the legacy code calls.
-        const res = await fetch(`/api/missions/${missionId}`, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: trimmed,
-            status,
-            domain: domain.trim() || null,
-            completionCriteria: description.trim() || null,
-            deadline: deadline.trim() || null,
-          }),
+        await patchMission({
+          title: trimmed,
+          status,
+          domain: domain.trim() || null,
+          completionCriteria: description.trim() || null,
+          deadline: deadline.trim() || null,
+          lifeGoalId: lifeGoalId || null,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast.success(`Updated “${trimmed}”.`);
-        await Promise.all([utils.task.missions.invalidate(), utils.task.deck.invalidate()]);
         onSaved?.(missionId!);
         onClose();
       }
@@ -131,8 +183,10 @@ function MissionEditDrawerBody({
     domain,
     description,
     deadline,
+    lifeGoalId,
     missionId,
     createMission,
+    patchMission,
     utils,
     onSaved,
     onClose,
@@ -181,6 +235,7 @@ function MissionEditDrawerBody({
       <DialogContent
         unstyled
         showCloseButton={false}
+        initialFocus={focusField === "goal" ? goalRef : undefined}
         overlayClassName="z-[70] bg-canvas/60"
         className={cn(
           "fixed inset-x-0 bottom-0 z-[70] max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-float border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,0px)] outline-none lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-overlay lg:border",
@@ -255,13 +310,33 @@ function MissionEditDrawerBody({
             />
           </Field>
 
-          {initial?.goal && (
-            <p className="text-[12px] text-fg-secondary">
-              <span className="font-mono text-[11px] text-fg-tertiary">goal </span>
-              <Link href="/stats?tab=goals" onClick={onClose} className="text-sky-300 hover:underline">
-                {initial.goal.title}
-              </Link>
-            </p>
+          {!isCreate && (
+            <div className="space-y-1">
+              {!lifeGoalId && (
+                <GoalSuggestionLine
+                  query={suggestQ}
+                  disabled={submitting}
+                  onUse={(s) => void handleUseSuggestion(s)}
+                />
+              )}
+              <Field label="goal">
+                <select
+                  ref={goalRef}
+                  aria-label="goal"
+                  value={lifeGoalId}
+                  onChange={(e) => setLifeGoalId(e.target.value)}
+                  disabled={submitting}
+                  className={inputCls}
+                >
+                  <option value="">No goal</option>
+                  {goalOptions.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
           )}
 
           <Field label="done when">
@@ -318,6 +393,46 @@ function MissionEditDrawerBody({
         {confirmDialog}
       </DialogContent>
     </Dialog>
+  );
+}
+
+type Suggestion = { goalId: string; title: string; score: number; basis: "embedding" | "words" };
+
+/** One line above the goal select: the suggestion and its one-tap Use, "couldn't suggest", or a measured no-match. */
+function GoalSuggestionLine({
+  query,
+  disabled,
+  onUse,
+}: {
+  query: { data?: Suggestion | null; isError: boolean; isLoading: boolean };
+  disabled: boolean;
+  onUse: (s: Suggestion) => void;
+}) {
+  if (query.isError) {
+    return (
+      <p role="status" className="text-[12px] text-amber-300">
+        Couldn&apos;t suggest a goal
+      </p>
+    );
+  }
+  if (query.data === undefined) return null;
+  if (query.data === null) return <p className="text-[12px] text-fg-tertiary">No goal matched closely</p>;
+  const s = query.data;
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-fg-secondary">
+      <span className="min-w-0 truncate">
+        Suggested: {s.title}
+        {s.basis === "words" && <span className="text-fg-tertiary"> · from shared words</span>}
+      </span>
+      <button
+        type="button"
+        onClick={() => onUse(s)}
+        disabled={disabled}
+        className="inline-flex min-h-11 items-center px-2 font-medium text-sky-300 hover:underline disabled:opacity-50"
+      >
+        Use
+      </button>
+    </p>
   );
 }
 

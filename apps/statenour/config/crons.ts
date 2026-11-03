@@ -387,7 +387,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * *",
     mode: "active",
     category: "brain",
-    description: "Nightly via mega-evening fan-out · scans new chat messages for mission-relevance, writes ConversationMissionLink rows so Nick can answer 'what mission was this about?'",
+    description: "Nightly via mega-evening fan-out · embeds up to LINKER_EMBED_PER_RUN chats that have no vector (title + first user messages), then sets chat_conversations.mission_id on strong same-model matches and queues medium ones for review (/brain Memory)",
     memory: 512,
     maxDuration: 60,
   },

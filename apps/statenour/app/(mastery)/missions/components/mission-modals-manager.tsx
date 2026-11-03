@@ -15,6 +15,7 @@ export function MissionModalsManager({ missions, goals }: { missions: any[]; goa
   const missionEditOpen = useMissionUIStore((s) => s.missionEditOpen);
   const missionEditId = useMissionUIStore((s) => s.missionEditId);
   const missionEditInitial = useMissionUIStore((s) => s.missionEditInitial);
+  const missionEditFocus = useMissionUIStore((s) => s.missionEditFocus);
   const closeMissionEdit = useMissionUIStore((s) => s.closeMissionEdit);
 
   const taskEditOpen = useMissionUIStore((s) => s.taskEditOpen);
@@ -51,6 +52,8 @@ export function MissionModalsManager({ missions, goals }: { missions: any[]; goa
         onClose={closeMissionEdit}
         missionId={missionEditId}
         initial={missionEditInitial}
+        goals={goals}
+        focusField={missionEditFocus}
         onSaved={closeMissionEdit}
       />
 

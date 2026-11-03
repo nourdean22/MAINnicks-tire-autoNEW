@@ -38,7 +38,8 @@ import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
 import Link from "next/link";
 import { missionHasEndState } from "@/lib/services/mission-helpers";
-import { GOAL_CHIP_WIDTH, goalFilterHref } from "@/lib/missions/task-goal";
+import { GOAL_CHIP_WIDTH } from "@/lib/missions/task-goal";
+import { useGoalFilterHref } from "./use-goal-filter-href";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import { MissionChatsLine, type MissionChatsRead } from "./mission-chats-line";
 
@@ -84,6 +85,7 @@ export function MissionCard({
   onTaskDropOnMission,
 }: MissionCardProps) {
   const actions = useMissionDispatch();
+  const goalFilterHref = useGoalFilterHref();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -267,6 +269,29 @@ export function MissionCard({
           >
             <span className="truncate">goal · {mission.lifeGoal.title}</span>
           </Link>
+        )}
+        {/* W8c · a mission with no goal (0 of 13 in prod) aligns in one tap: the drawer opens at its goal select,
+         *  with Nick's suggested goal above it. Hidden for system lanes, which belong to no goal. */}
+        {!mission.lifeGoal && mission.systemKind !== "GENERAL" && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              actions.handleEditMission(mission.id, { focus: "goal" });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                actions.handleEditMission(mission.id, { focus: "goal" });
+              }
+            }}
+            aria-label={`align mission ${mission.title} to a goal`}
+            className="min-h-11 inline-flex shrink-0 cursor-pointer items-center px-1 font-mono text-[11px] text-fg-tertiary hover:text-sky-300 hover:underline"
+          >
+            align to goal
+          </span>
         )}
         {deadlineLabel && (
           <span

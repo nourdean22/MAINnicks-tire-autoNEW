@@ -1,7 +1,19 @@
+import { createHash } from "node:crypto";
+
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { padToVectorDim } from "@/lib/db/pgvector";
+import { LINKER_EMBED_PER_RUN } from "@/lib/missions/mission-chats-limits";
+import { GOAL_EMBED_SOURCE_TYPE, SUGGEST_GOAL_MAX_GOALS, goalEmbedText } from "@/lib/missions/goal-embedding";
 
 type PrismaLike = typeof defaultPrisma;
+
+export { LINKER_EMBED_PER_RUN };
+/** W8c · user messages (oldest first) that join a chat's title and summary in its embedding text. */
+export const LINKER_FIRST_USER_MESSAGES = 5;
+/** Characters kept from each of those messages, so one pasted wall of text cannot fill the whole embedding. */
+const LINKER_MESSAGE_CHARS = 600;
+/** The embedding text cap the mission side has always used. */
+const EMBED_TEXT_MAX = 4000;
 
 export interface ConversationMissionLinkOptions {
   prisma?: PrismaLike;
@@ -15,17 +27,31 @@ export interface ConversationMissionLinkReport {
   conversations: number;
   missions: number;
   missionEmbeddingsCreated: number;
+  /** W8c · active goals embedded (sourceType life_goal) for the mission goal suggestion; same text never twice. */
+  goalEmbeddingsCreated: number;
   alreadyLinked: number;
+  /** W8c · chats embedded this run (no vector before, or a vector of different text from another model). */
+  embedded: number;
+  /** W8c · chats whose embed call came back empty; nothing stored, tried again next run. */
+  embedFailed: number;
   autoLinked: number;
   queuedForReview: number;
   belowReviewThreshold: number;
+  /** Chats with no vector left for a later run (past LINKER_EMBED_PER_RUN, or a dry run). */
   skippedNoEmbedding: number;
+  /** W8c · chats whose only vector is from a different model than the missions': never scored across models. */
+  skippedOtherSpace: number;
+  /** Work done, for cron_job_logs.resultCount: chats embedded + links written + review rows queued. */
+  resultCount: number;
 }
 
 interface EmbeddingRow {
+  id: string;
+  sourceType: string;
   sourceId: string;
-  content: string;
   embedding: string;
+  model: string | null;
+  contentFingerprint: string | null;
 }
 
 interface ConversationRow {
@@ -44,6 +70,14 @@ interface MissionRow {
   weeklyReviewNote: string | null;
   planData: unknown;
   taskTitles: string[];
+}
+
+/** One stored vector: its row, the model (embedding space) that made it and the fingerprint of its text. */
+interface Stored {
+  id: string;
+  vec: number[];
+  model: string | null;
+  fingerprint: string | null;
 }
 
 function parseVector(raw: string): number[] {
@@ -68,6 +102,22 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return magA > 0 && magB > 0 ? dot / (Math.sqrt(magA) * Math.sqrt(magB)) : 0;
 }
 
+/** The text identity of an embedding (vector_embeddings.contentFingerprint): same text, same fingerprint. */
+export function contentFingerprintOf(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 16);
+}
+
+/** What a chat is embedded from: its title, its pinned summary when it has one, and its first user messages. */
+export function conversationEmbedText(
+  conversation: { title: string | null; pinnedSummary: string | null },
+  userMessages: string[],
+): string {
+  return [conversation.title?.trim(), conversation.pinnedSummary?.trim(), ...userMessages.map((m) => m.trim().slice(0, LINKER_MESSAGE_CHARS))]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, EMBED_TEXT_MAX);
+}
+
 function topicTagsText(tags: unknown): string {
   if (!Array.isArray(tags)) return "";
   return tags.filter((tag) => typeof tag === "string").join(" ");
@@ -89,7 +139,7 @@ function missionEmbeddingText(mission: MissionRow): string {
   ]
     .filter(Boolean)
     .join("\n")
-    .slice(0, 4000);
+    .slice(0, EMBED_TEXT_MAX);
 }
 
 function vectorLiteral(vec: number[]): string {
@@ -132,40 +182,76 @@ async function writeVectorColumns(prisma: PrismaLike, id: string, vec: number[])
   );
 }
 
+/**
+ * Embed `text` with the provider's one embedder (getEmbeddingWithModel: the model it reports is the vector's space)
+ * and store it with its fingerprint. An existing row for the source is UPDATED in place, so a source never gets a
+ * second row. Returns null when the provider gave nothing; nothing is written then.
+ */
+async function embedAndStore(
+  prisma: PrismaLike,
+  sourceType: "mission" | "chat_conversation" | typeof GOAL_EMBED_SOURCE_TYPE,
+  sourceId: string,
+  text: string,
+  existing: Stored | undefined,
+): Promise<Stored | null> {
+  const { getEmbeddingWithModel } = await import("@/lib/ai/provider");
+  const { vec, model } = await getEmbeddingWithModel(text).catch(() => ({ vec: [] as number[], model: null }));
+  if (vec.length === 0) return null;
+  const fingerprint = contentFingerprintOf(text);
+  const data = { content: text, embedding: JSON.stringify(vec), embedding_dim: vec.length, model, contentFingerprint: fingerprint };
+  const row = existing
+    ? await prisma.vectorEmbedding.update({ where: { id: existing.id }, data, select: { id: true } })
+    : await prisma.vectorEmbedding.create({ data: { sourceType, sourceId, ...data }, select: { id: true } });
+  await writeVectorColumns(prisma, row.id, vec);
+  return { id: row.id, vec, model, fingerprint };
+}
+
+/**
+ * Embed each scored mission whose stored vector is missing or was made from different text. Rows written before
+ * W8c carry no fingerprint, so each is re-embedded once in the provider's current model (the 26 prod rows were
+ * written by the retired venice-bge-m3 lane); after that a mission is re-embedded only when its text changes.
+ */
 async function ensureMissionEmbeddings(
   prisma: PrismaLike,
   missions: MissionRow[],
-  existingMissionEmbeds: Map<string, number[]>,
+  stored: Map<string, Stored>,
   dryRun: boolean,
 ): Promise<number> {
-  const missing = missions.filter((mission) => !existingMissionEmbeds.has(mission.id));
-  if (dryRun || missing.length === 0) return 0;
-
-  const { getEmbedding } = await import("@/lib/ai/provider");
+  if (dryRun) return 0;
   let created = 0;
-
-  for (const mission of missing) {
+  for (const mission of missions) {
     const text = missionEmbeddingText(mission);
     if (text.length < 10) continue;
-    const vec = await getEmbedding(text).catch((): number[] => []);
-    if (vec.length === 0) continue;
-
-    const row = await prisma.vectorEmbedding.create({
-      data: {
-        sourceType: "mission",
-        sourceId: mission.id,
-        content: text.slice(0, 4000),
-        embedding: JSON.stringify(vec),
-        embedding_dim: vec.length,
-        model: vec.length === 1024 ? "venice-bge-m3" : "text-embedding-3-small",
-      },
-      select: { id: true },
-    });
-    await writeVectorColumns(prisma, row.id, vec);
-    existingMissionEmbeds.set(mission.id, vec);
+    const existing = stored.get(mission.id);
+    if (existing && existing.fingerprint === contentFingerprintOf(text)) continue;
+    const fresh = await embedAndStore(prisma, "mission", mission.id, text, existing);
+    if (!fresh) continue;
+    stored.set(mission.id, fresh);
     created++;
   }
+  return created;
+}
 
+/** W8c · embed each active goal (title + why) whose stored vector is missing or of different text. */
+async function ensureGoalEmbeddings(prisma: PrismaLike, stored: Map<string, Stored>, dryRun: boolean): Promise<number> {
+  if (dryRun) return 0;
+  const goals = await prisma.lifeGoal.findMany({
+    where: { status: "active", deletedAt: null },
+    orderBy: { updatedAt: "desc" },
+    take: SUGGEST_GOAL_MAX_GOALS,
+    select: { id: true, title: true, why: true },
+  });
+  let created = 0;
+  for (const goal of goals) {
+    const text = goalEmbedText(goal);
+    if (!text) continue;
+    const existing = stored.get(goal.id);
+    if (existing && existing.fingerprint === contentFingerprintOf(text)) continue;
+    const fresh = await embedAndStore(prisma, GOAL_EMBED_SOURCE_TYPE, goal.id, text, existing);
+    if (!fresh) continue;
+    stored.set(goal.id, fresh);
+    created++;
+  }
   return created;
 }
 
@@ -184,6 +270,9 @@ export async function runConversationMissionLinkBackfill(
   //   autoThreshold  = 0.55  → auto-link genuine strong matches
   //   reviewThreshold = 0.45  → queue medium matches for review
   //   below 0.45 = noise floor (don't pollute review queue)
+  // W8c (2026-11-03) · venice is retired: vectors embedded from now on come from the provider's current model
+  // (cohere first), whose distribution was never probed. These two numbers are kept, not re-tuned blind; re-run the
+  // probe on the first night's same-model vectors before moving them.
   const autoThreshold = options.autoThreshold ?? 0.55;
   const reviewThreshold = options.reviewThreshold ?? 0.45;
 
@@ -223,59 +312,103 @@ export async function runConversationMissionLinkBackfill(
     ORDER BY m.priority DESC, m."updatedAt" DESC
   `);
 
-  const embeddingRows = await prisma.vectorEmbedding.findMany({
-    where: { sourceType: { in: ["chat_conversation", "mission"] } },
-    select: { sourceType: true, sourceId: true, content: true, embedding: true },
+  const embeddingRows: EmbeddingRow[] = await prisma.vectorEmbedding.findMany({
+    where: { sourceType: { in: ["chat_conversation", "mission", GOAL_EMBED_SOURCE_TYPE] } },
+    select: { id: true, sourceType: true, sourceId: true, embedding: true, model: true, contentFingerprint: true },
   });
 
-  const conversationEmbeds = new Map<string, number[]>();
-  const missionEmbeds = new Map<string, number[]>();
+  const conversationStored = new Map<string, Stored>();
+  const missionStored = new Map<string, Stored>();
+  const goalStored = new Map<string, Stored>();
   for (const row of embeddingRows) {
-    const vec = parseVector(row.embedding);
-    if (vec.length === 0) continue;
-    if (row.sourceType === "chat_conversation") conversationEmbeds.set(row.sourceId, vec);
-    if (row.sourceType === "mission") missionEmbeds.set(row.sourceId, vec);
+    const s: Stored = { id: row.id, vec: parseVector(row.embedding), model: row.model, fingerprint: row.contentFingerprint };
+    if (row.sourceType === "chat_conversation") conversationStored.set(row.sourceId, s);
+    if (row.sourceType === "mission") missionStored.set(row.sourceId, s);
+    if (row.sourceType === GOAL_EMBED_SOURCE_TYPE) goalStored.set(row.sourceId, s);
   }
 
-  const missionEmbeddingsCreated = await ensureMissionEmbeddings(
-    prisma,
-    missions,
-    missionEmbeds,
-    dryRun,
-  );
+  const missionEmbeddingsCreated = await ensureMissionEmbeddings(prisma, missions, missionStored, dryRun);
+  const goalEmbeddingsCreated = await ensureGoalEmbeddings(prisma, goalStored, dryRun);
+  // A cosine across two embedding models is a plausible number, not a match: score only same-model pairs.
+  const scorable = missions.flatMap((mission) => {
+    const s = missionStored.get(mission.id);
+    return s && s.vec.length > 0 && s.model ? [{ mission, vec: s.vec, model: s.model }] : [];
+  });
+  const missionSpaces = new Set(scorable.map((m) => m.model));
 
   const report: ConversationMissionLinkReport = {
     conversations: conversations.length,
     missions: missions.length,
     missionEmbeddingsCreated,
+    goalEmbeddingsCreated,
     alreadyLinked: 0,
+    embedded: 0,
+    embedFailed: 0,
     autoLinked: 0,
     queuedForReview: 0,
     belowReviewThreshold: 0,
     skippedNoEmbedding: 0,
+    skippedOtherSpace: 0,
+    resultCount: 0,
   };
 
+  let embedSlots = LINKER_EMBED_PER_RUN;
   for (const conversation of conversations) {
     if (conversation.mission_id) {
       report.alreadyLinked++;
       continue;
     }
 
-    const convVec = conversationEmbeds.get(conversation.id);
-    if (!convVec) {
-      report.skippedNoEmbedding++;
-      continue;
+    let stored = conversationStored.get(conversation.id);
+    const usable = (s: Stored | undefined): s is Stored & { model: string } =>
+      !!s && s.vec.length > 0 && !!s.model && missionSpaces.has(s.model);
+
+    if (!usable(stored)) {
+      if (dryRun || embedSlots <= 0) {
+        report.skippedNoEmbedding++;
+        continue;
+      }
+      embedSlots--;
+      const messages = await prisma.chatMessage.findMany({
+        where: { conversationId: conversation.id, role: "user" },
+        orderBy: { createdAt: "asc" },
+        take: LINKER_FIRST_USER_MESSAGES,
+        select: { content: true },
+      });
+      const text = conversationEmbedText(conversation, messages.map((m) => m.content));
+      if (!text) {
+        report.skippedNoEmbedding++;
+        continue;
+      }
+      // The same text was already embedded (in a model the missions are not in): never embed it twice.
+      if (stored && stored.fingerprint === contentFingerprintOf(text)) {
+        report.skippedOtherSpace++;
+        continue;
+      }
+      const fresh = await embedAndStore(prisma, "chat_conversation", conversation.id, text, stored);
+      if (!fresh) {
+        report.embedFailed++;
+        continue;
+      }
+      report.embedded++;
+      stored = fresh;
+      if (!usable(stored)) {
+        report.skippedOtherSpace++;
+        continue;
+      }
     }
 
+    const convVec = stored.vec;
+    const space = stored.model;
     let best: { mission: MissionRow; score: number } | null = null;
-    for (const mission of missions) {
-      const missionVec = missionEmbeds.get(mission.id);
-      if (!missionVec) continue;
-      const score = cosineSimilarity(convVec, missionVec);
-      if (!best || score > best.score) best = { mission, score };
+    for (const candidate of scorable) {
+      if (candidate.model !== space) continue;
+      const score = cosineSimilarity(convVec, candidate.vec);
+      if (!best || score > best.score) best = { mission: candidate.mission, score };
     }
 
-    if (!best || best.score < reviewThreshold) {
+    // A non-finite score (a NaN in a stored vector) is noise, never a review row.
+    if (!best || !(best.score >= reviewThreshold)) {
       report.belowReviewThreshold++;
       continue;
     }
@@ -334,5 +467,11 @@ export async function runConversationMissionLinkBackfill(
     report.queuedForReview++;
   }
 
+  report.resultCount = report.embedded + report.autoLinked + report.queuedForReview;
+  if (!dryRun) {
+    console.info(
+      `[conversation-mission-link] embedded ${report.embedded} (failed ${report.embedFailed}) · auto-linked ${report.autoLinked} · queued ${report.queuedForReview} · no vector ${report.skippedNoEmbedding} · other model ${report.skippedOtherSpace} · missions re-embedded ${report.missionEmbeddingsCreated}`,
+    );
+  }
   return report;
 }
