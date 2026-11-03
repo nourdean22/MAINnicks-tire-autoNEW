@@ -6,12 +6,16 @@
  *    with the id (so Nick can call getRelated / logGoalCheckIn) and the same health and pace the card shows
  *    (activeGoalsWithHealth, the getGoals read; never a second goals query).
  *  - One maxim from his books for the worst touched goal that is off track or behind pace (maximForGoalMoment,
- *    the goal card's own pick). It takes a wisdom slot (selectWisdomSlots goalMaximSlots), so wisdom never grows.
+ *    the goal card's own pick, never one Nour skipped on Home). It takes a wisdom slot (selectWisdomSlots
+ *    goalMaximSlots), so wisdom never grows.
+ *  - The goals read runs only when the turn can touch a goal (a goal word, or a 4+ letter topic that matches a
+ *    live title); the lines show the 3 most urgent goals (off track, behind pace, due soonest), not horizon order.
  *  - People: each recalled person's newest journal line (brain_dumps.person_ids) and last contact
  *    (relationship_ledger, contacts only), read by id, so a reply about a person starts from the newest fact.
  */
 import { prisma } from "@/lib/prisma";
-import { activeGoalsWithHealth, type ActiveGoalHealth } from "@/lib/services/goal-health";
+import { activeGoalTitles, activeGoalsWithHealth, type ActiveGoalHealth } from "@/lib/services/goal-health";
+import { skippedIds } from "@/lib/services/home-maxim";
 import { goalMomentState, maximForGoalMoment, type GoalMaxim, type GoalMomentState } from "@/lib/brain/goal-maxim";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { MAXIM_POOL } from "@/lib/wisdom/maxim-pool";
@@ -29,8 +33,9 @@ const RECALL_MAXIM_STATES: readonly GoalMomentState[] = ["off_track", "behind_pa
 export const GOAL_RECALL_HEADING = "### Goals in this turn";
 
 // Read against the RAW last message (topics are single words, so a phrase could never match). Not "behind", "pace"
-// or "progress" ("behind on emails"), and not "target" (the store): W6 self-review and second reader.
-const GOAL_WORDS = /\b(goals?|on track|off track|check[- ]?ins?)\b/i;
+// or "progress" ("behind on emails"), and not "target" (the store): W6 self-review and second reader. W8a (C3):
+// "check in with/on <person>" is a people turn, not a goal turn.
+const GOAL_WORDS = /\b(goals?|on track|off track|check[- ]?ins?\b(?!\s+(on|with)\b))/i;
 /** Rendered when the goals read fails on a goal turn: the goals are unknown this turn, not absent. */
 export const GOAL_READ_FAILED_LINE = "- Goals: couldn't read this turn (unknown, not none)";
 
@@ -49,6 +54,22 @@ export interface GoalRecall {
   failed?: true;
 }
 
+/** Off track first, then behind pace, then due soonest (no date last); ties keep the read's order. */
+export function byUrgency(a: ActiveGoalHealth, b: ActiveGoalHealth): number {
+  const rank = (g: ActiveGoalHealth) => (g.health.state === "off_track" || g.paceKind === "missed" ? 0 : g.paceKind === "behind" ? 1 : 2);
+  const ra = rank(a);
+  const rb = rank(b);
+  if (ra !== rb) return ra - rb;
+  const da = a.due?.at ? Date.parse(a.due.at) : Number.POSITIVE_INFINITY;
+  const db = b.due?.at ? Date.parse(b.due.at) : Number.POSITIVE_INFINITY;
+  return da - db;
+}
+
+/** True when the turn can touch a goal at all: a goal word, or a topic with a 4+ letter word a title could share. */
+export function canTouchGoals(topicLower: string[], query: string): boolean {
+  return GOAL_WORDS.test(query) || topicLower.some((t) => words(t).length > 0);
+}
+
 export function goalRecallBlock(
   goals: readonly ActiveGoalHealth[],
   topicLower: string[],
@@ -56,10 +77,13 @@ export function goalRecallBlock(
   query: string,
   pool: readonly Maxim[] = MAXIM_POOL,
   day?: string,
+  /** Maxim ids Nour skipped on Home (lib/services/home-maxim.ts skippedIds): never shown again here either (C6). */
+  skipped: ReadonlySet<string> = new Set(),
 ): GoalRecall {
   const all = GOAL_WORDS.test(query);
-  const touched = (all ? goals : goals.filter((g) => touches(g.title, topicLower))).slice(0, GOAL_RECALL_LINES);
+  const touched = [...(all ? goals : goals.filter((g) => touches(g.title, topicLower)))].sort(byUrgency).slice(0, GOAL_RECALL_LINES);
   if (touched.length === 0) return { lines: [], maxim: null };
+  const liftedPool = skipped.size ? pool.filter((m) => !skipped.has(m.id)) : pool;
   const lines = [
     GOAL_RECALL_HEADING,
     ...touched.map((g) => {
@@ -72,16 +96,34 @@ export function goalRecallBlock(
     goalMomentState({ status: g.status, health: g.health.state, pace: g.paceKind ? { kind: g.paceKind } : null });
   const worst = RECALL_MAXIM_STATES.map((s) => touched.find((g) => moment(g) === s)).find(Boolean);
   const maxim = worst
-    ? maximForGoalMoment({ id: worst.id, status: worst.status, health: worst.health.state, pace: worst.paceKind ? { kind: worst.paceKind } : null }, pool, day)
+    ? maximForGoalMoment({ id: worst.id, status: worst.status, health: worst.health.state, pace: worst.paceKind ? { kind: worst.paceKind } : null }, liftedPool, day)
     : null;
   if (worst && maxim) lines.push(`- Maxim for "${clip(worst.title, 100)}" (${maxim.state.replace("_", " ")}): ${maxim.text} (${maxim.origin})`);
   return { lines, maxim };
 }
 
 export async function readGoalRecall(topicLower: string[], query: string): Promise<GoalRecall> {
+  // C17: no goal word and no topic word of 4+ letters: no goal can be touched, so nothing is read.
+  if (!canTouchGoals(topicLower, query)) return { lines: [], maxim: null };
   try {
+    // Without a goal word, a cheap titles read decides whether the full read (goals + check-ins + tasks) is needed.
+    if (!GOAL_WORDS.test(query)) {
+      const titles = await activeGoalTitles();
+      if (!titles.some((g) => touches(g.title, topicLower))) return { lines: [], maxim: null };
+    }
     const { goals } = await activeGoalsWithHealth();
-    return goalRecallBlock(goals, topicLower, query);
+    // C6: one read of the Home skip list; a failed read means no maxim this turn, never a skipped one.
+    let skipped: ReadonlySet<string> = new Set();
+    let skipRead = true;
+    try {
+      skipped = await skippedIds(new Date());
+    } catch (err) {
+      skipRead = false;
+      log.warn("goal_maxim_skip_read_failed", { err: err instanceof Error ? err.message : String(err) });
+    }
+    const block = goalRecallBlock(goals, topicLower, query, MAXIM_POOL, undefined, skipped);
+    if (!skipRead && block.maxim) return { ...block, maxim: null, lines: block.lines.filter((l) => !l.startsWith("- Maxim")) };
+    return block;
   } catch (err) {
     log.warn("goal_recall_failed", { err: err instanceof Error ? err.message : String(err) });
     // A goal turn must not read like a turn that touched no goal (empty-vs-error).

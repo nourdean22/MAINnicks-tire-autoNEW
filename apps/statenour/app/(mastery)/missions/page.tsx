@@ -58,6 +58,7 @@ import { StandardPage } from "@/components/layout/standard-page";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import type { Task } from "@/components/actions/shared";
 import { useCustomDomains } from "@/hooks/use-custom-domains";
+import { useOpenTaskFromUrl } from "./hooks/use-missions-data";
 
 import { trpc } from "@/lib/trpc/client";
 import { useMissionsData } from "./hooks/use-missions-data";
@@ -97,6 +98,8 @@ function MissionsPageInner() {
 
   const filters = useMissionFilters(tasks, missions);
   const actions = useMissionActions({ tasks, missions });
+  // W8a: the goal card's "Next:" / the hero's move arrive as ?goalId=&taskId=; the task's sheet opens once.
+  useOpenTaskFromUrl(tasks, actions.handleEditTask);
 
   // The board renders FINITE user projects only. Anchor-lane tasks live in
   // LANES, habits in RHYTHMS, mission-less tasks in the triage airlock, 

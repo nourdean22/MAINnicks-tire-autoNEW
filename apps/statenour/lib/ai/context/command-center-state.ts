@@ -72,6 +72,8 @@ export interface MissionSummary {
   domain: string;
   priority: number;
   successMetric: string | null;
+  /** W8a (C9): the goal the mission serves (Mission.lifeGoalId, live); null when none. */
+  goal?: { id: string; title: string } | null;
 }
 
 /** v9.1.4 · Active LifeGoal summary for the prompt. */
@@ -472,6 +474,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           domain: true,
           priority: true,
           successMetric: true,
+          lifeGoal: { select: { id: true, title: true, deletedAt: true } },
         },
       })
       .catch(() => [] as Array<MissionRow>),
@@ -1031,6 +1034,7 @@ interface MissionRow {
   domain: string;
   priority: number;
   successMetric: string | null;
+  lifeGoal?: { id: string; title: string; deletedAt: Date | null } | null;
 }
 
 function toMissionSummary(m: MissionRow): MissionSummary {
@@ -1040,6 +1044,7 @@ function toMissionSummary(m: MissionRow): MissionSummary {
     domain: m.domain,
     priority: m.priority,
     successMetric: m.successMetric,
+    goal: m.lifeGoal && !m.lifeGoal.deletedAt ? { id: m.lifeGoal.id, title: m.lifeGoal.title } : null,
   };
 }
 

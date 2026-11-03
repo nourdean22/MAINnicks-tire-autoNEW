@@ -40,7 +40,7 @@ const loopKindWeeklyField = z
 
 export const missionsTools = {
   getMissions: tool({
-    description: "Get active missions",
+    description: "Get active missions with the goal each one serves (lifeGoalId + goal title, null when none): a task under a goal-linked mission counts for that goal.",
     inputSchema: z.object({}),
     execute: async () => {
       // v10.0.532 · use canonical isUserProject predicate and propagate errors on DB failure
@@ -50,10 +50,16 @@ export const missionsTools = {
             status: "ACTIVE",
             deletedAt: null,
           },
-          select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true },
+          // W8a (audit C9): the goal the mission serves; an archived goal reads as none.
+          select: { id: true, title: true, domain: true, priority: true, status: true, systemKind: true, lifeGoalId: true, lifeGoal: { select: { id: true, title: true, deletedAt: true } } },
           orderBy: { priority: "desc" },
         });
-        return missions.filter((m) => m.systemKind !== "SYSTEM" && isUserProject(m));
+        return missions
+          .filter((m) => m.systemKind !== "SYSTEM" && isUserProject(m))
+          .map(({ lifeGoal, lifeGoalId, ...m }) => {
+            const goal = lifeGoal && !lifeGoal.deletedAt ? { id: lifeGoal.id, title: lifeGoal.title } : null;
+            return { ...m, lifeGoalId: goal ? lifeGoalId : null, goal };
+          });
       } catch (err) {
         logError("ai.tools.missions", err as Error, { fn: "getMissions" });
         throw new Error("Missions database is unavailable");

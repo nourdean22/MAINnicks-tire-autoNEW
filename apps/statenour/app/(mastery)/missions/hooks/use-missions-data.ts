@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import type { Project, Task } from "@/components/actions/shared";
 import { withTaskGoals, type GoalRow, type GoalTask } from "@/lib/missions/task-goal";
@@ -14,8 +15,9 @@ import { withTaskGoals, type GoalRow, type GoalTask } from "@/lib/missions/task-
  *  · operator.characterSheet: fed a header LVL/XP pill that summed five
  *    per-domain levels (baseline floors included) into a number nothing
  *    read. /stats keeps the honest per-stat sheet.
- *  · task.byId(?taskId=): fetched and discarded; no consumer ever read
- *    the result (deep links use #task-<id> anchors, not ?taskId=).
+ *  · task.byId(?taskId=): fetched and discarded. W8a (2026-11-03): ?taskId= is read
+ *    again, by useOpenTaskFromUrl below, which opens that task's sheet once (the goal
+ *    card's "Next:" and the hero's move link here with goalId + taskId).
  * task.list also slows 15s → 30s: the deck carries the fresh-scored
  * ordering now, so the raw list only feeds actions/filters.
  *
@@ -23,6 +25,22 @@ import { withTaskGoals, type GoalRow, type GoalTask } from "@/lib/missions/task-
  * chips, the align picker and the pace lineage hidden-risk reads. Every task carries
  * goal (lib/missions/task-goal taskGoal: own goalId, else the mission's goal).
  */
+/**
+ * W8a (audit A top-2): /missions?taskId=<id> opens that task's edit sheet once the tasks land. Applied once per
+ * id; an id that matches no task (deleted, filtered out) opens nothing and leaves the URL alone.
+ */
+export function useOpenTaskFromUrl(tasks: readonly Task[], open: (task: Task) => void) {
+  const taskId = useSearchParams().get("taskId") || null;
+  const applied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!taskId || applied.current === taskId) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    applied.current = taskId;
+    open(task);
+  }, [taskId, tasks, open]);
+}
+
 export function useMissionsData() {
   const utils = trpc.useUtils();
 

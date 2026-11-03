@@ -15,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
 import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
+import { logGoalCheckIn } from "@/lib/services/goal-checkin";
+import type { CheckInHealth } from "@/lib/brain/goal-pace";
 import { clip } from "@/lib/utils/clip";
 import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
@@ -147,16 +149,21 @@ export interface SaveWeeklyReviewInput {
   reviewId: string;
   /** The week's reflection; saved ungrounded. */
   week: string;
-  /** One note per goal; each is saved grounded to its goal. */
-  notes: { goalId: string; text: string }[];
+  /** One note per goal; each is saved grounded to its goal. With a health chip it is also that goal's check-in (W8a, S3). */
+  notes: { goalId: string; text: string; health?: CheckInHealth }[];
   extend: string[];
-  close: string[];
+  /** W8a (S4): "Close" split in two. Each sets the goal's status, so updateGoal emits the event and the brain moment. */
+  achieved: string[];
+  missed: string[];
 }
 
 export interface SaveWeeklyReviewResult {
   saved: string[];
   extended: string[];
-  closed: string[];
+  achieved: string[];
+  missed: string[];
+  /** Goals whose note landed as a check-in (logGoalCheckIn, source weekly-review); a same-day duplicate counts. */
+  checkedIn: string[];
   /** Ids that are not active goals (or not WEEK goals, for extend/close): never acted on. */
   skipped: string[];
   /** Goal actions that threw; the entries were already saved. */
@@ -169,7 +176,7 @@ export interface SaveWeeklyReviewResult {
 
 export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date = new Date()): Promise<SaveWeeklyReviewResult> {
   const week = input.week.trim();
-  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim() })).filter((n) => n.text);
+  const notes = input.notes.map((n) => ({ goalId: n.goalId, text: n.text.trim(), health: n.health })).filter((n) => n.text);
   if (!week && notes.length === 0) throw new Error("Write one line before saving the review.");
 
   const goals = new Map((await activeGoals()).map((g) => [g.id, g]));
@@ -218,10 +225,12 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     },
     { isolationLevel: "Serializable" },
   );
-  if (replayed) return { saved, extended: [], closed: [], skipped, failed: [], ungrounded, replayed };
+  if (replayed) return { saved, extended: [], achieved: [], missed: [], checkedIn: [], skipped, failed: [], ungrounded, replayed };
 
   const extended: string[] = [];
-  const closed: string[] = [];
+  const achieved: string[] = [];
+  const missed: string[] = [];
+  const checkedIn: string[] = [];
   const failed: string[] = [];
   const act = async (id: string, run: () => Promise<unknown>, done: string[]) => {
     try {
@@ -232,11 +241,25 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
       failed.push(id);
     }
   };
-  const close = new Set(input.close);
-  for (const id of close) {
-    if (!isWeek(id)) skipped.push(id);
-    else await act(id, () => updateGoal({ id, status: "completed" }), closed);
+  // W8a (S3): a grounded note with a health chip IS the goal's check-in (one per goal per day; the goal card and
+  // Nick's tool write the same row). The note is already saved above, so a failed check-in loses nothing written.
+  for (const n of notes) {
+    if (!n.health || !goals.has(n.goalId)) continue;
+    await act(n.goalId, () => logGoalCheckIn({ goalId: n.goalId, health: n.health!, note: n.text, source: "weekly-review" }), checkedIn);
   }
+  // W8a (S4): "Close" is two words now. Achieved and missed set the status, so updateGoal emits the GoalEvent
+  // (achieved / missed) and the brain moment; the old "completed" wrote neither. Achieved wins over missed.
+  const achievedIds = new Set(input.achieved);
+  const missedIds = new Set(input.missed.filter((id) => !achievedIds.has(id)));
+  for (const id of achievedIds) {
+    if (!isWeek(id)) skipped.push(id);
+    else await act(id, () => updateGoal({ id, status: "achieved" }), achieved);
+  }
+  for (const id of missedIds) {
+    if (!isWeek(id)) skipped.push(id);
+    else await act(id, () => updateGoal({ id, status: "missed" }), missed);
+  }
+  const close = new Set([...achievedIds, ...missedIds]);
   for (const id of new Set(input.extend)) {
     if (close.has(id) && isWeek(id)) continue;
     if (!isWeek(id)) {
@@ -249,5 +272,5 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     await act(id, () => updateGoal({ id, deadline }), extended);
   }
 
-  return { saved, extended, closed, skipped, failed, ungrounded, replayed: false };
+  return { saved, extended, achieved, missed, checkedIn, skipped, failed, ungrounded, replayed: false };
 }

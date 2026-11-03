@@ -260,7 +260,7 @@ const tasksCoreTools = {
 
   createTask: tool({
     description:
-      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
+      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` (from getGoals): completing the task counts it on that goal's card; for a milestone or narrative goal it is one step of the goal's task %, for a metric goal it is logged (the number moves only through a check-in or an edit). A task under a goal-linked mission counts for that goal without a goalId. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     // v10.0.529.85 · Wave 29 · audit-driven shape upgrade. Pre-Wave-29
     // this hardcoded loopKind=ONCE with no goal link · no due date ·
     // no promise. Operator saying "add daily workout tied to fitness
@@ -297,7 +297,7 @@ const tasksCoreTools = {
       goalId: z
         .string()
         .optional()
-        .describe("Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue"),
+        .describe("The goal this task serves (id from getGoals). An unknown id is dropped and said. Omit under a goal-linked mission: the task inherits the mission's goal."),
       promiseTo: z
         .string()
         .optional()
@@ -323,6 +323,10 @@ const tasksCoreTools = {
       const parentOk = parentTaskId
         ? Boolean(await prisma.task.findFirst({ where: { id: parentTaskId, deletedAt: null }, select: { id: true } }))
         : false;
+      // W8a (audit A8): the same rule for goalId, said in the result instead of a silent null from createTaskAndEnrich.
+      const goalOk = goalId
+        ? Boolean(await prisma.lifeGoal.findFirst({ where: { id: goalId, deletedAt: null }, select: { id: true } }))
+        : false;
       // classification spine · createTaskAndEnrich gap-fills mission/goal/
       // statHints (compare-and-set won't override what the model chose).
       const task = await createTaskAndEnrich({
@@ -339,7 +343,7 @@ const tasksCoreTools = {
         finishCondition: title,
         loopKind,
         dueDate: dueDate ? new Date(dueDate) : null,
-        goalId: goalId ?? null,
+        goalId: goalOk ? goalId! : null,
         promiseTo: promiseTo ?? null,
         parentTaskId: parentOk ? parentTaskId : null,
       });
@@ -348,7 +352,8 @@ const tasksCoreTools = {
         taskId: task.id,
         title,
         loopKind,
-        goalLinked: !!goalId,
+        goalLinked: goalOk,
+        ...(goalId && !goalOk ? { goalNote: `goal ${goalId} not found; created without a goal link (use an id from getGoals)` } : {}),
         promised: !!promiseTo,
         // Read from the saved task: createTaskAndEnrich can return an existing duplicate with no parent.
         ...(parentTaskId

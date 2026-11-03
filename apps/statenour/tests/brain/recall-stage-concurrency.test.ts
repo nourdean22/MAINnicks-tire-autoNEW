@@ -160,11 +160,18 @@ vi.mock("@/lib/brain/relational-graph", () => ({
 vi.mock("@/lib/brain/rerank", () => ({ rerank: vi.fn(), isRerankAvailable: () => false }));
 // W6: the goals read (lib/services/goal-health.ts) is its own stage; its start is an event like the others.
 vi.mock("@/lib/services/goal-health", () => ({
+  // W8a (C17): on a turn with no goal word the stage opens with the cheap titles read; the full read follows only
+  // when a title is touched (this query touches none, so "start:goals" is the titles read here).
+  activeGoalTitles: vi.fn(() => {
+    h.events.push("start:goals");
+    return Promise.resolve((h.goals as Array<{ id: string; title: string }>).map((g) => ({ id: g.id, title: g.title })));
+  }),
   activeGoalsWithHealth: vi.fn(() => {
     h.events.push("start:goals");
     return Promise.resolve({ goals: h.goals, failed: [] });
   }),
 }));
+vi.mock("@/lib/services/home-maxim", () => ({ skippedIds: vi.fn(async () => new Set<string>()) }));
 
 import { getContextualMemories } from "@/lib/brain/contextual-recall";
 

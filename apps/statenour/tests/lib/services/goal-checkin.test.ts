@@ -110,6 +110,23 @@ describe("logGoalCheckIn (the shared writer)", () => {
     expect(r).toHaveProperty("valueIgnored");
   });
 
+  it("W8a (audit A7): a second same-day check-in that carries a value still SETS the value and says so", async () => {
+    h.eventFindFirst.mockResolvedValue({ id: "ge_prior", payload: { health: "on_track" }, createdAt: new Date() });
+    const r = await logGoalCheckIn({ goalId: "goal_A", health: "on_track", value: 6100, note: "evening count", source: "goal-card" });
+    expect(h.updateGoal).toHaveBeenCalledWith({ id: "goal_A", currentValue: 6100 });
+    expect(h.idempotentCreate).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: true });
+    expect((r as { reason: string }).reason).toMatch(/value/i);
+  });
+
+  it("W8a: a same-day duplicate whose value write fails says so and sets nothing", async () => {
+    h.eventFindFirst.mockResolvedValue({ id: "ge_prior", payload: { health: "on_track" }, createdAt: new Date() });
+    h.updateGoal.mockRejectedValueOnce(new Error("db down"));
+    const r = await logGoalCheckIn({ goalId: "goal_A", health: "on_track", value: 6100, note: "x", source: "goal-card" });
+    expect(r).toMatchObject({ logged: false, valueSet: false });
+    expect((r as { valueError?: string }).valueError).toContain("db down");
+  });
+
   it("a second check-in the same day is a duplicate, not a second row", async () => {
     h.eventFindFirst.mockResolvedValue({ payload: { health: "on_track" }, createdAt: new Date() });
     const r = await logGoalCheckIn({ goalId: "goal_A", health: "off_track", note: "x", source: "goal-card" });

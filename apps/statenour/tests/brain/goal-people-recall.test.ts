@@ -8,11 +8,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   activeGoalsWithHealth: vi.fn(),
+  activeGoalTitles: vi.fn(async () => []),
+  skippedIds: vi.fn(async () => new Set<string>()),
   dumpFindFirst: vi.fn(),
   ledgerFindMany: vi.fn(),
   warn: vi.fn(),
 }));
-vi.mock("@/lib/services/goal-health", () => ({ activeGoalsWithHealth: h.activeGoalsWithHealth }));
+vi.mock("@/lib/services/goal-health", () => ({ activeGoalsWithHealth: h.activeGoalsWithHealth, activeGoalTitles: h.activeGoalTitles }));
+vi.mock("@/lib/services/home-maxim", () => ({ skippedIds: h.skippedIds }));
 vi.mock("@/lib/prisma", () => ({
   prisma: { brainDump: { findFirst: h.dumpFindFirst }, relationshipLedger: { findMany: h.ledgerFindMany } },
 }));
@@ -47,6 +50,13 @@ const goal = (o: Partial<ActiveGoalHealth>): ActiveGoalHealth => ({
   paceKind: "behind",
   health: { state: "at_risk", at: "2026-11-01T12:00:00.000Z" },
   openTasks: 1,
+  domain: "BUSINESS",
+  metric: "revenue",
+  deadline: null,
+  createdAt: "2026-10-01T12:00:00.000Z",
+  tasksDone: 0,
+  tasksTotal: 1,
+  progress: 27,
   ...o,
 });
 const POOL: Maxim[] = [
@@ -57,6 +67,8 @@ const DAY = "2026-11-02";
 
 beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
+  h.activeGoalTitles.mockResolvedValue([]);
+  h.skippedIds.mockResolvedValue(new Set<string>());
 });
 
 describe("goalRecallBlock", () => {
@@ -85,7 +97,36 @@ describe("goalRecallBlock", () => {
 
   it("goal phrases are read from the raw message, so on track and check in can match", () => {
     expect(goalRecallBlock([goal({})], ["track"], "am I on track this week", POOL, DAY).lines.length).toBeGreaterThan(0);
-    expect(goalRecallBlock([goal({})], ["check"], "let's check in on things", POOL, DAY).lines.length).toBeGreaterThan(0);
+    expect(goalRecallBlock([goal({})], ["check"], "let's check in", POOL, DAY).lines.length).toBeGreaterThan(0);
+    expect(goalRecallBlock([goal({})], ["check"], "time for a check-in", POOL, DAY).lines.length).toBeGreaterThan(0);
+  });
+
+  it("W8a (audit C3): checking in WITH or ON a person is not a goal turn", () => {
+    for (const q of ["check in with mom", "I should check in on dad today", "let's check-in with the crew"]) {
+      expect(goalRecallBlock([goal({})], ["check"], q, POOL, DAY)).toEqual({ lines: [], maxim: null });
+    }
+    // The guard is the preposition, not the word after it: "check in on my goals" still has "goals".
+    expect(goalRecallBlock([goal({})], ["check"], "check in on my goals", POOL, DAY).lines.length).toBeGreaterThan(0);
+  });
+
+  it("W8a (audit C6): a maxim Nour skipped on Home never comes back through recall", () => {
+    const r = goalRecallBlock([goal({})], ["revenue"], "revenue", POOL, DAY, new Set(["p:t1"]));
+    expect(r.maxim).toBeNull();
+    expect(r.lines.some((l) => l.startsWith("- Maxim"))).toBe(false);
+    const other = goalRecallBlock([goal({})], ["revenue"], "revenue", POOL, DAY, new Set(["p:d1"]));
+    expect(other.maxim).toMatchObject({ id: "p:t1" });
+  });
+
+  it("W8a (audit C16): the 3 most urgent goals show: off track, then behind pace, then due soonest, never horizon order", () => {
+    const goals = [
+      goal({ id: "g-ok", title: "Goal ok", paceKind: null, health: { state: "on_track", at: null }, due: { at: "2026-12-30T00:00:00.000Z", source: "horizon", label: "" } }),
+      goal({ id: "g-soon", title: "Goal soon", paceKind: null, health: { state: "on_track", at: null }, due: { at: "2026-11-05T00:00:00.000Z", source: "horizon", label: "" } }),
+      goal({ id: "g-behind", title: "Goal behind", paceKind: "behind", health: { state: "at_risk", at: null } }),
+      goal({ id: "g-off", title: "Goal off", paceKind: null, health: { state: "off_track", at: null } }),
+      goal({ id: "g-late", title: "Goal late", paceKind: null, health: { state: "on_track", at: null }, due: { at: "2027-01-01T00:00:00.000Z", source: "horizon", label: "" } }),
+    ];
+    const lines = goalRecallBlock(goals, ["goals"], "my goals", POOL, DAY).lines.filter((l) => l.startsWith("- Goal "));
+    expect(lines.map((l) => l.match(/\[id:(g-\w+)\]/)![1])).toEqual(["g-off", "g-behind", "g-soon"]);
   });
 
   it("everyday words like behind, pace or progress do not pull goals into an unrelated turn", () => {
@@ -138,13 +179,44 @@ describe("readGoalRecall", () => {
   });
 
   it("a failed goals read on an unrelated turn adds nothing but still reports failed", async () => {
-    h.activeGoalsWithHealth.mockRejectedValue(new Error("db down"));
+    h.activeGoalTitles.mockRejectedValue(new Error("db down"));
     await expect(readGoalRecall(["invoice"], "send the invoice")).resolves.toEqual({ lines: [], maxim: null, failed: true });
   });
   it("returns the touched goal's line from the shared goals read", async () => {
+    h.activeGoalTitles.mockResolvedValue([{ id: "g1", title: "Revenue this month" }]);
     h.activeGoalsWithHealth.mockResolvedValue({ goals: [goal({})], failed: [] });
     const r = await readGoalRecall(["revenue"], "revenue so far");
     expect(r.lines[1]).toContain("[id:g1]");
+  });
+
+  it("W8a (audit C17): no goal word and no 4+ letter topic is no read at all", async () => {
+    await expect(readGoalRecall(["ok", "go"], "ok go")).resolves.toEqual({ lines: [], maxim: null });
+    expect(h.activeGoalTitles).not.toHaveBeenCalled();
+    expect(h.activeGoalsWithHealth).not.toHaveBeenCalled();
+  });
+
+  it("W8a (audit C17): without a goal word, the health read runs only when a title is touched", async () => {
+    h.activeGoalTitles.mockResolvedValue([{ id: "g1", title: "Revenue this month" }]);
+    await readGoalRecall(["invoice"], "send the invoice");
+    expect(h.activeGoalTitles).toHaveBeenCalledTimes(1);
+    expect(h.activeGoalsWithHealth).not.toHaveBeenCalled();
+    h.activeGoalsWithHealth.mockResolvedValue({ goals: [goal({})], failed: [] });
+    await readGoalRecall(["revenue"], "revenue so far");
+    expect(h.activeGoalsWithHealth).toHaveBeenCalledTimes(1);
+  });
+
+  it("W8a (audit C6): the recall maxim honours the live Home skip list, read once; a failed skip read shows no maxim", async () => {
+    h.activeGoalsWithHealth.mockResolvedValue({ goals: [goal({})], failed: [] });
+    const shown = await readGoalRecall(["goals"], "my goals");
+    expect(shown.maxim).not.toBeNull();
+    h.skippedIds.mockReset().mockResolvedValue(new Set([shown.maxim!.id]));
+    const skipped = await readGoalRecall(["goals"], "my goals");
+    expect(h.skippedIds).toHaveBeenCalledTimes(1);
+    expect(skipped.maxim?.id).not.toBe(shown.maxim!.id);
+    h.skippedIds.mockRejectedValue(new Error("db down"));
+    const failed = await readGoalRecall(["goals"], "my goals");
+    expect(failed.maxim).toBeNull();
+    expect(failed.lines.length).toBeGreaterThan(1);
   });
 });
 

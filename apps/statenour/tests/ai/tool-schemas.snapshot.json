@@ -679,7 +679,7 @@
   },
   {
     "name": "completeTask",
-    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
+    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE; finishing the last task of a plan phase creates the next phase's tasks (nextPhaseSpawned). Example: {\"taskId\":142}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -893,7 +893,7 @@
   },
   {
     "name": "createTask",
-    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
+    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` (from getGoals): completing the task counts it on that goal's card; for a milestone or narrative goal it is one step of the goal's task %, for a metric goal it is logged (the number moves only through a check-in or an edit). A task under a goal-linked mission counts for that goal without a goalId. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -927,7 +927,7 @@
           "type": "string"
         },
         "goalId": {
-          "description": "Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue",
+          "description": "The goal this task serves (id from getGoals). An unknown id is dropped and said. Omit under a goal-linked mission: the task inherits the mission's goal.",
           "type": "string"
         },
         "loopKind": {
@@ -1470,7 +1470,7 @@
   },
   {
     "name": "getMissions",
-    "description": "Get active missions",
+    "description": "Get active missions with the goal each one serves (lifeGoalId + goal title, null when none): a task under a goal-linked mission counts for that goal.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -2090,7 +2090,7 @@
   },
   {
     "name": "pinMemory",
-    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'.",
+    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'. Pass goalId (from getGoals) or personId when the fact is about a goal or a person, so the /brain goal and person filters find it.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -2104,8 +2104,16 @@
           "description": "The fact or note to pin · plain English · 1-2 sentences ideal",
           "type": "string"
         },
+        "goalId": {
+          "description": "The goal this fact is about (id from getGoals); an unknown id is dropped and said",
+          "type": "string"
+        },
         "key": {
           "description": "Optional dedup key · defaults to slug of content first 60 chars",
+          "type": "string"
+        },
+        "personId": {
+          "description": "The person this fact is about (id from getRelated / the people list); an unknown id is dropped and said",
           "type": "string"
         }
       },

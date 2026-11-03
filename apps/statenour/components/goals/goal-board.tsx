@@ -49,8 +49,9 @@
  * Self-fetches goals via trpc task.goals (lib/services/goals.ts getGoals).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { GoalPeopleLine } from "./goal-people-line";
 import { GoalCheckInPanel, GoalHealthChip } from "./goal-check-in";
 import type { GoalHealth } from "@/lib/brain/goal-pace";
@@ -318,6 +319,62 @@ function NextStepPrompt({
       </div>
       {error && <div className="text-[11px] text-rose-300">{error}</div>}
     </div>
+  );
+}
+
+/** The URL's goal deep link: ?goalId=<id> opens that card, &checkin=1 opens its check-in panel too. */
+function useGoalDeepLink(): { goalId: string | null; checkIn: boolean } {
+  const params = useSearchParams();
+  const goalId = params.get("goalId");
+  return { goalId: goalId || null, checkIn: params.get("checkin") === "1" };
+}
+
+/** One goal-linked task for today, made from the pace chip (one tap). The chip's body is the tap target. */
+function OneStepTodayChip({
+  goal,
+  amount,
+  className,
+  onAdded,
+  children,
+}: {
+  goal: { id: string; title: string };
+  amount: string;
+  className: string;
+  onAdded: () => void;
+  children: ReactNode;
+}) {
+  const createTask = trpc.task.create.useMutation();
+  const inFlight = useRef(false);
+  const add = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const today = new Date();
+      today.setHours(23, 59, 0, 0);
+      await createTask.mutateAsync({ title: `${amount} today · ${goal.title}`.slice(0, 200), goalId: goal.id, dueDate: today.toISOString() });
+      toast.success(`Added one step for today on "${goal.title.slice(0, 60)}"`);
+      notifyDataChanged("goals", { source: "goal-board", detail: "one-step-today", id: goal.id });
+      notifyDataChanged("tasks", { source: "goal-board", detail: "one-step-today", id: goal.id });
+      onAdded();
+    } catch (err) {
+      toast.error(`Couldn't add the step: ${err instanceof Error && err.message ? err.message.slice(0, 120) : "no reason returned"}`);
+    } finally {
+      inFlight.current = false;
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void add();
+      }}
+      disabled={createTask.isPending}
+      title={`Add one task for today toward this goal (${amount}/day)`}
+      className={cn("min-h-11 min-w-11", className, "disabled:opacity-50")}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -811,6 +868,17 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
       document.getElementById(`goal-${goalId}`)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }),
     );
   }, []);
+
+  // W8a (audit A top-3): Home's "Check-in due" row deep-links here as /stats?tab=goals&goalId=<id>&checkin=1. The
+  // card opens once the goals land, with the check-in panel already open; applied once per goal id.
+  const deepLink = useGoalDeepLink();
+  const deepLinkApplied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLink.goalId || deepLinkApplied.current === deepLink.goalId) return;
+    if (!goals.some((g) => g.id === deepLink.goalId)) return;
+    deepLinkApplied.current = deepLink.goalId;
+    openGoal(deepLink.goalId);
+  }, [deepLink.goalId, goals, openGoal]);
 
   // Nick's side pane hears which goal Nour is on: the open card, else the hero goal.
   const focusId = expandedGoal ?? hero?.goal.id ?? null;
@@ -1575,17 +1643,17 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                             )}
                           </>
                         );
+                        // W8a (S2 "do one step today", audit A top-4): the chip used to open an EMPTY filtered board.
+                        // One tap now makes one goal-linked task for today through the existing create path.
                         return actionable ? (
-                          <Link
-                            href={`/missions?goalId=${g.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            title={`Add a daily-increment task for this goal (${suggestedAmount}/day)`}
-                            className={cn("min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform",
-                              tone
-                            )}
+                          <OneStepTodayChip
+                            goal={{ id: g.id, title: g.title }}
+                            amount={suggestedAmount}
+                            className={cn("min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 text-[11px] font-mono hover:scale-[1.02] transition-transform", tone)}
+                            onAdded={() => void load()}
                           >
                             {chipBody}
-                          </Link>
+                          </OneStepTodayChip>
                         ) : (
                           <div
                             className={cn(
@@ -1605,7 +1673,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                           action" answer at a glance, on every goal. */}
                       {g.nextMove && (
                         <Link
-                          href={`/missions?taskId=${g.nextMove.id}`}
+                          href={`/missions?goalId=${encodeURIComponent(g.id)}&taskId=${encodeURIComponent(g.nextMove.id)}`}
                           onClick={(e) => e.stopPropagation()}
                           className="min-h-11 min-w-11 mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[11px] hover:bg-emerald-500/10 transition-colors w-full text-left"
                           title="Open this task on the Actions page"
@@ -1718,7 +1786,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                 {isExpanded && (
                   <div className="px-3 pb-3 space-y-2 border-t border-edge-subtle">
                     {/* W2 2026-11-02 · since last check-in (Tana T1) + Nick-drafted check-in (Linear L4). */}
-                    {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} />}
+                    {g.status === "active" && <GoalCheckInPanel goal={g} onSaved={() => void load()} defaultOpen={deepLink.checkIn && deepLink.goalId === g.id} />}
                     {/* W5 · the maxim at this goal's moment (W6 contract), never one Nour skipped on Home. */}
                     {(() => {
                       const m = maximPool ? maximForGoalMoment(momentInput(g, loadedAt), maximPool, etDay(loadedAt)) : null;

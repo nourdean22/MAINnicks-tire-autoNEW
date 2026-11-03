@@ -1473,7 +1473,7 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
     .then(() => true)
     .catch((err: unknown) => {
       // W8a (audit A11): only a duplicate key means "already lifted"; any other failure must not be read as one.
-      if ((err as { code?: string })?.code === "P2002") return false;
+      if ((err as { code?: string })?.code === "P2002" || (err instanceof Error && /P2002/.test(err.message))) return false;
       log.warn("goal_lift_marker_failed", { goalId, taskId, error: err instanceof Error ? err.message : String(err) });
       throw err;
     });

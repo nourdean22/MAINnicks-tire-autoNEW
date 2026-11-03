@@ -427,8 +427,10 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
       const metric = m.successMetric
         ? ` — ${safe(m.successMetric, 120)}`
         : " — no metric";
+      // W8a (C9): the goal the mission serves, so a task added to the mission is known to count for it.
+      const goal = m.goal ? ` · goal: ${safe(m.goal.title, 80)} [goalId:${safe(m.goal.id, 40)}]` : "";
       lines.push(
-        `- ${safe(m.title, 100)} (${safe(m.domain, 30)}, P${m.priority})${metric}`,
+        `- ${safe(m.title, 100)} (${safe(m.domain, 30)}, P${m.priority})${metric}${goal}`,
       );
     }
   }

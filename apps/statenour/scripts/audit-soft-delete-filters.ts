@@ -134,6 +134,23 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
   },
 ];
 
+// (W8a 2026-11-03) lib/services/contradictions.ts: both counts read `OPEN_WHERE`, a hoisted const that carries
+// `deletedAt: null, resolved: false` at its definition. FALSE POSITIVE of the same shape as the brain.ts entries:
+// the scanner cannot see through an identifier. Waived by signature (the two literal count lines), never by file,
+// so a new unfiltered count in that file still fails.
+ALLOWLIST.push(
+  {
+    file: "lib/services/contradictions.ts",
+    contains: "prisma.contradiction.count({ where: OPEN_WHERE })",
+    reason: "countUnresolvedContradictions: OPEN_WHERE = { deletedAt: null, resolved: false } at its definition. Verified 2026-11-03.",
+  },
+  {
+    file: "lib/services/contradictions.ts",
+    contains: "prisma.contradiction.count({ where }),",
+    reason: "listContradictions: `where` is OPEN_WHERE or its includeResolved twin, both carrying deletedAt: null. Verified 2026-11-03.",
+  },
+);
+
 function isAllowlisted(relFile: string, snippet: string): string | null {
   for (const a of ALLOWLIST) {
     if (relFile === a.file && snippet.includes(a.contains)) return a.reason;
