@@ -37,11 +37,14 @@ import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
 import Link from "next/link";
-import { missionHasEndState } from "@/lib/services/mission-helpers";
+import { isGeneralAnchor, missionHasEndState } from "@/lib/services/mission-helpers";
 import { GOAL_CHIP_WIDTH } from "@/lib/missions/task-goal";
 import { useGoalFilterHref } from "./use-goal-filter-href";
 import { isSubmitEnter } from "@/features/chat-v2/lib/submit-enter";
 import { MissionChatsLine, type MissionChatsRead } from "./mission-chats-line";
+import { MilestonesFlow } from "@/components/actions/milestones-flow";
+import { GoalLadder } from "@/components/goals/goal-ladder";
+import { missionPhaseLadder } from "@/lib/stats/goals-page";
 
 export interface MissionCardProps {
   mission: Project;
@@ -87,6 +90,13 @@ export function MissionCard({
   const actions = useMissionDispatch();
   const goalFilterHref = useGoalFilterHref();
   const [expanded, setExpanded] = useState(defaultExpanded);
+  // W8c item 5 · a planned mission shows its ladder (the goal card's, read-only); an unplanned one can be planned.
+  const [planning, setPlanning] = useState(false);
+  const ladder = useMemo(
+    () => missionPhaseLadder(mission.planData, tasks.map((t) => ({ status: t.status, phaseName: t.phaseName ?? null }))),
+    [mission.planData, tasks],
+  );
+  const canPlan = !mission.planData && !isGeneralAnchor(mission);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -352,6 +362,38 @@ export function MissionCard({
       {expanded && (
         <div className="border-t border-edge pb-2">
           <MissionChatsLine read={chats} />
+          {ladder.length > 0 && (
+            <div className="px-3 pb-2 sm:px-4">
+              <GoalLadder phases={ladder} />
+            </div>
+          )}
+          {canPlan && !planning && (
+            <div className="px-2 sm:px-3">
+              <button
+                type="button"
+                onClick={() => setPlanning(true)}
+                className="inline-flex min-h-[44px] items-center px-1 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:text-fg"
+              >
+                Plan from milestones
+              </button>
+            </div>
+          )}
+          {canPlan && planning && (
+            <div className="px-3 pb-2 sm:px-4">
+              {/* The goal card's flow, pre-set to THIS mission: the server plans into it, no second mission. */}
+              <MilestonesFlow
+                goal={{
+                  id: mission.lifeGoal?.id ?? mission.id,
+                  title: mission.title,
+                  domain: mission.domain ?? undefined,
+                  deadline: mission.deadline ?? null,
+                }}
+                missionId={mission.id}
+                onComplete={() => setPlanning(false)}
+                onCancel={() => setPlanning(false)}
+              />
+            </div>
+          )}
           {/* Task list */}
           <div className="divide-y divide-edge/60">
             {sortedOpen.length === 0 && doneTasks.length === 0 && (
