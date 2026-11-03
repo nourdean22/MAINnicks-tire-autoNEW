@@ -25,6 +25,7 @@
 import { resumeRecordSchema } from "@/lib/missions/resume-record";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { CHECK_IN_HEALTH, type GoalHealth } from "@/lib/brain/goal-pace";
 import { router, operatorProcedure } from "../trpc";
 import { powerAtlasProcedures } from "./task/power-atlas";
 import { taskDetailProcedures } from "./task/task-detail";
@@ -195,6 +196,8 @@ interface GoalCacheRow {
   /** Ambition Engine P1 · resolved mastery stats this goal levels (a
    *  rep on a task tagged with this goal credits XP to these). */
   stats: { statKey: string; weight: number }[];
+  /** W2 2026-11-02 · the newest check-in's health, gray past the cadence (lib/brain/goal-pace.ts). */
+  health: GoalHealth;
 }
 
 export const taskRouter = router({
@@ -309,6 +312,44 @@ export const taskRouter = router({
       // `GoalCacheRow[]` so the recursive `JsonValue` type never reaches
       // the AppRouter. See the `GoalCacheRow` doc-comment above.
       return { goals: goals as unknown as GoalCacheRow[] };
+    }),
+
+  /**
+   * W2 2026-11-02 (Tana T1) · the goal card's "since last check-in" list, from the relatedActivity
+   * spine. `failed` names the sources that could not be read; their rows are missing, not zero.
+   */
+  goalSinceCheckIn: operatorProcedure
+    .input(z.object({ goalId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { goalSinceCheckIn } = await import("@/lib/services/goal-checkin");
+      return goalSinceCheckIn(input.goalId);
+    }),
+
+  /**
+   * W2 2026-11-02 (Linear L4/L5) · Nick drafts a check-in from what happened since the last one, in one
+   * fast call. Never saves: Nour edits it and saves through goalCheckIn. A provider sentinel returns
+   * { unavailable } and the card falls back to the manual field.
+   */
+  draftGoalCheckIn: operatorProcedure
+    .input(z.object({ goalId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const { draftGoalCheckIn } = await import("@/lib/services/goal-checkin");
+      return draftGoalCheckIn(input.goalId);
+    }),
+
+  /** W2 2026-11-02 · save a check-in from the goal card through the one writer Nick's tool also uses. */
+  goalCheckIn: operatorProcedure
+    .input(
+      z.object({
+        goalId: z.string().min(1).max(64),
+        health: z.enum(CHECK_IN_HEALTH),
+        value: z.number().finite().optional(),
+        note: z.string().trim().min(1).max(500),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { logGoalCheckIn } = await import("@/lib/services/goal-checkin");
+      return logGoalCheckIn({ ...input, source: "goal-card" });
     }),
 
   /**

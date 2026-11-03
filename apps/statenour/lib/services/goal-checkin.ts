@@ -136,7 +136,7 @@ export async function goalSinceCheckIn(goalId: string) {
 
 export type CheckInDraft =
   | { unavailable: true; reason: string; failed: string[] }
-  | { unavailable?: undefined; health: CheckInHealth; note: string; valueSuggestion?: number; items: number; failed: string[] };
+  | { unavailable: false; health: CheckInHealth; note: string; valueSuggestion?: number; items: number; failed: string[] };
 
 const DRAFT_SYSTEM = [
   "You draft Nour's goal check-in from the items below. He edits it before it is saved.",
@@ -189,5 +189,5 @@ export async function draftGoalCheckIn(goalId: string): Promise<CheckInDraft> {
   const v = parsed.value.value;
   // L5: no number line when nothing moved; only a metric goal has a number.
   const moved = metric && typeof v === "number" && Number.isFinite(v) && v !== goal.currentValue;
-  return { health: parsed.value.health, note, ...(moved ? { valueSuggestion: v } : {}), items: items.length, failed };
+  return { unavailable: false, health: parsed.value.health, note, ...(moved ? { valueSuggestion: v } : {}), items: items.length, failed };
 }
