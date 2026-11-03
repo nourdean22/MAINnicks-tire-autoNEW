@@ -62,3 +62,36 @@ describe("pushBodyFromBrief · the Monday Goals section never reaches a lock scr
     expect(body).toContain("Open tasks: 12");
   });
 });
+
+describe("pushBodyFromBrief · the check-in count line (R2a, 2026-11-03)", () => {
+  const BRIEF = "<b>Brief · 2026-11-03</b>\nDrift: <b>LOW</b>\nOpen tasks: 12";
+
+  it("0 goals due adds no line: the body is the same as before", () => {
+    expect(pushBodyFromBrief(BRIEF, 0)).toBe(pushBodyFromBrief(BRIEF));
+    expect(pushBodyFromBrief(BRIEF, 0)).not.toMatch(/check-in/);
+  });
+
+  it("3 goals due ends the body with a count", () => {
+    expect(pushBodyFromBrief(BRIEF, 3)).toBe("Brief · 2026-11-03 · Drift: LOW · Open tasks: 12 · 3 goals need a check-in");
+  });
+
+  it("1 goal due reads in the singular", () => {
+    expect(pushBodyFromBrief(BRIEF, 1).endsWith(" · 1 goal needs a check-in")).toBe(true);
+  });
+
+  it("a long brief still carries the whole line inside the 200-char cap", () => {
+    const body = pushBodyFromBrief("x".repeat(400), 3);
+    expect(body.length).toBeLessThanOrEqual(200);
+    expect(body.endsWith(" · 3 goals need a check-in")).toBe(true);
+  });
+
+  it("GUARD: a goal title in the Goals section never reaches the body, the count does", () => {
+    const body = pushBodyFromBrief(
+      [BRIEF, "<b>Goals</b> · 3 active · 1 with a next step", "Check in on: Planted goal title · 9d overdue"].join("\n"),
+      3,
+    );
+    expect(body).not.toContain("Planted goal title");
+    expect(body).not.toContain("Goals");
+    expect(body).toBe("Brief · 2026-11-03 · Drift: LOW · Open tasks: 12 · 3 goals need a check-in");
+  });
+});

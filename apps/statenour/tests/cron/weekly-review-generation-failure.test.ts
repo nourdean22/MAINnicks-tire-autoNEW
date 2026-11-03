@@ -28,6 +28,7 @@ const { mockPrisma, mockGenerateText } = vi.hoisted(() => ({
       create: vi.fn().mockResolvedValue({}),
       upsert: vi.fn().mockResolvedValue({}),
       findFirst: vi.fn().mockResolvedValue(null),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     task: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
     commitment: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
@@ -38,6 +39,8 @@ const { mockPrisma, mockGenerateText } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("ai", () => ({ generateText: mockGenerateText }));
+// The success path now ends in the once-per-week push (tests/cron/weekly-review-nudge.test.ts).
+vi.mock("@/lib/notifications/push", () => ({ sendPush: vi.fn().mockResolvedValue({ sent: 1, failed: 0 }) }));
 vi.mock("@/lib/utils/http", () => ({
   cronHandler: (h: (req: Request, ctx: unknown) => Promise<unknown>) => h,
 }));

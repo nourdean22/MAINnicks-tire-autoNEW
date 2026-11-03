@@ -139,17 +139,49 @@ async function composeBrief(): Promise<ComposedBrief> {
  * `<b>` tags on the phone. Strip FIRST, then trim: slicing before
  * stripping could also cut a tag in half mid-notification.
  */
-export function pushBodyFromBrief(text: string): string {
+export function pushBodyFromBrief(text: string, checkInsDue = 0): string {
   // The weekly gap and Monday Goals sections are private: a lock screen never shows any of
   // them (PR #3221 review; goals-system W2). Cut at whichever comes first.
   const cuts = [NOT_SEEING_HEADER, GOALS_HEADER].map((h) => text.indexOf(h)).filter((i) => i >= 0);
   const cut = cuts.length > 0 ? Math.min(...cuts) : -1;
-  return (cut >= 0 ? text.slice(0, cut) : text)
+  const body = (cut >= 0 ? text.slice(0, cut) : text)
     .replace(/<[^>]+>/g, "")
     .replace(/\n+/g, " · ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
+    .trim();
+  // R2a (2026-11-03): goals due a check-in, as a COUNT after the cut; a title never goes on a
+  // lock screen. Room is kept for the whole line so the 200-char cap cannot cut it off.
+  if (checkInsDue <= 0) return body.slice(0, 200);
+  const line = `${checkInsDue} ${checkInsDue === 1 ? "goal needs" : "goals need"} a check-in`;
+  const head = body.slice(0, 200 - line.length - 3).replace(/[\s·]+$/, "");
+  return head ? `${head} · ${line}` : line;
+}
+
+/** Active goals past their check-in cadence (lib/brain/goal-pace.ts), the read Home's
+ *  loadGoalCheckInDue makes. null = the read failed: no line, never a "0". */
+async function countCheckInsDue(now: number = Date.now()): Promise<number | null> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const { checkInOverdueDays } = await import("@/lib/brain/goal-pace");
+    const goals = await prisma.lifeGoal.findMany({
+      where: { deletedAt: null, status: "active" },
+      take: 50,
+      select: { id: true, horizon: true, createdAt: true },
+    });
+    if (goals.length === 0) return 0;
+    const events = await prisma.goalEvent.findMany({
+      where: { goalId: { in: goals.map((g) => g.id) }, kind: "check_in" },
+      orderBy: { createdAt: "desc" },
+      distinct: ["goalId"],
+      select: { goalId: true, createdAt: true },
+    });
+    const last = new Map<string, Date>();
+    for (const e of events) if (!last.has(e.goalId)) last.set(e.goalId, e.createdAt);
+    return goals.filter((g) => checkInOverdueDays({ ...g, lastCheckInAt: last.get(g.id) ?? null }, now) >= 0).length;
+  } catch (err) {
+    log.warn("check_in_count_failed", { err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  }
 }
 
 /**
@@ -167,6 +199,7 @@ async function briefTelegramFallback(
   brief: ComposedBrief,
   push: { sent: number; failed: number },
   ledgerId: string | null,
+  checkInsDue = 0,
 ): Promise<{ status: "skipped_push_ok" | "sent" | "failed" }> {
   if (push.sent > 0) return { status: "skipped_push_ok" };
   const { sendTelegram, sendTelegramWithButtons } = await import("@/lib/services/telegram");
@@ -177,7 +210,7 @@ async function briefTelegramFallback(
       : "no live web-push subscription";
   const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
-    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
+    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text, checkInsDue)}\n\n` +
     `There is no brief page. Ask Nick on the home screen for the full brief: https://bdnick.info/`;
   // 2026-10-02 · this is the path the brief takes when push reaches no device,
   // and it was the one delivery of a ledgered brief with no way to rate it.
@@ -189,7 +222,7 @@ async function briefTelegramFallback(
   return { status: ok ? "sent" : "failed" };
 }
 
-async function sendBriefPush(brief: ComposedBrief): Promise<{
+async function sendBriefPush(brief: ComposedBrief, checkInsDue: number): Promise<{
   sent: number;
   failed: number;
   /** The ledger row the rating buttons point at; null when ledgering failed. */
@@ -230,7 +263,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     title: "Morning brief",
     // Trim aggressively · push body has a hard limit ~120 chars on
     // most platforms before the OS truncates with "…".
-    body: pushBodyFromBrief(brief.text),
+    body: pushBodyFromBrief(brief.text, checkInsDue),
     level: "high",
     // `chatSeed` below OVERRIDES this, so it is the no-seed fallback only. It
     // pointed at the retired /command route (which redirects home — a hop, not
@@ -269,14 +302,15 @@ export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
   status: "sent" | "telegram_fallback" | "undelivered";
   push: { sent: number; failed: number };
 }> {
-  const push = await sendBriefPush(brief);
+  const checkInsDue = (await countCheckInsDue()) ?? 0;
+  const push = await sendBriefPush(brief, checkInsDue);
   const counts = { sent: push.sent, failed: push.failed };
   const { setShownSurface } = await import("@/lib/services/outcome-ledger");
   if (push.sent > 0) {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "web-push");
     return { status: "sent", push: counts };
   }
-  const fallback = await briefTelegramFallback(brief, push, push.ledgerId);
+  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue);
   if (fallback.status === "sent") {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "telegram-fallback");
     return { status: "telegram_fallback", push: counts };

@@ -17,8 +17,13 @@ const h = vi.hoisted(() => ({
   recordShown: vi.fn(),
   setShownSurface: vi.fn(),
   logError: vi.fn(),
+  lifeGoalFindMany: vi.fn(),
+  goalEventFindMany: vi.fn(),
 }));
 
+vi.mock("@/lib/prisma", () => ({
+  prisma: { lifeGoal: { findMany: h.lifeGoalFindMany }, goalEvent: { findMany: h.goalEventFindMany } },
+}));
 vi.mock("@/lib/inngest/client", () => ({
   getInngest: () => ({ createFunction: (_cfg: unknown, handler: unknown) => ({ handler }) }),
 }));
@@ -45,6 +50,48 @@ beforeEach(() => {
   h.sendTelegramWithButtons.mockResolvedValue({ ok: true, messageId: 1 });
   h.recordShown.mockResolvedValue(null);
   h.setShownSurface.mockResolvedValue(true);
+  h.lifeGoalFindMany.mockResolvedValue([]);
+  h.goalEventFindMany.mockResolvedValue([]);
+});
+
+describe("deliverMorningBrief · the check-in count reaches the push (R2a, 2026-11-03)", () => {
+  const DAY = 86_400_000;
+  const ago = (d: number) => new Date(Date.now() - d * DAY);
+  const GOALS = [
+    { id: "g1", title: "Planted goal title one", horizon: "WEEK", createdAt: ago(40) },
+    { id: "g2", title: "Planted goal title two", horizon: "MONTH", createdAt: ago(90) },
+    { id: "g3", title: "Fresh goal", horizon: "WEEK", createdAt: ago(2) },
+  ];
+
+  it("two overdue goals put '2 goals need a check-in' in the push body, and no title", async () => {
+    h.lifeGoalFindMany.mockResolvedValue(GOALS);
+    await deliverMorningBrief(BRIEF);
+    const body = (h.sendPush.mock.calls[0][0] as { body: string }).body;
+    expect(body.endsWith(" · 2 goals need a check-in")).toBe(true);
+    expect(body).not.toMatch(/Planted goal title|Fresh goal/);
+  });
+
+  it("a recent check-in takes a goal off the count", async () => {
+    h.lifeGoalFindMany.mockResolvedValue(GOALS);
+    h.goalEventFindMany.mockResolvedValue([{ goalId: "g1", createdAt: ago(1) }]);
+    await deliverMorningBrief(BRIEF);
+    expect((h.sendPush.mock.calls[0][0] as { body: string }).body.endsWith(" · 1 goal needs a check-in")).toBe(true);
+  });
+
+  it("a failed goal read adds no line and the brief still ships (unknown is not zero, and not a claim)", async () => {
+    h.lifeGoalFindMany.mockRejectedValue(new Error("db down"));
+    const result = await deliverMorningBrief(BRIEF);
+    expect(result.status).toBe("sent");
+    expect((h.sendPush.mock.calls[0][0] as { body: string }).body).toBe("Drift: CRITICAL · Open tasks: 14");
+  });
+
+  it("the Telegram fallback carries the same count line", async () => {
+    h.lifeGoalFindMany.mockResolvedValue(GOALS);
+    h.sendPush.mockResolvedValue({ sent: 0, failed: 1 });
+    await deliverMorningBrief(BRIEF);
+    expect(String(h.sendTelegram.mock.calls[0][0])).toContain("2 goals need a check-in");
+    expect(String(h.sendTelegram.mock.calls[0][0])).not.toContain("Planted goal title");
+  });
 });
 
 describe("deliverMorningBrief", () => {

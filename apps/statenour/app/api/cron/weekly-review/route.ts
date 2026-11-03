@@ -23,6 +23,68 @@ function getWeekStartMonday(): string {
   return toDateString(monday);
 }
 
+/** "YYYY-WNN" of the review's ET Monday. The cron fires Monday 03:00 UTC (Sunday night ET), so the
+ *  UTC run date already sits in the NEXT ISO week; the Monday string never does. */
+function isoWeekOfMonday(monday: string): string {
+  const thursday = new Date(`${monday}T00:00:00Z`);
+  thursday.setUTCDate(thursday.getUTCDate() + 3); // the week's Thursday names its ISO year
+  const year = thursday.getUTCFullYear();
+  const dayOfYear = Math.round((thursday.getTime() - Date.UTC(year, 0, 1)) / 86_400_000);
+  return `${year}-W${String(Math.floor(dayOfYear / 7) + 1).padStart(2, "0")}`;
+}
+
+const NUDGE_TAG_PREFIX = "weekly-review-ready-";
+
+/**
+ * R2a (2026-11-03) · ONE "Weekly review ready" push per ISO week. The weekly_review_nudge row is the
+ * claim (claim-before-act: create -> P2002 means another run took the week, so it never pushes). The
+ * row is kept only when the push reached a device or was held for the Pulse sheet by quiet hours
+ * (sendPush defers a medium push 21:00-07:00 ET, and this cron runs ~22:00-23:00 ET); otherwise the
+ * claim is released by its own id, so the marker never says a push landed when none did.
+ */
+async function nudgeWeeklyReviewOnce(weekStart: string): Promise<"sent" | "duplicate" | "failed"> {
+  const week = isoWeekOfMonday(weekStart);
+  let markerId: string;
+  try {
+    // brain-memory-direct-write: a once-per-week send marker (the claim), not a semantic memory. No
+    // expiresAt and confidence 1.0, so pruneNoise and data-cleanup never reach it; excluded from merge.
+    const row = await prisma.brainMemory.create({
+      data: {
+        category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+        key: week,
+        content: `Weekly review ready push for the week of ${weekStart}`,
+        confidence: 1.0,
+        source: "cron:weekly-review",
+        metadata: { weekStart } as never,
+      },
+      select: { id: true },
+    });
+    markerId = row.id;
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code === "P2002") return "duplicate";
+    // Fail closed: without the claim there is no once-per-week guarantee, so no push.
+    log.warn("weekly_review_nudge_claim_failed", { week, err: err instanceof Error ? err.message : String(err) });
+    return "failed";
+  }
+  const { sendPush } = await import("@/lib/notifications/push");
+  const res = await sendPush({
+    title: "Weekly review ready",
+    // Push-safe: the review itself (wins, misses, journal) never goes on a lock screen.
+    body: `Your review for the week of ${weekStart} is written. Open it to set next week.`,
+    level: "medium",
+    url: "/",
+    tag: `${NUDGE_TAG_PREFIX}${week}`,
+  }).catch((err: unknown) => {
+    log.warn("weekly_review_nudge_push_failed", { week, err: err instanceof Error ? err.message : String(err) });
+    return null;
+  });
+  if (res && (res.sent > 0 || (res.deferred ?? 0) > 0)) return "sent";
+  await prisma.brainMemory
+    .deleteMany({ where: { id: markerId, category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: week } })
+    .catch((err) => log.error("weekly_review_nudge_release_failed", { week, err: err instanceof Error ? err.message : String(err) }));
+  return "failed";
+}
+
 export const GET = cronHandler(async () => {
   // 2026-09-02 · was getModelWithFallback(), a bare alias for this whose
   // name implied failures were handled. They were not: the generateText below
@@ -248,7 +310,7 @@ Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 4
   // returned only `{ weekStart }`, losing the actual content. Now:
   // upsert into BrainMemory under category `weekly_review` keyed on
   // weekStart so re-runs idempotently overwrite.
-  await prisma.brainMemory
+  const persisted = await prisma.brainMemory
     .upsert({
       where: {
         category_key: { category: "weekly_review", key: `weekly:${weekStart}` },
@@ -282,8 +344,10 @@ Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 4
         } as never,
       },
     })
+    .then(() => true)
     .catch((err) => {
       log.error("persist_failed", { err: err instanceof Error ? err.message : String(err) });
+      return false;
     });
 
   await trackGeneration({
@@ -312,5 +376,7 @@ Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 4
     },
   );
 
-  return { weekStart };
+  // A review that was never written is not "ready": no claim, no push.
+  const nudge = persisted ? await nudgeWeeklyReviewOnce(weekStart) : "skipped";
+  return { weekStart, nudge };
 });
