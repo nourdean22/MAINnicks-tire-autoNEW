@@ -411,8 +411,15 @@ signal around capabilities already live.
   Reels Publishing 3-step for a video (behind `REEL_PUBLISH_ENABLED` + the claim check on an FB-native caption), the
   nightly cron sends `["instagram","facebook"]` when `REEL_FB_CROSSPOST_ENABLED="true"`, and FB post insights land in
   `ig_metric_snapshots` under the `fb:` prefix (IG readers filter it). FB live + IG refused parks the job
-  `publish_ambiguous` rather than releasing the claim. **LIVE+UNPROVEN** until the first `Facebook reel cross-post
-  published` log line (~04:00Z reel tick).
+  `publish_ambiguous` rather than releasing the claim. The Reels 3-step is **PROVEN** for manual posts: four reels
+  published 2026-11-03 and read back (published, processing complete).
+- **Facebook reel numbers (2026-11-03).** A reel's `post_id` cannot be read back (Meta #12), so `postFacebookVideo`
+  now also returns `videoId`, which rides in the publish ledger's `platformResults`. The nightly `syncInstagramPosts`
+  reads reels from the ledger (`findPublishedFacebookReelVideoIds`, 14 days), fetches `fb_reels_total_plays`,
+  `post_video_avg_time_watched` (ms) and reaction/comment counts by video id (`fetchFacebookReelInsights`), and writes
+  `fb:<videoId>` snapshots; unread numbers stay NULL, never 0. Hand-posted reels: `scripts/fb-reel-numbers.ts --video`.
+  Nothing displays `fb:` rows yet (display waits for Nour's pick). **LIVE+UNPROVEN** until the first nightly run after
+  a cron reel cross-posts writes an `fb:<videoId>` row. Kill criterion: no such row within 7 days of a cron FB reel.
 - **New signal, default-safe:** customer-language miner (PII scrubbed before extraction) + GSC rising queries feed the
   topic miner; real-asset-first picks a `real_shop` photo before generating; Creative Assistant cards on Today; $0 pixel
   checks + craft score on every rendered-QA verdict with ONE specialist lens behind `RENDERED_QA_SPECIALIST` (default
