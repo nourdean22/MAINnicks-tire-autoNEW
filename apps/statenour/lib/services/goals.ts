@@ -8,6 +8,7 @@ import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
 import { peopleOnGoal } from "@/lib/services/people/people-on-goal";
 import { goalHealthFrom, type GoalHealth } from "@/lib/brain/goal-pace";
+import { missionPhaseLadder, type LadderPhase } from "@/lib/stats/goals-page";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -142,7 +143,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 
   // 2026-11-02 · the missions planned from each goal (Mission.lifeGoalId): the card shows the
   // ladder's progress and links to it. A failed read lists none; it never hides the goal.
-  type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number };
+  // W5 2026-11-02: `phases` is the card's milestone ladder (lib/stats/goals-page.ts missionPhaseLadder).
+  type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases: LadderPhase[] };
   const missionsByGoal = new Map<string, GoalMission[]>();
   if (goalIds.length > 0) {
     try {
@@ -154,7 +156,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           status: true,
           lifeGoalId: true,
           planData: true,
-          tasks: { where: activeOnly(), select: { status: true } },
+          tasks: { where: activeOnly(), select: { status: true, phaseName: true } },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -168,6 +170,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           phaseCount: Array.isArray(phases) ? phases.length : 0,
           tasksDone: m.tasks.filter((t) => t.status === "DONE").length,
           tasksTotal: m.tasks.length,
+          phases: missionPhaseLadder(m.planData, m.tasks),
         };
         (missionsByGoal.get(m.lifeGoalId) ?? missionsByGoal.set(m.lifeGoalId, []).get(m.lifeGoalId)!).push(row);
       }

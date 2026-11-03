@@ -125,7 +125,7 @@ describe("Goals Service", () => {
           status: "ACTIVE",
           lifeGoalId: "g1",
           planData: { v: 1, phases: [{ name: "a", steps: [] }, { name: "b", steps: [] }, { name: "c", steps: [] }] },
-          tasks: [{ status: "DONE" }, { status: "READY" }, { status: "DOING" }],
+          tasks: [{ status: "DONE", phaseName: "a" }, { status: "READY", phaseName: "b" }, { status: "DOING", phaseName: "b" }],
         },
       ]);
 
@@ -134,7 +134,23 @@ describe("Goals Service", () => {
       expect(mocks.mission.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ lifeGoalId: { in: ["g1", "g2"] }, deletedAt: null }) }),
       );
-      expect(result[0].missions).toEqual([{ id: "m1", title: "Goal", status: "ACTIVE", phaseCount: 3, tasksDone: 1, tasksTotal: 3 }]);
+      // W5: the card's milestone ladder needs each task's phase.
+      expect(mocks.mission.findMany.mock.calls[0]![0].select.tasks.select).toEqual({ status: true, phaseName: true });
+      expect(result[0].missions).toEqual([
+        {
+          id: "m1",
+          title: "Goal",
+          status: "ACTIVE",
+          phaseCount: 3,
+          tasksDone: 1,
+          tasksTotal: 3,
+          phases: [
+            { name: "a", done: true, current: false },
+            { name: "b", done: false, current: true },
+            { name: "c", done: false, current: false },
+          ],
+        },
+      ]);
       expect(result[1].missions).toEqual([]);
     });
 
