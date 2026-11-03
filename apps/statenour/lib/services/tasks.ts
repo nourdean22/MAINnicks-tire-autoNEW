@@ -34,7 +34,8 @@ const log = rootLogger.withSurface("services/tasks");
 // view including completed tasks as still-open or deleted missions
 // still appearing in primaryMission. Centralized here so the same
 // keys get invalidated from missions.ts via re-import.
-function invalidateMutationCaches(): void {
+// 2026-11-03 · exported for the dated habit writers (lib/services/daily-backfill.ts).
+export function invalidateMutationCaches(): void {
   invalidate("dashboard_brief");
   invalidate("ultron_command_center_state_v1");
 }

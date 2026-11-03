@@ -20,8 +20,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { effortField, contextField, LOOP_KIND_LEGEND } from "@/lib/ai/tools/task-field-legends";
 import { prisma } from "@/lib/prisma";
-import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
-import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { createTaskAndEnrich, deleteTask } from "@/lib/services/tasks";
+import { checkTask } from "@/lib/services/task-actions";
+import { backfillDailyCompletion, uncheckDailyCompletion } from "@/lib/services/daily-backfill";
+import { ServiceError } from "@/lib/utils/service-error";
 import { recordError } from "@/lib/errors/record-error";
 import { daysAgo, hourET, startOfDayET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -360,93 +362,155 @@ const tasksCoreTools = {
 
   completeTask: tool({
     description:
-      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
+      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
     // v10.0.529.85 · Wave 29 · CRITICAL fix · pre-Wave-29 this set
     // status:DONE blindly · DAILY tasks lost their streak on every
-    // check-off via chat (streak silently killed). Now routes through
-    // the same /check pipeline the UI uses · streak preserved.
-    inputSchema: z.object({ taskId: z.string() }),
-    execute: async ({ taskId }) => {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { loopKind: true, streakCount: true, lastCompletedAt: true, status: true, goalId: true },
+    // check-off via chat (streak silently killed).
+    // 2026-11-03 · the inline copy of the streak math is gone: every
+    // completion now goes through checkTask, the same spine the UI's
+    // checkbox uses, so a chat check-off writes its `completed` event
+    // (uncheckTask reads them) and credits per-day XP like the UI does.
+    inputSchema: z.object({
+      taskId: z.string(),
+      completedOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("DAILY habits only: the past ET day (YYYY-MM-DD) the habit was actually done. Omit for today."),
+    }),
+    execute: async ({ taskId, completedOn }) => {
+      if (completedOn && completedOn !== today()) {
+        try {
+          const r = await backfillDailyCompletion({ id: taskId, completedOn, source: "chat" });
+          return {
+            completed: true,
+            backfilled: !r.idempotent,
+            idempotent: r.idempotent,
+            completedOn,
+            loopKind: "DAILY",
+            streakCount: r.streakCount,
+            taskId,
+            ...(r.idempotent
+              ? { note: `already recorded for ${completedOn} · streak preserved` }
+              : { xpCredited: r.reward ? r.reward.xpCredited : "unknown (credit failed, recorded)" }),
+          };
+        } catch (err) {
+          if (err instanceof ServiceError) return { completed: false, error: err.message };
+          await recordError("ai:tool-exec", err, { taskId, op: "completeTask.backfill" });
+          return { completed: false, error: "the dated check-off failed before any write; the error is recorded" };
+        }
+      }
+
+      const task = await prisma.task.findFirst({
+        where: { id: taskId, deletedAt: null },
+        select: { loopKind: true },
       });
       if (!task) return { completed: false, error: "task not found" };
-
-      const now = new Date();
-      if (task.loopKind === "DAILY") {
-        // Same streak logic as /api/tasks/[id]/check route. Day boundaries
-        // are ET calendar days (toDateString), NOT server-UTC days — the UTC
-        // floor flipped "today" at 8pm ET (double bump / false reset).
-        let nextStreak = 1;
-        if (task.lastCompletedAt) {
-          const lastDayET = toDateString(new Date(task.lastCompletedAt));
-          const todayET = toDateString(now);
-          const gap = Math.round((Date.parse(todayET) - Date.parse(lastDayET)) / 86_400_000);
-          if (gap === 0) {
-            return {
-              completed: true,
-              idempotent: true,
-              loopKind: "DAILY",
-              streakCount: task.streakCount,
-              note: "already checked off today · streak preserved",
-            };
-          }
-          nextStreak = gap === 1 ? task.streakCount + 1 : 1;
+      try {
+        const r = await checkTask({ id: taskId, action: "complete", eventSource: "chat" });
+        if ("idempotent" in r && r.idempotent) {
+          return {
+            completed: true,
+            idempotent: true,
+            loopKind: task.loopKind,
+            streakCount: r.streakCount,
+            taskId,
+            note: "already checked off today · streak preserved",
+          };
         }
-        await prisma.task.update({
-          where: { id: taskId },
-          data: {
-            lastCompletedAt: now,
-            lastTouchedAt: now,
-            streakCount: nextStreak,
-            status: "READY", // DAILY stays in the loop
-            snoozedUntil: null,
-          },
-        });
-
-        // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
-        const settled = await Promise.allSettled([
-          creditTaskStats(taskId),
-          ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
-        ]);
-        for (const r of settled) {
-          if (r.status === "rejected") {
-            recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-daily" });
-          }
-        }
-
+        const row = "task" in r && r.task ? r.task : null;
+        const reward = "reward" in r && r.reward ? r.reward : null;
         return {
           completed: true,
-          loopKind: "DAILY",
-          streakCount: nextStreak,
           taskId,
+          loopKind: task.loopKind ?? "ONCE",
+          ...(typeof row?.streakCount === "number" ? { streakCount: row.streakCount } : {}),
+          ...(reward ? { xpCredited: reward.xpCredited, goalLifted: reward.goalLifted } : {}),
         };
+      } catch (err) {
+        if (err instanceof ServiceError) return { completed: false, error: err.message };
+        await recordError("ai:tool-exec", err, { taskId, op: "completeTask" });
+        return { completed: false, error: "the check-off failed; the error is recorded" };
       }
+    },
+  }),
 
-      // ONCE / PROMISE / etc. → DONE
-      await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          status: "DONE",
-          lastCompletedAt: now,
-          lastTouchedAt: now,
-          snoozedUntil: null,
-        },
+  // 2026-11-03 · the mirror of a dated check-off. Until now a mis-tap on a
+  // habit could only be undone inside the 30 s undo window; from chat, never.
+  uncheckTask: tool({
+    description:
+      "Take back a DAILY habit check-off for one ET day (a mis-tap, or a backfill that was wrong). Removes that day's completion and rewinds the streak; XP already credited for the day stays (it never double-credits). Defaults to today. Example: {\"taskId\":\"142\",\"date\":\"2026-11-01\"}",
+    inputSchema: z.object({
+      taskId: z.string(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("ET day (YYYY-MM-DD) to uncheck. Omit for today."),
+    }),
+    execute: async ({ taskId, date }) => {
+      try {
+        const r = await uncheckDailyCompletion({ id: taskId, date, source: "chat" });
+        return {
+          unchecked: r.changed,
+          date: r.date,
+          streakCount: r.streakCount,
+          lastCompletedAt: r.lastCompletedAt?.toISOString() ?? null,
+          taskId,
+          ...(r.changed ? {} : { note: `no check-off recorded for ${r.date} · nothing changed` }),
+        };
+      } catch (err) {
+        if (err instanceof ServiceError) return { unchecked: false, error: err.message };
+        await recordError("ai:tool-exec", err, { taskId, op: "uncheckTask" });
+        return { unchecked: false, error: "the uncheck failed before any write; the error is recorded" };
+      }
+    },
+  }),
+
+  // 2026-11-03 · updateTask only moves between the open statuses; the UI's
+  // delete (soft, recoverable) had no chat path, so "drop that task" went
+  // unanswered or became a snooze.
+  archiveTask: tool({
+    description:
+      "Archive a task Nour no longer wants (soft delete: the row stays for the brain's abandoned-task patterns, recoverable by the operator). Use when he says drop / kill / remove / archive / delete a task. Not for done work (completeTask) or later work (snoozeTask). Example: {\"taskId\":\"142\"}",
+    inputSchema: z.object({ taskId: z.string() }),
+    execute: async ({ taskId }) => {
+      const task = await prisma.task.findFirst({
+        where: { id: taskId, deletedAt: null },
+        select: { id: true, title: true, loopKind: true, streakCount: true },
       });
-
-      // credit character-sheet stat XP + lift the linked goal. Awaited via allSettled.
-      const settled = await Promise.allSettled([
-        creditTaskStats(taskId),
-        ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, taskId)] : []),
-      ]);
-      for (const r of settled) {
-        if (r.status === "rejected") {
-          recordError("ai:tool-exec", r.reason, { taskId, op: "task.complete-sideeffect-once" });
-        }
+      if (!task) return { archived: false, error: "task not found" };
+      try {
+        await deleteTask(taskId);
+      } catch (err) {
+        if (err instanceof ServiceError) return { archived: false, error: err.message };
+        await recordError("ai:tool-exec", err, { taskId, op: "archiveTask" });
+        return { archived: false, error: "the archive failed; the error is recorded" };
       }
-
-      return { completed: true, taskId, loopKind: task.loopKind ?? "ONCE" };
+      // Same 30 s undo token archiveGoal and snoozeTask issue (the tool-result
+      // card renders it); consumeUndoToken clears deletedAt.
+      const undoToken = `undo_${task.id}_${Date.now()}`;
+      const undoExpiresAt = new Date(Date.now() + 30 * 1000);
+      const undoSaved = await prisma.brainMemory
+        .create({
+          data: {
+            category: "undo_token",
+            key: undoToken,
+            content: JSON.stringify({ toolName: "archiveTask", taskId: task.id }),
+            source: "chat-tool",
+            confidence: 1.0,
+            expiresAt: undoExpiresAt,
+            createdBy: "nick",
+          },
+        })
+        .then(() => true)
+        .catch(async (err) => {
+          await recordError("ai:tool-exec", err, { taskId, op: "archiveTask.undoToken" });
+          return false;
+        });
+      return {
+        archived: true,
+        taskId,
+        title: task.title,
+        ...(undoSaved ? { undoToken, undoExpiresAt: undoExpiresAt.toISOString() } : { note: "archived; the undo token could not be saved (recorded), so undo needs the operator" }),
+        ...(task.loopKind === "DAILY" ? { note: `habit archived with a ${task.streakCount}-day streak on it` } : {}),
+      };
     },
   }),
 
