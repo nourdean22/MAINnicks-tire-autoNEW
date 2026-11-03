@@ -32,8 +32,14 @@ function run(
   const dumpUpdateMany = vi.fn().mockResolvedValue({ count: counts.dumpCount });
   const reflUpdateMany = vi.fn().mockResolvedValue({ count: counts.reflCount });
   const writeFile = vi.fn();
+  let logsAtFirstRead: string[] | null = null;
   const prisma = {
-    personProfile: { findMany: vi.fn().mockResolvedValue(people) },
+    personProfile: {
+      findMany: vi.fn(async () => {
+        logsAtFirstRead ??= [...logs];
+        return people;
+      }),
+    },
     brainDump: { findMany: vi.fn().mockResolvedValue(dumps), update: dumpUpdate, updateMany: dumpUpdateMany },
     reflection: { findMany: vi.fn().mockResolvedValue(reflections), update: reflUpdate, updateMany: reflUpdateMany },
     $disconnect: vi.fn().mockResolvedValue(undefined),
@@ -69,7 +75,19 @@ function run(
     console: { log: (s: string) => logs.push(String(s)), error: (s: string) => logs.push(String(s)) },
     require: requireFn,
   });
-  const out = { requireFn, dumpUpdate, reflUpdate, dumpUpdateMany, reflUpdateMany, writeFile, prisma, logs };
+  const out = {
+    requireFn,
+    dumpUpdate,
+    reflUpdate,
+    dumpUpdateMany,
+    reflUpdateMany,
+    writeFile,
+    prisma,
+    logs,
+    get logsAtFirstRead() {
+      return logsAtFirstRead;
+    },
+  };
   return main(argv).then(
     () => ({ code: "returned" as const, ...out }),
     (e: { exited?: unknown }) => ({ code: e.exited, ...out }),
@@ -156,7 +174,8 @@ describe("backfill-journal-person-ids", () => {
     const out = r.logs.join("\n");
     expect(r.logs[0]).toBe("database host: ep-demo-123.us-east-2.aws.neon.tech");
     expect(out).not.toMatch(/s3cret|user:/);
-    expect(r.prisma.personProfile.findMany.mock.invocationCallOrder[0]).toBeGreaterThan(0);
+    // Before any read: the host line was already logged when the first database read ran.
+    expect(r.logsAtFirstRead).toEqual(["database host: ep-demo-123.us-east-2.aws.neon.tech"]);
     expect((await run([], {})).logs[0]).toBe("database host: unknown (DATABASE_URL unset or unparseable)");
   });
 
