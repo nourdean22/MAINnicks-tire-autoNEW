@@ -15,11 +15,20 @@ export interface PendingClassification {
   cadenceDays?: number;
 }
 
-export function acceptClassificationData(pc: PendingClassification | null, trustScore: number): Record<string, unknown> {
+export function acceptClassificationData(
+  pc: PendingClassification | null,
+  trustScore: number,
+  /** The notes on the profile NOW (W8b): a Home love-map answer typed since the proposal is appended to, never replaced. */
+  currentNotes: string | null = null,
+): Record<string, unknown> {
   const data: Record<string, unknown> = { pendingClassification: null };
   if (!pc) return data;
   if (pc.role && isPersonRole(pc.role)) data.role = pc.role;
-  if (pc.leverageNotes && pc.leverageNotes.trim()) data.leverageNotes = pc.leverageNotes.trim().slice(0, 2000);
+  const suggested = pc.leverageNotes?.trim() ?? "";
+  const current = currentNotes?.trim() ?? "";
+  if (suggested && suggested !== current) {
+    data.leverageNotes = (current ? `${current}\n${suggested}` : suggested).slice(0, 2000);
+  }
   if (Number.isFinite(pc.trustAdjustment) && pc.trustAdjustment !== 0) {
     data.trustScore = Math.max(0, Math.min(1, trustScore + (pc.trustAdjustment as number)));
   }

@@ -24,12 +24,36 @@ import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { journalExcerpt, type LatestJournal } from "@/lib/services/people/journal-link";
+import { PEOPLE_RUN_EVENT, PEOPLE_RUN_STALE_MS, type PeopleRunState } from "@/lib/brain/people-intelligence-run";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/people");
 
 /** Newest ledger rows read per person; the first CONTACT row among them is the note shown on the list. */
 const NOTE_LOOKBACK = 5;
+
+/** The engine line on /people: the newest run's state. `never` = no row ever; `unknown` = the read failed. */
+export interface EngineLine {
+  state: PeopleRunState | "never" | "unknown";
+  at: string | null;
+  reason: string | null;
+}
+
+/** Rows before W8b carried the result only in `detail`; "(enrich: x)" there was the one failure signal. */
+function engineLineOf(row: { createdAt: Date; detail: string; payload: unknown } | null): EngineLine {
+  if (!row) return { state: "never", at: null, reason: null };
+  const at = row.createdAt.toISOString();
+  const p = row.payload && typeof row.payload === "object" ? (row.payload as { state?: unknown; reason?: unknown }) : null;
+  const reason = typeof p?.reason === "string" ? p.reason : null;
+  if (p?.state === "running") {
+    return Date.now() - row.createdAt.getTime() > PEOPLE_RUN_STALE_MS
+      ? { state: "failed", at, reason: "did not finish" }
+      : { state: "running", at, reason: null };
+  }
+  if (p?.state === "ok" || p?.state === "failed" || p?.state === "nothing_to_propose") return { state: p.state, at, reason };
+  const legacyFail = /\(enrich: (\w+)\)/.exec(row.detail);
+  return legacyFail ? { state: "failed", at, reason: legacyFail[1] } : { state: "ok", at, reason: null };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +72,8 @@ interface PersonRow {
   latestNote: { note: string; at: string; source: string } | null;
   /** Newest journal entry naming the person (brain_dumps.person_ids); null = none, or the read failed (see `reads`). */
   latestJournal: LatestJournal | null;
+  /** A proposal (role, notes, trust or cadence) is parked in pendingClassification for his Accept or Dismiss. */
+  suggestionWaiting: boolean;
 }
 
 export const GET = apiHandler(
@@ -82,6 +108,7 @@ export const GET = apiHandler(
         lastInteraction: true,
         interactionCount: true,
         cadenceDays: true,
+        pendingClassification: true,
         // shortcut: a person whose newest NOTE_LOOKBACK rows are all status flips or mentions reads null; widen if that shows up.
         ledger: {
           orderBy: { createdAt: "desc" },
@@ -120,6 +147,21 @@ export const GET = apiHandler(
       }
     }
 
+    // The engine line: a failed read is `unknown`, never `ok` (empty-vs-error).
+    let engine: EngineLine;
+    try {
+      engine = engineLineOf(
+        await prisma.auditEvent.findFirst({
+          where: { eventType: PEOPLE_RUN_EVENT },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true, detail: true, payload: true },
+        }),
+      );
+    } catch (err) {
+      log.warn("people_engine_run_read_failed", { error: err instanceof Error ? err.message : String(err) });
+      engine = { state: "unknown", at: null, reason: null };
+    }
+
     const people: PersonRow[] = rows.map((r) => {
       const daysSinceInteraction = daysSinceContact(r, nowDate);
       return {
@@ -138,6 +180,7 @@ export const GET = apiHandler(
           return n ? { note: n.note, at: n.createdAt.toISOString(), source: n.source } : null;
         })(),
         latestJournal: journal.get(r.id) ?? null,
+        suggestionWaiting: r.pendingClassification !== null,
       };
     });
 
@@ -147,11 +190,13 @@ export const GET = apiHandler(
       neglected: people.filter((p) => p.isNeglected).length,
       high_trust: people.filter((p) => p.trustScore >= 0.7).length,
       sparse: people.filter(isSparsePerson).length,
+      suggestionsWaiting: people.filter((p) => p.suggestionWaiting).length,
     };
 
     return {
       people,
       totals,
+      engine,
       reads: { journal: journalRead },
       generatedAt: new Date().toISOString(),
     };

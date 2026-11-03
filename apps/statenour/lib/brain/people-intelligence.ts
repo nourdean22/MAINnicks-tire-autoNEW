@@ -24,12 +24,20 @@ import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import { nameMatcher } from "@/lib/services/people/backfill-plan";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("brain/people-intelligence");
 
 /** The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the person. */
 const GENERIC_NOTE = /^interaction reported in chat \(/i;
 const CONTEXT_MAX = 3;
 /** A dismissed role/notes suggestion stays away this long, like a dismissed cadence (second reader on 3519). */
 const ENRICH_REPROPOSE_DAYS = 30;
+/** Model calls per run (W8b: one named cap; the rest of the sparse list is reported as `enrichDeferred`). */
+export const ENRICH_CALLS_PER_RUN = 5;
+/** A person whose call parked nothing is not called again within this many days (W8b: `metadata.enrichTriedAt`). */
+export const ENRICH_RETRY_DAYS = 7;
+const CADENCE_REPROPOSE_DAYS = 30;
 
 function proposedWithin(metadata: unknown, key: string, days: number): boolean {
   const at = (metadata as Record<string, unknown> | null)?.[key];
@@ -97,6 +105,8 @@ export async function runPeopleIntelligence(): Promise<{
   cadenceProposed?: number;
   /** Set when the cadence pass could not read the ledger: no proposal was guessed. */
   cadence?: "ledger_read_failed";
+  /** W8b: sparse people with context the per-run cap left for a later run (0 = everyone due was tried). */
+  enrichDeferred?: number;
 }> {
   const alerts: string[] = [];
 
@@ -158,12 +168,14 @@ export async function runPeopleIntelligence(): Promise<{
     (p) =>
       (p.role === "unknown" || !p.leverageNotes) &&
       !hasEnrichProposal(p.pendingClassification) &&
-      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS)
+      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS) &&
+      !proposedWithin(p.metadata, "enrichTriedAt", ENRICH_RETRY_DAYS)
   );
 
   let updated = 0;
   let ledgerReadFailed = false;
   let chatReadFailed = false;
+  let tried = 0;
   const suggestedNow = new Set<string>();
   if (sparse.length > 0) {
     // People W0 (2026-10-30): the context is the person's own ledger notes.
@@ -198,7 +210,7 @@ export async function runPeopleIntelligence(): Promise<{
     let calls = 0;
     // Nothing on record and nothing he wrote means nothing to ground a suggestion in: no call.
     for (const person of ledgerReadFailed ? [] : sparse) {
-      if (calls >= 5) break;
+      if (calls >= ENRICH_CALLS_PER_RUN) break;
       const logged = ledgerContext[person.id] ?? [];
       const said =
         logged.length < CONTEXT_MAX
@@ -211,6 +223,15 @@ export async function runPeopleIntelligence(): Promise<{
       const contexts = [...logged, ...said];
       if (contexts.length === 0) continue;
       calls++;
+      tried++;
+      const meta =
+        person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
+          ? (person.metadata as Record<string, unknown>)
+          : {};
+      const triedAt = new Date().toISOString();
+      // Stamped on EVERY call, before the proposal write: a call that parks nothing still spent the slot,
+      // and without the stamp the same quiet person was retried every run (audit B6).
+      let stamped = false;
 
       const enrichResult = await aiChat(
         [
@@ -266,10 +287,6 @@ Return ONLY JSON:
             // Keep a waiting cadence proposal: one banner, and his Accept applies both.
             const prior = person.pendingClassification;
             const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
-            const meta =
-              person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
-                ? (person.metadata as Record<string, unknown>)
-                : {};
             // Compare-and-swap on the slot this run read: if he accepted or dismissed it during
             // the model call, the write matches nothing (P2025) and is skipped below.
             await prisma.personProfile.update({
@@ -278,9 +295,11 @@ Return ONLY JSON:
                 pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
               },
               data: {
-                metadata: { ...meta, enrichProposedAt: new Date().toISOString() } as object,
+                metadata: { ...meta, enrichProposedAt: triedAt, enrichTriedAt: triedAt } as object,
                 pendingClassification: {
                   ...keep,
+                  // The cadence's own reasoning survives beside the enrich basis (audit B13).
+                  ...(typeof keep.basis === "string" && keep.cadenceDays !== undefined ? { cadenceBasis: keep.basis } : {}),
                   role: suggestedRole,
                   leverageNotes: suggestedNotes,
                   trustAdjustment,
@@ -289,6 +308,7 @@ Return ONLY JSON:
                 } as object,
               },
             });
+            stamped = true;
             updated++;
             suggestedNow.add(person.id);
           }
@@ -297,8 +317,13 @@ Return ONLY JSON:
           if ((err as { code?: unknown } | null)?.code !== "P2025") enrichFailCount++;
         }
       }
+      if (!stamped) {
+        await prisma.personProfile
+          .update({ where: { id: person.id }, data: { metadata: { ...meta, enrichTriedAt: triedAt } as object } })
+          .catch((err) => logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.stampTried" }));
+      }
     }
-    
+
     if (enrichFailCount > 0) {
       logError("brain.people-intelligence", new Error(`${enrichFailCount} people enrichment failures`), { fn: "runPeopleIntelligence.enrich" });
     }
@@ -308,9 +333,13 @@ Return ONLY JSON:
     people.filter((p) => !p.cadenceDays && !p.pendingClassification && !suggestedNow.has(p.id)),
   );
 
+  const enrichDeferred = ledgerReadFailed ? 0 : Math.max(0, sparse.length - tried);
+  if (enrichDeferred > 0) log.info("people_enrich_deferred", { enrichDeferred, tried, cap: ENRICH_CALLS_PER_RUN });
+
   return {
     profilesUpdated: updated,
     alerts,
+    enrichDeferred,
     ...(ledgerReadFailed
       ? { enrich: "ledger_read_failed" as const }
       : chatReadFailed
@@ -321,8 +350,6 @@ Return ONLY JSON:
   };
 }
 
-const CADENCE_REPROPOSE_DAYS = 30;
-
 /**
  * People W2 (2026-10-30): park a cadence PROPOSAL for people with none, for his
  * accept or dismiss on /people. Never writes cadenceDays. A dismissed proposal
@@ -331,12 +358,7 @@ const CADENCE_REPROPOSE_DAYS = 30;
 async function proposeCadences(
   candidates: ReadonlyArray<{ id: string; role: string; metadata: unknown }>,
 ): Promise<{ proposed: number; readFailed: boolean }> {
-  const cutoff = Date.now() - CADENCE_REPROPOSE_DAYS * 86_400_000;
-  const due = candidates.filter((p) => {
-    const at = (p.metadata as { cadenceProposedAt?: unknown } | null)?.cadenceProposedAt;
-    const ms = typeof at === "string" ? Date.parse(at) : NaN;
-    return !(Number.isFinite(ms) && ms > cutoff);
-  });
+  const due = candidates.filter((p) => !proposedWithin(p.metadata, "cadenceProposedAt", CADENCE_REPROPOSE_DAYS));
   if (due.length === 0) return { proposed: 0, readFailed: false };
 
   const rows = await prisma.relationshipLedger
@@ -362,8 +384,10 @@ async function proposeCadences(
     if (!s) continue;
     const meta = p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata) ? (p.metadata as Record<string, unknown>) : {};
     try {
+      // Compare-and-swap on the EMPTY slot this run read (audit B5): a proposal that landed since (Nick's
+      // person.update, the enrich pass) matches nothing (P2025) and is kept, not overwritten.
       await prisma.personProfile.update({
-        where: { id: p.id },
+        where: { id: p.id, pendingClassification: { equals: Prisma.AnyNull } },
         data: {
           pendingClassification: { cadenceDays: s.days, basis: s.basis, suggestedAt: today() } as object,
           metadata: { ...meta, cadenceProposedAt: new Date().toISOString() } as object,
@@ -371,7 +395,7 @@ async function proposeCadences(
       });
       proposed++;
     } catch (err) {
-      logError("brain.people-intelligence", err, { fn: "proposeCadences.update" });
+      if ((err as { code?: unknown } | null)?.code !== "P2025") logError("brain.people-intelligence", err, { fn: "proposeCadences.update" });
     }
   }
   return { proposed, readFailed: false };

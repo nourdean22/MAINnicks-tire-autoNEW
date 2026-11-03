@@ -71,6 +71,8 @@ import {
 import { rawFetch } from "@/lib/utils/api-fetch";
 import { etDaysBetween } from "@/lib/brain/goal-pace";
 import { JournalReadStatus, PersonJournalLine } from "@/components/people/journal-line";
+import { EngineLine, SuggestionsWaiting } from "@/components/people/engine-line";
+import type { EngineLine as EngineLineData } from "@/app/api/people/route";
 import { visiblePeopleRows } from "@/lib/people/needs-info";
 
 /** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
@@ -91,6 +93,8 @@ interface PersonRow {
   latestNote?: { note: string; at: string; source: string } | null;
   /** Newest journal entry naming the person (/api/people); null = none, or the read failed (`reads.journal`). */
   latestJournal?: { at: string; excerpt: string; dumpId: string } | null;
+  /** W8b: a proposal is parked for his Accept or Dismiss (the banner in the dossier). */
+  suggestionWaiting?: boolean;
 }
 
 interface PeopleResponse {
@@ -100,7 +104,11 @@ interface PeopleResponse {
     neglected: number;
     high_trust: number;
     sparse: number;
+    /** W8b: people holding a parked proposal. */
+    suggestionsWaiting?: number;
   };
+  /** W8b: the engine's last run, from the newest people_intelligence_run audit row. */
+  engine?: EngineLineData;
   /** Which side reads failed; a failed journal read nulls every latestJournal, so it is said once, not hidden. */
   reads?: { journal: "ok" | "failed" };
   generatedAt: string;
@@ -425,7 +433,9 @@ function RelationshipsPageInner() {
             <button type="button" aria-pressed={needsInfoOnly} onClick={() => revealBrowse(undefined, true)} className="min-w-11 min-h-[44px] transition-colors hover:text-fg">
               <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> Needs info
             </button>
+            <SuggestionsWaiting count={data.totals.suggestionsWaiting} />
           </div>
+          <EngineLine engine={data.engine} />
           {needsInfoOnly && (
             <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 text-[13px] text-fg-secondary">
               Showing the {data.totals.sparse} {data.totals.sparse === 1 ? "person" : "people"} with no leverage notes or an unknown role.
@@ -657,6 +667,12 @@ function RelationshipsPageInner() {
                     <p className="mt-1 text-[14px] text-fg-secondary line-clamp-2">
                       {p.relationship || "no relationship notes"}
                     </p>
+                    {/* W8b: the parked proposal is visible from the list, not only inside the dossier banner. */}
+                    {p.suggestionWaiting && (
+                      <span className="mt-1 inline-block rounded-control border border-amber-400/40 px-2 py-0.5 font-mono text-[11px] text-amber-300">
+                        suggestion waiting
+                      </span>
+                    )}
                     {p.leverageNotes && (
                       <p className="mt-1 text-[12px] italic text-fg-tertiary line-clamp-1">
                         leverage: {p.leverageNotes}

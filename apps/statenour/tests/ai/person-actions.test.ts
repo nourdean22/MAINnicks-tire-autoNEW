@@ -66,6 +66,20 @@ describe("person.update — an edit is not a contact", () => {
     expect(data).not.toHaveProperty("interactionCount");
     expect(data).not.toHaveProperty("lastInteraction");
   });
+
+  // W8b (audit B flagged): Nick's role proposal lands ON the slot, it does not replace a waiting cadence proposal.
+  it("a role proposal keeps the cadence proposal already parked in the slot", async () => {
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    m.personFindUnique.mockResolvedValue({
+      role: "friend",
+      trustScore: 0.5,
+      pendingClassification: { cadenceDays: 14, basis: "default for friend", suggestedAt: "2026-10-30" },
+    });
+    await handlePersonUpdate({ name: "Dania", role: "mentor" }, "person.update");
+    const pc = m.personUpdate.mock.calls[0][0].data.pendingClassification as Record<string, unknown>;
+    expect(pc).toMatchObject({ cadenceDays: 14, cadenceBasis: "default for friend", role: "mentor", basis: "nick_agent person.update" });
+    expect(m.personFindUnique.mock.calls[0][0].select.pendingClassification).toBe(true);
+  });
 });
 
 describe("person.logInteraction — the contact path", () => {

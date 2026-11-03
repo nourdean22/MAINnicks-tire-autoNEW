@@ -261,7 +261,7 @@ export const powerAtlasProcedures = {
       const pc = (person.pendingClassification ?? null) as Parameters<typeof acceptClassificationData>[0];
       if (!pc) return { ok: true, noop: true };
 
-      const data = acceptClassificationData(pc, person.trustScore);
+      const data = acceptClassificationData(pc, person.trustScore, person.leverageNotes);
       await prisma.personProfile.update({ where: { id: input.personId }, data });
       return {
         ok: true,

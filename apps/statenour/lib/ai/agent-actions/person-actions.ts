@@ -59,7 +59,7 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   const personId = resolution.person.id;
   const current = await prisma.personProfile.findUnique({
     where: { id: personId },
-    select: { role: true, trustScore: true },
+    select: { role: true, trustScore: true, pendingClassification: true },
   });
   const { isPersonRole } = await import("@/lib/brain/person-roles");
 
@@ -87,10 +87,15 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
 
   let pendingProposed = false;
   if (suggestedRole || trustAdjustment !== 0) {
+    // W8b: land ON the slot. A waiting cadence proposal (and its basis) survives beside Nick's role proposal.
+    const prior = current?.pendingClassification;
+    const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
     await prisma.personProfile.update({
       where: { id: personId },
       data: {
         pendingClassification: {
+          ...keep,
+          ...(typeof keep.basis === "string" && keep.cadenceDays !== undefined ? { cadenceBasis: keep.basis } : {}),
           role: suggestedRole,
           leverageNotes: null, // handled live above · not re-proposed
           trustAdjustment,

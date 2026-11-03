@@ -32,10 +32,9 @@ export const GET = cronHandler(async () => {
     {
       name: "people_intelligence",
       fn: async () => {
-        const { runPeopleIntelligence } = await import(
-          "@/lib/brain/people-intelligence"
-        );
-        return runPeopleIntelligence();
+        // W8b: records the run row /people reads as the engine line; the cron never wrote one before.
+        const { runPeopleIntelligenceClaimed } = await import("@/lib/brain/people-intelligence-run");
+        return runPeopleIntelligenceClaimed({ windowMs: 0 });
       },
     },
     {
