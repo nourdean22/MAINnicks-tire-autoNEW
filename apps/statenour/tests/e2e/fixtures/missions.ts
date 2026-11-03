@@ -256,3 +256,43 @@ export const MISSIONS_DECK: MissionsDeck = {
   readiness: { state: "nominal", measuredDaysAgo: 0 },
   unmeasured: [],
 };
+
+/**
+ * task.goals (job 2026-11-02 W3): the goal titles, the align picker and the pace lineage on /missions.
+ * One active demo goal, linked to NO task or mission on purpose: the goal filter row stays hidden, so
+ * the visible-transformation snapshots of /missions are unchanged by this read.
+ */
+export const MISSION_GOALS = {
+  goals: [
+    {
+      id: "demo-goal-fitness",
+      domain: "HEALTH",
+      title: "Demo goal: run the demo 10k",
+      metric: "km",
+      targetValue: 0,
+      currentValue: 0,
+      unit: "",
+      deadline: null,
+      status: "active",
+      progress: 0,
+      achievedAt: null,
+      createdBy: null,
+      updatedBy: null,
+      horizon: null,
+      why: null,
+      planData: null,
+      estimatedHours: null,
+      coachLog: null,
+      deletedAt: null,
+      createdAt: "2026-10-01T14:00:00.000Z",
+      updatedAt: "2026-10-01T14:00:00.000Z",
+      linkedTaskCount: 0,
+      linkedDoneCount: 0,
+      linkedActiveCount: 0,
+      minutesInvested: 0,
+      nextMove: null,
+      loopsThisWeek: 0,
+      stats: [],
+    },
+  ],
+};

@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { LoopKind, Task, Project } from "@/components/actions/shared";
 import { isUserProject, isGeneralAnchor } from "@/lib/services/mission-helpers";
+import { filterByGoal, goalFilterHref, type GoalTask } from "@/lib/missions/task-goal";
 
 // #1897 review · derived from LoopKind instead of a hand-copied union. The
 // copy had drifted (no WEEKLY, which the Prisma enum has carried all along)
@@ -8,7 +10,11 @@ import { isUserProject, isGeneralAnchor } from "@/lib/services/mission-helpers";
 // corrected. A derived type cannot drift again.
 export type KindFilter = "all" | LoopKind;
 
-export function useMissionFilters(tasks: Task[], missions: Project[]) {
+export function useMissionFilters(tasks: GoalTask[], missions: Project[]) {
+  // 2026-11-02 · the goal filter lives in the URL (?goalId=) so the goal card can deep-link here.
+  const router = useRouter();
+  const goalFilter = useSearchParams().get("goalId") || null;
+  const setGoalFilter = (id: string | null) => router.replace(goalFilterHref(id), { scroll: false });
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
@@ -17,7 +23,7 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
   const [newDomainInput, setNewDomainInput] = useState("");
   const [filterEditMode, setFilterEditMode] = useState(false);
 
-  const filteredTasks = useMemo(() => {
+  const baseTasks = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return tasks.filter((t) => {
       const mission = missions.find((m) => m.id === t.missionId);
@@ -40,7 +46,7 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
     });
   }, [tasks, missions, searchQuery, kindFilter, domainFilter]);
 
-  const filteredMissions = useMemo(() => {
+  const baseMissions = useMemo(() => {
     const hasActiveFilter = !!(searchQuery.trim() || domainFilter || kindFilter !== "all");
     if (!hasActiveFilter) return missions;
 
@@ -77,6 +83,12 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
     });
   }, [missions, tasks, searchQuery, domainFilter, kindFilter]);
 
+  // Goal last: a mission stays when it is linked to the goal or holds a task that is (lib/missions/task-goal).
+  const { tasks: filteredTasks, missions: filteredMissions } = useMemo(
+    () => filterByGoal(baseTasks, baseMissions, goalFilter),
+    [baseTasks, baseMissions, goalFilter],
+  );
+
   const activeTasks = useMemo(() => tasks.filter((t) => t.status !== "DONE" && t.status !== "ARCHIVED"), [tasks]);
   const onceCount = useMemo(() => activeTasks.filter((t) => !t.loopKind || t.loopKind === "ONCE").length, [activeTasks]);
   const dailyCount = useMemo(() => activeTasks.filter((t) => t.loopKind === "DAILY").length, [activeTasks]);
@@ -95,12 +107,13 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
       .map(([name, count]) => ({ name, count }));
   }, [activeTasks, missions]);
 
-  const filtersActive = !!(searchQuery.trim() || kindFilter !== "all" || domainFilter);
+  const filtersActive = !!(searchQuery.trim() || kindFilter !== "all" || domainFilter || goalFilter);
 
   const handleClearFilters = () => {
     setSearchQuery("");
     setKindFilter("all");
     setDomainFilter(null);
+    if (goalFilter) setGoalFilter(null);
   };
 
   return {
@@ -112,6 +125,8 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
     setDomainFilter,
     kindFilter,
     setKindFilter,
+    goalFilter,
+    setGoalFilter,
     addingDomain,
     setAddingDomain,
     newDomainInput,

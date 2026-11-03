@@ -51,6 +51,8 @@ import { TaskFilters } from "@/components/actions/task-filters";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { HiddenRiskWarning } from "@/components/missions/hidden-risk-warning";
 import { computeHiddenRiskSummary } from "@/lib/tasks/hidden-risk";
+import { goalFilterLabel, goalFilterOptions, goalLineage, riskTasks } from "@/lib/missions/task-goal";
+import { GoalFilterChips } from "@/components/missions/goal-filter-chips";
 import { cn } from "@/lib/utils";
 import { StandardPage } from "@/components/layout/standard-page";
 import { isUserProject } from "@/lib/services/mission-helpers";
@@ -89,7 +91,7 @@ function MissionsPageInner() {
   const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
   // Data: one deck read + the raw lists the board's actions need.
-  const { deckQuery, tasks, missions, tasksQuery, missionsQuery, ccStateQuery } = useMissionsData();
+  const { deckQuery, tasks, missions, tasksQuery, missionsQuery, ccStateQuery, goalsQuery, goals, activeGoals } = useMissionsData();
   const deck = deckQuery.data ?? null;
   const { customDomains, setCustomDomains } = useCustomDomains();
 
@@ -198,11 +200,19 @@ function MissionsPageInner() {
     return set;
   }, [executionModeActive, focusedTask, filters.filteredTasks, tasks, userProjectIds]);
 
-  const filterKey = `${filters.searchQuery}-${filters.domainFilter}-${filters.kindFilter}-${executionModeActive}`;
+  const filterKey = `${filters.searchQuery}-${filters.domainFilter}-${filters.kindFilter}-${filters.goalFilter}-${executionModeActive}`;
+
+  // 2026-11-02 · goals on the board: one chip per goal with linked work; a hidden task whose
+  // goal (own or its mission's) is behind pace reads high risk (lib/tasks/hidden-risk.ts step 7).
+  const goalOptions = useMemo(
+    () => goalFilterOptions(tasks, missions, goals, filters.goalFilter),
+    [tasks, missions, goals, filters.goalFilter],
+  );
+  const lineage = useMemo(() => (goals ? goalLineage(goals) : undefined), [goals]);
 
   const hiddenRiskSummary = useMemo(() => {
     return computeHiddenRiskSummary({
-      allTasks: tasks,
+      allTasks: riskTasks(tasks),
       visibleTaskIds,
       filtersActive: filters.filtersActive,
       executionModeActive,
@@ -211,8 +221,9 @@ function MissionsPageInner() {
       kindFilter: filters.kindFilter,
       domainFilter: filters.domainFilter,
       missions,
+      goalLineage: lineage,
     });
-  }, [tasks, visibleTaskIds, filters.filtersActive, executionModeActive, filters.searchQuery, filters.kindFilter, filters.domainFilter, missions]);
+  }, [tasks, visibleTaskIds, filters.filtersActive, executionModeActive, filters.searchQuery, filters.kindFilter, filters.domainFilter, missions, lineage]);
 
   // The rhythm row knows an id; the task editor needs the whole task. If task.list has not answered, say
   // so rather than leave a dead title.
@@ -266,6 +277,8 @@ function MissionsPageInner() {
           onClearFilters={filters.handleClearFilters}
           onExitFocusMode={() => setExecutionModeActive(false)}
           onQueueNext={handleQueueNext}
+          // A failed goals read turns hidden-risk step 7 (goal pace) off: say so, only when something is hidden.
+          goalPaceUnread={goalsQuery.isError && (filters.filtersActive || executionModeActive)}
         />
 
         {/* Completion outcome prompt: mounted OUTSIDE the exec-mode branch
@@ -376,6 +389,12 @@ function MissionsPageInner() {
               </button>
             </div>
 
+            <GoalFilterChips
+              options={goalOptions}
+              selectedId={filters.goalFilter}
+              goalsRead={goalsQuery.isError ? "failed" : goalsQuery.data === undefined ? "loading" : "ok"}
+            />
+
             {/* The filter panel and the active-filter chips open right under their control. */}
             {filters.showFilters && (
               <TaskFilters
@@ -409,6 +428,9 @@ function MissionsPageInner() {
                     ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
                     ...(filters.kindFilter !== "all" ? [{ label: `kind · ${filters.kindFilter}`, onRemove: () => filters.setKindFilter("all") }] : []),
                     ...(filters.domainFilter ? [{ label: `domain · ${filters.domainFilter}`, onRemove: () => filters.setDomainFilter(null) }] : []),
+                    ...(filters.goalFilter
+                      ? [{ label: goalFilterLabel(filters.goalFilter, goalOptions, goals), onRemove: () => filters.setGoalFilter(null) }]
+                      : []),
                   ]}
                   onClearAll={filters.handleClearFilters}
                 />
@@ -520,7 +542,7 @@ function MissionsPageInner() {
           </div>          </>
         )}
 
-        <MissionModalsManager missions={missions} />
+        <MissionModalsManager missions={missions} goals={activeGoals} />
       </StandardPage>
     </MissionDispatchProvider>
   );
