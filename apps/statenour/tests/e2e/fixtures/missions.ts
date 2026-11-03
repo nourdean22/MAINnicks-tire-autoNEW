@@ -301,4 +301,4 @@ export const MISSION_GOALS = {
  * renders nothing and the /missions snapshots do not move. Its rendered states are unit-tested
  * (tests/missions/mission-chats.test.tsx).
  */
-export const MISSION_CHATS: inferRouterOutputs<AppRouter>["task"]["missionChats"] = { byMission: {}, truncated: false };
+export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMission: {}, truncated: false };

@@ -7,23 +7,14 @@
  */
 import { prisma } from "@/lib/prisma";
 
-/** CONTROLS RULE: titles shown per mission, and the one read's row cap, named once. */
-export const MISSION_CHATS_PER_MISSION = 3;
-export const MISSION_CHATS_READ_CAP = 300;
-/** Missions per read (the procedure's input cap); a mission past it shows "not read". */
-export const MISSION_CHATS_IDS_MAX = 100;
+import {
+  MISSION_CHATS_PER_MISSION,
+  MISSION_CHATS_READ_CAP,
+  type MissionChat,
+  type MissionChatsResult,
+} from "@/lib/missions/mission-chats-limits";
 
-export interface MissionChat {
-  id: string;
-  title: string;
-  updatedAt: Date;
-}
-
-export interface MissionChatsResult {
-  byMission: Record<string, MissionChat[]>;
-  /** The read filled MISSION_CHATS_READ_CAP: a mission showing fewer than its cap may have older chats unread. */
-  truncated: boolean;
-}
+export * from "@/lib/missions/mission-chats-limits";
 
 export async function missionChats(missionIds: string[]): Promise<MissionChatsResult> {
   const ids = [...new Set(missionIds)];

@@ -131,6 +131,14 @@ describe("BriefRows", () => {
     expect(container.textContent, "the horizon is the rail's, not a row").not.toContain(HOME_BRIEF.horizon.slots[0].label);
   });
 
+  it("W7: the lead row names its mission and goal; an unreadable context says so", async () => {
+    const lead = () => container.querySelector('[data-brief-row="lead"]')?.textContent ?? "";
+    await mount(HOME_BRIEF);
+    expect(lead()).toContain("Mission: Demo mission Alpha · Goal: Demo goal: finish the demo floor layout");
+    await mount({ ...HOME_BRIEF, leadContext: "unknown" });
+    expect(lead()).toContain("Mission and goal couldn't load");
+  });
+
   it("N more expands the brief in place instead of dropping rows", async () => {
     await mount(TEN_ROWS);
     expect(rows()).toHaveLength(7);

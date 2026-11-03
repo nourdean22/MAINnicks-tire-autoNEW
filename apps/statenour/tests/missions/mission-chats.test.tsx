@@ -84,3 +84,14 @@ describe("MissionChatsLine", () => {
     expect(renderToStaticMarkup(<MissionChatsLine read="unread" />)).toContain("Linked chats not read");
   });
 });
+
+describe("missionChatsReadFor (the feed's per-card state)", () => {
+  const data = { byMission: { m1: [{ id: "c1", title: "t", updatedAt: new Date() }] }, truncated: false };
+  it("maps a failed query to 'failed', a pending one to 'loading', and a mission past the id limit to 'unread'", async () => {
+    const { missionChatsReadFor } = await import("@/components/missions/mission-chats-line");
+    expect(missionChatsReadFor("m1", ["m1"], { data: undefined, isError: true })).toBe("failed");
+    expect(missionChatsReadFor("m1", ["m1"], { data: undefined, isError: false })).toBe("loading");
+    expect(missionChatsReadFor("m9", ["m1"], { data, isError: false })).toBe("unread");
+    expect(missionChatsReadFor("m2", ["m1", "m2"], { data, isError: false })).toEqual({ chats: [], truncated: false });
+  });
+});

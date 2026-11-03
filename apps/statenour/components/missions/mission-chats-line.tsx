@@ -6,12 +6,29 @@
  */
 import Link from "next/link";
 
+import { MISSION_CHATS_PER_MISSION } from "@/lib/missions/mission-chats-limits";
+
+type ChatLink = { id: string; title: string; updatedAt: string | Date };
+
 export type MissionChatsRead =
-  | { chats: { id: string; title: string; updatedAt: string | Date }[]; truncated: boolean }
+  | { chats: ChatLink[]; truncated: boolean }
   | "loading"
   | "failed"
   /** The mission was past the one read's id limit: never read, so never "no chats". */
   | "unread";
+
+/** One card's read from the board's single query: past the id limit is "unread", a failed query is "failed". */
+export function missionChatsReadFor(
+  id: string,
+  readIds: readonly string[],
+  // The query's data as it arrives on the wire (dates are strings).
+  q: { data?: { byMission: Record<string, ChatLink[]>; truncated: boolean }; isError: boolean },
+): MissionChatsRead {
+  if (!readIds.includes(id)) return "unread";
+  if (!q.data) return q.isError ? "failed" : "loading";
+  const chats = q.data.byMission[id] ?? [];
+  return { chats, truncated: q.data.truncated && chats.length < MISSION_CHATS_PER_MISSION };
+}
 
 export function MissionChatsLine({ read }: { read: MissionChatsRead | undefined }) {
   if (read === "failed") {

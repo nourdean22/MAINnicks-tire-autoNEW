@@ -295,3 +295,53 @@ describe("weekly review states (silent-failure read)", () => {
     expect(replay).toContain("already saved");
   });
 });
+
+describe("saveWeeklyReview · test-analyzer gaps", () => {
+  it("a goal action that throws is reported by id and logged; the entries stay saved", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    h.updateGoal.mockRejectedValueOnce(new Error("goal write failed"));
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] }, NOW);
+    expect(r.failed).toEqual(["g1"]);
+    expect(r.extended).toEqual([]);
+    expect(r.saved).toEqual(["d-g1", "d-week"]);
+    expect(h.tx).toHaveBeenCalledTimes(1);
+    expect(logWarn).toHaveBeenCalledWith("review_goal_action_failed", expect.objectContaining({ goalId: "g1", err: "goal write failed" }));
+  });
+
+  it("CLAIM at the store: two saves of one reviewId write once and act once; the second returns the first's rows", async () => {
+    h.goals.mockResolvedValue([goal("g1")]);
+    // A store that remembers what was written, so the second call's check reads the first call's rows.
+    const store: { id: string; extractedItems: string }[] = [];
+    h.create.mockImplementation(async ({ data }: { data: { goalId: string | null; extractedItems: string } }) => {
+      const row = { id: `d${store.length + 1}`, extractedItems: data.extractedItems };
+      store.push(row);
+      return { id: row.id };
+    });
+    h.prior.mockImplementation(async ({ where }: { where: { extractedItems: string } }) =>
+      store.filter((r) => r.extractedItems === where.extractedItems).map((r) => ({ id: r.id })),
+    );
+    const input = { reviewId: RID, week: "w", notes: [{ goalId: "g1", text: "n" }], extend: ["g1"], close: [] };
+    const first = await saveWeeklyReview(input, NOW);
+    const second = await saveWeeklyReview(input, NOW);
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(h.updateGoal).toHaveBeenCalledTimes(1);
+    expect(first).toMatchObject({ saved: ["d1", "d2"], replayed: false, extended: ["g1"] });
+    expect(second).toMatchObject({ saved: ["d1", "d2"], replayed: true, extended: [] });
+    // A different review id is a different review.
+    await saveWeeklyReview({ ...input, reviewId: "rev-other-0001" }, NOW);
+    expect(h.create).toHaveBeenCalledTimes(4);
+  });
+
+  it("GUARD: close never completes a goal that is active but not a WEEK goal", async () => {
+    h.goals.mockResolvedValue([goal("g2", "MONTH")]);
+    const r = await saveWeeklyReview({ reviewId: RID, week: "w", notes: [], extend: [], close: ["g2"] }, NOW);
+    expect(h.updateGoal).not.toHaveBeenCalled();
+    expect(r.skipped).toEqual(["g2"]);
+  });
+
+  it("the entry date is the ET day: at 03:00Z it is still the evening before", async () => {
+    h.goals.mockResolvedValue([]);
+    await saveWeeklyReview({ reviewId: RID, week: "late night", notes: [], extend: [], close: [] }, new Date("2026-11-03T03:00:00Z"));
+    expect(h.create.mock.calls[0][0].data.date).toBe("2026-11-02");
+  });
+});

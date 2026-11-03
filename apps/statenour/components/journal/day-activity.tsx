@@ -7,7 +7,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { DAY_ROWS_CAP, type DayActivity } from "@/lib/services/journal-day";
+import type { DayActivity } from "@/lib/services/journal-day";
+import { DAY_ROWS_CAP } from "@/lib/services/journal-day-limits";
 import { trpc } from "@/lib/trpc/client";
 
 const READ_LABEL: Record<string, string> = { tasks: "Done tasks", contacts: "Contacts" };

@@ -29,9 +29,9 @@ import { useMemo, useState } from "react";
 import type { Project, Task } from "@/components/actions/shared";
 import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
-import type { MissionChatsRead } from "./mission-chats-line";
+import { missionChatsReadFor } from "./mission-chats-line";
 import { trpc } from "@/lib/trpc/client";
-import { MISSION_CHATS_IDS_MAX, MISSION_CHATS_PER_MISSION } from "@/lib/missions/mission-chats";
+import { MISSION_CHATS_IDS_MAX } from "@/lib/missions/mission-chats-limits";
 
 export interface MissionFeedProps {
   missions: Project[];
@@ -59,12 +59,7 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
     { missionIds: readIds },
     { enabled: activeMissions.length > 0, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
-  const chatsFor = (id: string): MissionChatsRead => {
-    if (!readIds.includes(id)) return "unread";
-    if (!chatsQ.data) return chatsQ.isError ? "failed" : "loading";
-    const chats = chatsQ.data.byMission[id] ?? [];
-    return { chats, truncated: chatsQ.data.truncated && chats.length < MISSION_CHATS_PER_MISSION };
-  };
+  const chatsFor = (id: string) => missionChatsReadFor(id, readIds, chatsQ);
 
   // Drag and drop states for Missions
   const [draggedMissionIdx, setDraggedMissionIdx] = useState<number | null>(null);

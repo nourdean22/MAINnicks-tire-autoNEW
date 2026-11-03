@@ -47,6 +47,9 @@ describe("etDayBounds", () => {
     // The DST end day is 25 hours long.
     const { start, end } = etDayBounds("2026-11-01");
     expect(end.getTime() - start.getTime()).toBe(25 * 3_600_000);
+    // The DST start day is 23 hours long.
+    const spring = etDayBounds("2026-03-08");
+    expect(spring.end.getTime() - spring.start.getTime()).toBe(23 * 3_600_000);
   });
 
   it("refuses anything but a real YYYY-MM-DD date, as a BAD_REQUEST", () => {
@@ -85,6 +88,21 @@ describe("dayActivity", () => {
     expect(day.contacts).toEqual([
       { id: "l1", person: { id: "p1", name: "Dania" }, note: "note l1", source: "manual", at: "2026-11-02T16:00:00.000Z" },
     ]);
+  });
+
+  it("a task's own goal beats its mission's goal when both are set", async () => {
+    h.events.mockResolvedValue([
+      ev("e1", "t1", "Call the supplier", {
+        task: {
+          id: "t1",
+          title: "Call the supplier",
+          goal: { id: "g-t", title: "Save $15k", deletedAt: null },
+          mission: { lifeGoal: { id: "g-m", title: "Grow the shop", deletedAt: null } },
+        },
+      }),
+    ]);
+    h.ledger.mockResolvedValue([]);
+    expect((await dayActivity("2026-11-02")).tasksDone[0].goal).toEqual({ id: "g-t", title: "Save $15k" });
   });
 
   it("drops non-contact ledger rows (a mention or a status flip) and rows of a deleted person", async () => {

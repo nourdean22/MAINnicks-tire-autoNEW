@@ -103,6 +103,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("Home journal line (W7)", () => {
+  it("the console mounts the brief's journal line with its people", async () => {
+    h.query = {
+      ...h.query,
+      data: { journalLine: { id: "d1", excerpt: "Demo entry: walked the floor", createdAt: "2026-11-02T14:00:00.000Z", people: [{ id: "p1", name: "Demo Person" }] } },
+    };
+    await mount();
+    const line = host.querySelector('section[aria-label="Latest journal entry"]');
+    expect(line?.textContent).toContain("Demo entry: walked the floor");
+    expect(line?.textContent).toContain("Demo Person");
+  });
+});
+
 describe("Home context rail on a phone", () => {
   it("folds Horizon, Waiting and Change into ONE closed disclosure named Context (3)", async () => {
     await mount();

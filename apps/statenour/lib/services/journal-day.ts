@@ -16,8 +16,9 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/journal-day");
 
-/** CONTROLS RULE: rows read per table for one day, named once. */
-export const DAY_ROWS_CAP = 100;
+import { DAY_ROWS_CAP } from "@/lib/services/journal-day-limits";
+
+export { DAY_ROWS_CAP };
 
 export interface DayActivity {
   date: string;
