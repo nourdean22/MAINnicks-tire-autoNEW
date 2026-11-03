@@ -14,17 +14,17 @@
 import { prisma } from "@/lib/prisma";
 import { goalDue } from "@/lib/brain/goal-pace";
 import { updateGoal } from "@/lib/services/goals";
-import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
+import { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/weekly-review");
 
 /** CONTROLS RULE: the review window with no past review, its cap, the extension, and the marker, named once. */
-export const REVIEW_WINDOW_DAYS = 7;
+// REVIEW_WINDOW_DAYS lives in journal-review-marker.ts (W8b: Home reads it too); re-exported below.
 export const REVIEW_MAX_DAYS = 28;
 export const REVIEW_EXTEND_DAYS = 7;
 // The marker is shared with the journal brain, whose sweeps leave review rows alone (journal-review-marker.ts).
-export { REVIEW_ENTRY_TYPE };
+export { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS };
 const REVIEW_GOALS_CAP = 20;
 export const REVIEW_ROWS_CAP = 500;
 
@@ -101,7 +101,7 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
   }
 
   const ids = [...rows.keys()];
-  const [events, dumps] = await Promise.allSettled([
+  const [events, dumps, refls] = await Promise.allSettled([
     prisma.taskEvent.findMany({
       // gt, not gte: the last review's own rows sit exactly at `since` and are not this week's work.
       // Only completions that can land on a reviewed goal, so the cap is spent on them (own goal, else the mission's).
@@ -120,6 +120,14 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
       take: REVIEW_ROWS_CAP,
       select: { id: true, goalId: true, rawThoughts: true, createdAt: true },
     }),
+    // W8b (audit B2): the /journal composer's reflections grounded to a goal are this week's writing too.
+    (async () =>
+      prisma.reflection.findMany({
+        where: { goalId: { in: ids }, deletedAt: null, createdAt: { gt: since } },
+        orderBy: { createdAt: "desc" },
+        take: REVIEW_ROWS_CAP,
+        select: { id: true, goalId: true, insight: true, createdAt: true },
+      }))(),
   ]);
 
   let truncated = false;
@@ -141,6 +149,16 @@ export async function readWeeklyReview(now: Date = new Date()): Promise<WeeklyRe
       if (row) row.entries.push({ id: d.id, excerpt: clip(d.rawThoughts), at: d.createdAt.toISOString() });
     }
   } else warn("entries", dumps.reason);
+
+  if (refls.status === "fulfilled") {
+    if (refls.value.length >= REVIEW_ROWS_CAP) truncated = true;
+    for (const r of refls.value) {
+      const row = r.goalId ? rows.get(r.goalId) : undefined;
+      if (row) row.entries.push({ id: r.id, excerpt: clip(r.insight), at: r.createdAt.toISOString() });
+    }
+    // Two tables, one list per goal: newest first.
+    for (const row of rows.values()) row.entries.sort((a, b) => b.at.localeCompare(a.at));
+  } else warn("reflections", refls.reason);
 
   return { since: since.toISOString(), lastReviewAt: lastReviewAt?.toISOString() ?? null, goals: [...rows.values()], failed, truncated };
 }
@@ -168,6 +186,13 @@ export interface SaveWeeklyReviewResult {
   ungrounded: string[];
   /** This reviewId was already saved: its rows are returned and nothing is written or acted on again. */
   replayed: boolean;
+  /**
+   * W8b (audit B3): "applied" when this call ran the goal actions (their failures are in `failed`); "unknown" on a
+   * replay, because the first run's outcomes were never stored, so the page must not claim they were not needed.
+   */
+  goalActions: "applied" | "unknown";
+  /** W8b: the people the saved rows name (the save-time name link, no model); null = the link failed or did not run. */
+  people: { names: string[] } | null;
 }
 
 export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date = new Date()): Promise<SaveWeeklyReviewResult> {
@@ -221,7 +246,22 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     },
     { isolationLevel: "Serializable" },
   );
-  if (replayed) return { saved, extended: [], closed: [], skipped, failed: [], ungrounded, replayed };
+  if (replayed) return { saved, extended: [], closed: [], skipped, failed: [], ungrounded, replayed, goalActions: "unknown", people: null };
+
+  // W8b: every saved row reaches People the way the composer's does (exact whole-word names, a mention, no model).
+  // A failed link is unknown, never a failed save: the rows are committed already.
+  let people: SaveWeeklyReviewResult["people"] = null;
+  try {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    const names = new Set<string>();
+    for (const [i, [rawText]] of rows.entries()) {
+      const r = await linkNamedPeople({ silo: "brain_dump", dumpId: saved[i], createdAt: new Date(now.getTime() + i), rawText });
+      for (const n of r.names) names.add(n);
+    }
+    people = { names: [...names] };
+  } catch (err) {
+    log.warn("review_people_link_failed", { reviewId: input.reviewId, err: err instanceof Error ? err.message : String(err) });
+  }
 
   const extended: string[] = [];
   const closed: string[] = [];
@@ -252,5 +292,5 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput, now: Date =
     await act(id, () => updateGoal({ id, deadline }), extended);
   }
 
-  return { saved, extended, closed, skipped, failed, ungrounded, replayed: false };
+  return { saved, extended, closed, skipped, failed, ungrounded, replayed: false, goalActions: "applied", people };
 }

@@ -41,6 +41,7 @@ import { readCalendarDay, type CalendarRead } from "@/lib/calendar/day-events";
 import { prisma } from "@/lib/prisma";
 import { pickCheckInDue } from "@/lib/brain/goal-pace";
 import { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
 import { logger as rootLogger } from "@/lib/logger";
 
 const briefLog = rootLogger.withSurface("home/operator-brief");
@@ -227,18 +228,18 @@ export interface JournalLine {
 async function loadLeadContext(taskId: string | null): Promise<LeadContext | null | "unknown"> {
   if (!taskId) return null;
   try {
+    // W8b: the ONE server-side task-goal rule (W8a's lib/services/task-goal-server.ts), not a local copy of it.
     const t = await prisma.task.findUnique({
       where: { id: taskId },
       select: {
-        goal: { select: { id: true, title: true, deletedAt: true } },
-        mission: { select: { id: true, title: true, lifeGoal: { select: { id: true, title: true, deletedAt: true } } } },
+        goal: TASK_GOAL_SELECT.goal,
+        mission: { select: { id: true, title: true, ...TASK_GOAL_SELECT.mission.select } },
       },
     });
     if (!t) return null;
-    const live = (g: { id: string; title: string; deletedAt: Date | null } | null | undefined) =>
-      g && !g.deletedAt ? { id: g.id, title: g.title } : null;
     const mission = t.mission && !isInboxMission(t.mission.title) ? { id: t.mission.id, title: t.mission.title } : null;
-    return { mission, goal: live(t.goal) ?? live(t.mission?.lifeGoal) };
+    const g = taskGoalServer(t);
+    return { mission, goal: g ? { id: g.id, title: g.title } : null };
   } catch (err) {
     briefLog.warn("lead_context_read_failed", { taskId, err: err instanceof Error ? err.message : String(err) });
     return "unknown";
@@ -316,25 +317,24 @@ async function loadWeeklyReviewDue(now: Date): Promise<WeeklyReviewDue | "unknow
   }
 }
 
-/** Active goals and their newest check-in, through the one cadence table (lib/brain/goal-pace.ts). */
+/**
+ * The most overdue check-in, through the one cadence table (lib/brain/goal-pace.ts). W8b (manager ruling, "one
+ * number"): read through activeGoalsWithHealth, the same goals-with-health read the Goals card and Nick use, not a
+ * Home-only check-in query. A failed check-in read is "unknown"; a failed TASKS read does not touch this row (it
+ * needs no task counts), so it still names the due goal.
+ */
 async function loadGoalCheckInDue(now: Date): Promise<GoalCheckInDue | null | "unknown"> {
   try {
-    const goals = await prisma.lifeGoal.findMany({
-      where: { deletedAt: null, status: "active" },
-      take: 50,
-      select: { id: true, title: true, horizon: true, createdAt: true },
-    });
-    if (goals.length === 0) return null;
-    const events = await prisma.goalEvent.findMany({
-      where: { goalId: { in: goals.map((g) => g.id) }, kind: "check_in" },
-      orderBy: { createdAt: "desc" },
-      distinct: ["goalId"],
-      select: { goalId: true, createdAt: true },
-    });
-    const last = new Map<string, Date>();
-    for (const e of events) if (!last.has(e.goalId)) last.set(e.goalId, e.createdAt);
+    const { activeGoalsWithHealth } = await import("@/lib/services/goal-health");
+    const r = await activeGoalsWithHealth(now.getTime());
+    if (r.failed.includes("check_ins")) {
+      briefLog.warn("goal_check_in_read_failed", { err: "check_ins read failed in activeGoalsWithHealth" });
+      return "unknown";
+    }
+    if (r.goals.length === 0) return null;
+    // health.at is the newest check-in's time (goalHealthFrom), null when none was ever logged.
     return pickCheckInDue(
-      goals.map((g) => ({ ...g, lastCheckInAt: last.get(g.id) ?? null })),
+      r.goals.map((g) => ({ id: g.id, title: g.title, horizon: g.horizon, createdAt: g.createdAt, lastCheckInAt: g.health.at })),
       now.getTime(),
     );
   } catch (err) {
