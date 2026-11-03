@@ -10,11 +10,10 @@
  *  - goalsPulse + movedLine: the hero's one-line band and its accountability line.
  * Every input is plain data; nothing here reads a clock it was not given.
  */
-import { goalDue, goalPaceView, type GoalHealth, type GoalHealthState, type PaceVerdict } from "@/lib/brain/goal-pace";
+import { etDaysBetween, goalDue, goalPaceView, type GoalHealth, type GoalHealthState, type PaceVerdict } from "@/lib/brain/goal-pace";
 import { today } from "@/lib/utils/datetime";
 import { etHourKey, pickMaximForDay, type Maxim, type MaximTag } from "@/lib/wisdom/maxims";
 
-const DAY_MS = 86_400_000;
 
 // ── Milestone ladder ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,7 +27,7 @@ export interface LadderPhase {
 const OPEN = new Set(["INBOX", "READY", "DOING", "WAITING"]);
 
 /**
- * A phase is done when it has spawned tasks and none is open; phases spawn one after another, so a
+ * A phase is done when it has a DONE task and none is open; phases spawn one after another, so a
  * phase with no tasks yet is not done. The first phase not done is current.
  */
 export function missionPhaseLadder(
@@ -43,7 +42,8 @@ export function missionPhaseLadder(
     const name = (p as { name?: unknown } | null)?.name;
     if (typeof name !== "string" || !name.trim()) continue;
     const mine = tasks.filter((t) => t.phaseName === name);
-    const done = mine.length > 0 && mine.every((t) => !OPEN.has(t.status));
+    // Done needs one DONE task: a phase whose steps were all archived was dropped, not finished.
+    const done = mine.some((t) => t.status === "DONE") && mine.every((t) => !OPEN.has(t.status));
     const current = !done && !currentSet;
     if (current) currentSet = true;
     out.push({ name, done, current });
@@ -149,7 +149,7 @@ export function etDay(now: number): string {
 
 // ── The hero ─────────────────────────────────────────────────────────────────────────────────────
 
-export type HeroReason = "due_soonest" | "furthest_behind" | "first";
+export type HeroReason = "furthest_behind" | "due_soonest" | "health" | "least_progress" | "only";
 
 function daysBehind(v: PaceVerdict | null): number {
   if (v?.kind === "missed") return v.overdueDays;
@@ -157,15 +157,29 @@ function daysBehind(v: PaceVerdict | null): number {
   return -1;
 }
 
+/** Health that asks for him, worst first; anything else does not rank. */
+const HEALTH_RANK: Partial<Record<GoalHealthState, number>> = { off_track: 3, at_risk: 2, no_check_in: 1 };
+
 /**
- * The goal whose due date (goalDue: his deadline, else the horizon's end) comes soonest; with none
- * ahead, the one furthest behind pace; else the first in the server's order. An achieved goal yields
- * the hero to any open one.
+ * The item that needs him now (Tability "My focus"), first match wins, ties keep the server's order:
+ * 1. missed its date or furthest behind pace; 2. due soonest (goalDue: his deadline, else the horizon's
+ * end); 3. worst health (off track > at risk > no check-in); 4. least progress. An achieved goal yields
+ * to any open one. The reason says what decided it; "only" when there is one goal.
  */
-export function pickHeroGoal<T extends PageGoal>(goals: readonly T[], now: number): { goal: T; reason: HeroReason } | null {
+export function pickHeroGoal<T extends PageGoal>(
+  goals: readonly T[],
+  now: number,
+): { goal: T; reason: HeroReason; health?: GoalHealthState } | null {
   if (goals.length === 0) return null;
+  if (goals.length === 1) return { goal: goals[0]!, reason: "only" };
   const open = goals.filter((g) => g.progress < 100);
   const pool = open.length > 0 ? open : goals;
+  let behind: { goal: T; days: number } | null = null;
+  for (const g of pool) {
+    const days = daysBehind(paceVerdict(g, now));
+    if (days >= 0 && (!behind || days > behind.days)) behind = { goal: g, days };
+  }
+  if (behind) return { goal: behind.goal, reason: "furthest_behind" };
   let soonest: { goal: T; at: number } | null = null;
   for (const g of pool) {
     const due = goalDue(g);
@@ -173,13 +187,16 @@ export function pickHeroGoal<T extends PageGoal>(goals: readonly T[], now: numbe
     if (Number.isFinite(at) && at >= now && (!soonest || at < soonest.at)) soonest = { goal: g, at };
   }
   if (soonest) return { goal: soonest.goal, reason: "due_soonest" };
-  let behind: { goal: T; days: number } | null = null;
+  let worst: { goal: T; rank: number; state: GoalHealthState } | null = null;
   for (const g of pool) {
-    const days = daysBehind(paceVerdict(g, now));
-    if (days >= 0 && (!behind || days > behind.days)) behind = { goal: g, days };
+    const state = g.health?.state;
+    const rank = state ? HEALTH_RANK[state] ?? 0 : 0;
+    if (state && rank > 0 && (!worst || rank > worst.rank)) worst = { goal: g, rank, state };
   }
-  if (behind) return { goal: behind.goal, reason: "furthest_behind" };
-  return { goal: pool[0]!, reason: "first" };
+  if (worst) return { goal: worst.goal, reason: "health", health: worst.state };
+  let least = pool[0]!;
+  for (const g of pool) if (g.progress < least.progress) least = g;
+  return { goal: least, reason: "least_progress" };
 }
 
 /** The pulse of all goals. `unknown` = health not read (a failed check-in read, or no field): never fine. */
@@ -208,10 +225,11 @@ export type SinceForHero =
 export function movedLine(read: SinceForHero, now: number): string {
   if (read === "loading") return "Reading recent activity";
   if (read === "error") return "Couldn't read recent activity";
-  const newest = read.items[0];
+  const newest = read.items[0]; // relatedActivity sorts newest first (lib/services/related-activity.ts)
   if (newest) {
-    const d = Math.floor((now - Date.parse(newest.at)) / DAY_MS);
-    return d <= 0 ? "Moved today" : `Moved ${d}d ago`;
+    const d = etDaysBetween(Date.parse(newest.at), now);
+    const unread = read.failed.length > 0 ? " (some sources unread)" : "";
+    return `${d <= 0 ? "Moved today" : `Moved ${d}d ago`}${unread}`;
   }
   if (read.failed.length > 0) return `Couldn't read ${read.failed.join(", ")}: activity unknown`;
   return read.since ? `Nothing logged since ${read.since.slice(0, 10)}` : "Nothing logged yet";

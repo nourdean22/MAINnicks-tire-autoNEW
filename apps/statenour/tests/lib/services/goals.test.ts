@@ -187,6 +187,26 @@ describe("Goals Service", () => {
       expect(result[0].skippedMaximIds).toBeNull();
     });
 
+    it("phaseCount counts the ladder's named phases (an unnamed phase is not a milestone)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([
+        { id: "m1", title: "Goal", status: "ACTIVE", lifeGoalId: "g1", planData: { phases: [{ name: "a" }, { name: "" }, {}] }, tasks: [] },
+      ]);
+      const result = await getGoals();
+      expect(result[0].missions?.[0]).toMatchObject({ phaseCount: 1, phases: [{ name: "a", done: false, current: true }] });
+    });
+
+    it("the payload no longer carries coachLog (no reader left; W5 removed the panel)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active", coachLog: [{ read: "x" }] }]);
+      mocks.task.findMany.mockResolvedValue([]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      mocks.mission.findMany.mockResolvedValueOnce([]);
+      const result = await getGoals();
+      expect(result[0]).not.toHaveProperty("coachLog");
+    });
+
     it("a failed missions read lists none and does not break the goals", async () => {
       mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", progress: 0, status: "active" }]);
       mocks.task.findMany.mockResolvedValue([]);
@@ -196,7 +216,8 @@ describe("Goals Service", () => {
       const result = await getGoals();
 
       expect(result).toHaveLength(1);
-      expect(result[0].missions).toEqual([]);
+      // W5: null = unread, so the card says the milestones couldn't load instead of "never planned".
+      expect(result[0].missions).toBeNull();
     });
   });
 

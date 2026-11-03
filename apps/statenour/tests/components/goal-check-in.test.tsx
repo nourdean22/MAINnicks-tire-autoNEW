@@ -41,6 +41,15 @@ describe("SinceCheckInView", () => {
     expect(html).toMatch(/couldn.*t read chat/);
     expect(html).toContain("+2 more");
   });
+  it("counts ET calendar days: a 10 pm item read at 8 am the next day is 1d ago (silent-failure reader 2026-11-03)", () => {
+    const html = renderToStaticMarkup(
+      <SinceCheckInView
+        read={{ since: null, total: 1, items: [{ at: "2026-11-02T03:00:00.000Z", kind: "task", title: "Late call" }], failed: [] }}
+        now={Date.parse("2026-11-02T13:00:00Z")}
+      />,
+    );
+    expect(html).toContain("task · Late call · 1d ago");
+  });
   it("a goal the read could not find says so, not 'couldn't read' (second reader P3-2)", () => {
     const html = renderToStaticMarkup(<SinceCheckInView read="not_found" />);
     expect(html).toContain("Goal not found");

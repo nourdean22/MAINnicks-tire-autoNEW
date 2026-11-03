@@ -67,6 +67,11 @@ describe("missionPhaseLadder", () => {
     expect(ladder.every((p) => p.done && !p.current)).toBe(true);
   });
 
+  it("a phase whose tasks were all archived is not done (at least one DONE task)", () => {
+    const ladder = missionPhaseLadder({ phases: [{ name: "Scope" }, { name: "Build" }] }, [{ status: "ARCHIVED", phaseName: "Scope" }]);
+    expect(ladder[0]).toEqual({ name: "Scope", done: false, current: true });
+  });
+
   it("a WAITING task keeps its phase open", () => {
     const ladder = missionPhaseLadder({ phases: [{ name: "Scope" }] }, [{ status: "WAITING", phaseName: "Scope" }]);
     expect(ladder[0]).toEqual({ name: "Scope", done: false, current: true });
@@ -170,38 +175,59 @@ describe("maximForGoalMoment (W6 contract)", () => {
 });
 
 describe("pickHeroGoal", () => {
-  it("the goal due soonest wins", () => {
-    const a = goal({ id: "a", deadline: new Date(NOW + 20 * DAY).toISOString() });
-    const b = goal({ id: "b", deadline: new Date(NOW + 2 * DAY).toISOString() });
-    expect(pickHeroGoal([a, b], NOW)).toMatchObject({ goal: { id: "b" }, reason: "due_soonest" });
+  // targetValue 0 = no pace (time only), so only the date decides.
+  const dated = (id: string, days: number) => goal({ id, targetValue: 0, deadline: new Date(NOW + days * DAY).toISOString() });
+  const health = (state: "on_track" | "at_risk" | "off_track" | "no_check_in") => ({ state, at: null, note: null });
+
+  it("a goal that missed its date (or is furthest behind pace) comes first, before one due soon", () => {
+    const missed = goal({ id: "missed", currentValue: 2, deadline: new Date(NOW - 3 * DAY).toISOString() });
+    expect(pickHeroGoal([dated("soon", 2), missed], NOW)).toMatchObject({ goal: { id: "missed" }, reason: "furthest_behind" });
+  });
+
+  it("with no goal behind, the goal due soonest wins", () => {
+    expect(pickHeroGoal([dated("a", 20), dated("b", 2)], NOW)).toMatchObject({ goal: { id: "b" }, reason: "due_soonest" });
   });
 
   it("a date from a horizon counts: a QUARTER goal (quarter end) beats a deadline years out", () => {
-    const quarter = goal({ id: "q", horizon: "QUARTER", deadline: null });
-    const far = goal({ id: "far", deadline: new Date(NOW + 900 * DAY).toISOString() });
-    expect(pickHeroGoal([far, quarter], NOW)).toMatchObject({ goal: { id: "q" }, reason: "due_soonest" });
+    const quarter = goal({ id: "q", targetValue: 0, horizon: "QUARTER", deadline: null });
+    expect(pickHeroGoal([dated("far", 900), quarter], NOW)).toMatchObject({ goal: { id: "q" }, reason: "due_soonest" });
   });
 
   it("ties go to the first goal in the server's order (due and behind alike)", () => {
-    const due = new Date(NOW + 5 * DAY).toISOString();
-    expect(pickHeroGoal([goal({ id: "a", deadline: due }), goal({ id: "b", deadline: due })], NOW)?.goal.id).toBe("a");
+    expect(pickHeroGoal([dated("a", 5), dated("b", 5)], NOW)?.goal.id).toBe("a");
     const past = new Date(NOW - 4 * DAY).toISOString();
     expect(pickHeroGoal([goal({ id: "a", deadline: past }), goal({ id: "b", deadline: past })], NOW)?.goal.id).toBe("a");
   });
 
-  it("with no upcoming date, the goal furthest behind pace wins", () => {
+  it("the goal furthest behind pace wins among the behind", () => {
     const a = goal({ id: "a", currentValue: 1, deadline: new Date(NOW - 2 * DAY).toISOString() });
     const b = goal({ id: "b", currentValue: 1, deadline: new Date(NOW - 9 * DAY).toISOString() });
     expect(pickHeroGoal([a, b], NOW)).toMatchObject({ goal: { id: "b" }, reason: "furthest_behind" });
   });
 
-  it("with no date and no pace, the first goal in the list (the server's order)", () => {
-    expect(pickHeroGoal([goal({ id: "x" }), goal({ id: "y" })], NOW)).toMatchObject({ goal: { id: "x" }, reason: "first" });
+  it("with no date and no pace (prod 2026-11-02: 0 deadlines), health decides: off track > at risk > no check-in", () => {
+    const g = (id: string, h: Parameters<typeof health>[0]) => goal({ id, targetValue: 0, health: health(h) });
+    expect(pickHeroGoal([g("ok", "on_track"), g("nc", "no_check_in"), g("risk", "at_risk"), g("off", "off_track")], NOW)).toMatchObject({
+      goal: { id: "off" },
+      reason: "health",
+      health: "off_track",
+    });
+    expect(pickHeroGoal([g("nc", "no_check_in"), g("risk", "at_risk")], NOW)).toMatchObject({ goal: { id: "risk" }, health: "at_risk" });
+  });
+
+  it("then the least progress; a tie keeps the server's order", () => {
+    const g = (id: string, progress: number) => goal({ id, targetValue: 0, progress });
+    expect(pickHeroGoal([g("a", 60), g("b", 10), g("c", 40)], NOW)).toMatchObject({ goal: { id: "b" }, reason: "least_progress" });
+    expect(pickHeroGoal([g("a", 10), g("b", 10)], NOW)?.goal.id).toBe("a");
+  });
+
+  it("one goal is just that goal", () => {
+    expect(pickHeroGoal([goal({ id: "x", targetValue: 0 })], NOW)).toMatchObject({ goal: { id: "x" }, reason: "only" });
   });
 
   it("an achieved goal does not take the hero while another is open", () => {
-    const done = goal({ id: "done", progress: 100, deadline: new Date(NOW + DAY).toISOString() });
-    expect(pickHeroGoal([done, goal({ id: "open" })], NOW)?.goal.id).toBe("open");
+    const done = goal({ id: "done", progress: 100, targetValue: 0, deadline: new Date(NOW + DAY).toISOString() });
+    expect(pickHeroGoal([done, goal({ id: "open", targetValue: 0 })], NOW)?.goal.id).toBe("open");
   });
 
   it("no goals, no hero", () => {
@@ -237,6 +263,16 @@ describe("goalsPulse", () => {
 });
 
 describe("movedLine", () => {
+  it("counts ET calendar days: 10 pm activity read at 8 am the next day is 1d ago, not today", () => {
+    const read = Date.parse("2026-11-02T13:00:00Z"); // 8 am ET
+    const at = "2026-11-02T03:00:00.000Z"; // 10 pm ET the day before
+    expect(movedLine({ since: null, total: 1, items: [{ at, kind: "task", title: "x" }], failed: [] }, read)).toBe("Moved 1d ago");
+  });
+
+  it("an item plus an unread source says the unread part", () => {
+    expect(movedLine({ since: null, total: 1, items: [{ at: new Date(NOW - 3 * DAY).toISOString(), kind: "task", title: "x" }], failed: ["journal"] }, NOW)).toBe("Moved 3d ago (some sources unread)");
+  });
+
   it("names the newest item's age", () => {
     expect(movedLine({ since: null, total: 1, items: [{ at: new Date(NOW - 3 * DAY).toISOString(), kind: "task", title: "x" }], failed: [] }, NOW)).toBe("Moved 3d ago");
     expect(movedLine({ since: null, total: 1, items: [{ at: new Date(NOW - 3_600_000).toISOString(), kind: "task", title: "x" }], failed: [] }, NOW)).toBe("Moved today");

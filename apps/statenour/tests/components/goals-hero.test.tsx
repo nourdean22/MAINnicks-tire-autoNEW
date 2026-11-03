@@ -49,6 +49,11 @@ describe("GoalLadder", () => {
     expect(html).toContain("+2 more");
   });
 
+  it("an unread missions list says the milestones couldn't load, never 'no plan'", () => {
+    const html = renderToStaticMarkup(<GoalLadder phases={null} />);
+    expect(html).toMatch(/Milestones couldn.*t load/);
+  });
+
   it("no phases renders nothing (the Plan it button stays the card's door)", () => {
     expect(renderToStaticMarkup(<GoalLadder phases={[]} />)).toBe("");
   });
@@ -74,6 +79,17 @@ describe("GoalsHeroView", () => {
     expect(html).toContain('href="/missions?taskId=t1"');
     expect(html).toContain("Moved 2d ago");
     expect(html).toContain("Ask Nick about this goal");
+  });
+
+  it("the eyebrow says what picked the goal, health included", () => {
+    const label = (reason: Parameters<typeof GoalsHeroView>[0]["reason"], health?: "off_track" | "at_risk" | "no_check_in") =>
+      renderToStaticMarkup(<GoalsHeroView {...base} reason={reason} health={health} />);
+    expect(label("furthest_behind")).toContain("Furthest behind");
+    expect(label("health", "off_track")).toContain("Needs you most: off track");
+    expect(label("health", "no_check_in")).toContain("Needs you most: no check-in");
+    expect(label("least_progress")).toContain("Least progress so far");
+    expect(label("only")).toContain("Your goal");
+    expect(label("least_progress")).not.toContain("first goal");
   });
 
   it("the one move is the page's gold primary; with no next move it opens the card instead", () => {
@@ -114,7 +130,7 @@ describe("pulseLine", () => {
     const html = renderToStaticMarkup(
       <GoalsHeroView
         goal={{ ...goal, health: { state: "unknown", at: null, note: null } }}
-        reason="first"
+        reason="least_progress"
         pulse={{ total: 3, behind: 0, offTrack: 0, checkInDue: 0, unknown: 3 }}
         maxim={null}
         moved="Moved today"

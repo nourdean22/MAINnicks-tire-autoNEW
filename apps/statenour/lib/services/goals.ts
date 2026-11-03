@@ -146,6 +146,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   // W5 2026-11-02: `phases` is the card's milestone ladder (lib/stats/goals-page.ts missionPhaseLadder).
   type GoalMission = { id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases: LadderPhase[] };
   const missionsByGoal = new Map<string, GoalMission[]>();
+  let missionsRead = true;
   if (goalIds.length > 0) {
     try {
       const missions = await prisma.mission.findMany({
@@ -162,19 +163,20 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
       });
       for (const m of missions) {
         if (!m.lifeGoalId) continue;
-        const phases = (m.planData as { phases?: unknown } | null)?.phases;
         const row: GoalMission = {
           id: m.id,
           title: m.title,
           status: m.status,
-          phaseCount: Array.isArray(phases) ? phases.length : 0,
+          phaseCount: 0, // set from the ladder below: an unnamed phase is not a milestone
           tasksDone: m.tasks.filter((t) => t.status === "DONE").length,
           tasksTotal: m.tasks.length,
           phases: missionPhaseLadder(m.planData, m.tasks),
         };
+        row.phaseCount = row.phases.length;
         (missionsByGoal.get(m.lifeGoalId) ?? missionsByGoal.set(m.lifeGoalId, []).get(m.lifeGoalId)!).push(row);
       }
     } catch (err) {
+      missionsRead = false;
       console.warn("[services/goals] missions query failed:", err instanceof Error ? err.message : err);
     }
   }
@@ -254,7 +256,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     // (declared GoalStat rows, else domain-inferred) for the card chips.
     // statLinks is pulled out of the spread so the raw relation doesn't
     // ride along in the payload — only the resolved `stats` does.
-    const { statLinks, parent, children, events, ...goalRest } = g;
+    // coachLog is dropped: its panel and every client reader went in W5 (lib/services/ai-coach-goal.ts writes it).
+    const { statLinks, parent, children, events, coachLog: _coachLog, ...goalRest } = g;
     const stats = effectiveGoalStats(statLinks ?? [], g.domain);
     // Defensive: a goal fetched without the ladder include (or a test mock)
     // has no `children` relation — never assume it's an array.
@@ -276,7 +279,8 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           }
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
-      missions: missionsByGoal.get(g.id) ?? [],
+      // null = the read failed (the card says so); [] = no mission planned yet.
+      missions: missionsRead ? (missionsByGoal.get(g.id) ?? []) : null,
       health: checkInsRead
         ? goalHealthFrom(latestCheckIn.get(g.id) ?? null, g.horizon)
         : ({ state: "unknown", at: null, note: null } satisfies GoalHealth),

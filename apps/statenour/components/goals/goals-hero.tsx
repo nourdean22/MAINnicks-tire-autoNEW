@@ -13,14 +13,23 @@
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { GoalHealthChip } from "./goal-check-in";
-import { goalPaceView } from "@/lib/brain/goal-pace";
+import { goalPaceView, type GoalHealthState } from "@/lib/brain/goal-pace";
 import { movedLine, type GoalMaxim, type GoalMomentState, type HeroReason, type PageGoal, type SinceForHero } from "@/lib/stats/goals-page";
 
 const REASON_LABEL: Record<HeroReason, string> = {
-  due_soonest: "Due soonest",
   furthest_behind: "Furthest behind",
-  first: "Your first goal",
+  due_soonest: "Due soonest",
+  health: "Needs you most",
+  least_progress: "Least progress so far",
+  only: "Your goal",
 };
+
+const HEALTH_WORD: Partial<Record<GoalHealthState, string>> = { off_track: "off track", at_risk: "at risk", no_check_in: "no check-in" };
+
+export function heroReasonLabel(reason: HeroReason, health?: GoalHealthState): string {
+  const word = reason === "health" && health ? HEALTH_WORD[health] : undefined;
+  return word ? `${REASON_LABEL[reason]}: ${word}` : REASON_LABEL[reason];
+}
 
 const MOMENT_LABEL: Record<GoalMomentState, string> = {
   achieved: "goal reached",
@@ -68,6 +77,8 @@ const SECONDARY =
 export function GoalsHeroView(p: {
   goal: HeroGoal;
   reason: HeroReason;
+  /** Set when health picked the goal (reason "health"). */
+  health?: GoalHealthState;
   pulse: GoalsPulse;
   maxim: GoalMaxim | null;
   moved: string;
@@ -81,7 +92,7 @@ export function GoalsHeroView(p: {
   return (
     <section aria-label="Today's goal" className="rounded-surface border border-edge-subtle bg-content p-4 space-y-3">
       <div className="space-y-1">
-        <p className="font-mono text-[11px] text-fg-tertiary">Today&apos;s goal · {REASON_LABEL[p.reason]}</p>
+        <p className="font-mono text-[11px] text-fg-tertiary">Today&apos;s goal · {heroReasonLabel(p.reason, p.health)}</p>
         <h2 className="text-[17px] font-semibold leading-snug text-fg">{g.title}</h2>
         <div className="flex flex-wrap items-center gap-2 font-mono text-[12px] text-fg-secondary">
           <GoalHealthChip health={g.health} onOpen={p.onOpen} />

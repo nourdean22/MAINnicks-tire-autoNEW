@@ -259,7 +259,7 @@ function StatsContent({ onFocusGoal }: { onFocusGoal: (goal: FocusGoal | null) =
   );
 }
 
-type FocusGoal = { id: string; title: string };
+type FocusGoal = { id: string; title: string; opened: boolean };
 
 export default function StatsPage() {
   // W5: the goal Nour has open (else the hero goal) rides to Nick as the focus line, with its id, so a
@@ -279,7 +279,11 @@ export default function StatsPage() {
         <NickSidePane
           page="goals"
           coachSurface="goals"
-          focus={focusGoal ? `Nour has this goal open: "${focusGoal.title}" [id:${focusGoal.id}]` : undefined}
+          focus={
+            focusGoal
+              ? `${focusGoal.opened ? "Nour has this goal open" : "The hero goal today"}: "${focusGoal.title}" [id:${focusGoal.id}]`
+              : undefined
+          }
           presets={[
             "What's the one move on the goal I have open?",
             "Which stat am I closest to leveling up?",

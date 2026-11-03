@@ -11,7 +11,8 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => true })); // the desktop pane renders inline
+const h = vi.hoisted(() => ({ desktop: true }));
+vi.mock("@/hooks/use-min-width", () => ({ useMinWidth: () => h.desktop })); // true: the desktop pane renders inline
 vi.mock("@/lib/hooks/use-coach-events", () => ({ useCoachEvents: () => ({ events: [] }) }));
 
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
@@ -23,7 +24,7 @@ const flush = async () => {
     await new Promise((r) => setTimeout(r, 0));
   });
 };
-const chatField = () => container.querySelector<HTMLInputElement>("input");
+const chatField = () => document.querySelector<HTMLInputElement>("input"); // the phone sheet portals to body
 const byLabel = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
 const click = (el: Element) =>
   act(() => {
@@ -31,6 +32,7 @@ const click = (el: Element) =>
   });
 
 beforeEach(async () => {
+  h.desktop = true;
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number);
   vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
   localStorage.clear();
@@ -63,5 +65,31 @@ describe("side pane prefill", () => {
     await click(byLabel("open nick side pane"));
     await flush();
     expect(chatField()!.value, "a hand-opened pane never re-seeds an old question").toBe("");
+  });
+
+  it("a mission hand-off (submitOnMount) still sends when the pane was closed", async () => {
+    const fetchSpy = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("statenour:open-nick", { detail: { pendingPrompt: "Suggest 3 missions.", submitOnMount: true } }));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String((fetchSpy.mock.calls[0] as unknown as [string, RequestInit])[1].body)).toContain("Suggest 3 missions.");
+  });
+
+  it("a chat that remounts (desktop pane to phone sheet) does not re-seed a question it already took", async () => {
+    act(() => {
+      window.dispatchEvent(new CustomEvent("statenour:open-nick", { detail: { pendingPrompt: "First question", submitOnMount: false } }));
+    });
+    await flush();
+    expect(chatField()!.value).toBe("First question");
+    h.desktop = false;
+    act(() => root.render(<NickSidePane page="goals" />));
+    await flush();
+    expect(chatField(), "the phone sheet mounted its own chat").not.toBeNull();
+    expect(chatField()!.value).toBe("");
   });
 });

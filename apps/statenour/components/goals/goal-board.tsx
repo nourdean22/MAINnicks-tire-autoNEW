@@ -145,7 +145,7 @@ interface LifeGoal {
   nextMove?: { id: string; title: string; status: string } | null;
   loopsThisWeek?: number;
   /** The missions planned from this goal (Mission.lifeGoalId; lib/services/goals.ts getGoals). */
-  missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases?: LadderPhase[] }>;
+  missions?: Array<{ id: string; title: string; status: string; phaseCount: number; tasksDone: number; tasksTotal: number; phases?: LadderPhase[] }> | null;
   /** W5 · the maxim ids Nour skipped on Home, the same list on every row; null = the read failed. */
   skippedMaximIds?: string[] | null;
   /** W2 2026-11-02 · the newest check-in's health, gray past the cadence (lib/services/goals.ts getGoals). */
@@ -320,7 +320,7 @@ function NextStepPrompt({
   );
 }
 
-export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; title: string } | null) => void } = {}) {
+export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; title: string; opened: boolean } | null) => void } = {}) {
   // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
   // standalone mode so the archive branch never fired on the phone.
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
@@ -428,6 +428,16 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
       void load();
     });
     return () => cancelAnimationFrame(frame);
+  }, [load]);
+
+  // W5 · the PWA can sit on this tab overnight: coming back reloads, so a deadline that passed in the
+  // night reads missed (load() restamps the clock the hero and maxims read).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
 
   // Apr 27 · cross-tab reactive refresh. When NOW completes a task
@@ -804,9 +814,10 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
   // Nick's side pane hears which goal Nour is on: the open card, else the hero goal.
   const focusId = expandedGoal ?? hero?.goal.id ?? null;
   const focusTitle = goals.find((g) => g.id === focusId)?.title ?? null;
+  const opened = expandedGoal !== null;
   useEffect(() => {
-    onFocusGoal?.(focusId && focusTitle ? { id: focusId, title: focusTitle } : null);
-  }, [onFocusGoal, focusId, focusTitle]);
+    onFocusGoal?.(focusId && focusTitle ? { id: focusId, title: focusTitle, opened } : null);
+  }, [onFocusGoal, focusId, focusTitle, opened]);
   // Leaving the Goals tab unmounts the board: Nick no longer has a goal open.
   useEffect(() => () => onFocusGoal?.(null), [onFocusGoal]);
 
@@ -817,6 +828,7 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
         <GoalsHero
           goal={hero.goal}
           reason={hero.reason}
+          health={hero.health}
           pulse={hero.pulse}
           maxim={hero.maxim}
           now={hero.now}
@@ -1462,8 +1474,13 @@ export function GoalBoard({ onFocusGoal }: { onFocusGoal?: (goal: { id: string; 
                         )}
                       </div>
 
-                      {/* W5 · the milestone ladder of the newest mission planned from this goal. */}
-                      {editingId !== g.id && <GoalLadder phases={g.missions?.[0]?.phases ?? []} />}
+                      {/* W5 · the milestone ladder of the newest ACTIVE mission planned from this goal (else the
+                          newest); null = the missions read failed. */}
+                      {editingId !== g.id && (
+                        <GoalLadder
+                          phases={g.missions === null ? null : ((g.missions ?? []).find((m) => m.status === "ACTIVE") ?? g.missions?.[0])?.phases ?? []}
+                        />
+                      )}
 
                       {/* Ambition Engine P1 · stat chips: the spine to
                           the character sheet. Each chip is a mastery stat

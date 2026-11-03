@@ -181,8 +181,6 @@ interface GoalCacheRow {
   /** LifeGoal.planData Json · `unknown` to keep the AppRouter shallow. */
   planData: unknown;
   estimatedHours: number | null;
-  /** LifeGoal.coachLog Json · `unknown` to keep the AppRouter shallow. */
-  coachLog: unknown;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
