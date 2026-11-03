@@ -7,7 +7,7 @@ import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
 
-export function MissionModalsManager({ missions }: { missions: any[] }) {
+export function MissionModalsManager({ missions, goals }: { missions: any[]; goals: { id: string; title: string }[] }) {
   const utils = trpc.useUtils();
   const retroState = useMissionUIStore((s) => s.retroState);
   const setRetroState = useMissionUIStore((s) => s.setRetroState);
@@ -20,6 +20,7 @@ export function MissionModalsManager({ missions }: { missions: any[] }) {
   const taskEditOpen = useMissionUIStore((s) => s.taskEditOpen);
   const taskEditTarget = useMissionUIStore((s) => s.taskEditTarget);
   const closeTaskEdit = useMissionUIStore((s) => s.closeTaskEdit);
+  const taskEditFocus = useMissionUIStore((s) => s.taskEditFocus);
 
   return (
     <>
@@ -59,6 +60,8 @@ export function MissionModalsManager({ missions }: { missions: any[] }) {
         onClose={closeTaskEdit}
         task={taskEditTarget}
         missions={missions}
+        goals={goals}
+        focusField={taskEditFocus}
         onSaved={closeTaskEdit}
       />
 

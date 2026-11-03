@@ -236,9 +236,9 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   const handleEditTask = useCallback(
-    (task: Task) => {
-      openTaskEdit(task);
-      telemetry.event("editTaskOpen", { taskId: task.id });
+    (task: Task, opts?: { focus?: "goal" }) => {
+      openTaskEdit(task, opts?.focus ?? null);
+      telemetry.event("editTaskOpen", { taskId: task.id, ...(opts?.focus ? { focus: opts.focus } : {}) });
     },
     [openTaskEdit, telemetry],
   );

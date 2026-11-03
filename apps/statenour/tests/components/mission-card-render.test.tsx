@@ -96,4 +96,13 @@ describe("mission header · rendered output", () => {
     expect(m![0]).toMatch(/\bh-11\b/);
     expect(m![0]).toMatch(/\bw-11\b/);
   });
+
+  it("the goal chip filters the board to its goal (?goalId=), never leaves for /stats, at the 44 px floor", () => {
+    const html = render({ ...PROJECT, lifeGoal: { id: "g-run", title: "Run a half marathon" } } as Project);
+    const a = html.match(/<a[^>]*href="\/missions\?goalId=g-run"[^>]*>/);
+    expect(a, "the chip links to the filtered board").toBeTruthy();
+    expect(a![0]).toMatch(/\bmin-h-11\b/);
+    expect(html).not.toContain("/stats");
+    expect(html).toContain("goal · Run a half marathon");
+  });
 });
