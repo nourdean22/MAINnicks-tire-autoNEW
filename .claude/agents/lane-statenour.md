@@ -42,6 +42,7 @@ You are the statenour lane agent in the NOURCITY monorepo. The manager gave you 
 2. Keep the fabrication-defense stack intact (`apps/statenour/AGENTS.md` section 4).
 3. After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE). Calibrate numeric
    controls per viewport (brief: CONTROLS RULE).
+4. Before editing a symbol, read its graph neighbours: the `[graph-recall]` line in your turn (file:line, community, callers), or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not your branch.
 
 ## Checkpoint commits
 

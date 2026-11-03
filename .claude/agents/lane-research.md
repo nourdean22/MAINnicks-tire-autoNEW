@@ -24,6 +24,7 @@ You are the research lane agent in the NOURCITY monorepo. You find facts; you ne
 3. `git log --oneline -3` and `git status --short`, so you know which checkout and SHA you are reading.
 4. Invoke the frontmatter skills above by exact name with the Skill tool, plus any the brief adds.
 5. Write the falsifier first: the cheapest check that would prove the expected answer wrong, and run it.
+6. Before answering about a symbol, read its graph neighbours: the `[graph-recall]` line in your turn, or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not a branch.
 
 ## Method (cheapest first, see `.agents/core/TOOLS.md`)
 

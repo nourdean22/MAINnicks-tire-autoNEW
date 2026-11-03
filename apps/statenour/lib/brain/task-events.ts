@@ -58,7 +58,11 @@ export type TaskEventKind =
   | "parked"
   /** 2026-10-29 · a photo added to or removed from the task; payload.attachmentId only. */
   | "attachment_added"
-  | "attachment_removed";
+  | "attachment_removed"
+  /** 2026-11-03 · a DAILY check-off taken back for one ET day (payload.forDay). The
+   *  log is append-only, so an uncheck is a row, never a delete; a day counts as done
+   *  while its `completed` rows outnumber its `uncompleted` ones (lib/services/daily-backfill.ts). */
+  | "uncompleted";
 
 export interface TaskEventInput {
   taskId: string;
@@ -215,12 +219,13 @@ export async function getDoneTodayCount(): Promise<number> {
   try {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    return await prisma.taskEvent.count({
-      where: {
-        kind: "completed",
-        createdAt: { gte: start },
-      },
-    });
+    // 2026-11-03 · an uncheck of today's habit appends an `uncompleted` row
+    // (the log never deletes), so it comes off the count here.
+    const [done, undone] = await Promise.all([
+      prisma.taskEvent.count({ where: { kind: "completed", createdAt: { gte: start } } }),
+      prisma.taskEvent.count({ where: { kind: "uncompleted", createdAt: { gte: start } } }),
+    ]);
+    return Math.max(0, done - undone);
   } catch {
     return 0;
   }

@@ -37,6 +37,7 @@ apps/statenour/local-agent/eufy-data/
 # IDE and editor files
 .vscode/**
 !.vscode/settings.json
+!.vscode/mcp.json
 .idea/
 *.swp
 *.swo

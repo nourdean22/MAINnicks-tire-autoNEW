@@ -16,13 +16,14 @@ import { publishToSocial } from "./services/socialPublish";
 
 type Call = { url: string; init: RequestInit };
 
-function stubGraph(opts: { finishOk?: boolean } = {}) {
+function stubGraph(opts: { finishOk?: boolean; finishThrows?: boolean } = {}) {
   const calls: Call[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     calls.push({ url, init });
     if (url.includes("/video_reels")) {
       const body = JSON.parse(String(init.body ?? "{}")) as Record<string, string>;
       if (body.upload_phase === "start") return { ok: true, status: 200, json: async () => ({ video_id: "vid_1", upload_url: "https://rupload.facebook.com/video-upload/v25.0/vid_1" }) };
+      if (opts.finishThrows) throw new Error("socket hang up");
       if (opts.finishOk === false) return { ok: false, status: 400, json: async () => ({ error: { message: "finish failed" } }) };
       return { ok: true, status: 200, json: async () => ({ success: true, post_id: "page_post_9" }) };
     }
@@ -54,7 +55,9 @@ describe("publishToSocial — Facebook", () => {
       videoUrl: "https://cdn.example.com/reel.mp4",
     });
     const fb = out.results.find((r) => r.platform === "facebook");
-    expect(fb).toEqual({ platform: "facebook", success: true, postId: "page_post_9" });
+    // postId is the finish step's post_id; videoId is the node Facebook's reel numbers can be read from
+    // (reading the post_id fails with Meta #12), so the result must carry both.
+    expect(fb).toEqual({ platform: "facebook", success: true, postId: "page_post_9", videoId: "vid_1" });
 
     expect(calls.map((c) => c.url)).toEqual([
       "https://graph.facebook.com/v25.0/777/video_reels",
@@ -100,7 +103,7 @@ describe("publishToSocial — Facebook", () => {
       videoUrl: "https://cdn.example.com/shop-floor.mp4",
       isAiGenerated: false,
     });
-    expect(out.results.find((r) => r.platform === "facebook")).toEqual({ platform: "facebook", success: true, postId: "page_post_9" });
+    expect(out.results.find((r) => r.platform === "facebook")).toEqual({ platform: "facebook", success: true, postId: "page_post_9", videoId: "vid_1" });
     expect(calls.filter((c) => c.url.includes("/video_reels"))).toHaveLength(2);
   });
 
@@ -139,5 +142,11 @@ describe("publishToSocial — Facebook", () => {
     stubGraph({ finishOk: false });
     const out = await publishToSocial({ platforms: ["facebook"], caption: "x", videoUrl: "https://cdn.example.com/reel.mp4" });
     expect(out.results[0]).toEqual({ platform: "facebook", success: false, error: "finish failed" });
+  });
+
+  it("an unanswered finish is ambiguous (may be live) and still carries the video id, so the reel can be found and read", async () => {
+    stubGraph({ finishThrows: true });
+    const out = await publishToSocial({ platforms: ["facebook"], caption: "x", videoUrl: "https://cdn.example.com/reel.mp4" });
+    expect(out.results[0]).toEqual({ platform: "facebook", success: false, error: "socket hang up", ambiguous: true, postId: "vid_1", videoId: "vid_1" });
   });
 });

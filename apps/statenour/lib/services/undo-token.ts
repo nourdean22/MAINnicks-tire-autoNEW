@@ -35,12 +35,12 @@ export interface UndoResult {
   alreadyUndone?: boolean;
   /** true when this call performed the revert. */
   undone?: boolean;
-  toolName?: "snoozeTask" | "archiveGoal" | "person.create";
+  toolName?: "snoozeTask" | "archiveGoal" | "archiveTask" | "person.create";
   entityId?: string;
 }
 
 interface UndoPayload {
-  toolName: "snoozeTask" | "archiveGoal" | "person.create";
+  toolName: "snoozeTask" | "archiveGoal" | "archiveTask" | "person.create";
   taskId?: string;
   goalId?: string;
   personId?: string;
@@ -103,6 +103,17 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
           snoozedUntil: null,
           lastTouchedAt: new Date(),
         },
+      });
+      break;
+    }
+    // 2026-11-03 · the chat's archiveTask is a soft delete; undo clears the stamp.
+    case "archiveTask": {
+      if (!payload.taskId) {
+        throw new ServiceError("missing taskId", 400);
+      }
+      await prisma.task.update({
+        where: { id: payload.taskId },
+        data: { deletedAt: null, lastTouchedAt: new Date() },
       });
       break;
     }

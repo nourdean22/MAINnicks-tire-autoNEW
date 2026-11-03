@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   checkTask: vi.fn(),
-  task: { findUnique: vi.fn(), update: vi.fn() },
+  task: { findFirst: vi.fn(), update: vi.fn() }, // main (PR 3531): the read is live rows only (deletedAt: null)
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: { task: h.task, lifeGoal: { findFirst: vi.fn() } } }));
@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe("Nick's completeTask", () => {
   it("completes a ONCE task through checkTask and never writes DONE itself", async () => {
-    h.task.findUnique.mockResolvedValue({ id: "t-1", loopKind: "ONCE", status: "READY", streakCount: 0, lastCompletedAt: null, goalId: null });
+    h.task.findFirst.mockResolvedValue({ id: "t-1", loopKind: "ONCE", status: "READY", streakCount: 0, lastCompletedAt: null, goalId: null });
     h.checkTask.mockResolvedValue({ ok: true, task: { id: "t-1", status: "DONE" }, nextPhaseSpawned: 2 });
 
     const r = await complete({ taskId: "t-1" });
@@ -36,8 +36,8 @@ describe("Nick's completeTask", () => {
   });
 
   it("a DAILY task goes through the same path and keeps its streak answer", async () => {
-    h.task.findUnique.mockResolvedValue({ id: "t-2", loopKind: "DAILY", status: "READY", streakCount: 3, lastCompletedAt: null, goalId: null });
-    h.checkTask.mockResolvedValue({ ok: true, streakCount: 4, task: { id: "t-2" } });
+    h.task.findFirst.mockResolvedValue({ id: "t-2", loopKind: "DAILY", status: "READY", streakCount: 3, lastCompletedAt: null, goalId: null });
+    h.checkTask.mockResolvedValue({ ok: true, task: { id: "t-2", streakCount: 4 } }); // checkTask returns the updated row
 
     const r = await complete({ taskId: "t-2" });
 
@@ -47,7 +47,7 @@ describe("Nick's completeTask", () => {
   });
 
   it("an idempotent same-day DAILY check-off says so", async () => {
-    h.task.findUnique.mockResolvedValue({ id: "t-2", loopKind: "DAILY", status: "READY", streakCount: 3, lastCompletedAt: new Date(), goalId: null });
+    h.task.findFirst.mockResolvedValue({ id: "t-2", loopKind: "DAILY", status: "READY", streakCount: 3, lastCompletedAt: new Date(), goalId: null });
     h.checkTask.mockResolvedValue({ ok: true, idempotent: true, streakCount: 3, lastCompletedAt: new Date() });
 
     const r = await complete({ taskId: "t-2" });
@@ -56,7 +56,7 @@ describe("Nick's completeTask", () => {
   });
 
   it("an unknown id is an error, not a call", async () => {
-    h.task.findUnique.mockResolvedValue(null);
+    h.task.findFirst.mockResolvedValue(null);
     const r = await complete({ taskId: "nope" });
     expect(r).toEqual({ completed: false, error: "task not found" });
     expect(h.checkTask).not.toHaveBeenCalled();
