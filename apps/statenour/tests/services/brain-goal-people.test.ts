@@ -37,7 +37,8 @@ describe("goalPeopleMemories", () => {
     expect(all.rowsTruncated).toBe(false);
     expect(all.optionsTruncated).toBe(false);
     await goalPeopleMemories({ by: "goal", id: "g1" });
-    expect(h.memFindMany.mock.calls[1][0].where).toEqual({ category: "goal_moment", deletedAt: null, metadata: { path: ["goalId"], equals: "g1" } });
+    // W8a (audit C4): a pinned memory tied to the goal (pinMemory goalId) is a goal memory too: any category, by metadata.goalId.
+    expect(h.memFindMany.mock.calls[1][0].where).toEqual({ deletedAt: null, metadata: { path: ["goalId"], equals: "g1" } });
   });
 
   it("person mode reads rows by metadata.personId, any category, and asks for a pick when none is given", async () => {

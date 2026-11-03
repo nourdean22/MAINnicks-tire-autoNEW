@@ -46,7 +46,7 @@ describe("relatedActivity · goal", () => {
   it("unions every goal-keyed table, newest first, with a ref back to each row", async () => {
     h.goalEvent.mockResolvedValue([{ id: "ge1", kind: "check_in", payload: { health: "at_risk", note: "slow week" }, createdAt: at(1) }]);
     h.taskEvent.mockResolvedValue([{ id: "te1", kind: "completed", createdAt: at(3), task: { title: "Call the bank" } }]);
-    h.task.mockResolvedValue([{ id: "t1", title: "Draft offer", status: "DOING", goalId: null, updatedAt: at(2) }]);
+    h.task.mockResolvedValue([{ id: "t1", title: "Draft offer", status: "DOING", goalId: null, lastTouchedAt: at(2) }]);
     h.brainDump.mockResolvedValue([{ id: "b1", summary: "thinking about revenue", rawThoughts: "x", createdAt: at(5) }]);
     h.reflection.mockResolvedValue([{ id: "r1", insight: "momentum on Mondays", createdAt: at(6) }]);
     h.situationLog.mockResolvedValue([{ id: "s1", situation: "vendor pushed price", createdAt: at(7) }]);
@@ -70,7 +70,7 @@ describe("relatedActivity · goal", () => {
       { id: "ge3", kind: "task_completed", payload: { taskId: "t8" }, createdAt: at(2) },
     ]);
     h.taskEvent.mockResolvedValue([{ id: "te9", taskId: "t9", kind: "completed", createdAt: at(1), task: { title: "Call the bank" } }]);
-    h.task.mockResolvedValue([{ id: "t8", title: "Send quote", status: "DONE", goalId: "g1", updatedAt: at(2) }]);
+    h.task.mockResolvedValue([{ id: "t8", title: "Send quote", status: "DONE", goalId: "g1", lastTouchedAt: at(2) }]);
     const r = await relatedActivity({ goalId: "g1" });
     const titles = r.items.map((i) => i.title);
     expect(titles.filter((t) => t.startsWith("Call the bank"))).toEqual(["Call the bank: completed"]);
@@ -91,7 +91,7 @@ describe("relatedActivity · goal", () => {
             { id: "t6", title: "Fix brakes" },
             { id: "t5", title: "Order rotors" },
           ].filter((t) => where.id!.in.includes(t.id))
-        : [{ id: "t6", title: "Fix brakes", status: "READY", goalId: "g1", updatedAt: at(1) }],
+        : [{ id: "t6", title: "Fix brakes", status: "READY", goalId: "g1", lastTouchedAt: at(1) }],
     );
     const r = await relatedActivity({ goalId: "g1" });
     const byRef = (id: string) => r.items.find((i) => i.ref.id === id)?.title;
@@ -104,7 +104,8 @@ describe("relatedActivity · goal", () => {
   it("a task inherits the goal from its mission when its own goalId is empty (Linear L1, read time)", async () => {
     await relatedActivity({ goalId: "g1" });
     const where = h.task.mock.calls[0][0].where;
-    expect(where.OR).toEqual([{ goalId: "g1" }, { goalId: null, mission: { lifeGoalId: "g1" } }]);
+    // W8a: the shared filter (lib/services/task-goal-server.ts goalTaskWhere), the same one the goal card counts with.
+    expect(where.OR).toEqual([{ goalId: { in: ["g1"] } }, { goalId: null, mission: { lifeGoalId: { in: ["g1"] } } }]);
     expect(where.deletedAt).toBeNull();
   });
 
@@ -138,7 +139,8 @@ describe("relatedActivity · goal", () => {
       expect(args.take).toBe(5);
       expect(args.where.createdAt).toEqual({ gte: at(24) });
     }
-    expect(h.task.mock.calls[0][0].where.updatedAt).toEqual({ gte: at(24) });
+    // W8a (audit A6): Task rows by lastTouchedAt; the stale-tasks cron bumps updatedAt on rows nobody touched.
+    expect(h.task.mock.calls[0][0].where.lastTouchedAt).toEqual({ gte: at(24) });
   });
 });
 
@@ -161,9 +163,34 @@ describe("relatedActivity · caps are set once here", () => {
   });
 });
 
+describe("relatedActivity · one row per completion (W8a, audit A6)", () => {
+  it("a DONE task whose completed event is in the result is listed once, as the event", async () => {
+    h.taskEvent.mockResolvedValue([{ id: "te1", taskId: "t1", kind: "completed", createdAt: at(1), task: { title: "Call the bank" } }]);
+    h.task.mockResolvedValue([{ id: "t1", title: "Call the bank", status: "DONE", goalId: "g1", lastTouchedAt: at(1) }]);
+    const r = await relatedActivity({ goalId: "g1" });
+    expect(r.items.filter((i) => i.taskId === "t1").map((i) => i.kind)).toEqual(["task_event"]);
+  });
+
+  it("a reopened task row and an older completion stay two rows: only a DONE row duplicates its event", async () => {
+    h.taskEvent.mockResolvedValue([{ id: "te1", taskId: "t1", kind: "completed", createdAt: at(5), task: { title: "Call the bank" } }]);
+    h.task.mockResolvedValue([{ id: "t1", title: "Call the bank", status: "READY", goalId: "g1", lastTouchedAt: at(1) }]);
+    const r = await relatedActivity({ goalId: "g1" });
+    expect(r.items.filter((i) => i.taskId === "t1").map((i) => i.kind)).toEqual(["task", "task_event"]);
+  });
+});
+
+describe("relatedActivity · person journal (W8a, audit C8)", () => {
+  it("reads the journal entries that name the person by id (brain_dumps.person_ids)", async () => {
+    h.brainDump.mockResolvedValue([{ id: "b1", summary: "lunch with Sam", rawThoughts: "x", createdAt: at(2) }]);
+    const r = await relatedActivity({ personId: "p1" });
+    expect(h.brainDump.mock.calls[0][0].where).toMatchObject({ personIds: { has: "p1" }, deletedAt: null });
+    expect(r.items.map((i) => [i.kind, i.title])).toContainEqual(["journal", "lunch with Sam"]);
+  });
+});
+
 describe("relatedActivity · mission", () => {
   it("reads tasks, journal tables and chats by missionId", async () => {
-    h.task.mockResolvedValue([{ id: "t1", title: "Lift quote", status: "READY", goalId: "g1", updatedAt: at(1) }]);
+    h.task.mockResolvedValue([{ id: "t1", title: "Lift quote", status: "READY", goalId: "g1", lastTouchedAt: at(1) }]);
     h.chatConversation.mockResolvedValue([{ id: "c1", title: null, updatedAt: at(2) }]);
     const r = await relatedActivity({ missionId: "m1" });
     expect(h.task.mock.calls[0][0].where).toMatchObject({ missionId: "m1", deletedAt: null });
@@ -177,7 +204,7 @@ describe("relatedActivity · mission", () => {
   });
 
   it("goal and mission keys together never list the same task twice", async () => {
-    h.task.mockResolvedValue([{ id: "t1", title: "Lift quote", status: "READY", goalId: "g1", updatedAt: at(1) }]);
+    h.task.mockResolvedValue([{ id: "t1", title: "Lift quote", status: "READY", goalId: "g1", lastTouchedAt: at(1) }]);
     const r = await relatedActivity({ goalId: "g1", missionId: "m1" });
     expect(r.items.filter((i) => i.ref.id === "t1")).toHaveLength(1);
   });

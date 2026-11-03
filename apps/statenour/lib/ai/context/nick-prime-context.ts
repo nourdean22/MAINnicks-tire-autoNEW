@@ -72,6 +72,8 @@ export interface NickPrimeContext {
   /** v9.1.4 · active missions + goals — the WHY behind tasks. */
   activeMissions: MissionSummary[];
   activeGoals: GoalSummary[];
+  /** Round 1 P1-7: the goals read failed this turn (rendered as unknown, never as "no goals"). */
+  goalsReadFailed?: boolean;
   /** v9.1.5 · recent brain dumps + reflections — the recent thinking. */
   recentBrainDumps: BrainDumpSummary[];
   recentReflections: ReflectionSummary[];
@@ -209,6 +211,7 @@ export function nickContextFromState(state: CommandCenterState): NickPrimeContex
     scheduledActions: state.commands.scheduled,
     activeMissions: state.missions,
     activeGoals: state.goals,
+    goalsReadFailed: state.goalsReadFailed,
     recentBrainDumps: state.recentThinking.brainDumps,
     recentReflections: state.recentThinking.reflections,
     pinnedContext: state.brainAnchors.pinned,

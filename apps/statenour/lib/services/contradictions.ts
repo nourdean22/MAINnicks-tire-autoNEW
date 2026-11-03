@@ -132,7 +132,8 @@ const OPEN_WHERE = { deletedAt: null, resolved: false } as const;
  * REJECTS on a failed read, so a chip renders "unknown" and never a 0 (empty-vs-error).
  */
 export function countUnresolvedContradictions(): Promise<number> {
-  return prisma.contradiction.count({ where: OPEN_WHERE });
+  // deletedAt spelled at the call (OPEN_WHERE carries it too) so check:soft-delete sees the filter (round 1 P2-15).
+  return prisma.contradiction.count({ where: { ...OPEN_WHERE, deletedAt: null } });
 }
 
 /**
@@ -159,7 +160,7 @@ export async function listStoredContradictions(input: {
       take: input.includeResolved ? 60 : 500,
       select: TABLE_SELECT,
     }),
-    prisma.contradiction.count({ where }),
+    prisma.contradiction.count({ where: { ...where, deletedAt: null } }),
   ]);
   return {
     contradictions: tableRows.map(toPanelRow),

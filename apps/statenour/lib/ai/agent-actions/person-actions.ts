@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import type { ActionParams, ActionResult } from "./types";
 
 const INTERACTION_KINDS: ReadonlySet<string> = new Set(["in_person", "call", "text", "video", "other"]);
@@ -247,7 +248,9 @@ export async function handlePersonLogInteraction(params: ActionParams, type: str
   // report, not a second contact. A failed read falls back to writing (it proves no duplicate).
   let toolRow: { id: string } | null = null;
   try {
-    toolRow = await prisma.relationshipLedger.findFirst({
+    // Through contactRowsOnly like every ledger reader (tests/repo/ledger-readers-filter-contacts.test.ts):
+    // a tool row is a contact by construction, and the filter keeps that true if it ever is not.
+    const rows = await prisma.relationshipLedger.findMany({
       where: {
         personId: resolution.person.id,
         source: "chat",
@@ -262,8 +265,10 @@ export async function handlePersonLogInteraction(params: ActionParams, type: str
             : []),
         ],
       },
-      select: { id: true },
+      select: { id: true, metadata: true },
+      take: 5,
     });
+    toolRow = contactRowsOnly(rows)[0] ?? null;
   } catch (err) {
     logError("agent-actions.person", err, { fn: "handlePersonLogInteraction.dedupe" }, "warn");
   }

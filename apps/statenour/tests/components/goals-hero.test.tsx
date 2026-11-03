@@ -76,7 +76,8 @@ describe("GoalsHeroView", () => {
     expect(html).toContain("Run a 10k");
     expect(html).toContain("Due soonest");
     expect(html).toContain("Next: Book the race");
-    expect(html).toContain('href="/missions?taskId=t1"');
+    // W8a: the move opens the task's sheet on a board filtered to the goal (/missions reads both params).
+    expect(html).toContain('href="/missions?goalId=g1&amp;taskId=t1"');
     expect(html).toContain("Moved 2d ago");
     expect(html).toContain("Ask Nick about this goal");
   });

@@ -104,7 +104,7 @@ describe("WeeklyReview read states", () => {
   });
 
   it("after Save, a failed goal change is named by its title", async () => {
-    h.save.mockResolvedValue({ saved: ["d1"], extended: [], closed: [], skipped: [], failed: ["g1"], ungrounded: [], replayed: false });
+    h.save.mockResolvedValue({ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: ["g1"], ungrounded: [], replayed: false });
     await mount(<WeeklyReview />);
     await act(async () => type(host.querySelectorAll("textarea")[1] as HTMLTextAreaElement, "Good week"));
     await act(async () => button("Save the review").click());

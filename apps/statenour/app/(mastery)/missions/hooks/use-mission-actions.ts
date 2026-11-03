@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
 import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
+import { nextPhaseToast } from "@/lib/missions/next-phase-toast";
+
 import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
@@ -13,6 +15,13 @@ import { retroDueAfterCompletion } from "@/lib/services/mission-helpers";
 import { RESURFACE_PROMISE } from "@/lib/missions/snooze-presets";
 
 const log = rootLogger.withSurface("missions/actions");
+
+/** Round 1 P1-4: say the next milestone's outcome (spawned, or the failure) after a completion. */
+function showPhaseToast(r: { nextPhaseSpawned?: number; nextPhaseSpawnFailed?: string } | null | undefined) {
+  const t = nextPhaseToast(r);
+  if (t?.kind === "error") toast.error(t.message, { duration: 8000 });
+  else if (t) toast.success(t.message, { duration: 4500 });
+}
 
 export interface MissionActionsParams {
   tasks: Task[];
@@ -166,6 +175,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
+          showPhaseToast(res);
         } else {
           const res = await updateTask.mutateAsync({ id, fields: { status: "DONE", ...outcomeFields } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
@@ -173,6 +183,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
+          showPhaseToast(res as unknown as { nextPhaseSpawned?: number; nextPhaseSpawnFailed?: string });
         }
         await refetchAll();
 

@@ -121,18 +121,6 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
       "FALSE POSITIVE, same shape: dumpWhere carries `deletedAt: null` at its definition (~:1139). Verified 2026-09-01.",
   },
   {
-    file: "lib/services/contradictions.ts",
-    contains: "prisma.contradiction.count({ where: OPEN_WHERE })",
-    reason:
-      "FALSE POSITIVE, same shape: OPEN_WHERE is `{ deletedAt: null, resolved: false }` at its definition just above. Verified 2026-11-03.",
-  },
-  {
-    file: "lib/services/contradictions.ts",
-    contains: "prisma.contradiction.count({ where }),",
-    reason:
-      "FALSE POSITIVE, same shape: listStoredContradictions' `where` is OPEN_WHERE or a literal carrying `deletedAt: null`, and the findMany beside it shares the same const. Verified 2026-11-03.",
-  },
-  {
     file: "app/api/cron/data-cleanup/route.ts",
     contains: "brainGcWhere",
     reason:
@@ -143,6 +131,23 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
     contains: "judgeSweep(candidates)",
     reason:
       "Same parity invariant for the per-category retention sweeps: the count is the deletion candidate census the circuit breaker judges, and it must equal the deleteMany where. Tombstone inclusion is deliberate (retention sweeps purge soft-deleted rows past their window too).",
+  },
+  {
+    file: "lib/knowledge/candidate-actions.ts",
+    contains: "prisma.brainMemory.count({ where }), // `where` above already scopes deletedAt: null",
+    reason:
+      "FALSE POSITIVE of the call-argument read: the count and its findMany share one hoisted `where` that carries `deletedAt: null` at its definition. The 12-line window used to pass it only because of the trailing comment. Verified 2026-11-03 (W8a round 1).",
+  },
+  {
+    file: "lib/knowledge/candidate-store.ts",
+    contains: "prisma.brainMemory.count({ where }), // `where` above already scopes deletedAt: null",
+    reason: "FALSE POSITIVE, same shape: the hoisted `where` carries `deletedAt: null`. Verified 2026-11-03.",
+  },
+  {
+    file: "lib/system/stale-data-scanner.ts",
+    contains: "count({ where }), // `where` above already scopes deletedAt: null",
+    reason:
+      "FALSE POSITIVE, same shape, three sites (brainMemory, task, masteryDecision): each block's hoisted `where` carries `deletedAt: null`. Verified 2026-11-03.",
   },
 ];
 
@@ -164,6 +169,17 @@ function walk(dir: string, acc: string[] = []): string[] {
     }
   }
   return acc;
+}
+
+/** Text from the call's `(` to its balanced `)`. shortcut: parens inside string literals are counted, cap 4,000 chars. */
+function callArgument(src: string, open: number): string {
+  let depth = 0;
+  const end = Math.min(src.length, open + 4000);
+  for (let i = open; i < end; i++) {
+    if (src[i] === "(") depth++;
+    else if (src[i] === ")" && --depth === 0) return src.slice(open, i + 1);
+  }
+  return src.slice(open, end);
 }
 
 const BASELINE_PATH = "scripts/soft-delete-baseline.json";
@@ -206,9 +222,11 @@ async function main() {
       const [, model, op] = m;
       total++;
       const lineNo = src.slice(0, m.index).split("\n").length;
-      // The call's argument object: from the match to its balanced close, capped.
+      // The filter must be inside THIS call's argument (balanced parens, capped): a 12-line window let a count
+      // borrow the next call's `deletedAt` (W8a round 1, tests/scripts/audit-soft-delete-filters.test.ts).
+      if (/deletedAt|activeOnly\(/.test(callArgument(src, m.index + m[0].length - 1))) continue;
+      // ALLOWLIST fragments are matched on the surrounding 12 lines, as before.
       const window = lines.slice(lineNo - 1, lineNo + 11).join("\n");
-      if (/deletedAt|activeOnly\(/.test(window)) continue;
 
       const rel = path.relative(root, file).replace(/\\/g, "/");
       const reason = isAllowlisted(rel, window);

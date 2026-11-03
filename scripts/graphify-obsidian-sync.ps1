@@ -4,12 +4,17 @@
 # python step backs up the previous vault export before replacing it,
 # and everything appends to graphify-out/obsidian-sync.log.
 #
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/graphify-obsidian-sync.ps1 [-IngestBrain]
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/graphify-obsidian-sync.ps1 [-IngestBrain] [-GraphOnly]
 #   -IngestBrain  also run step 5 (vault notes -> statenour's PRODUCTION brain_memories). Off by default since
 #                 2026-10-19 (Nour): a code-graph refresh must not write production rows as a side effect.
+#   -GraphOnly    steps 0, 1 and the governance receipt only (no labels, render, vault, rotation or ingest): the
+#                 door merge-gate.mjs uses after every merge to main (scripts/agent-os/graph-rebuild.mjs, 2026-11-03),
+#                 so the MCP serves main as of the merge; the daily task still runs the full sync. Community names
+#                 stay hub-derived until that run (graphify update re-clusters and never relabels, see step 1.5).
 param(
     [string]$RepoRoot = (Split-Path $PSScriptRoot -Parent),
-    [switch]$IngestBrain
+    [switch]$IngestBrain,
+    [switch]$GraphOnly
 )
 
 $ErrorActionPreference = "Continue"
@@ -48,8 +53,28 @@ Log "graphify: $graphify"
 # lives in the HOOKS (60 min) rather than here, so a sync that dies without
 # reaching its release cannot mute rebuilds forever.
 $script:lockFile = Join-Path $RepoRoot "graphify-out\.sync-running"
+# ONE check for every caller (the daily task, merge-gate's graph-rebuild.mjs, a hand run): a fresh lock whose pid is
+# alive means a sync is mid-run; two `graphify update .` at ~4 GB each must never overlap (round-2 reader, 2026-11-03).
+if (Test-Path $script:lockFile) {
+    $heldTxt = "$(Get-Content $script:lockFile -Raw -ErrorAction SilentlyContinue)".Trim()
+    $heldMin = [int]((Get-Date) - (Get-Item $script:lockFile).LastWriteTime).TotalMinutes
+    $heldPid = if ($heldTxt -match 'pid=(\d+)') { [int]$Matches[1] } else { 0 }
+    $heldProc = if ($heldPid) { Get-Process -Id $heldPid -ErrorAction SilentlyContinue } else { $null }
+    if ($heldMin -lt 90 -and $heldProc) {
+        Log "another sync holds the lock (pid $heldPid, $heldMin min): exiting without touching the graph"
+        exit 0
+    }
+    Log "lock on disk from a dead or 90+ min sync ($heldTxt, $heldMin min): taking over"
+}
 Set-Content -Path $script:lockFile -Value "pid=$PID started=$(Get-Date -Format o)" -Encoding ASCII
 Log "graph lock acquired ($script:lockFile)"
+
+# The last result, for the SessionStart graph line (scripts/graphify-session-context.ps1): a failed rebuild must not
+# vanish into this log, which nothing reads at session start.
+function Write-LastResult([int]$Code, [string]$Err) {
+    $obj = @{ exit = $Code; at = (Get-Date -Format o); error = $Err; graphOnly = [bool]$GraphOnly }
+    [System.IO.File]::WriteAllText((Join-Path $RepoRoot "graphify-out\.sync-last.json"), ($obj | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding $false))
+}
 
 function Release-GraphLock {
     if ($script:lockFile -and (Test-Path $script:lockFile)) {
@@ -143,9 +168,14 @@ $updateMinutes = if ($env:GRAPHIFY_UPDATE_TIMEOUT_MIN) { [double]$env:GRAPHIFY_U
 $updateExit = Invoke-Bounded $graphify @('update', '.') $updateMinutes 'graphify update'
 if ($updateExit -ne 0) {
     Log "ERROR: graphify update exited $updateExit - aborting before vault write"
+    Write-LastResult $updateExit "graphify update exited $updateExit"
     Release-GraphLock
     exit 1
 }
+
+# Provenance for the done line (set again below when labeling runs): hub-derived until an LLM relabel succeeds.
+$labelStatus = "hub-derived"
+if ($GraphOnly) { $labelStatus = "skipped (graph-only)"; Log "graph-only run (merge rebuild): skipping labels, render, vault, rotation and ingest" }
 
 # 1.5. Refresh community NAMES with the LLM.
 #
@@ -170,6 +200,7 @@ if ($updateExit -ne 0) {
 # must never cost the daily graph + vault refresh, so every failure path here logs
 # and continues; graphify keeps its deterministic hub labels when labeling fails,
 # which is exactly the pre-existing behaviour.
+if (-not $GraphOnly) {
 $labelBackend = if ($env:GRAPHIFY_LABEL_BACKEND) { $env:GRAPHIFY_LABEL_BACKEND } else { "ollama" }
 $labelModel   = if ($env:GRAPHIFY_LABEL_MODEL)   { $env:GRAPHIFY_LABEL_MODEL }   else { "glm-5.2:cloud" }
 
@@ -258,8 +289,6 @@ if (-not $labelSkip -and $labelBackend -eq "ollama") {
 # or fell back to graphify's deterministic hub labels. A skipped labeling step
 # exits 0 and looks identical to a healthy run in every other respect, so without
 # this the log cannot distinguish "named" from "silently rotting".
-$labelStatus = "hub-derived"
-
 if ($labelSkip) {
     $labelStatus = "skipped"
     Log "WARN: SKIPPING community labeling - $labelSkip. Hub-derived names retained (skipped ~24 min of doomed retries)."
@@ -303,9 +332,11 @@ if ($LASTEXITCODE -ne 0) {
 & $py (Join-Path $RepoRoot "scripts\graphify-obsidian-sync.py") 2>&1 | Add-Content -Path $log
 if ($LASTEXITCODE -ne 0) {
     Log "ERROR: obsidian sync exited $LASTEXITCODE"
+    Write-LastResult $LASTEXITCODE "obsidian sync exited $LASTEXITCODE"
     Release-GraphLock
     exit 1
 }
+} # end of the -not GraphOnly block (labels, render, vault)
 
 # 3.5. GOVERNED CODE-INTELLIGENCE RECEIPTS.
 #
@@ -326,7 +357,9 @@ if (-not $nodeCommand) {
         Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}$' -and (Test-Path (Join-Path $_.FullName "graph.json")) } |
         Sort-Object Name)
 
-    if ($snapshotDirs.Count -ge 2) {
+    if ($GraphOnly) {
+        Log "graphify necropsy skipped - graph-only run (the daily sync compares snapshots)"
+    } elseif ($snapshotDirs.Count -ge 2) {
         Log "running graphify importer-death necropsy over newest snapshots"
         & $nodeCommand.Source (Join-Path $RepoRoot "scripts\graphify-necropsy.mjs") 2>&1 | Add-Content -Path $log
         if ($LASTEXITCODE -ne 0) {
@@ -361,7 +394,9 @@ $keepBackups = 7
 $backups = @(Get-ChildItem -Path (Join-Path $RepoRoot "graphify-out") -Directory -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -match '^obsidian-backup-\d{4}-\d{2}-\d{2}$' } |
     Sort-Object Name)
-if ($backups.Count -gt $keepBackups) {
+if ($GraphOnly) {
+    Log "vault backups: rotation skipped (graph-only run)"
+} elseif ($backups.Count -gt $keepBackups) {
     $drop = $backups[0..($backups.Count - $keepBackups - 1)]
     foreach ($d in $drop) {
         Remove-Item -Path $d.FullName -Recurse -Force -ErrorAction SilentlyContinue
@@ -398,7 +433,7 @@ $statenour = Join-Path $RepoRoot "apps\statenour"
 # brain_memories, so a scheduled code-graph refresh no longer does it as a side
 # effect. Pass -IngestBrain (to this script or the launcher) to run it.
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-if (-not $IngestBrain) {
+if (-not $IngestBrain -or $GraphOnly) {
     Log "brain ingest skipped (opt-in -IngestBrain, Nour 2026-10-19)"
 } elseif (-not $pnpmCommand) {
     # PowerShell command-not-found is non-terminating here and leaves
@@ -420,5 +455,6 @@ if (-not $IngestBrain) {
     }
 }
 
+Write-LastResult 0 ""
 Release-GraphLock
 Log "=== sync done (labels: $labelStatus) ==="
