@@ -40,13 +40,19 @@ function store(opts: {
   rows?: Row[];
   messages?: Record<string, string[]>;
   goals?: Array<{ id: string; title: string; why: string | null }>;
+  missions?: Array<{ id: string; title: string }>;
 }) {
   const rows: Row[] = [...(opts.rows ?? [])];
   const sql: string[] = [];
   let n = 0;
-  const missions = [
-    { id: "m1", title: "Bay two lift install", domain: "BUSINESS", successMetric: null, weeklyReviewNote: null, planData: null, taskTitles: [] },
-  ];
+  const missions = (opts.missions ?? [{ id: "m1", title: "Bay two lift install" }]).map((m) => ({
+    ...m,
+    domain: "BUSINESS",
+    successMetric: null,
+    weeklyReviewNote: null,
+    planData: null,
+    taskTitles: [],
+  }));
   const prisma = {
     $executeRawUnsafe: vi.fn(async (q: string) => {
       sql.push(q);
@@ -209,6 +215,30 @@ describe("conversation-mission linker · one embedding space", () => {
     expect(report.skippedOtherSpace).toBe(1);
   });
 
+  it("with missions in two models, a chat is scored only against the missions in its own model", async () => {
+    // m1's refresh fails, so it stays in the retired model with a vector identical to the chat's; m2 is current.
+    const m1Old: Row = { ...missionRow(null, "venice-bge-m3"), id: "vm1", sourceId: "m1", embedding: JSON.stringify(unit(0)) };
+    const m2Now: Row = { ...missionRow(null), id: "vm2", sourceId: "m2", embedding: JSON.stringify(unit(1)) };
+    const s = store({
+      convs: [conv("c1")],
+      rows: [m1Old, m2Now],
+      missions: [
+        { id: "m1", title: "Old lift plan" },
+        { id: "m2", title: "Tire rack" },
+      ],
+    });
+    h.embed.mockImplementation(async (text: string) => {
+      if (text.startsWith("chat c1")) return { vec: unit(0), model: SPACE };
+      if (text.startsWith("Tire rack")) return { vec: unit(1), model: SPACE };
+      return { vec: [], model: null }; // m1's refresh fails
+    });
+    const report = await run(s.prisma);
+    // Against m2 (same model) the chat scores 0; the identical retired-model vector of m1 must not win.
+    expect(report.autoLinked).toBe(0);
+    expect(report.belowReviewThreshold).toBe(1);
+    expect(s.sql.some((q) => q.includes("SET mission_id"))).toBe(false);
+  });
+
   it("a mission row from the retired lane (no fingerprint) is re-embedded in place, once", async () => {
     const s = store({ convs: [], rows: [missionRow(null, "venice-bge-m3")] });
     const first = await run(s.prisma);
@@ -263,9 +293,24 @@ describe("conversation-mission linker · the cron result tells the truth", () =>
     h.embed.mockImplementation(async (text: string) =>
       text.startsWith("chat c1") ? { vec: [Number.NaN, 1, 0, 0, 0, 0, 0, 0], model: SPACE } : { vec: unit(0), model: SPACE },
     );
-    await run(s.prisma);
+    const report = await run(s.prisma);
     const vecSql = s.sql.filter((q) => q.includes("UPDATE vector_embeddings"));
     expect(vecSql.length).toBeGreaterThan(0);
     expect(vecSql.some((q) => q.includes("NaN"))).toBe(false);
+    expect(report.autoLinked).toBe(0);
+  });
+
+  it("an Infinity in a vector (cosine = NaN) is noise: no review row with NaN confidence, no link", async () => {
+    const s = store({ convs: [conv("c1")], rows: [missionRow(null)] });
+    h.embed.mockImplementation(async (text: string) =>
+      text.startsWith("chat c1") ? { vec: [Number.POSITIVE_INFINITY, 0, 0, 0, 0, 0, 0, 0], model: SPACE } : { vec: unit(0), model: SPACE },
+    );
+    const report = await run(s.prisma);
+    expect(report.embedded).toBe(1);
+    expect(report.queuedForReview).toBe(0);
+    expect(report.autoLinked).toBe(0);
+    expect(report.belowReviewThreshold).toBe(1);
+    expect(s.prisma.brainMemory.upsert).not.toHaveBeenCalled();
+    expect(s.sql.filter((q) => q.includes("UPDATE vector_embeddings")).some((q) => q.includes("Infinity"))).toBe(false);
   });
 });
