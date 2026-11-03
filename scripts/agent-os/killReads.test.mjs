@@ -111,27 +111,121 @@ test("a ship record line naming a kill criterion or live check with an ISO date 
   assert.deepEqual(shipReads(root).map((r) => [r.date, r.source]), [["2026-11-09", "ship 2026-11-02-x.md"], ["2026-11-23", "ship 2026-11-02-x.md"]]);
 });
 
-test("--due counts a read dated yesterday or today and not tomorrow", async () => {
-  const { dueCount } = await lib();
+test("a ship record's list items under a Live checks label each count, until the blank line or the next label", async () => {
+  const { shipReads } = await lib();
+  // The shape of apps/statenour/docs/reconciliation/2026-11-02-goal-card-health.md:22-24 (read 2026-11-03).
+  const text = "> **Live checks owed**\n> - 2026-11-09: one check-in saved from the card.\n> - 2026-11-23 (kill criterion L2): every goal still gray.\n>\n> **Flagged · NOT fixed**\n> - 2026-12-25 something else.\n\nKill criteria\n1. 2026-11-30 revert if red.\n\nProse 2026-12-31.\n";
+  const root = fixtureRoot({ ship: [["2026-11-02-goal-card-health.md", text]] });
+  assert.deepEqual(shipReads(root).map((r) => r.date), ["2026-11-09", "2026-11-23", "2026-11-30"]);
+});
+
+test("one unreadable ship file makes the ship source UNKNOWN by name and the other files still list; no apps folder is no reads, not a throw", async () => {
+  const { collect, shipReads } = await lib();
+  const root = fixtureRoot({ ship: [["2026-11-02-good.md", "Live check 2026-11-09: read the log.\n"]] });
+  mkdirSync(join(root, "apps", "statenour", "docs", "reconciliation", "x.md")); // readFileSync on it throws EISDIR
+  const out = collect({ root, today: TODAY, prs: { state: "ok", list: [] } });
+  assert.equal(out.ship.state, "UNKNOWN");
+  assert.match(out.ship.detail, /x\.md.*EISDIR/);
+  assert.deepEqual(out.reads.map((r) => r.source), ["ship 2026-11-02-good.md"]);
+  const bare = mkdtempSync(join(tmpdir(), "kill-reads-bare-"));
+  assert.deepEqual(shipReads(bare), []);
+});
+
+test("a ledger file with a conflict marker or a bad header is UNKNOWN by name, and the good files still list", async () => {
+  const { collect } = await lib();
+  const root = fixtureRoot({ ledger: [["2026-11-01-good", "MERGED", "live check owed on 2026-11-09: count the rows"]] });
+  const dir = join(root, "docs", "agent-os", "ledger");
+  writeFileSync(join(dir, "2026-11-01-conflict.md"), `${ledgerRow("2026-11-01-conflict", "MERGED", "live check owed on 2026-11-10: x")}<<<<<<< ours\n`);
+  writeFileSync(join(dir, "2026-11-01-badhead.md"), "| Job id | Date |\n|---|---|\n| 2026-11-01-badhead | 2026-11-01 |\n");
+  writeFileSync(join(dir, "2026-11-01-sevencells.md"), `${LEDGER_HEAD.join("\n")}\n| 2026-11-01-sevencells | 2026-11-01 | job | platform | MERGED | #1 | live check owed on 2026-11-11: x |\n`);
+  const out = collect({ root, today: TODAY, prs: { state: "ok", list: [] } });
+  assert.equal(out.ledger.state, "UNKNOWN");
+  assert.match(out.ledger.detail, /2026-11-01-(conflict|badhead|sevencells)/);
+  assert.deepEqual(out.reads.map((r) => r.source), ["ledger 2026-11-01-good"]);
+  assert.equal(out.complete, false);
+});
+
+test("the cue by counts only with the date right after it, and one source on one date is one read", async () => {
+  const { ledgerReads, collect } = await lib();
+  const root = fixtureRoot({
+    ledger: [
+      ["2026-11-01-by-date", "MERGED", "owner manager, by 2026-11-09: run it"],
+      ["2026-11-01-by-nour", "MERGED", "applied by Nour on 2026-11-02; nothing else"],
+      ["2026-11-01-twice", "MERGED", "live check owed 2026-11-09: a; kill read owed 2026-11-09: b"],
+    ],
+  });
+  assert.deepEqual(ledgerReads(root).map((r) => r.source).sort(), ["ledger 2026-11-01-by-date", "ledger 2026-11-01-twice", "ledger 2026-11-01-twice"]);
+  assert.deepEqual(collect({ root, today: TODAY, prs: { state: "ok", list: [] } }).reads.map((r) => r.source), ["ledger 2026-11-01-by-date", "ledger 2026-11-01-twice"]);
+});
+
+test("--due counts a read dated yesterday or today and not tomorrow, and counts today's apart", async () => {
+  const { dueCount, dueToday } = await lib();
   const reads = [{ date: "2026-11-02" }, { date: "2026-11-03" }, { date: "2026-11-04" }];
   assert.equal(dueCount(reads, TODAY), 2);
+  assert.equal(dueToday(reads, TODAY), 1);
 });
 
 test("today is the America/New_York date, not the UTC one", async () => {
   const { etToday } = await lib();
   assert.equal(etToday(new Date("2026-11-04T03:30:00Z")), "2026-11-03", "03:30Z is 22:30 on the 3rd in New York");
   assert.equal(etToday(new Date("2026-11-04T12:00:00Z")), "2026-11-04");
+  assert.equal(etToday(new Date("2026-07-01T04:30:00Z")), "2026-07-01", "summer time: 04:30Z is 00:30 EDT on the 1st, not the 30th");
 });
+
+const rows = (n) => Array.from({ length: n }, (_, i) => ({ number: i + 1, body: "", mergedAt: "" }));
+/** A fake gh: answers `pr list` with `list` and the `api search/issues` count call with `count`; records every argv. */
+function fakeGh({ list = { status: 0, stdout: "[]" }, count = { status: 0, stdout: JSON.stringify({ total_count: 0, incomplete_results: false }) } } = {}) {
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push(args);
+    assert.equal(cmd, "gh");
+    return args[0] === "api" ? count : list;
+  };
+  return { run, calls };
+}
+const listOf = (n) => ({ status: 0, stdout: JSON.stringify(rows(n)) });
+const countOf = (total, incomplete = false) => ({ status: 0, stdout: JSON.stringify({ total_count: total, incomplete_results: incomplete }) });
 
 test("a gh call that fails is UNKNOWN, never an empty list; a real empty list is ok", async () => {
   const { fetchPrs } = await lib();
-  const fake = (r) => () => r;
-  assert.equal(fetchPrs(fake({ status: 1, stdout: "", stderr: "boom" })).state, "UNKNOWN");
-  assert.equal(fetchPrs(fake({ status: null, error: Object.assign(new Error("spawnSync gh ETIMEDOUT"), { code: "ETIMEDOUT" }) })).state, "UNKNOWN");
-  assert.equal(fetchPrs(fake({ status: 0, stdout: "not json" })).state, "UNKNOWN");
-  assert.equal(fetchPrs(fake({ status: 0, stdout: JSON.stringify(Array.from({ length: 500 }, (_, i) => ({ number: i, body: "", mergedAt: "" }))) })).state, "UNKNOWN", "a list at the --limit cap may be truncated");
-  const empty = fetchPrs(fake({ status: 0, stdout: "[]" }));
+  const state = (list, count) => fetchPrs(fakeGh({ list, count }).run, TODAY).state;
+  assert.equal(state({ status: 1, stdout: "", stderr: "boom" }), "UNKNOWN");
+  assert.equal(state({ status: null, error: Object.assign(new Error("spawnSync gh ETIMEDOUT"), { code: "ETIMEDOUT" }) }), "UNKNOWN");
+  assert.equal(state({ status: 0, stdout: "not json" }), "UNKNOWN");
+  assert.equal(state({ status: 0, stdout: "null" }), "UNKNOWN", "null is not a list");
+  assert.equal(state({ status: 0, stdout: "{}" }), "UNKNOWN", "an object is not a list");
+  assert.equal(state(listOf(500), countOf(500)), "UNKNOWN", "a window at the --limit cap may be truncated");
+  assert.equal(state(listOf(499), countOf(499)), "ok", "one under the cap is a whole list");
+  const empty = fetchPrs(fakeGh().run, TODAY);
   assert.deepEqual([empty.state, empty.list], ["ok", []]);
+});
+
+test("fetchPrs sends one capped merged search per calendar month from 2026-10-29, with kill in:body, and joins them", async () => {
+  const { fetchPrs, windows } = await lib();
+  assert.deepEqual(windows("2026-10-29", TODAY), [{ from: "2026-10-29", to: "2026-10-31" }, { from: "2026-11-01", to: "2026-11-30" }]);
+  assert.deepEqual(windows("2026-10-29", "2027-01-15").map((w) => w.to), ["2026-10-31", "2026-11-30", "2026-12-31", "2027-01-31"]);
+  const gh = fakeGh({ list: listOf(3), count: countOf(3) });
+  const out = fetchPrs(gh.run, TODAY);
+  const lists = gh.calls.filter((a) => a[0] === "pr");
+  assert.equal(lists.length, 2);
+  for (const a of lists) assert.deepEqual([a[a.indexOf("--limit") + 1], a[a.indexOf("--state") + 1]], ["500", "merged"]);
+  assert.deepEqual(lists.map((a) => a[a.indexOf("--search") + 1]), ["kill in:body merged:2026-10-29..2026-10-31", "kill in:body merged:2026-11-01..2026-11-30"]);
+  assert.deepEqual([out.state, out.list.length], ["ok", 3], "the same three PRs from both windows join to three");
+  const api = gh.calls.filter((a) => a[0] === "api");
+  assert.equal(api.length, 1, "one search/issues count call");
+  for (const part of ["search/issues?q=", "is:pr", "is:merged", "kill+in:body", "merged:%3E%3D2026-10-29", "per_page=1"]) assert.ok(api[0][1].includes(part), `the count call carries ${part}: ${api[0][1]}`);
+});
+
+test("a window at the cap is UNKNOWN but its rows still list; a search count above the list, an incomplete search or a failed count call is UNKNOWN", async () => {
+  const { fetchPrs } = await lib();
+  const capped = fetchPrs(fakeGh({ list: listOf(500), count: countOf(500) }).run, TODAY);
+  assert.deepEqual([capped.state, capped.list.length], ["UNKNOWN", 500]);
+  assert.match(capped.detail, /2026-10-29\.\.2026-10-31.*cap/);
+  const more = fetchPrs(fakeGh({ list: listOf(3), count: countOf(4) }).run, TODAY);
+  assert.equal(more.state, "UNKNOWN");
+  assert.match(more.detail, /search counts 4, list has 3/);
+  assert.equal(fetchPrs(fakeGh({ list: listOf(3), count: countOf(3, true) }).run, TODAY).state, "UNKNOWN", "incomplete_results");
+  assert.equal(fetchPrs(fakeGh({ list: listOf(3), count: { status: 1, stdout: "" } }).run, TODAY).state, "UNKNOWN", "a count that could not be checked is not a whole list");
 });
 
 test("the CLI lists the planted PR read from a fixture, sorted by date, one line each", () => {
@@ -151,21 +245,34 @@ test("with gh missing the CLI prints prs: UNKNOWN and still lists the local sour
   assert.match(r.stdout, /^2026-11-09\s+ledger 2026-11-01-owed-read/m);
 });
 
-test("--due prints the count first (past or today only) and flags an UNKNOWN prs source on the next line; --json carries the same count", () => {
-  const root = fixtureRoot({
+const threeDays = () =>
+  fixtureRoot({
     ledger: [
       ["2026-11-01-a", "MERGED", "live check owed on 2026-11-02: a"],
       ["2026-11-01-b", "MERGED", "live check owed on 2026-11-03: b"],
       ["2026-11-01-c", "MERGED", "live check owed on 2026-11-04: c"],
     ],
   });
+
+test("--due line 1 is never a bare number when a source failed: UNKNOWN (>= N due, T today; source failed), then the reason; --json says complete: false", () => {
+  const root = threeDays();
   const due = run(["--root", root, "--today", TODAY, "--due"]);
   assert.equal(due.status, 0, due.stderr);
   const out = due.stdout.trim().split("\n");
-  assert.equal(out[0], "2");
+  assert.equal(out[0], "UNKNOWN (>= 2 due, 1 today; prs failed)");
   assert.match(out[1] ?? "", /^prs: UNKNOWN/);
   const json = JSON.parse(run(["--root", root, "--today", TODAY, "--json"]).stdout);
-  assert.deepEqual([json.today, json.due, json.prs.state, json.reads.length], [TODAY, 2, "UNKNOWN", 3]);
+  assert.deepEqual([json.today, json.due, json.dueToday, json.complete, json.prs.state, json.reads.length], [TODAY, 2, 1, false, "UNKNOWN", 3]);
+});
+
+test("--due line 1 is `N due, T today` when every source read, and --json says complete: true", () => {
+  const root = threeDays();
+  const file = fixtureFile(prs([109, BAR("Live check 2026-11-03: today's.")]));
+  const due = run(["--root", root, "--today", TODAY, "--prs-fixture", file, "--due"]);
+  assert.equal(due.status, 0, due.stderr);
+  assert.equal(due.stdout.trim(), "3 due, 2 today");
+  const json = JSON.parse(run(["--root", root, "--today", TODAY, "--prs-fixture", file, "--json"]).stdout);
+  assert.deepEqual([json.due, json.dueToday, json.complete], [3, 2, true]);
 });
 
 test("HEARTBEAT.md check 11 names the script, and its own command runs verbatim and prints a count (assert-the-consumer)", () => {
@@ -178,9 +285,14 @@ test("HEARTBEAT.md check 11 names the script, and its own command runs verbatim 
   assert.ok(cmd, "the row's How cell must carry the backticked command");
   const r = spawnSync(process.execPath, cmd.split(" ").slice(1), { encoding: "utf8", env: envWithoutGh(), cwd: REPO, timeout: 60_000 });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout.split("\n")[0], /^\d+$/, "the first line is the bare count");
+  assert.match(r.stdout.split("\n")[0], /^(?:\d+ due, \d+ today|UNKNOWN \(>= \d+ due, \d+ today; [a-z, ]+ failed\))$/, "line 1 is the count, or UNKNOWN naming the source");
+  assert.doesNotMatch(r.stdout, /^(?:ledger|ship): UNKNOWN/m, "the real ledger and ship records read clean");
+  assert.match(row, /UNKNOWN/, "the row tells the heartbeat what an UNKNOWN line 1 means");
 });
 
 test("the agent-os README carries a registry row for kill-reads.mjs", () => {
-  assert.match(readFileSync(join(REPO, "docs", "agent-os", "README.md"), "utf8"), /kill-reads\.mjs/);
+  const readme = readFileSync(join(REPO, "docs", "agent-os", "README.md"), "utf8");
+  assert.match(readme, /kill-reads\.mjs/);
+  assert.match(readme, /merged PR bodies since 2026-10-29/);
+  assert.doesNotMatch(readme, /merged PR bodies since 2026-11-01/);
 });
