@@ -103,7 +103,7 @@ stop, by convention. Enabling required checks is an operator-side repo setting.
 - `apps/nickstire/**` -> [`apps/nickstire/AGENTS.md`](apps/nickstire/AGENTS.md), plus
   [`PROTECTED-CORE.md`](apps/nickstire/PROTECTED-CORE.md). SMS/VAPI live in `server/**`, PWA UI in `client/**`.
 - `apps/worker/**` -> [`apps/worker/AGENTS.md`](apps/worker/AGENTS.md) and [`DEPLOY.md`](apps/worker/DEPLOY.md).
-- Code intelligence on NATTYNOUR: MCP `graphify` (read-only) reflects MAIN, not your branch; `config/agent-os/local-services.json`.
+- Code intelligence: MCP `graphify` (MAIN, not your branch). Before editing a symbol, read its `[graph-recall]` line or `graphify query`.
 
 ## Commands
 

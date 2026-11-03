@@ -46,6 +46,7 @@ Anything else (client UI, statenour, CI, packages, lockfile): write it under "Cr
 1. As relevant: `nickstire-tidb-ddl` (schema), `prod-db-guard` (any DB script), `nickstire-verifier-reel-pipeline`
    (reel code), `claim-before-act` (any read-then-write that decides who acts), `test-driven-development`.
 2. Grep every caller of any function you change.
+3. Before editing a symbol, read its graph neighbours: the `[graph-recall]` line in your turn (file:line, community, callers), or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not your branch.
 
 ## Checkpoint commits
 
