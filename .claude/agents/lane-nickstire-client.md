@@ -42,6 +42,7 @@ write them under "Cross-lane needs" and stop there.
    New screen or flow with no journey map in the brief: run `agentic-council:journey-mapping` first (not installed here: write the journey table by hand in the brief from the route and its screens).
 2. Customers read this site on phones. Design and check at 375px first; calibrate every numeric control per viewport
    (brief: CONTROLS RULE). After any class or attribute sweep, re-read each element's text children (brief: CODEMOD RULE).
+3. Before editing a symbol, read its graph neighbours: the `[graph-recall]` line in your turn (file:line, community, callers), or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not your branch.
 
 ## Checkpoint commits
 

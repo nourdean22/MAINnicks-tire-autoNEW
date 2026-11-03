@@ -13,8 +13,38 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
+import { bodyEntrySchema, logBodyEntry } from "@/lib/services/body-tracking";
+import { dayGap, parseEtDay } from "@/lib/services/daily-backfill";
 
 export const healthTools = {
+  // 2026-11-03 · body tracking was read-only from chat; the /body form
+  // wrote through logBodyEntry. Same service, same partial-update rule:
+  // a field left out keeps the day's existing value.
+  logBodyEntry: tool({
+    description:
+      "Log today's (or a given ET day's) body numbers: weight (lb), body fat %, waist (in), sleep hours, workout done, energy 1-5, stress 1-5, a note. Only the fields given change; the rest of that day's row stays. Example: {\"weight\":212.4,\"sleep_hours\":6.5,\"workout_done\":true}",
+    inputSchema: bodyEntrySchema,
+    execute: async (input) => {
+      const given = Object.entries(input).filter(([k, v]) => k !== "date" && v !== undefined && v !== null);
+      if (given.length === 0) return { logged: false, error: "nothing to log: pass at least one measurement" };
+      const date = input.date ?? toDateString(new Date());
+      // The service takes any string as the day; refuse a non-day or a future day here.
+      try {
+        parseEtDay(date);
+      } catch (err) {
+        return { logged: false, error: err instanceof Error ? err.message : `bad date ${date}` };
+      }
+      if (dayGap(date, toDateString(new Date())) < 0) return { logged: false, error: `${date} is in the future` };
+      try {
+        await logBodyEntry({ ...input, date });
+        return { logged: true, date, fields: Object.fromEntries(given) };
+      } catch (err) {
+        logError("ai.tools-health", err, { fn: "logBodyEntry" });
+        return { logged: false, error: err instanceof Error ? err.message : "body log failed" };
+      }
+    },
+  }),
+
   getBodyData: tool({
     description: "Get recent body tracking entries",
     inputSchema: z.object({ days: z.number().min(1).max(365).default(30) }),

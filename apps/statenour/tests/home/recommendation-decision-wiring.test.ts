@@ -107,7 +107,8 @@ describe("the rest of the census joins (same slice)", () => {
     expect(brief).toContain('setShownSurface(push.ledgerId, "web-push")');
     expect(brief).toMatch(/fallback\.status === "sent"\)\s*\{\s*if \(push\.ledgerId\) await setShownSurface\(push\.ledgerId, "telegram-fallback"\)/);
     expect(brief.match(/setShownSurface\(push\.ledgerId, "telegram-fallback"\)/g)?.length).toBe(1);
-    expect(brief).toContain("briefTelegramFallback(brief, push, push.ledgerId)");
+    // The fallback is keyed on the REAL push ledger id (third argument); R2a appended the count and review-line args.
+    expect(brief).toMatch(/briefTelegramFallback\(brief, push, push\.ledgerId[,)]/);
     expect(brief).toContain("ratingTelegramButtons(ledgerId)");
     // the only daily_brief writer in this file is sendBriefPush
     expect(brief.match(/kind: "daily_brief"/g)?.length).toBe(1);

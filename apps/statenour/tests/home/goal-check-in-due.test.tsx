@@ -73,6 +73,8 @@ describe("the Goals card's check-in row", () => {
   it("names the due goal and links to the goals tab", () => {
     const html = renderToStaticMarkup(<GoalsCardView read={READ} checkIn={{ goalId: "g2", title: "Month goal", daysOverdue: 20 }} />);
     expect(html).toContain("Check-in due: Month goal");
+    // W8a (audit A top-3): the row itself is the tap into the goal's check-in; the header still links to the tab.
+    expect(html).toContain('href="/stats?tab=goals&amp;goalId=g2&amp;checkin=1"');
     expect(html).toContain('href="/stats?tab=goals"');
   });
   it("a failed check-in read shows the card's unknown line", () => {

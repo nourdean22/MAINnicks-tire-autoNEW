@@ -17,6 +17,45 @@ import { logError } from "@/lib/utils/error-log";
 import { readBridge } from "@/lib/nickstire/query";
 
 export const habitsTools = {
+  // 2026-11-03 · the journal was read-only from chat (getRecentReflections,
+  // searchReflections) while the /journal capture modal wrote through
+  // ingestJournal. Nour dictates entries from his phone mid-shift; this is
+  // the same write the modal makes, source "chat".
+  logJournalEntry: tool({
+    description:
+      "Write a journal entry in Nour's own words (the same path as the /journal capture). Pass his text verbatim, never a paraphrase. The entry is classified, linked to people it names, and may spawn tasks or insights; the result says what it did. Does NOT check off the journal habit; use completeTask for that. Example: {\"text\":\"Long day. Manny covered the counter while I did the Honda...\",\"kind\":\"reflection\"}",
+    inputSchema: z.object({
+      text: z.string().min(3).max(20_000).describe("The entry, verbatim"),
+      kind: z
+        .enum(["raw", "thinking", "reasoning", "insight", "decision", "reflection", "planning", "venting"])
+        .optional()
+        .describe("What kind of entry Nour said it is. Omit to let the classifier decide."),
+    }),
+    execute: async ({ text, kind }) => {
+      const { ingestJournal } = await import("@/lib/brain/journal-ingest");
+      try {
+        const r = await ingestJournal(text.trim(), "chat", { entryTypeHint: kind });
+        // An empty summary is the ingest's parse-failure shape (the entry is
+        // saved, nothing was extracted); an absent peopleLinked means the
+        // people link did not run. Neither is "0".
+        const processed = r.summary !== "";
+        return {
+          logged: true,
+          processed,
+          entryId: r.brainDumpId,
+          entryType: r.entryType,
+          ...(processed
+            ? { tasksCreated: r.tasksCreated, insightsStored: r.insightsStored, commitmentsFound: r.commitmentsFound, summary: r.summary }
+            : { note: "saved, but the extraction failed (recorded); no tasks, insights or commitments were read from it" }),
+          peopleLinked: r.peopleLinked ? r.peopleLinked.linked : "unknown (people link did not run)",
+        };
+      } catch (err) {
+        logError("ai.tools-habits", err, { fn: "logJournalEntry" });
+        return { logged: false, error: err instanceof Error ? err.message : "journal write failed" };
+      }
+    },
+  }),
+
   getHabitStreaks: tool({
     description: "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
     inputSchema: z.object({}),

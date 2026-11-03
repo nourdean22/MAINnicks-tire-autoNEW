@@ -86,6 +86,8 @@ vi.mock("@/lib/trpc/client", () => {
 });
 vi.mock("@/components/goals/execution-coach-sandbox", () => ({ ExecutionCoachSandbox: () => <p>SANDBOX</p> }));
 vi.mock("@/components/actions/milestones-flow", () => ({ MilestonesFlow: () => null }));
+// W8a: the board reads ?goalId= / ?checkin= (Home deep link); outside Next the router context is absent.
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("") }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { GoalBoard } from "@/components/goals/goal-board";

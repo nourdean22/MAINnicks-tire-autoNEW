@@ -8,7 +8,7 @@
  *    (never a native prompt, iOS PWA suppresses those) and saves through the one check-in writer.
  * Views take plain data so every state renders without a network. A failed read says "couldn't read".
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
@@ -172,9 +172,12 @@ export function CheckInFormView(p: {
 export function GoalCheckInPanel({
   goal,
   onSaved,
+  defaultOpen = false,
 }: {
   goal: { id: string; kind?: string; unit: string };
   onSaved: () => void;
+  /** W8a: Home's "Check-in due" row lands here with the panel already open (one tap to check in, not three). */
+  defaultOpen?: boolean;
 }) {
   const sinceQ = trpc.task.goalSinceCheckIn.useQuery({ goalId: goal.id }, { staleTime: 60_000 });
   const draftMut = trpc.task.draftGoalCheckIn.useMutation();
@@ -197,6 +200,16 @@ export function GoalCheckInPanel({
         ? sinceQ.data
         : "not_found"
       : "loading";
+
+  // Open once on mount when asked; a later prop flip never re-opens over Nour's typing.
+  const openedByDefault = useRef(false);
+  useEffect(() => {
+    if (defaultOpen && !openedByDefault.current) {
+      openedByDefault.current = true;
+      void start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultOpen]);
 
   const start = async () => {
     setOpen(true);

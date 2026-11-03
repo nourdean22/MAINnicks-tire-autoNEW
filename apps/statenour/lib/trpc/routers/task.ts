@@ -191,7 +191,8 @@ interface GoalCacheRow {
   linkedActiveCount: number;
   minutesInvested: number;
   nextMove: { id: string; title: string; status: string } | null;
-  loopsThisWeek: number;
+  /** null = the weekly-completes read failed (unknown, not 0). */
+  loopsThisWeek: number | null;
   /** Ambition Engine P1 · resolved mastery stats this goal levels (a
    *  rep on a task tagged with this goal credits XP to these). */
   stats: { statKey: string; weight: number }[];

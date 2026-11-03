@@ -419,7 +419,9 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
   const goals = ctx.activeGoals ?? [];
   const hasMissions = missions.length > 0;
   const hasGoals = goals.length > 0;
-  if (!hasMissions && !hasGoals) return "";
+  // Round 1 P1-7: a failed goals read is said, like recall's GOAL_READ_FAILED_LINE; silence would read as "no goals".
+  const goalsUnknown = !hasGoals && ctx.goalsReadFailed === true;
+  if (!hasMissions && !hasGoals && !goalsUnknown) return "";
 
   if (hasMissions) {
     lines.push(`## Active Missions (${missions.length})`);
@@ -427,12 +429,18 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
       const metric = m.successMetric
         ? ` — ${safe(m.successMetric, 120)}`
         : " — no metric";
+      // W8a (C9): the goal the mission serves, so a task added to the mission is known to count for it.
+      const goal = m.goal ? ` · goal: ${safe(m.goal.title, 80)} [goalId:${safe(m.goal.id, 40)}]` : "";
       lines.push(
-        `- ${safe(m.title, 100)} (${safe(m.domain, 30)}, P${m.priority})${metric}`,
+        `- ${safe(m.title, 100)} (${safe(m.domain, 30)}, P${m.priority})${metric}${goal}`,
       );
     }
   }
 
+  if (goalsUnknown) {
+    if (hasMissions) lines.push("");
+    lines.push("- Active Goals: couldn't read this turn (unknown, not none)");
+  }
   if (hasGoals) {
     if (hasMissions) lines.push("");
     lines.push(`## Active Goals (${goals.length})`);
@@ -447,7 +455,7 @@ export function renderWhyBlock(ctx: NickPrimeContext): string {
       const next = g.openTasks === 0 ? " · no next step" : "";
       // nour-os-interconnect W1 · the id, so createTask.goalId / logGoalCheckIn / getRelated can be filled.
       lines.push(
-        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress}% · ${value}${dl}${next} [id:${safe(g.id, 40)}]`,
+        `- ${horizon}${safe(g.title, 100)} (${safe(g.domain, 30)}) · ${g.progress == null ? "progress unread" : `${g.progress}%`} · ${value}${dl}${next} [id:${safe(g.id, 40)}]`,
       );
     }
   }

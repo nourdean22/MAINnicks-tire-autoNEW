@@ -40,8 +40,17 @@ $forward = @($args | ForEach-Object {
 
 # Quote the path: -ArgumentList joins on spaces, so an unquoted path containing
 # one would arrive as two arguments and -File would take only the first.
-$proc = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru `
-    -ArgumentList (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$SyncScript`"") + $forward)
+# Through the machine-wide heavy lease when node is present (2026-11-03, round-2 reader): the update peaks near 4 GB and
+# merge-gate's rebuild takes the same lease, so the daily run and a merge rebuild never run two of them at once.
+$psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$SyncScript`"") + $forward
+$heavy = Join-Path $PSScriptRoot 'agent-os\heavy.mjs'
+$node = (Get-Command node -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+if ($node -and (Test-Path $heavy)) {
+    $proc = Start-Process -FilePath $node -WindowStyle Hidden -PassThru `
+        -ArgumentList (@("`"$heavy`"", 'run', '--max-wait', '1800s', '--', 'powershell.exe') + $psArgs)
+} else {
+    $proc = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru -ArgumentList $psArgs
+}
 
 if (-not $proc) { throw "Start-Process returned no process for $SyncScript" }
 

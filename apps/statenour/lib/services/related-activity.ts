@@ -8,11 +8,14 @@
  * is named in `failed`, so a broken read never renders as "nothing happened" (empty-vs-error).
  * Person rows are read by id only; the person profile (phone, email) is never touched.
  *
- * Consumers: Nick's getRelated tool (lib/ai/tools/goals.ts); the goal card, Home and missions page
- * waves read the same signature.
+ * Consumers: Nick's getRelated tool (lib/ai/tools/goals.ts) and the goal card's since-list and check-in draft
+ * (lib/services/goal-checkin.ts goalSinceCheckIn / draftGoalCheckIn). Home, missions and people pages read their
+ * own services (W8a, 2026-11-03: the older line here named readers that never existed).
  */
 import { prisma } from "@/lib/prisma";
 import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { goalTaskWhere } from "@/lib/services/task-goal-server";
+import { clip } from "@/lib/utils/clip";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/related-activity");
@@ -56,11 +59,6 @@ export interface RelatedActivityResult {
   /** Names of the reads that threw. Their rows are missing, not zero. */
   failed: string[];
 }
-
-const clip = (s: string | null | undefined, n = 120) => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
-  return t.length > n ? `${t.slice(0, n - 1)}...` : t;
-};
 
 function goalEventTitle(kind: string, payload: unknown): string {
   const p = (payload ?? {}) as Record<string, unknown>;
@@ -137,16 +135,18 @@ export async function relatedActivity(
     },
   ];
 
+  // W8a (audit A6): Task rows are read by lastTouchedAt, which only a real touch sets; the stale-tasks cron bumps
+  // updatedAt on rows nobody touched, so that column put untouched tasks on the since-list.
   const tasks = (where: Record<string, unknown>, source: (goalId: string | null) => string): Read => ({
     name: "task",
     run: async () =>
       (await prisma.task.findMany({
-        where: { ...where, deletedAt: null, updatedAt: { gte: since } },
-        select: { id: true, title: true, status: true, goalId: true, updatedAt: true },
-        orderBy: { updatedAt: "desc" },
+        where: { ...where, deletedAt: null, lastTouchedAt: { gte: since } },
+        select: { id: true, title: true, status: true, goalId: true, lastTouchedAt: true },
+        orderBy: { lastTouchedAt: "desc" },
         take,
       })).map((t) =>
-        mark({ at: t.updatedAt, kind: "task", source: source(t.goalId), title: `${clip(t.title, 100)} (${t.status})`, ref: { table: "Task", id: t.id }, taskId: t.id }, t.status === "DONE"),
+        mark({ at: t.lastTouchedAt ?? since, kind: "task", source: source(t.goalId), title: `${clip(t.title, 100)} (${t.status})`, ref: { table: "Task", id: t.id }, taskId: t.id }, t.status === "DONE"),
       ),
   });
 
@@ -181,7 +181,7 @@ export async function relatedActivity(
             ),
           ),
       },
-      tasks({ OR: [{ goalId }, { goalId: null, mission: { lifeGoalId: goalId } }] }, (g) => (g ? "task" : "task via mission")),
+      tasks(goalTaskWhere([goalId]), (g) => (g ? "task" : "task via mission")),
       ...journal("goalId", goalId),
     );
   }
@@ -214,6 +214,16 @@ export async function relatedActivity(
           })).map((l) => ({ at: l.createdAt, kind: "contact", source: l.source, title: clip(l.note), ref: { table: "RelationshipLedger", id: l.id } })),
       },
       tasks({ personId }, () => "person task"),
+      {
+        // W8a (audit C8): the journal names people by id (brain_dumps.person_ids, W4); a person's related list reads it.
+        name: "journal",
+        run: async () =>
+          (await prisma.brainDump.findMany({
+            where: { personIds: { has: personId }, deletedAt: null, ...created },
+            select: { id: true, summary: true, rawThoughts: true, createdAt: true },
+            ...desc,
+          })).map((r) => ({ at: r.createdAt, kind: "journal", source: "journal", title: clip(r.summary || r.rawThoughts), ref: { table: "BrainDump", id: r.id } })),
+      },
     );
   }
 
@@ -245,8 +255,15 @@ export async function relatedActivity(
   // W6: a metric goal's task_completed GoalEvent says what the task's completion row already says, untitled. When
   // that row (DONE task, completed event) is in the result it is the one item; otherwise the goal event stays,
   // titled with the task by one lookup (a failed lookup leaves "task completed": nothing is missing, only a title).
+  // W8a (audit A6): a DONE Task row whose completed TaskEvent is also in the result is the same fact twice; the
+  // event (with the exact completion time) is the one item.
+  const completedEvents = new Set(items.filter((i) => i.kind === "task_event" && completionRows.has(i)).map((i) => i.taskId));
   const completedTasks = new Set(items.filter((i) => completionRows.has(i)).map((i) => i.taskId));
-  const merged = items.filter((i) => !(i.kind === "goal_event" && i.taskId && completedTasks.has(i.taskId)));
+  const merged = items.filter(
+    (i) =>
+      !(i.kind === "goal_event" && i.taskId && completedTasks.has(i.taskId)) &&
+      !(i.kind === "task" && completionRows.has(i) && i.taskId && completedEvents.has(i.taskId)),
+  );
   const untitled = merged.filter((i) => i.kind === "goal_event" && i.taskId);
   if (untitled.length > 0) {
     try {

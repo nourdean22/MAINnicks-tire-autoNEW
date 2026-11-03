@@ -35,6 +35,7 @@ the web apps. A job that needs a new endpoint is a cross-lane need for nickstire
 ## Before you edit
 
 1. `assert-the-consumer` for any new env var or header: name the reader, file and line, in your return.
+2. Before editing a symbol, read its graph neighbours: the `[graph-recall]` line in your turn (file:line, community, callers), or `graphify query "<symbol>"`; MCP `graphify` reflects MAIN, not your branch.
 
 ## Checkpoint commits
 
