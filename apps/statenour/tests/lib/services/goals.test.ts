@@ -21,6 +21,10 @@ const mocks = vi.hoisted(() => ({
   mission: {
     findMany: vi.fn(),
   },
+  // W2 2026-11-02: health is the newest check_in GoalEvent.
+  goalEvent: {
+    findMany: vi.fn(),
+  },
   emitGoalEventAsync: vi.fn(),
   emitGoalTransition: vi.fn(),
   softDelete: vi.fn(),
@@ -35,6 +39,7 @@ vi.mock("@/lib/prisma", () => ({
     taskEvent: mocks.taskEvent,
     brainDump: mocks.brainDump,
     mission: mocks.mission,
+    goalEvent: mocks.goalEvent,
   },
 }));
 
@@ -286,5 +291,36 @@ describe("Goals Service", () => {
       expect(result.soft).toBe(true);
       expect(mocks.softDelete).toHaveBeenCalledWith("lifeGoal", { id: "g1" });
     });
+  });
+});
+
+describe("getGoals health (W2 2026-11-02, Linear L2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.task.findMany.mockResolvedValue([]);
+    mocks.taskEvent.findMany.mockResolvedValue([]);
+    mocks.mission.findMany.mockResolvedValue([]);
+    mocks.brainDump.findMany.mockResolvedValue([]);
+  });
+  const recent = new Date(Date.now() - 2 * 86_400_000);
+  const goalRow = (id: string) => ({ id, title: id, progress: 0, status: "active", horizon: "WEEK", createdAt: new Date(Date.now() - 60 * 86_400_000) });
+
+  it("carries the newest check-in's health, date and note per goal", async () => {
+    mocks.lifeGoal.findMany.mockResolvedValue([goalRow("g1"), goalRow("g2")]);
+    mocks.goalEvent.findMany.mockResolvedValue([
+      { goalId: "g1", payload: { health: "at_risk", note: "bank call slipped" }, createdAt: recent },
+    ]);
+    const [g1, g2] = await getGoals();
+    expect(g1.health).toEqual({ state: "at_risk", at: recent.toISOString(), note: "bank call slipped" });
+    expect(g2.health).toEqual({ state: "no_check_in", at: null, note: null });
+    const where = mocks.goalEvent.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ goalId: { in: ["g1", "g2"] }, kind: "check_in" });
+  });
+
+  it("a failed check-in read is unknown, never no_check_in", async () => {
+    mocks.lifeGoal.findMany.mockResolvedValue([goalRow("g1")]);
+    mocks.goalEvent.findMany.mockRejectedValue(new Error("relation does not exist"));
+    const [g1] = await getGoals();
+    expect(g1.health).toEqual({ state: "unknown", at: null, note: null });
   });
 });

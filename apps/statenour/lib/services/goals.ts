@@ -7,6 +7,7 @@ import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
 import { peopleOnGoal } from "@/lib/services/people/people-on-goal";
+import { goalHealthFrom, type GoalHealth } from "@/lib/brain/goal-pace";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -175,6 +176,25 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     }
   }
 
+  // W2 2026-11-02 (Linear L2) · health = the newest check_in GoalEvent per goal, gray past the cadence
+  // (lib/brain/goal-pace.ts). A failed read is "unknown" on every goal, never "no check-in".
+  const latestCheckIn = new Map<string, { payload: unknown; createdAt: Date }>();
+  let checkInsRead = true;
+  if (goalIds.length > 0) {
+    try {
+      const events = await prisma.goalEvent.findMany({
+        where: { goalId: { in: goalIds }, kind: "check_in" },
+        orderBy: { createdAt: "desc" },
+        distinct: ["goalId"],
+        select: { goalId: true, payload: true, createdAt: true },
+      });
+      for (const e of events) if (!latestCheckIn.has(e.goalId)) latestCheckIn.set(e.goalId, e);
+    } catch (err) {
+      checkInsRead = false;
+      console.warn("[services/goals] check-in read failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
   const byGoal = new Map<string, typeof linkedTasks>();
   for (const t of linkedTasks) {
     if (!t.goalId) continue;
@@ -254,6 +274,9 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
       missions: missionsByGoal.get(g.id) ?? [],
+      health: checkInsRead
+        ? goalHealthFrom(latestCheckIn.get(g.id) ?? null, g.horizon)
+        : ({ state: "unknown", at: null, note: null } satisfies GoalHealth),
       people: peopleOnGoal(tasks),
       stats,
       // Ambition Engine P3 · ladder position for the card — parent breadcrumb
