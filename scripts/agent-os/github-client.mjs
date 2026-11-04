@@ -97,6 +97,8 @@ function recordCall(method, url) {
   }
 }
 
+let cachedAuth = null; // a failed resolution (null) is retried on the next call
+
 /** Low-level fetch against the GitHub REST API. Caller must have already called
  * ensureProxyEnv() once at process start. Throws if no token can be resolved. */
 export async function ghFetch(path, opts = {}) {
@@ -110,7 +112,8 @@ export async function ghFetch(path, opts = {}) {
       "github-client: HTTPS_PROXY is set but NODE_USE_ENV_PROXY!=1 — call ensureProxyEnv() as the FIRST line of your entry script before any GitHub call, or every request here silently 401s",
     );
   }
-  const auth = resolveToken();
+  // Once per process: resolveToken() spawns gh twice (~170 ms, blocking), and repo-status makes ~300 calls (2026-11-03).
+  const auth = (cachedAuth ??= resolveToken());
   if (!auth) {
     throw new Error(
       "no GitHub token available: `gh auth token` failed/absent and neither GH_TOKEN nor GITHUB_TOKEN is set",

@@ -355,6 +355,10 @@ every local worktree, its lease and its dirty state), and the remover is still `
     node scripts/agent-os/repo-status.mjs --sweep             # dry run: counts per class, then class + reason per worktree
     node scripts/agent-os/repo-status.mjs --sweep --execute   # tears down LANDED only
 
+The plain run (no `--sweep`) answers inside a 25 s budget since 2026-11-03: rows run in parallel, each git child and
+GitHub read stops at 5 s, an unread cell says `UNKNOWN (timeout)` or `UNKNOWN (error: ...)`, and the last line is a
+`receipt:` with both counts (82 rows in 13.8 s that day; the serial run needed 3-4 min and printed nothing in time).
+
 Every worktree under `.claude/worktrees/` and `.worktrees/` (never the primary checkout) gets one class. Only `agent-*`
 children of `.claude/worktrees/` and worktrees under any `.worktrees/` (nested ones inside a session worktree too) can
 ever be LANDED. Desktop session worktrees carry no harness lock and commit on PR branches in their own cwd, so an idle
