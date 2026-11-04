@@ -167,6 +167,13 @@ describe("runPeopleIntelligenceClaimed", () => {
     expect(h.update.mock.calls[0][0].data.payload).toMatchObject({ state: "nothing_to_propose" });
   });
 
+  // Codex round, finding 2: "nothing to propose" is a claim about people it never checked.
+  it("no change with people still deferred is partial, with the counts, never nothing_to_propose", async () => {
+    h.run.mockResolvedValue({ profilesUpdated: 0, alerts: [], cadenceProposed: 0, enrichChecked: 5, enrichDeferred: 3 });
+    await runPeopleIntelligenceClaimed({ windowMs: 0, run: h.run });
+    expect(h.update.mock.calls[0][0].data.payload).toMatchObject({ state: "partial", reason: "checked 5, 3 still to check" });
+  });
+
   it("a thrown run is recorded failed on the row and rethrown: never a quiet running row", async () => {
     h.run.mockRejectedValue(new Error("boom"));
     await expect(runPeopleIntelligenceClaimed({ windowMs: 0, run: h.run })).rejects.toThrow("boom");

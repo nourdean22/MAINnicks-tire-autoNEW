@@ -220,6 +220,12 @@ export function etCalendarParts(at: Date): {
   };
 }
 
+/** The ET calendar date before `at`'s (YYYY-MM-DD). By calendar parts: "minus 24 hours" misses on a 23- or 25-hour day. */
+export function previousEtDateKey(at: Date = new Date()): string {
+  const { year, month, day } = etCalendarParts(at);
+  return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
+}
+
 /** UTC instant of ET midnight for the given ET wall-clock Y/M/D. Date.UTC
  *  normalizes out-of-range day/month (e.g. day+1 across a month end). */
 export function etMidnightToUtc(year: number, month: number, day: number): Date {

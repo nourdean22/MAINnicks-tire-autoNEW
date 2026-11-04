@@ -74,6 +74,21 @@ describe("JournalFeedView offline (truth sweep 2026-10-23)", () => {
   });
 });
 
+// W8b Codex round, finding 4: the entry a link pinned above the feed is one row with one bd-<id> anchor.
+describe("JournalFeedView · a pinned entry", () => {
+  it("drops the pinned entry from the feed and keeps the others", () => {
+    feed.entries = [entry, { ...entry, id: "e2", title: "Evening pages" }];
+    const html = renderToStaticMarkup(<JournalFeedView hideEntryId="e1" />);
+    expect(html).not.toContain("Morning pages");
+    expect(html).toContain("Evening pages");
+  });
+
+  it("the pinned entry being the only one loaded is not an empty journal", () => {
+    feed.entries = [entry];
+    expect(renderToStaticMarkup(<JournalFeedView hideEntryId="e1" />)).not.toContain("No thoughts captured yet");
+  });
+});
+
 describe("JournalFeedView read states (09-X4)", () => {
   it("a failed first load is unknown, never the empty-journal copy", () => {
     feed.error = "boom";

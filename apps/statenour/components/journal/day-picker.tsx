@@ -10,9 +10,7 @@ import { useState } from "react";
 import { DayActivityPanel } from "@/components/journal/day-activity";
 import type { DayActivity } from "@/lib/services/journal-day";
 import { trpc } from "@/lib/trpc/client";
-import { etDateKey } from "@/lib/utils/datetime";
-
-const DAY_MS = 86_400_000;
+import { previousEtDateKey } from "@/lib/utils/datetime";
 
 export function DayPickerView({
   date,
@@ -23,7 +21,7 @@ export function DayPickerView({
   onChange: (date: string) => void;
   read: DayActivity | "loading" | "failed";
 }) {
-  const yesterday = etDateKey(new Date(Date.now() - DAY_MS));
+  const yesterday = previousEtDateKey();
   return (
     <section aria-labelledby="day-picker-heading" className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
@@ -52,7 +50,7 @@ export function DayPickerView({
 }
 
 export function DayPicker() {
-  const [date, setDate] = useState(() => etDateKey(new Date(Date.now() - DAY_MS)));
+  const [date, setDate] = useState(() => previousEtDateKey());
   const q = trpc.journal.day.useQuery({ date }, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   return <DayPickerView date={date} onChange={setDate} read={q.data ?? (q.isError ? "failed" : "loading")} />;
 }

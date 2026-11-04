@@ -18,7 +18,7 @@ const PEOPLE_RUN_RUNNING = "running";
 /** A "running" row older than this never settled: the process died. */
 export const PEOPLE_RUN_STALE_MS = 30 * 60_000;
 
-export type PeopleRunState = "ok" | "failed" | "nothing_to_propose" | "running";
+export type PeopleRunState = "ok" | "failed" | "nothing_to_propose" | "partial" | "running";
 
 type RunResult = Awaited<ReturnType<typeof runPeopleIntelligence>>;
 
@@ -58,7 +58,11 @@ export async function claimPeopleIntelligenceRun(opts: {
 export function peopleRunStateOf(r: RunResult): { state: PeopleRunState; reason: string | null } {
   const reason = r.enrich ?? r.cadence ?? null;
   if (reason) return { state: "failed", reason };
-  if (r.profilesUpdated === 0 && (r.cadenceProposed ?? 0) === 0) return { state: "nothing_to_propose", reason: null };
+  if (r.profilesUpdated === 0 && (r.cadenceProposed ?? 0) === 0) {
+    // The people past the call cap were never checked, so "nothing to propose" would be a claim about them.
+    if ((r.enrichDeferred ?? 0) > 0) return { state: "partial", reason: `checked ${r.enrichChecked ?? 0}, ${r.enrichDeferred} still to check` };
+    return { state: "nothing_to_propose", reason: null };
+  }
   return { state: "ok", reason: null };
 }
 

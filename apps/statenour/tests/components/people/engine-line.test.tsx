@@ -7,6 +7,14 @@ import { describe, expect, it } from "vitest";
 
 import { EngineLine, SuggestionsWaiting } from "@/components/people/engine-line";
 
+describe("EngineLine · a partial run (Codex round, finding 2)", () => {
+  it("says how far it got, and never says nothing to propose", () => {
+    const html = renderToStaticMarkup(<EngineLine engine={{ state: "partial", at: null, reason: "checked 5, 3 still to check" }} />);
+    expect(html).toContain("no changes yet (checked 5, 3 still to check)");
+    expect(html).not.toContain("nothing to propose");
+  });
+});
+
 describe("EngineLine · an old row (manager round 1, item 7b)", () => {
   it("says the run happened and its result was not recorded", () => {
     const html = renderToStaticMarkup(<EngineLine engine={{ state: "ran", at: null, reason: null }} />);

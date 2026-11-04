@@ -10,7 +10,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), invalidate: vi.fn() }));
+const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), invalidate: vi.fn(), lastReviewAt: null as string | null, failed: [] as string[] }));
 vi.mock("next/link", () => ({ default: (p: { href: string; children: React.ReactNode }) => <a href={p.href}>{p.children}</a> }));
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
@@ -22,9 +22,9 @@ vi.mock("@/lib/trpc/client", () => ({
           isError: false,
           data: {
             since: "2026-10-27T15:00:00.000Z",
-            lastReviewAt: null,
+            lastReviewAt: h.lastReviewAt,
             goals: [{ goal: { id: "g1", title: "Goal one", horizon: "WEEK", due: null, canExtendOrClose: true }, doneTasks: [], entries: [] }],
-            failed: [],
+            failed: h.failed,
             truncated: false,
           },
           refetch: vi.fn(),
@@ -60,6 +60,8 @@ beforeEach(() => {
   localStorage.clear();
   h.mutateAsync.mockReset();
   h.invalidate.mockReset();
+  h.lastReviewAt = null;
+  h.failed = [];
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -92,7 +94,7 @@ describe("weekly review draft", () => {
   });
 
   it("a saved review clears the draft; the server got the restored reviewId", async () => {
-    localStorage.setItem(REVIEW_DRAFT_KEY, JSON.stringify({ reviewId: "rev-restored-0001", week: "w", notes: {}, actions: {} }));
+    localStorage.setItem(REVIEW_DRAFT_KEY, JSON.stringify({ reviewId: "rev-restored-0001", week: "w", notes: {}, actions: {}, savedAt: new Date().toISOString(), lastReviewAt: null }));
     h.mutateAsync.mockResolvedValue({ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], replayed: false, goalActions: "applied", people: { names: [] } });
     await mount();
     await act(async () => (Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "Save the review") as HTMLButtonElement).click());
@@ -100,6 +102,56 @@ describe("weekly review draft", () => {
     expect(h.mutateAsync.mock.calls[0][0]).toMatchObject({ reviewId: "rev-restored-0001", week: "w" });
     expect(localStorage.getItem(REVIEW_DRAFT_KEY)).toBeNull();
     expect(host.textContent).toContain("Saved 1 entry");
+  });
+
+  // Codex round, finding 5: a stale draft must not bring back old actions and an unsaved reviewId.
+  const stale = (over: Record<string, unknown>) =>
+    localStorage.setItem(
+      REVIEW_DRAFT_KEY,
+      JSON.stringify({ reviewId: "rev-stale-0001", week: "old week", notes: {}, healths: {}, actions: { g1: "extend" }, savedAt: new Date().toISOString(), lastReviewAt: null, ...over }),
+    );
+  const weekBox = () => Array.from(host.querySelectorAll("textarea")).at(-1) as HTMLTextAreaElement;
+
+  it("a review completed elsewhere since the draft: not restored, and not left in the store", async () => {
+    stale({});
+    h.lastReviewAt = "2026-11-03T15:00:00.000Z";
+    await mount();
+    expect(weekBox().value).toBe("");
+    expect(stored()).toBeNull();
+  });
+
+  it("a draft abandoned past the review window: not restored", async () => {
+    stale({ savedAt: new Date(Date.now() - 8 * 86_400_000).toISOString() });
+    await mount();
+    expect(weekBox().value).toBe("");
+  });
+
+  it("opening a draft does not reset its age: only typing does", async () => {
+    const savedAt = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    stale({ savedAt });
+    await mount();
+    await flush();
+    expect(JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY)!).savedAt).toBe(savedAt);
+    type(weekBox(), "a new line");
+    expect(JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY)!).savedAt).not.toBe(savedAt);
+  });
+
+  it("a draft with no timestamp is not trusted", async () => {
+    stale({ savedAt: undefined });
+    await mount();
+    expect(weekBox().value).toBe("");
+  });
+
+  it("control: a fresh draft in the same window comes back; so does one when the last review could not be read", async () => {
+    stale({});
+    await mount();
+    expect(weekBox().value).toBe("old week");
+    act(() => root?.unmount());
+    host.remove();
+    h.failed = ["last review"];
+    stale({ lastReviewAt: "2026-10-20T15:00:00.000Z" });
+    await mount();
+    expect(weekBox().value).toBe("old week");
   });
 
   it("a blocked localStorage never breaks the form", async () => {

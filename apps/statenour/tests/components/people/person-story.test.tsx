@@ -8,7 +8,7 @@ import { PersonStoryView } from "@/components/people/person-story";
 
 const story = {
   entries: [
-    { id: "d1", kind: "journal" as const, at: "2026-11-02T14:00:00.000Z", excerpt: "Talked to Dania about the move.", href: "/journal#bd-d1" },
+    { id: "d1", kind: "journal" as const, at: "2026-11-02T14:00:00.000Z", excerpt: "Talked to Dania about the move.", href: "/journal?entry=d1#bd-d1" },
   ],
   entriesTruncated: false,
   goals: [{ id: "g1", title: "Grow the shop", via: "tasks" as const, href: "/stats?tab=goals#goal-g1" }],
@@ -17,7 +17,7 @@ const story = {
 describe("PersonStoryView", () => {
   it("entries link to the entry, goals link to the goal", () => {
     const html = renderToStaticMarkup(<PersonStoryView story={story} />);
-    expect(html).toContain('href="/journal#bd-d1"');
+    expect(html).toContain('href="/journal?entry=d1#bd-d1"');
     expect(html).toContain("Talked to Dania about the move.");
     expect(html).toContain('href="/stats?tab=goals#goal-g1"');
     expect(html).toContain("Grow the shop");

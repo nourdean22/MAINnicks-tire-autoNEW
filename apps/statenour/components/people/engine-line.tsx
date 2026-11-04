@@ -18,6 +18,7 @@ const WORDS: Record<EngineLineData["state"], string> = {
   ok: "proposed something",
   ran: "result not recorded (old format)",
   nothing_to_propose: "nothing to propose",
+  partial: "no changes yet",
   failed: "failed",
   running: "running now",
   never: "has never run",

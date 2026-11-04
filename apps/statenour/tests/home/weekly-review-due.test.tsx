@@ -27,6 +27,17 @@ beforeEach(() => {
   logWarn.mockClear();
 });
 
+// Codex round, finding 3: the shortcut is the previous ET calendar date, on a 25-hour day too.
+describe("DayPickerView · Yesterday", () => {
+  it("at 23:30 on the fall-back day, Yesterday is 2026-10-31", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-02T04:30:00Z"));
+    const html = renderToStaticMarkup(<DayPickerView date="2026-10-31" onChange={() => {}} read="loading" />);
+    vi.useRealTimers();
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Yesterday/);
+  });
+});
+
 // Manager round 1, item 13: a failed brief must not leave the skeleton up forever.
 describe("reviewCardRead (the brief to the row)", () => {
   const due = { due: true, daysSince: null } as const;

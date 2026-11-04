@@ -11,6 +11,7 @@ import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
 import { WeeklyReview } from "@/components/journal/weekly-review";
 import { DayPicker } from "@/components/journal/day-picker";
+import { LinkedEntry } from "@/components/journal/linked-entry";
 
 import { JournalFeedView } from "./_components/journal-feed-view";
 import { JournalInsightsView } from "./_components/journal-insights-view";
@@ -40,7 +41,10 @@ function JournalPageInner() {
   // Shared state for the Thread Radar / Rail refresh signal
   const [threadRefresh, setThreadRefresh] = useState(0);
   // W7 · ?review=week swaps the page body for the weekly review (Sunsama S3/S4); the journal is one tap back.
-  const reviewing = useSearchParams().get("review") === "week";
+  const params = useSearchParams();
+  const reviewing = params.get("review") === "week";
+  // W8b · ?entry=<id> pins the entry a link names above the feed, whatever its age.
+  const entryId = params.get("entry");
 
   return (
     <StandardPage
@@ -99,7 +103,8 @@ function JournalPageInner() {
         </div>
 
         <div className="lg:col-span-7 space-y-6">
-          <JournalFeedView />
+          {entryId && <LinkedEntry id={entryId} />}
+          <JournalFeedView hideEntryId={entryId} />
         </div>
 
       </div>

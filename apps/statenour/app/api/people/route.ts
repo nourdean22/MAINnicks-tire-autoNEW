@@ -50,7 +50,7 @@ function engineLineOf(row: { createdAt: Date; detail: string; payload: unknown }
       ? { state: "failed", at, reason: "did not finish" }
       : { state: "running", at, reason: null };
   }
-  if (p?.state === "ok" || p?.state === "failed" || p?.state === "nothing_to_propose") return { state: p.state, at, reason };
+  if (p?.state === "ok" || p?.state === "failed" || p?.state === "nothing_to_propose" || p?.state === "partial") return { state: p.state, at, reason };
   const legacyFail = /\(enrich: (\w+)\)/.exec(row.detail);
   // An old row says only that it ran; "ok" would claim it proposed something.
   return legacyFail ? { state: "failed", at, reason: legacyFail[1] } : { state: "ran", at, reason: null };

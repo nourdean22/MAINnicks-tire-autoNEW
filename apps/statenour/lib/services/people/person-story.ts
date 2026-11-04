@@ -10,6 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
+import { journalEntryHref } from "@/lib/ui/journal-entry-href";
 import { journalExcerpt } from "./journal-link";
 
 /** Entries shown on the dossier before "more in the journal". */
@@ -90,8 +91,7 @@ export async function personStory(input: { personId: string; personName: string 
       kind: e.kind,
       at: e.createdAt.toISOString(),
       excerpt: journalExcerpt(e.text.replace(/\s+/g, " "), input.personName),
-      // The feed anchors every entry as bd-<id>, whatever its table (entry-row.tsx).
-      href: `/journal#bd-${e.id}`,
+      href: journalEntryHref(e.id),
     })),
     entriesTruncated: all.length > PERSON_STORY_ENTRY_CAP,
     goals: [...goals.values()],

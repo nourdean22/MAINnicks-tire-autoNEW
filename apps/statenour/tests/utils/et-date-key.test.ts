@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { previousEtDateKey } from "@/lib/utils/datetime";
 
 import { etDateKey, today } from "@/lib/utils/datetime";
 
@@ -25,5 +26,21 @@ describe("knowledge-sync keys its promoted dumps by the ET day", () => {
   it("no UTC date slice remains; etDateKey is used for both the promoted dump and the wisdom summary", () => {
     expect(src).not.toMatch(/toISOString\(\)\.slice\(0,\s*10\)/);
     expect(src.match(/etDateKey\(msg\.createdAt\)/g)?.length).toBe(2);
+  });
+});
+
+// Codex round, finding 3: "now minus 24 hours" is not yesterday on a day that is not 24 hours long.
+describe("previousEtDateKey", () => {
+  it("23:30 on the 25-hour fall-back day is still the day before", () => {
+    expect(previousEtDateKey(new Date("2026-11-02T04:30:00Z"))).toBe("2026-10-31");
+  });
+  it("00:30 after the 23-hour spring-forward day does not skip a date", () => {
+    expect(previousEtDateKey(new Date("2026-03-09T04:30:00Z"))).toBe("2026-03-08");
+  });
+  it("controls: the repeated hour, a plain day, a month and a year boundary", () => {
+    expect(previousEtDateKey(new Date("2026-11-01T06:30:00Z"))).toBe("2026-10-31");
+    expect(previousEtDateKey(new Date("2026-11-04T17:00:00Z"))).toBe("2026-11-03");
+    expect(previousEtDateKey(new Date("2026-03-01T17:00:00Z"))).toBe("2026-02-28");
+    expect(previousEtDateKey(new Date("2026-01-01T17:00:00Z"))).toBe("2025-12-31");
   });
 });

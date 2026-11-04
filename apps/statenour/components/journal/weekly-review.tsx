@@ -8,7 +8,8 @@
  * (lib/services/weekly-review.ts) and applies the goal actions. Nothing is written until Save.
  */
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
 
 import { trpc } from "@/lib/trpc/client";
 import type { ReviewGoal, SaveWeeklyReviewResult } from "@/lib/services/weekly-review";
@@ -30,6 +31,9 @@ interface ReviewDraft {
   notes: Record<string, string>;
   healths: Record<string, CheckInHealth | null>;
   actions: Record<string, GoalAction>;
+  /** The draft's review: the last review it was written against, and when he last typed in it. */
+  lastReviewAt: string | null;
+  savedAt: string;
 }
 function readDraft(): ReviewDraft | null {
   try {
@@ -37,11 +41,21 @@ function readDraft(): ReviewDraft | null {
     if (!raw) return null;
     const d = JSON.parse(raw) as Partial<ReviewDraft>;
     return typeof d.reviewId === "string" && d.reviewId
-      ? { reviewId: d.reviewId, week: typeof d.week === "string" ? d.week : "", notes: d.notes ?? {}, healths: d.healths ?? {}, actions: d.actions ?? {} }
+      ? { reviewId: d.reviewId, week: typeof d.week === "string" ? d.week : "", notes: d.notes ?? {}, healths: d.healths ?? {}, actions: d.actions ?? {}, lastReviewAt: d.lastReviewAt ?? null, savedAt: typeof d.savedAt === "string" ? d.savedAt : "" }
       : null;
   } catch {
     return null;
   }
+}
+/**
+ * A draft belongs to one review. A review finished elsewhere since, or a draft left past the review window, is a
+ * different review: restoring it would bring back old actions and an unsaved reviewId that saving would apply.
+ * An unreadable last review keeps the draft: his words are worth more than the doubt.
+ */
+function draftFits(d: ReviewDraft, read: { lastReviewAt: string | null; failed: string[] }): boolean {
+  const saved = Date.parse(d.savedAt);
+  if (!Number.isFinite(saved) || Date.now() - saved > REVIEW_WINDOW_DAYS * 86_400_000) return false;
+  return read.failed.includes("last review") || d.lastReviewAt === read.lastReviewAt;
 }
 function writeDraft(d: ReviewDraft | null) {
   try {
@@ -213,21 +227,29 @@ export function WeeklyReview() {
   // Restored from the draft on mount (W8b), so a reload mid-review keeps the same id.
   const [reviewId, setReviewId] = useState(() => crypto.randomUUID());
   const [hydrated, setHydrated] = useState(false);
+  const read = q.data;
   useEffect(() => {
+    if (!read || hydrated) return;
     const d = readDraft();
-    if (d) {
+    if (d && draftFits(d, read)) {
       setReviewId(d.reviewId);
       setWeek(d.week);
       setNotes(d.notes);
       setHealths(d.healths);
       setActions(d.actions);
-    }
+    } else if (d) writeDraft(null);
     setHydrated(true);
-  }, []);
+  }, [read, hydrated]);
+  // Writes on change only, not on the hydration itself: opening a draft must not reset its age.
+  const armed = useRef(false);
   useEffect(() => {
-    if (!hydrated || result) return;
-    writeDraft({ reviewId, week, notes, healths, actions });
-  }, [hydrated, result, reviewId, week, notes, healths, actions]);
+    if (!hydrated || !read || result) return;
+    if (!armed.current) {
+      armed.current = true;
+      return;
+    }
+    writeDraft({ reviewId, week, notes, healths, actions, lastReviewAt: read.lastReviewAt, savedAt: new Date().toISOString() });
+  }, [hydrated, read, result, reviewId, week, notes, healths, actions]);
 
   if (q.isLoading) return <p className="py-6 text-[13px] text-fg-tertiary">Reading the week…</p>;
   if (q.isError || !q.data) {

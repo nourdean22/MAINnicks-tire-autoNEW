@@ -36,7 +36,7 @@ describe("personStory · entries", () => {
     h.dumps.mockResolvedValue([dump(2), dump(1)]);
     const s = await personStory({ personId: "p1", personName: "Dania" });
     expect(s.entries.map((e) => e.id)).toEqual(["d2", "d1"]);
-    expect(s.entries[0]).toMatchObject({ kind: "journal", href: "/journal#bd-d2" });
+    expect(s.entries[0]).toMatchObject({ kind: "journal", href: "/journal?entry=d2#bd-d2" });
     expect(s.entries[0].excerpt).toContain("Dania");
     expect(s.entriesTruncated).toBe(false);
     const q = h.dumps.mock.calls[0][0];
@@ -50,7 +50,7 @@ describe("personStory · entries", () => {
     h.refls.mockResolvedValue([{ id: "r1", createdAt: new Date(2026, 10, 1, 12, 5), insight: "**WHAT**: Dania came by" }]);
     const s = await personStory({ personId: "p1", personName: "Dania" });
     expect(s.entries.map((e) => [e.id, e.kind])).toEqual([["r1", "reflection"], ["d1", "journal"]]);
-    expect(s.entries[0].href).toBe("/journal#bd-r1");
+    expect(s.entries[0].href).toBe("/journal?entry=r1#bd-r1");
     expect(h.refls.mock.calls[0][0].where).toEqual({ deletedAt: null, personIds: { has: "p1" } });
   });
 

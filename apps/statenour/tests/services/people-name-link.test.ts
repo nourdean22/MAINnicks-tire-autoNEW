@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
     findMany: vi.fn(async ({ where }: { where: { deletedAt?: null } }) => live(where)),
     reflUpdate: vi.fn(async () => ({ id: "r1" })),
     info: vi.fn(),
+    memoryCreate: vi.fn(async () => null),
   };
 });
 vi.mock("@/lib/prisma", () => ({
@@ -29,7 +30,7 @@ vi.mock("@/lib/prisma", () => ({
     personProfile: { findFirst: h.findFirst, count: h.count, findMany: h.findMany, findUnique: vi.fn(async () => null) },
     brainDump: { update: vi.fn() },
     reflection: { update: h.reflUpdate, findUnique: vi.fn(async () => ({ personIds: [] })) },
-    brainMemory: { create: vi.fn(async () => null) },
+    brainMemory: { create: h.memoryCreate },
   },
 }));
 vi.mock("@/lib/errors/record-error", () => ({ recordError: vi.fn() }));
@@ -39,7 +40,7 @@ vi.mock("@/lib/logger", async (orig) => {
   return { ...m, logger: { ...m.logger, withSurface: () => ({ info: h.info, warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) } };
 });
 
-import { linkJournalPeople, linkNamedPeople } from "@/lib/services/people/journal-link";
+import { JOURNAL_EXCERPT_CHARS, journalExcerpt, linkJournalPeople, linkNamedPeople } from "@/lib/services/people/journal-link";
 
 const createdAt = new Date("2026-11-03T14:00:00Z");
 const setPeople = (...names: Array<[string, string]>) => {
@@ -55,6 +56,7 @@ const link = async (rawText: string) => {
 
 beforeEach(() => {
   h.info.mockClear();
+  h.memoryCreate.mockClear();
 });
 
 describe("linkNamedPeople · case and sentence start (item 2)", () => {
@@ -121,5 +123,51 @@ describe("linkJournalPeople · the model path refuses namesakes too (item 8)", (
     const r = await linkJournalPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: "Sam came by", people: [{ name: "Sam", interacted: false }] });
     expect(r.personIds).toEqual([]);
     expect(r.rejectedNames).toEqual(["Sam"]);
+  });
+});
+
+// Codex round, finding 6: the resolver writes its audit row when it matches, so a refused namesake must never reach it.
+describe("linkJournalPeople · a refused namesake writes nothing", () => {
+  const linkOne = (name: string) => linkJournalPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: `saw ${name}`, people: [{ name, interacted: false }] });
+
+  it('"sam" with Sam and SAM: no link and no people_intelligence_merge row', async () => {
+    setPeople(["p_sam1", "Sam"], ["p_sam2", "SAM"]);
+    const r = await linkOne("sam");
+    expect(r.personIds).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.memoryCreate).not.toHaveBeenCalled();
+  });
+
+  it("control: a unique case-insensitive match links and keeps its one audit row", async () => {
+    setPeople(["p_sam1", "Sam"]);
+    expect((await linkOne("sam")).personIds).toEqual(["p_sam1"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.memoryCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Codex round, finding 7: the excerpt shows the sentence about the person, by the link's own rule.
+describe("journalExcerpt · the window opens on the person", () => {
+  const filler = " and then the rest of a long day at the shop with the lifts, the tires, the phones and the parts order that never showed up".repeat(2);
+
+  it('"I will finish ..." does not win over "called Will"', () => {
+    const text = `I will finish the brakes${filler}, later I called Will about the invoice.`;
+    expect(text.length).toBeGreaterThan(JOURNAL_EXCERPT_CHARS);
+    expect(journalExcerpt(text, "Will")).toContain("called Will");
+  });
+
+  it("a one-word name opening a sentence gives way to a later mention inside one", () => {
+    const text = `Will do it all tomorrow${filler}. I told Will on the phone.`;
+    expect(journalExcerpt(text, "Will")).toContain("told Will");
+  });
+
+  it("a full name wins at any position, the start of a sentence included", () => {
+    const text = `${filler.trim()}. Sam Jones came by for the brakes and stayed.`;
+    expect(journalExcerpt(text, "Sam Jones")).toContain("Sam Jones came by");
+  });
+
+  it("control: a line the model linked in lower case still opens on the name", () => {
+    const text = `${filler.trim()} and dania came by after that.`;
+    expect(journalExcerpt(text, "Dania")).toContain("dania came by");
   });
 });

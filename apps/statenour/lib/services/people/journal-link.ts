@@ -20,7 +20,7 @@
 import { prisma } from "@/lib/prisma";
 import { resolvePersonByName } from "@/lib/brain/person-profile-fuzzy";
 import { PersonNotFoundError, recordInteractionOnce } from "@/lib/services/people/record-interaction";
-import { nameMatcher, namedInText } from "@/lib/services/people/backfill-plan";
+import { nameIndexIn, namedInText } from "@/lib/services/people/backfill-plan";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { endOfDayET, startOfDayET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
@@ -73,15 +73,17 @@ export interface JournalLinkResult {
 }
 
 async function resolveUnique(name: string): Promise<{ id: string; name: string; tier: "exact" | "case_insensitive" } | null> {
+  // Counted BEFORE the resolver: it writes an Auto-merged row when it matches, and its hit on two "Sam" profiles is the
+  // FIRST of them, which is a guess. A refused namesake must leave nothing behind (W8b).
+  const hits = await prisma.personProfile.count({
+    where: { name: { equals: name.trim(), mode: "insensitive" }, deletedAt: null },
+  });
+  if (hits !== 1) return null;
   // fuzzy:false: the gate refuses the Levenshtein and Jaro-Winkler tiers, so they never run (and never log an Auto-merged row).
   const r = await resolvePersonByName(name, { createIfMissing: false, fuzzy: false });
   if (!r.matched || !r.person) return null;
   if (r.matchTier !== "exact" && r.matchTier !== "case_insensitive") return null;
-  // Both tiers: the resolver's exact hit is the FIRST of two "Sam" profiles, which is a guess (W8b manager round 1).
-  const hits = await prisma.personProfile.count({
-    where: { name: { equals: name.trim(), mode: "insensitive" }, deletedAt: null },
-  });
-  return hits === 1 ? { id: r.person.id, name: r.person.name, tier: r.matchTier } : null;
+  return { id: r.person.id, name: r.person.name, tier: r.matchTier };
 }
 
 /** Resolve, store the ids on the entry, then write one contact row per interacted person. Throws only on the id write. */
@@ -205,14 +207,13 @@ export interface LatestJournal {
 
 /**
  * The card excerpt: whole up to JOURNAL_EXCERPT_CHARS, else JOURNAL_EXCERPT_CHARS characters (trailing space trimmed)
- * plus an ellipsis. With a `name`, the window opens a little before the first whole-word match of that name (W8b,
- * audit B12, the chatSnippets shape), so the line shows the sentence about the person, not an unrelated prefix.
+ * plus an ellipsis. With a `name`, the window opens a little before the mention nameIndexIn picks (W8b, audit B12, the
+ * chatSnippets shape), so the line shows the sentence about the person, not an unrelated prefix or "I will".
  */
 export function journalExcerpt(raw: string, name?: string): string {
   const t = raw.trim();
   if (t.length <= JOURNAL_EXCERPT_CHARS) return t;
-  const m = name ? nameMatcher(name).exec(t) : null;
-  const from = m ? Math.max(0, m.index - 40) : 0;
+  const from = Math.max(0, (name ? nameIndexIn(t, name) : 0) - 40);
   const lead = from > 0 ? "…" : "";
   return `${lead}${t.slice(from, from + JOURNAL_EXCERPT_CHARS).trim()}…`;
 }

@@ -28,7 +28,7 @@ describe("PersonJournalLine", () => {
     );
     expect(html).toMatch(/Journal, 0d ago: <!-- -->Talked to Dania about the move\.|Journal, 0d ago: Talked to Dania about the move\./);
     // W8b: the line is a tap to the entry itself (the feed anchors each entry as bd-<id>).
-    expect(html).toContain('href="/journal#bd-d1"');
+    expect(html).toContain('href="/journal?entry=d1#bd-d1"');
   });
   it("control: null renders no 'Journal,' line", () => {
     expect(renderToStaticMarkup(<PersonJournalLine latestJournal={null} formatDays={() => "x"} />)).toBe("");

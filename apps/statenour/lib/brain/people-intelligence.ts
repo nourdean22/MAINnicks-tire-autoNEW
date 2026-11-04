@@ -105,6 +105,7 @@ export async function runPeopleIntelligence(): Promise<{
   /** Set when the cadence pass could not read the ledger: no proposal was guessed. */
   cadence?: "ledger_read_failed";
   /** W8b: sparse people with context the per-run cap left for a later run (0 = everyone due was tried). */
+  enrichChecked?: number;
   enrichDeferred?: number;
 }> {
   const alerts: string[] = [];
@@ -175,6 +176,7 @@ export async function runPeopleIntelligence(): Promise<{
   let ledgerReadFailed = false;
   let chatReadFailed = false;
   let tried = 0;
+  let reached = 0;
   let modelFailCount = 0;
   let enrichFailCount = 0;
   const suggestedNow = new Set<string>();
@@ -213,6 +215,7 @@ export async function runPeopleIntelligence(): Promise<{
     // Nothing on record and nothing he wrote means nothing to ground a suggestion in: no call.
     for (const person of ledgerReadFailed ? [] : sparse) {
       if (calls >= ENRICH_CALLS_PER_RUN) break;
+      reached++;
       const logged = ledgerContext[person.id] ?? [];
       const said =
         logged.length < CONTEXT_MAX
@@ -320,8 +323,12 @@ Return ONLY JSON:
           suggestedNow.add(person.id);
         }
       } catch (err) {
-        // Lost the swap: he answered the banner mid-run. His answer stands; not a failure.
-        if ((err as { code?: unknown } | null)?.code !== "P2025") enrichFailCount++;
+        // Lost the swap: he answered the banner mid-run. His answer stands; not a failure. Any other failed write
+        // parked nothing, so no stamp: the person stays eligible next run.
+        if ((err as { code?: unknown } | null)?.code !== "P2025") {
+          enrichFailCount++;
+          continue;
+        }
       }
       if (!stamped) {
         const next = { ...meta, enrichTriedAt: triedAt };
@@ -343,12 +350,14 @@ Return ONLY JSON:
       .map((p) => ({ ...p, metadata: stampedMeta.get(p.id) ?? p.metadata })),
   );
 
-  const enrichDeferred = ledgerReadFailed ? 0 : Math.max(0, sparse.length - tried);
+  // Only the people the call cap kept the run from reaching: one with nothing to ground a call in was reached.
+  const enrichDeferred = ledgerReadFailed ? 0 : Math.max(0, sparse.length - reached);
   if (enrichDeferred > 0) log.info("people_enrich_deferred", { enrichDeferred, tried, cap: ENRICH_CALLS_PER_RUN });
 
   return {
     profilesUpdated: updated,
     alerts,
+    enrichChecked: tried,
     enrichDeferred,
     ...(ledgerReadFailed
       ? { enrich: "ledger_read_failed" as const }

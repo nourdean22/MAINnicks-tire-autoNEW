@@ -12,6 +12,7 @@
  * passes its own actions to the inspector as `extraActions`.
  */
 
+import { journalEntryHref } from "./journal-entry-href";
 import { ENTITY_KIND_LABEL, formatEntityRef, type EntityKind, type EntityRef } from "@/lib/ui/entity-ref";
 import { INSPECT_PARAM } from "@/lib/ui/inspect-url";
 
@@ -61,7 +62,7 @@ export function homeRouteFor(ref: EntityRef): string | null {
     case "decision":
       return `/decisions/${id}`;
     case "journal":
-      return `/journal#bd-${id}`;
+      return journalEntryHref(id);
     case "pin":
       return `/brain?tab=memory#pin-${id}`;
     case "claim":

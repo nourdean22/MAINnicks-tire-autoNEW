@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { etDaysBetween } from "@/lib/brain/goal-pace";
+import { journalEntryHref } from "@/lib/ui/journal-entry-href";
 
 export function JournalReadStatus({ reads }: { reads: { journal: "ok" | "failed" } | undefined }) {
   if (reads?.journal !== "failed") return null;
@@ -25,9 +26,9 @@ export function PersonJournalLine({
   if (!latestJournal) return null;
   return (
     <p className="mt-1 text-[12px] text-fg-tertiary line-clamp-2">
-      {/* W8b: a tap opens the entry itself (the feed anchors each entry as bd-<id>); the row's own click is stopped. */}
+      {/* W8b: a tap opens the entry itself, whatever its age; the row's own click is stopped. */}
       <Link
-        href={`/journal#bd-${latestJournal.dumpId}`}
+        href={journalEntryHref(latestJournal.dumpId)}
         onClick={(e) => e.stopPropagation()}
         className="underline-offset-4 hover:text-fg hover:underline"
       >

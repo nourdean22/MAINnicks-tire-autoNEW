@@ -73,6 +73,18 @@ export function nameMatcher(name: string, flags = "iu"): RegExp {
 /** The text before a match when the match opens a sentence: nothing, or a stop or newline, then quotes and spaces. */
 const SENTENCE_START = /(?:^|[.!?\n])["'\u201C\u2018(\s]*$/;
 
+const opensSentence = (text: string, at: number) => SENTENCE_START.test(text.slice(0, at));
+
+/**
+ * Where a line talks about this person, for the excerpt: by namedInText's rule first, then any exact-case hit, then
+ * any case (a line the model linked may spell the name in lower case). -1 when the name is not in the text.
+ */
+export function nameIndexIn(text: string, name: string): number {
+  const exact = [...text.matchAll(nameMatcher(name, "gu"))];
+  const counted = /\s/.test(name.trim()) ? exact[0] : exact.find((m) => !opensSentence(text, m.index));
+  return (counted ?? exact[0])?.index ?? text.search(nameMatcher(name));
+}
+
 /**
  * Who a line names, for a link no model checks (W8b manager round 1): the composer's and the weekly review's save-time
  * link and the journal backfill. It errs toward linking no one:
@@ -94,7 +106,7 @@ export function namedInText(text: string, people: readonly PersonRef[]): { peopl
   for (const [key, group] of [...byName].sort(([a], [b]) => b.length - a.length)) {
     const fullName = /\s/.test(key);
     const hit = group.some((p) =>
-      [...rest.matchAll(nameMatcher(p.name, "gu"))].some((m) => fullName || !SENTENCE_START.test(rest.slice(0, m.index))),
+      [...rest.matchAll(nameMatcher(p.name, "gu"))].some((m) => fullName || !opensSentence(rest, m.index)),
     );
     if (fullName) for (const p of group) rest = rest.replace(nameMatcher(p.name, "gu"), (m) => "_".repeat(m.length));
     if (!hit) continue;

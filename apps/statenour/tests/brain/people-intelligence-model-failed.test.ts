@@ -79,6 +79,46 @@ describe("a failed model call (item 1)", () => {
   });
 });
 
+// Codex round, finding 1: a suggestion that was never parked must not cost the person 7 days.
+describe("a failed proposal write", () => {
+  const answer = { content: JSON.stringify({ role: "mentor", leverageNotes: "knows the lease", trustAdjustment: 0 }), provider: "ollama" };
+
+  it("leaves the person eligible next run: no stamp is written, and the run says so", async () => {
+    h.aiChat.mockResolvedValue(answer);
+    h.personUpdate.mockRejectedValueOnce(new Error("db down"));
+    const r = await runPeopleIntelligence();
+    expect(updates().slice(1).some((u) => u.data.metadata && "enrichTriedAt" in u.data.metadata)).toBe(false);
+    expect(r.enrich).toBe("write_failed");
+  });
+
+  it("control: a lost swap (he answered the banner) is an answered call, so it still stamps", async () => {
+    h.aiChat.mockResolvedValue(answer);
+    h.personUpdate.mockRejectedValueOnce(Object.assign(new Error("no match"), { code: "P2025" }));
+    const r = await runPeopleIntelligence();
+    expect(updates().slice(1).some((u) => u.data.metadata && "enrichTriedAt" in u.data.metadata)).toBe(true);
+    expect(r.enrich).toBeUndefined();
+  });
+});
+
+// Codex round, finding 2: deferred means not reached by the cap, and the run names how many it checked.
+describe("checked and deferred counts", () => {
+  it("a person with nothing to ground a call in is not deferred: the run reached them", async () => {
+    h.peopleFindMany.mockResolvedValue([person, { ...person, id: "b", name: "Bassem" }]);
+    h.aiChat.mockResolvedValue({ content: JSON.stringify({ role: "friend", leverageNotes: "", trustAdjustment: 0 }), provider: "ollama" });
+    const r = await runPeopleIntelligence();
+    expect(r).toMatchObject({ enrichChecked: 1, enrichDeferred: 0 });
+  });
+
+  it("past the call cap, the rest are deferred", async () => {
+    const seven = ["a", "b", "c", "d", "e", "f", "g"].map((id) => ({ ...person, id, name: `Person ${id}` }));
+    h.peopleFindMany.mockResolvedValue(seven);
+    h.ledgerFindMany.mockResolvedValue(seven.map((p) => ({ personId: p.id, note: "helped a move", metadata: null, createdAt: new Date(), source: "manual", amount: 1 })));
+    h.aiChat.mockResolvedValue({ content: JSON.stringify({ role: "friend", leverageNotes: "", trustAdjustment: 0 }), provider: "ollama" });
+    const r = await runPeopleIntelligence();
+    expect(r).toMatchObject({ enrichChecked: 5, enrichDeferred: 2 });
+  });
+});
+
 describe("the cadence write keeps the run's stamp (items 6, 9)", () => {
   it("a person stamped then proposed keeps enrichTriedAt, and the swap pins the metadata it builds on", async () => {
     h.aiChat.mockResolvedValue({ content: JSON.stringify({ role: "friend", leverageNotes: "", trustAdjustment: 0 }), provider: "ollama" });

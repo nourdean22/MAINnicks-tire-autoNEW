@@ -121,6 +121,11 @@ describe("GET /api/people · engine line", () => {
     expect((await call()).engine).toMatchObject({ state: "ran", reason: null });
   });
 
+  it("a partial run keeps its reason", async () => {
+    h.audit.mockResolvedValue({ createdAt: new Date("2026-11-01T03:00:00Z"), detail: "Updated 0 profiles", payload: { state: "partial", reason: "checked 5, 3 still to check" } });
+    expect((await call()).engine).toMatchObject({ state: "partial", reason: "checked 5, 3 still to check" });
+  });
+
   it("a claim row that never finished: running while young, failed once stale", async () => {
     h.audit.mockResolvedValue({ createdAt: new Date(Date.now() - 60_000), detail: "running", payload: { state: "running" } });
     expect((await call()).engine.state).toBe("running");
