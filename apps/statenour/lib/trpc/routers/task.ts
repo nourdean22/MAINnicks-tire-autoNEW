@@ -290,6 +290,18 @@ export const taskRouter = router({
     .query(async ({ input }) => missionChats(input.missionIds)),
 
   /**
+   * W8c · the goal an unlinked mission most likely belongs under (the edit drawer's "Suggested: <goal> · Use").
+   * Returns a status (linked · no_active_goals · no_match · suggested); a failed read throws, so the drawer says
+   * "couldn't suggest", never an empty answer.
+   */
+  suggestMissionGoal: operatorProcedure
+    .input(z.object({ missionId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { suggestGoalStatusForMission } = await import("@/lib/missions/suggest-goal");
+      return suggestGoalStatusForMission(input.missionId);
+    }),
+
+  /**
    * Phase PP · owner-only · list goals with optional horizon / domain
    * filter + soft-deleted toggle. Matches the legacy REST query
    * params verbatim. Goal-cache shape returned at `{goals: [...]}` to
@@ -966,7 +978,8 @@ export const taskRouter = router({
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({
-            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            // W8c · a refused goal link (not an active goal) is the caller's error, not the server's.
+            code: err.status === 404 ? "NOT_FOUND" : err.status === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
             message: err.message,
           });
         }

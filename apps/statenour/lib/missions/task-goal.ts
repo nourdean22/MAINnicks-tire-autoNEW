@@ -115,8 +115,15 @@ export function goalFilterLabel(goalId: string, options: { id: string; title: st
   return g ? `goal · ${g.title} · no linked work` : "goal · archived or not found";
 }
 
-export function goalFilterHref(goalId: string | null): string {
-  return goalId ? `/missions?goalId=${encodeURIComponent(goalId)}` : "/missions";
+/**
+ * The /missions link that sets (or, with null, clears) the goal filter. Pass the page's current query and the other
+ * params survive (W8c: a chip tap kept dropping ?inspect=, closing the open task inspector).
+ */
+export function goalFilterHref(goalId: string | null, current?: string | URLSearchParams | null): string {
+  const params = new URLSearchParams(current ?? undefined);
+  params.delete("goalId");
+  const query = [params.toString(), goalId ? `goalId=${encodeURIComponent(goalId)}` : ""].filter(Boolean).join("&");
+  return query ? `/missions?${query}` : "/missions";
 }
 
 /** goalId -> the pace the goal card shows (goalPaceView), in the shape hidden-risk reads. */

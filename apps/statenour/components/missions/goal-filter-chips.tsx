@@ -8,7 +8,8 @@
  */
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { GOAL_CHIP_WIDTH, goalFilterHref } from "@/lib/missions/task-goal";
+import { GOAL_CHIP_WIDTH } from "@/lib/missions/task-goal";
+import { useGoalFilterHref } from "./use-goal-filter-href";
 
 export function GoalFilterChips({
   options,
@@ -19,6 +20,7 @@ export function GoalFilterChips({
   selectedId: string | null;
   goalsRead: "ok" | "loading" | "failed";
 }) {
+  const goalFilterHref = useGoalFilterHref();
   if (options.length === 0) {
     return goalsRead === "failed" ? (
       <p className="font-mono text-[11px] text-fg-tertiary">goal titles not read this pass</p>

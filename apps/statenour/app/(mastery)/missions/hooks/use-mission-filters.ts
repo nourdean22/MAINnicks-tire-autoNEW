@@ -13,8 +13,10 @@ export type KindFilter = "all" | LoopKind;
 export function useMissionFilters(tasks: GoalTask[], missions: Project[]) {
   // 2026-11-02 · the goal filter lives in the URL (?goalId=) so the goal card can deep-link here.
   const router = useRouter();
-  const goalFilter = useSearchParams().get("goalId") || null;
-  const setGoalFilter = (id: string | null) => router.replace(goalFilterHref(id), { scroll: false });
+  const searchParams = useSearchParams();
+  const goalFilter = searchParams.get("goalId") || null;
+  // W8c · merge, not replace: ?inspect= (the open task inspector) survives a filter change.
+  const setGoalFilter = (id: string | null) => router.replace(goalFilterHref(id, searchParams.toString()), { scroll: false });
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState<string | null>(null);

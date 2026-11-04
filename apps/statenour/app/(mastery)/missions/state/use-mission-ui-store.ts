@@ -6,6 +6,8 @@ interface MissionUIState {
   missionEditOpen: boolean;
   missionEditId: string | null;
   missionEditInitial: any;
+  /** The field the mission editor opens at (the card's "align to goal" opens at goal). */
+  missionEditFocus: "goal" | null;
   taskEditOpen: boolean;
   taskEditTarget: Task | null;
   /** The field the task editor opens at (the row's "Align to goal" opens at goal). */
@@ -14,7 +16,7 @@ interface MissionUIState {
   queuedTaskId: string | null;
 
   setRetroState: (state: { missionId: string; title: string } | null) => void;
-  openMissionEdit: (id?: string | null, initial?: any) => void;
+  openMissionEdit: (id?: string | null, initial?: any, focus?: "goal" | null) => void;
   closeMissionEdit: () => void;
   openTaskEdit: (task: Task | null, focus?: "goal" | null) => void;
   closeTaskEdit: () => void;
@@ -27,6 +29,7 @@ export const useMissionUIStore = create<MissionUIState>((set) => ({
   missionEditOpen: false,
   missionEditId: null,
   missionEditInitial: undefined,
+  missionEditFocus: null,
   taskEditOpen: false,
   taskEditTarget: null,
   taskEditFocus: null,
@@ -34,9 +37,9 @@ export const useMissionUIStore = create<MissionUIState>((set) => ({
   queuedTaskId: null,
 
   setRetroState: (retroState) => set({ retroState }),
-  openMissionEdit: (id = null, initial = undefined) =>
-    set({ missionEditOpen: true, missionEditId: id, missionEditInitial: initial }),
-  closeMissionEdit: () => set({ missionEditOpen: false, missionEditId: null, missionEditInitial: undefined }),
+  openMissionEdit: (id = null, initial = undefined, focus = null) =>
+    set({ missionEditOpen: true, missionEditId: id, missionEditInitial: initial, missionEditFocus: focus }),
+  closeMissionEdit: () => set({ missionEditOpen: false, missionEditId: null, missionEditInitial: undefined, missionEditFocus: null }),
   openTaskEdit: (task, focus = null) => set({ taskEditOpen: true, taskEditTarget: task, taskEditFocus: focus }),
   closeTaskEdit: () => set({ taskEditOpen: false, taskEditTarget: null, taskEditFocus: null }),
   setExecutionModeActive: (executionModeActive) => set({ executionModeActive }),
