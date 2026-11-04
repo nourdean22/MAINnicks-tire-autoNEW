@@ -4,8 +4,9 @@ This is a REVIEW, not uptime monitoring. Uptime is already watched hourly by `.g
 (cron `17 * * * *`), which runs on GitHub and keeps working when this PC is off. Do not duplicate it.
 
 Schedule: 08:00 and 18:00 America/New_York wall clock (local Claude Desktop scheduled tasks
-`nourcity-heartbeat-am` / `nourcity-heartbeat-pm`). They run only while Claude Desktop is open and the PC is awake.
-Silent for a day? `list_task_runs` on each id: `taskDeleted: true` (both, found 2026-11-03) means only Nour can re-register them.
+`nourcity-heartbeat-8am` / `nourcity-heartbeat-6pm`). They run only while Claude Desktop is open and the PC is awake.
+Silent for a day? `list_task_runs` on each id; `taskDeleted: true` means only Nour can re-register it.
+History: the first ids (`nourcity-heartbeat-am` / `-pm`) were found deleted 2026-11-03; recreated 2026-11-04 as the two above.
 Also runs when Nour says "heartbeat". Run from the primary checkout `C:\Users\nourd\NattyNour\nicks-tire`.
 
 Allowed effects: reads, plus one push notification to Nour when the status changes. Nothing else: no edits,

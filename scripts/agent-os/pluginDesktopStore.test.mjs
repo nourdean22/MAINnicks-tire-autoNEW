@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -103,6 +103,31 @@ test("an unreadable Desktop manifest (caught mid-rewrite) reads plugins UNKNOWN,
   }));
   assert.match(r.line, /^plugins UNKNOWN \(.*manifest\.json: bad JSON.*\)$/, r.out);
   for (const p of synced) assert.ok(!r.out.includes(p.enable), `told Nour to enable ${p.name} on a failed read:\n${r.out}`);
+});
+
+// Codex on PR 3543 (P2): every Claude_* package dir was unioned, first dir per name winning, so a stale package left by an
+// MSIX upgrade could satisfy a required plugin Desktop no longer loads. One store counts: the newest manifest.json.
+test("two Desktop packages: only the newest manifest counts, a plugin only the stale one lists reads MISSING, and a warning names the stale dir", async () => {
+  const [gone, ...kept] = synced;
+  const home = makeHome("two-packages", (h) => {
+    const pkg = (name) => join(h, "AppData", "Local", "Packages", name, "LocalCache", "Roaming", "Claude");
+    desktopStore(pkg("Claude_0ldpackage"), ACCOUNT, synced); // the stale package still lists every plugin
+    const old = new Date(Date.now() - 7 * 24 * 3600_000);
+    const oldManifest = join(pkg("Claude_0ldpackage"), "rpm", ACCOUNT.accountUuid.slice(0, 8), ACCOUNT.organizationUuid.slice(0, 8), "manifest.json");
+    utimesSync(oldManifest, old, old);
+    desktopStore(pkg("Claude_newpackage"), ACCOUNT, kept);
+  });
+  assert.equal(pluginPart(home).line, `plugins MISSING: ${gone.name}`);
+  const { enabledPlugins } = await import("./plugin-index.mjs");
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  delete process.env.CLAUDE_CONFIG_DIR;
+  try {
+    const { warnings, readErrors } = enabledPlugins(home);
+    assert.ok(warnings.some((w) => w.includes("Claude_0ldpackage")), `no warning names the stale package: ${JSON.stringify(warnings)}`);
+    assert.ok(!readErrors.some((w) => w.includes("Claude_0ldpackage")), "a stale package is not a failed read");
+  } finally {
+    if (prev !== undefined) process.env.CLAUDE_CONFIG_DIR = prev;
+  }
 });
 
 test("a manifest entry whose folder is gone, and a folder the manifest does not list, both read MISSING", () => {

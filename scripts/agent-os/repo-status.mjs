@@ -43,6 +43,26 @@ const ROW_CONCURRENCY = 16;
 const GIT_CONCURRENCY = 6;
 const TIMEOUT_CELL = "UNKNOWN (timeout)";
 
+/** The tree-kill's platform and process call, properties so a canary can fake them off Windows (repoStatusBudget). */
+export const killDeps = { platform: process.platform, spawn };
+
+/**
+ * Kill a child, and on Windows its whole tree: `git` there is the Git\cmd wrapper, and killing it alone left the real
+ * git.exe and its conhost running (manager round 1). Never blocks: the budget's abort runs every listener synchronously,
+ * and six blocking taskkills in a row held the answer for about 30 s (Codex, PR 3543). child.kill() is the fallback.
+ */
+function killTree(child) {
+  if (killDeps.platform !== "win32" || !child.pid) return void child.kill();
+  let k;
+  try {
+    k = killDeps.spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  } catch {
+    return void child.kill();
+  }
+  k.on("error", () => child.kill());
+  k.on("exit", (code) => { if (code !== 0) child.kill(); });
+}
+
 /** The run budget: a signal that aborts after `ms`, and stop() to clear its timer once the work is done. */
 export function budgetSignal(ms) {
   const deadline = new AbortController();
@@ -70,10 +90,7 @@ export function runBounded(cmd, args, { cwd, env, timeoutMs = SPAWN_TIMEOUT_MS, 
     };
     const stop = (why) => {
       settle();
-      // The whole tree on Windows: `git` there is the Git\cmd wrapper, and killing it alone left the real git.exe and its
-      // conhost running (manager round 1). child.kill() stays the fallback, and the only kill elsewhere.
-      const tree = process.platform === "win32" && child.pid ? spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 5000 }) : null;
-      if (tree?.status !== 0) child.kill();
+      killTree(child);
       child.stdout.destroy();
       child.stderr.destroy();
       reject(timedOut(why));

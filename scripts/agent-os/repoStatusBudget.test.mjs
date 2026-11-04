@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -114,6 +115,30 @@ test("runBounded: a timeout kills the whole tree on Windows, so the grandchild b
   const alive = () => { try { process.kill(gpid, 0); return true; } catch { return false; } };
   for (let i = 0; i < 30 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
   assert.equal(alive(), false, `grandchild pid ${gpid} outlived its parent's timeout`);
+});
+
+// Codex on PR 3543 (P1): the budget's abort runs every listener synchronously, and each one blocked in a 5 s
+// spawnSync("taskkill"), one after another: with 6 git children live, about 30 s before anything settled. The kill path
+// is faked here (platform "win32", a blocking spawnSync like the real one, a non-blocking spawn) so it runs anywhere.
+test("budget abort with 6 hanging children: every read settles timed-out at once, a slow tree-kill never holds the answer", { timeout: 30_000 }, async (t) => {
+  const { budgetSignal, killDeps, runBounded } = await import("./repo-status.mjs");
+  const real = { ...killDeps };
+  t.after(() => Object.assign(killDeps, real));
+  const SLOW_KILL_MS = 1500;
+  killDeps.platform = "win32";
+  // The old design's blocking call, shaped like the real spawnSync (red on d7810ff5d9: settled 9621 ms after start). The
+  // fixed code never calls it; it stays so a regression that blocks through killDeps.spawnSync goes red here again.
+  killDeps.spawnSync = () => { const until = Date.now() + SLOW_KILL_MS; while (Date.now() < until); return { status: 1 }; };
+  killDeps.spawn = () => { const k = new EventEmitter(); setTimeout(() => k.emit("exit", 1), SLOW_KILL_MS); return k; };
+  const BUDGET = 600;
+  const { signal, stop } = budgetSignal(BUDGET);
+  const started = Date.now();
+  const reads = await Promise.allSettled(Array.from({ length: 6 }, () => runBounded(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { timeoutMs: 60_000, signal })));
+  const ms = Date.now() - started;
+  stop();
+  assert.ok(reads.every((r) => r.status === "rejected" && r.reason?.timedOut === true), JSON.stringify(reads.map((r) => r.status)));
+  assert.ok(ms < BUDGET + 1000, `settled ${ms} ms after start, budget ${BUDGET} ms (each slow kill blocked the next?)`);
+  await new Promise((r) => setTimeout(r, SLOW_KILL_MS + 500)); // the fallback child.kill() runs when the fake taskkill "fails"
 });
 
 // Manager round 1 (P2): the compare read's empty catch turned a TIMEOUT into "ahead unknown", and a branch 0 commits

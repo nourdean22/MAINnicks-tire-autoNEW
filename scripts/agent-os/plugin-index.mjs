@@ -108,15 +108,20 @@ export function enabledPlugins(home, projectDir) {
 
   try {
     if (acct?.organizationUuid && acct?.accountUuid) {
+      // ONE store counts: the newest manifest.json. An MSIX upgrade can leave an older Claude_* package beside the live one,
+      // and its manifest still lists plugins Desktop no longer loads (Codex, PR 3543). The others are named, not read.
+      const stores = desktopAppDataDirs(home)
+        .map((appData) => join(appData, "rpm", acct.accountUuid.slice(0, 8), acct.organizationUuid.slice(0, 8)))
+        .map((bucket) => ({ bucket, mtimeMs: statSync(join(bucket, "manifest.json"), { throwIfNoEntry: false })?.mtimeMs }))
+        .filter((s) => s.mtimeMs !== undefined)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      if (stores.length > 1) warnings.push(`Desktop plugin store: newest manifest used; ignored ${stores.slice(1).map((s) => s.bucket).join(", ")}`);
       let gone = 0;
-      for (const appData of desktopAppDataDirs(home)) {
-        const bucket = join(appData, "rpm", acct.accountUuid.slice(0, 8), acct.organizationUuid.slice(0, 8));
-        for (const { id } of readJson(join(bucket, "manifest.json"))?.plugins ?? []) {
-          if (typeof id !== "string" || !/^plugin_[A-Za-z0-9]+$/.test(id)) continue; // a dir name, never a path
-          const dir = join(bucket, id);
-          if (existsSync(dir)) add({ name: pluginName(dir), dir, source: "desktop" });
-          else gone += 1;
-        }
+      for (const { id } of stores.length ? readJson(join(stores[0].bucket, "manifest.json"))?.plugins ?? [] : []) {
+        if (typeof id !== "string" || !/^plugin_[A-Za-z0-9]+$/.test(id)) continue; // a dir name, never a path
+        const dir = join(stores[0].bucket, id);
+        if (existsSync(dir)) add({ name: pluginName(dir), dir, source: "desktop" });
+        else gone += 1;
       }
       if (gone) warnings.push(`${gone} Desktop account plugin dir(s) listed in rpm/manifest.json but missing`);
     }
