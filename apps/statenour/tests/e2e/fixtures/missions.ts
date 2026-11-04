@@ -297,8 +297,8 @@ export const MISSION_GOALS = {
   ],
 };
 /**
- * task.missionChats (job 2026-11-02 W7, map gap 8): no demo chat is linked to a mission, so the chats line
- * renders nothing and the /missions snapshots do not move. Its rendered states are unit-tested
- * (tests/missions/mission-chats.test.tsx).
+ * task.missionChats (job 2026-11-02 W7, map gap 8): no demo chat is linked to a mission, so no card renders a
+ * chats line; since W8c the feed shows its one "No chats linked yet" line above the cards. Its rendered states are
+ * unit-tested (tests/missions/mission-chats.test.tsx).
  */
-export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMission: {}, truncated: false };
+export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMission: {}, truncated: false, reviewByMission: {} };

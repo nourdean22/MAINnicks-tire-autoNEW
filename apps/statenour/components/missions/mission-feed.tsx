@@ -29,7 +29,7 @@ import { useMemo, useState } from "react";
 import type { Project, Task } from "@/components/actions/shared";
 import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
-import { missionChatsReadFor } from "./mission-chats-line";
+import { MissionChatsEmptyLine, boardChatsEmpty, missionChatsReadFor } from "./mission-chats-line";
 import { trpc } from "@/lib/trpc/client";
 import { MISSION_CHATS_IDS_MAX } from "@/lib/missions/mission-chats-limits";
 
@@ -170,6 +170,8 @@ export function MissionFeed({ missions, tasks, taskRank }: MissionFeedProps) {
         </span>
       </div>
       )}
+      {/* W8c · a measured board with no linked chat says so once, not 13 empty card lines. */}
+      {activeMissions.length > 0 && boardChatsEmpty(chatsQ) && <MissionChatsEmptyLine />}
       {/* Mission cards · a ruled list, not a stack of boxes */}
       {activeMissions.length === 0 ? (
         <EmptyMissions />

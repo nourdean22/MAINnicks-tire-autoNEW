@@ -48,7 +48,8 @@ export interface MissionTaskRowProps {
 import { nextMondayMorning, tomorrowMorning } from "@/lib/missions/snooze-presets";
 import { formatDueHint } from "@/lib/missions/due-hint";
 import Link from "next/link";
-import { GOAL_CHIP_WIDTH, goalFilterHref, type GoalTask } from "@/lib/missions/task-goal";
+import { GOAL_CHIP_WIDTH, type GoalTask } from "@/lib/missions/task-goal";
+import { useGoalFilterHref } from "./use-goal-filter-href";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
 export function MissionTaskRow({
@@ -156,6 +157,7 @@ export function MissionTaskRow({
   })();
 
   const rowGoal = (task as Partial<GoalTask>).goal ?? null;
+  const goalHref = useGoalFilterHref();
   const dueHint = formatDueHint(task.dueDate);
   // 2026-09-15 · UI workbench · the row is an addressable object: data-entity
   // makes j/k/Space/Enter/x work inside the board's selection scope, and the
@@ -436,7 +438,7 @@ export function MissionTaskRow({
          *  is on the mission card above, so the row stays quiet (lib/missions/task-goal). */}
         {rowGoal?.source === "task" && rowGoal.missing !== "loading" && (
           <Link
-            href={goalFilterHref(rowGoal.id)}
+            href={goalHref(rowGoal.id)}
             replace
             scroll={false}
             onClick={(e) => e.stopPropagation()}

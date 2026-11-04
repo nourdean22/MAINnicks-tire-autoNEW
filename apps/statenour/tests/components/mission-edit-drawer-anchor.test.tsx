@@ -17,7 +17,10 @@ import { createRoot, type Root } from "react-dom/client";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }));
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
-    task: { createMission: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) } },
+    task: {
+      createMission: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) },
+      suggestMissionGoal: { useQuery: () => ({ data: undefined, isError: false, isLoading: false }) },
+    },
     useUtils: () => ({
       task: {
         list: { invalidate: async () => {} },

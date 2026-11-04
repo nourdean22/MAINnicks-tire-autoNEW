@@ -292,7 +292,8 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   const handleEditMission = useCallback(
-    (missionId: string) => {
+    // W8c · the card's "align to goal" opens the drawer at its goal select (opts.focus "goal").
+    (missionId: string, opts?: { focus?: "goal" }) => {
       const mission = missions.find((m) => m.id === missionId);
       if (!mission) {
         // The mission list is still loading or failed: an unresponsive Edit button reads as a dead control.
@@ -308,8 +309,8 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         goal: mission.lifeGoal ?? null,
         // The drawer hides Delete for a system lane (GENERAL anchor); the server refuses it too.
         systemKind: mission.systemKind ?? null,
-      });
-      telemetry.event("editMissionOpen", { missionId });
+      }, opts?.focus ?? null);
+      telemetry.event("editMissionOpen", { missionId, ...(opts?.focus ? { focus: opts.focus } : {}) });
     },
     [missions, openMissionEdit, telemetry],
   );

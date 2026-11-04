@@ -405,7 +405,15 @@ export async function createGoal(rawData: z.infer<typeof createGoalSchema>) {
   return goal;
 }
 
-export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
+/**
+ * `opts.source` names a non-route writer on the audit row and on the value's progress_logged / achieved events
+ * (the nightly shop sync passes "shop-bridge"); `opts.progressPayload` rides on the progress_logged event.
+ */
+export async function updateGoal(
+  parsed: z.infer<typeof updateGoalSchema>,
+  opts: { source?: string; progressPayload?: Record<string, unknown> } = {},
+) {
+  const source = opts.source ?? "api:goals.PATCH";
   const { id, progressDelta, archive, restore: restoreFlag, ...rawData } = parsed;
   const data: Record<string, unknown> = { ...rawData };
 
@@ -498,7 +506,7 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     id,
     stripNoise(before as unknown as Record<string, unknown>),
     stripNoise(goal as unknown as Record<string, unknown>),
-    { source: "api:goals.PATCH" },
+    { source },
   );
 
   if (goal.status !== before.status) {
@@ -517,8 +525,9 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     emitGoalEventAsync({
       goalId: id,
       kind: "progress_logged",
-      source: "api:goals.PATCH",
+      source,
       payload: {
+        ...opts.progressPayload,
         delta: nextCurrent - before.currentValue,
         before: before.currentValue,
         after: nextCurrent,
@@ -536,7 +545,7 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     });
   }
   if (data.status === "achieved" && before.status !== "achieved") {
-    emitGoalEventAsync({ goalId: id, kind: "achieved", source: "api:goals.PATCH" });
+    emitGoalEventAsync({ goalId: id, kind: "achieved", source });
   }
   // W6 (2026-11-03): a missed goal is a brain moment too (lib/brain/goal-brain.ts reads the event).
   if (data.status === "missed" && before.status !== "missed") {
