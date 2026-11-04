@@ -331,6 +331,17 @@ export async function updateMission(id: string, input: unknown) {
     throw new ServiceError("Mission not found.", 404);
   }
 
+  // W8c GUARD · a goal link is an ACTIVE goal's id, looked up here, never a client string trusted as is (a goal
+  // title, a paused or deleted goal is refused). An unchanged id passes, so a mission under a goal that was later
+  // paused stays editable; null unlinks.
+  if (payload.lifeGoalId && payload.lifeGoalId !== existing.lifeGoalId) {
+    const goal = await prisma.lifeGoal.findFirst({
+      where: { id: payload.lifeGoalId, status: "active", deletedAt: null },
+      select: { id: true },
+    });
+    if (!goal) throw new ServiceError("That goal is not an active goal.", 400);
+  }
+
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const nextStatus = payload.status || existing.status;
 

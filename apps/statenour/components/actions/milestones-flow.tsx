@@ -59,6 +59,8 @@ export interface MilestonesGoal {
 
 interface MilestonesFlowProps {
   goal: MilestonesGoal;
+  /** W8c · plan INTO this existing mission (the missions page's "Plan from milestones"): no mission is created. */
+  missionId?: string;
   onComplete?: (missionId: string) => void;
   onCancel: () => void;
 }
@@ -88,6 +90,7 @@ export function planToast(r: {
 
 export function MilestonesFlow({
   goal,
+  missionId: existingMissionId,
   onComplete,
   onCancel,
 }: MilestonesFlowProps) {
@@ -97,7 +100,8 @@ export function MilestonesFlow({
   const [error, setError] = useState<string | null>(null);
   // The mission this panel made: a retry after a failed plan call reuses it (audit A4: every later error
   // used to lose the id, and the retry created a second mission).
-  const missionIdRef = useRef<string | null>(null);
+  // A given mission seeds it, so the create step never runs and the server plans into that mission.
+  const missionIdRef = useRef<string | null>(existingMissionId ?? null);
   const createMission = trpc.task.createMission.useMutation();
   const planProjectMut = trpc.ai.planProject.useMutation();
 

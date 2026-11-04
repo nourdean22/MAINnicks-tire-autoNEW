@@ -38,6 +38,7 @@ vi.mock("@/lib/trpc/client", () => {
         leaveMission: { useMutation: mut() },
         decompose: { useMutation: mut() },
         createMission: { useMutation: mut() },
+        suggestMissionGoal: { useQuery: () => ({ data: undefined, isError: false, isLoading: false }) },
       },
       useUtils: () => ({
         task: {
