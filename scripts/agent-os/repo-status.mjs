@@ -20,18 +20,92 @@
  * Usage:
  *   node scripts/agent-os/repo-status.mjs             # local worktrees + their remote state
  *   node scripts/agent-os/repo-status.mjs --all-branches  # + every branch on origin
+ *
+ * BUDGET (2026-11-03): the heartbeat kills this check at 60-120 s, and the serial run took 3-4 min over 87 worktrees,
+ * so it printed nothing. Rows now run 16 at a time (at most 6 git children) inside BUDGET_MS; every git child and GitHub read is cut at
+ * SPAWN_TIMEOUT_MS; a cell that did not answer reads UNKNOWN (timeout) or UNKNOWN (error: ...), never "no" or "-";
+ * the last line is a receipt with both counts. Canary: repoStatusBudget.test.mjs.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureProxyEnv, ghJson, ghPaginate } from "./github-client.mjs";
 import { createGitHubLeaseStore, readLease, isExpired } from "./lease.mjs";
 import { classifyBranch } from "./classify-branch.mjs";
-import { localGitState } from "./agent-finish.mjs";
-import { arg, flag, originOwnerRepo, sh, isMainModule } from "./cli-common.mjs";
+import { flag, originOwnerRepo, ownerRepoFromUrl, isMainModule } from "./cli-common.mjs";
 import { readLocalMarker } from "./local-lease-marker.mjs";
 import { stripGitLocalEnv } from "./gitLocalEnv.mjs";
+
+export const BUDGET_MS = 25_000; // whole default run; under the heartbeat's shortest limit with room to print
+export const SPAWN_TIMEOUT_MS = 5_000; // one git child or one GitHub read (git status here measured ~80 ms)
+const ROW_CONCURRENCY = 16;
+const GIT_CONCURRENCY = 6;
+const TIMEOUT_CELL = "UNKNOWN (timeout)";
+
+/** The tree-kill's platform and process call, properties so a canary can fake them off Windows (repoStatusBudget). */
+export const killDeps = { platform: process.platform, spawn };
+
+/**
+ * Kill a child, and on Windows its whole tree: `git` there is the Git\cmd wrapper, and killing it alone left the real
+ * git.exe and its conhost running (manager round 1). Never blocks: the budget's abort runs every listener synchronously,
+ * and six blocking taskkills in a row held the answer for about 30 s (Codex, PR 3543). child.kill() is the fallback.
+ */
+function killTree(child) {
+  if (killDeps.platform !== "win32" || !child.pid) return void child.kill();
+  let k;
+  try {
+    k = killDeps.spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  } catch {
+    return void child.kill();
+  }
+  k.on("error", () => child.kill());
+  k.on("exit", (code) => { if (code !== 0) child.kill(); });
+}
+
+/** The run budget: a signal that aborts after `ms`, and stop() to clear its timer once the work is done. */
+export function budgetSignal(ms) {
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), ms);
+  return { signal: deadline.signal, stop: () => clearTimeout(timer) };
+}
+
+/**
+ * Run one child without a shell. Resolves trimmed stdout on exit 0; rejects on a non-zero exit or a spawn error, and
+ * with error.timedOut after timeoutMs or when `signal` aborts. On a timeout the child is killed and its pipes dropped,
+ * so a grandchild that inherited a pipe (git's fsmonitor hook, a credential helper) cannot hold the caller.
+ */
+export function runBounded(cmd, args, { cwd, env, timeoutMs = SPAWN_TIMEOUT_MS, signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const timedOut = (why) => Object.assign(new Error(`${why}: ${cmd} ${args.join(" ")}`), { timedOut: true });
+    if (signal?.aborted) return reject(timedOut("run budget spent"));
+    const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let out = "";
+    let err = "";
+    child.stdout.setEncoding("utf8").on("data", (d) => (out += d));
+    child.stderr.setEncoding("utf8").on("data", (d) => (err += d));
+    const settle = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const stop = (why) => {
+      settle();
+      killTree(child);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      reject(timedOut(why));
+    };
+    const timer = setTimeout(() => stop(`timeout after ${timeoutMs} ms`), timeoutMs);
+    const onAbort = () => stop("run budget spent");
+    signal?.addEventListener("abort", onAbort, { once: true });
+    child.on("error", (e) => (settle(), reject(e)));
+    child.on("close", (code) => {
+      settle();
+      if (code === 0) resolve(out.trim());
+      else reject(new Error(err.trim().split("\n")[0] || `${cmd} exited ${code}`));
+    });
+  });
+}
 
 /** Parse `git worktree list --porcelain` into [{path, branch, headSha, detached, locked}]. */
 export function parseWorktreePorcelain(text) {
@@ -78,7 +152,7 @@ const norm = (p) => {
 };
 
 const defaultGit = (args, cwd) =>
-  execFileSync("git", args, { cwd, env: stripGitLocalEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 256 << 20 }).trim();
+  execFileSync("git", args, { cwd, env: stripGitLocalEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 256 << 20, timeout: SPAWN_TIMEOUT_MS }).trim();
 
 /** Real dependencies. Every one is lazy and throws on failure; the classifier turns a throw into UNKNOWN. */
 export function defaultSweepDeps(cwd) {
@@ -293,8 +367,10 @@ export async function gatherRemoteEvidence(
       const cmp = await ghJsonImpl(`${base}/compare/main...${encodeURIComponent(branch)}`);
       aheadOfMain = cmp.ahead_by;
       behindOfMain = cmp.behind_by;
-    } catch {
-      // compare can fail on an empty/orphan branch — leave undefined, not a false 0.
+    } catch (e) {
+      // compare can fail on an empty/orphan branch — leave undefined, not a false 0. A TIMEOUT is not that: it goes on,
+      // so the caller's cell reads UNKNOWN instead of a class built on a read that never answered (manager round 1).
+      if (e?.timedOut || e?.name === "TimeoutError" || e?.name === "AbortError") throw e;
     }
   }
 
@@ -337,46 +413,96 @@ async function main() {
     // Exit 1 when a worktree that stayed LANDED through the re-check could not be torn down.
     process.exit(sweep.results.some((r) => r.cls === K.LANDED && sweep.execute && !r.removed) ? 1 : 0);
   }
-  const { owner, repo } = originOwnerRepo(cwd);
+  const started = Date.now();
+  const { signal, stop } = budgetSignal(BUDGET_MS);
+  // At most GIT_CONCURRENCY git children at once: 16 rows' worth starved each other past SPAWN_TIMEOUT_MS on a loaded
+  // machine, while one status alone took 200-280 ms (2026-11-03). A queued call still ends at the run's abort.
+  let running = 0;
+  const waiting = [];
+  const git = async (args, at) => {
+    while (running >= GIT_CONCURRENCY) await new Promise((wake) => waiting.push(wake));
+    running += 1;
+    try {
+      return await runBounded("git", args, { cwd: at, env: stripGitLocalEnv(), signal });
+    } finally {
+      running -= 1;
+      waiting.shift()?.();
+    }
+  };
+  const read = (opts = {}) => ({ ...opts, signal: AbortSignal.any([signal, AbortSignal.timeout(SPAWN_TIMEOUT_MS)]) });
+  const json = (path, opts) => ghJson(path, read(opts));
 
-  const porcelain = sh("git worktree list --porcelain", cwd);
-  const worktrees = parseWorktreePorcelain(porcelain).filter((w) => !w.bare && w.branch);
+  const { owner, repo } = ownerRepoFromUrl(await git(["remote", "get-url", "origin"], cwd));
+  const worktrees = parseWorktreePorcelain(await git(["worktree", "list", "--porcelain"], cwd)).filter((w) => !w.bare && w.branch);
 
+  // One listing answers "exists on origin" for every row (22 origin branches vs 82 worktrees, 2026-11-03); if it
+  // fails, each row asks for itself as before.
+  const onOrigin = await ghPaginate(`/repos/${owner}/${repo}/branches`, read()).then((all) => new Set(all.map((b) => b.name)), () => null);
   let branchesToReport = worktrees.map((w) => w.branch);
   if (flag("all-branches")) {
-    const all = await ghPaginate(`/repos/${owner}/${repo}/branches`);
-    branchesToReport = [...new Set([...branchesToReport, ...all.map((b) => b.name)])];
+    if (!onOrigin) throw new Error("--all-branches: the origin branch list could not be read");
+    branchesToReport = [...new Set([...branchesToReport, ...onOrigin])];
   }
 
-  const store = createGitHubLeaseStore(owner, repo);
-  const rows = [];
-  for (const branch of branchesToReport) {
-    const wt = worktrees.find((w) => w.branch === branch);
-    const local = wt ? localGitState(wt.path, branch) : null;
-    const evidence = await gatherRemoteEvidence(owner, repo, branch);
-    const cls = classifyBranch(evidence);
-    const lease = await readLease(branch, { store }).catch(() => null);
-    const leaseCell = !lease
-      ? "-"
-      : lease.status !== "active"
-        ? "released"
-        : isExpired(lease)
-          ? `expired (was ${lease.sessionId})`
-          : `${lease.sessionId} (${lease.sessionKind})`;
+  // Same for leases: one listing of refs/leases/* replaces a lookup per row; a row only reads the lease it has.
+  const leaseStore = createGitHubLeaseStore(owner, repo, { json });
+  const leaseRefs = await ghPaginate(`/repos/${owner}/${repo}/git/matching-refs/leases`, read()).then(
+    (refs) => new Map(refs.filter((r) => r.ref.startsWith("refs/leases/")).map((r) => [r.ref.slice("refs/leases/".length), { sha: r.object.sha }])),
+    () => null,
+  );
+  const store = leaseRefs ? { ...leaseStore, getRef: async (b) => leaseRefs.get(b) ?? null } : leaseStore;
+  const ctx = { owner, repo, git, json, onOrigin, store };
+  const rows = new Array(branchesToReport.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < branchesToReport.length) {
+      const i = next++;
+      rows[i] = await statusRow(branchesToReport[i], worktrees.find((w) => w.branch === branchesToReport[i]), ctx);
+    }
+  };
+  await Promise.all(Array.from({ length: ROW_CONCURRENCY }, worker)); // after the abort every read rejects at once
+  stop();
 
-    rows.push([
-      branch,
-      wt ? wt.path : "(not checked out here)",
-      local ? (local.dirty ? "yes" : "no") : "-",
-      local ? local.unpushedCount : "-",
-      evidence.existsOnOrigin ? "yes" : "no",
-      `${cls.classification}${evidence.prs.length ? ` (#${evidence.prs.map((p) => p.number).join(",")})` : ""}`,
-      leaseCell,
-    ]);
-  }
+  const cells = rows.flat().map(String);
+  const timeouts = cells.filter((c) => c === TIMEOUT_CELL).length;
+  const errors = cells.filter((c) => c.startsWith("UNKNOWN (error")).length;
+  const receipt =
+    `receipt: ${rows.length} branch row(s) in ${((Date.now() - started) / 1000).toFixed(1)} s (budget ${BUDGET_MS / 1000} s)` +
+    ` · ${timeouts} cell(s) UNKNOWN (timeout) · ${errors} cell(s) UNKNOWN (error)`; // cells: one failed remote read fills two
+  const text = `repo:status · ${owner}/${repo} · local worktrees shown are THIS machine's only\n\n${formatStatusTable(rows)}\n\n${receipt}\n`;
+  // Exit once the text is flushed: an orphaned grandchild or a keep-alive socket must not hold the answer back.
+  process.stdout.write(text, () => process.exit(0));
+}
 
-  console.log(`repo:status · ${owner}/${repo} · local worktrees shown are THIS machine's only\n`);
-  console.log(formatStatusTable(rows));
+/** One table row. Each read settles on its own, so a hung status still leaves the remote cells (and the reverse). */
+export async function statusRow(branch, wt, { owner, repo, git, json, onOrigin, store }) {
+  const unknown = (e) =>
+    e?.timedOut || ["AbortError", "TimeoutError"].includes(e?.name) ? TIMEOUT_CELL : `UNKNOWN (error: ${firstLine(e).slice(0, 60)})`;
+  const upstream = (path) =>
+    git(["rev-parse", "--verify", `origin/${branch}`], path).then(() => true, (e) => (e.timedOut ? Promise.reject(e) : false));
+  const [dirty, unpushed, remote, lease] = await Promise.all([
+    wt ? git(["--no-optional-locks", "status", "--porcelain"], wt.path).then((s) => (s ? "yes" : "no"), unknown) : "-",
+    wt
+      ? upstream(wt.path)
+          .then((up) => git(["rev-list", "--count", up ? `origin/${branch}..HEAD` : "HEAD"], wt.path))
+          .then((n) => parseInt(n || "0", 10), unknown)
+      : "-",
+    gatherRemoteEvidence(owner, repo, branch, { ghJsonImpl: json, knownExistsOnOrigin: onOrigin?.has(branch) }).then((ev) => ({ ev, cls: classifyBranch(ev) }), unknown),
+    readLease(branch, { store }).then(
+      (l) => (!l ? "-" : l.status !== "active" ? "released" : isExpired(l) ? `expired (was ${l.sessionId})` : `${l.sessionId} (${l.sessionKind})`),
+      unknown,
+    ),
+  ]);
+  const prs = typeof remote === "string" ? "" : remote.ev.prs.length ? ` (#${remote.ev.prs.map((p) => p.number).join(",")})` : "";
+  return [
+    branch,
+    wt ? wt.path : "(not checked out here)",
+    dirty,
+    unpushed,
+    typeof remote === "string" ? remote : remote.ev.existsOnOrigin ? "yes" : "no",
+    typeof remote === "string" ? remote : `${remote.cls.classification}${prs}`,
+    lease,
+  ];
 }
 
 if (isMainModule(import.meta.url)) {

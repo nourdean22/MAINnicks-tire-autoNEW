@@ -9,6 +9,9 @@
  *   synced     claude.ai account plugins: <home>/.claude/plugins/synced/<organizationUuid>_<accountUuid>/<dir>, ids from
  *              <home>/.claude.json oauthAccount; a dir counts only when it holds an `.in_use` marker (older generations
  *              and other accounts' buckets sit beside it and are not loaded).
+ *   desktop    since at least 2026-11-03 Claude Desktop keeps account plugins in its own app data instead:
+ *              <appData>/rpm/<accountUuid[0:8]>/<organizationUuid[0:8]>/manifest.json plugins[].id, each a plugin_<id> dir
+ *              beside it (agentic-council and receipts-check were only there; the [health] line called them MISSING).
  * A plugin's name is .claude-plugin/plugin.json `name`. Its skills are skills/<slug>/SKILL.md and commands/<slug>.md
  * (a leading underscore is an internal include, not a command); the Skill tool name is `<plugin>:<slug>`.
  *
@@ -63,6 +66,10 @@ export function effectiveEnabled(home, projectDir) {
 /** Enabled plugins: [{ name, dir, source, key? }] plus warnings. First source wins on a name seen twice. */
 export function enabledPlugins(home, projectDir) {
   const warnings = [];
+  // The subset of warnings that are FAILED reads (a source could not be read at all), as opposed to a read that worked and
+  // found something inconsistent: a caller deciding MISSING vs UNKNOWN needs the difference (manager round 1).
+  const readErrors = [];
+  const readFailed = (msg) => { warnings.push(msg); readErrors.push(msg); };
   const out = [];
   const seen = new Set();
   const add = (p) => { if (p.name && !seen.has(p.name)) { seen.add(p.name); out.push(p); } };
@@ -79,11 +86,12 @@ export function enabledPlugins(home, projectDir) {
     }
     if (gone) warnings.push(`${gone} enabled plugin install dir(s) missing from the cache`);
   } catch (err) {
-    warnings.push(`installed plugins unreadable (${err.message})`);
+    readFailed(`installed plugins unreadable (${err.message})`);
   }
 
+  let acct = null;
   try {
-    const acct = readJson(globalConfigFile(home))?.oauthAccount;
+    acct = readJson(globalConfigFile(home))?.oauthAccount;
     if (acct?.organizationUuid && acct?.accountUuid) {
       const bucket = join(configDir(home), "plugins", "synced", `${acct.organizationUuid}_${acct.accountUuid}`);
       const dirs = existsSync(bucket) ? readdirSync(bucket, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".")) : [];
@@ -95,9 +103,45 @@ export function enabledPlugins(home, projectDir) {
       }
     }
   } catch (err) {
-    warnings.push(`account plugins unreadable (${err.message})`);
+    readFailed(`account plugins unreadable (${err.message})`);
   }
-  return { plugins: out, warnings };
+
+  try {
+    if (acct?.organizationUuid && acct?.accountUuid) {
+      // ONE store counts: the newest manifest.json. An MSIX upgrade can leave an older Claude_* package beside the live one,
+      // and its manifest still lists plugins Desktop no longer loads (Codex, PR 3543). The others are named, not read.
+      const stores = desktopAppDataDirs(home)
+        .map((appData) => join(appData, "rpm", acct.accountUuid.slice(0, 8), acct.organizationUuid.slice(0, 8)))
+        .map((bucket) => ({ bucket, mtimeMs: statSync(join(bucket, "manifest.json"), { throwIfNoEntry: false })?.mtimeMs }))
+        .filter((s) => s.mtimeMs !== undefined)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      if (stores.length > 1) warnings.push(`Desktop plugin store: newest manifest used; ignored ${stores.slice(1).map((s) => s.bucket).join(", ")}`);
+      let gone = 0;
+      for (const { id } of stores.length ? readJson(join(stores[0].bucket, "manifest.json"))?.plugins ?? [] : []) {
+        if (typeof id !== "string" || !/^plugin_[A-Za-z0-9]+$/.test(id)) continue; // a dir name, never a path
+        const dir = join(stores[0].bucket, id);
+        if (existsSync(dir)) add({ name: pluginName(dir), dir, source: "desktop" });
+        else gone += 1;
+      }
+      if (gone) warnings.push(`${gone} Desktop account plugin dir(s) listed in rpm/manifest.json but missing`);
+    }
+  } catch (err) {
+    readFailed(`Desktop account plugins unreadable (${err.message})`);
+  }
+  return { plugins: out, warnings, readErrors };
+}
+
+/**
+ * Claude Desktop's app-data dirs that may hold its account-plugin store (rpm/): the MSIX package's redirected roaming
+ * folder, then a plain install's %APPDATA%\Claude. Both are derived from `home`, so a fixture home never reads the real one.
+ * shortcut: Windows layouts only (the one verified, 2026-11-03); add macOS ~/Library/Application Support/Claude when a Mac runs this.
+ */
+function desktopAppDataDirs(home) {
+  const packages = join(home, "AppData", "Local", "Packages");
+  const msix = existsSync(packages)
+    ? readdirSync(packages).filter((n) => n.startsWith("Claude_")).map((n) => join(packages, n, "LocalCache", "Roaming", "Claude"))
+    : [];
+  return [...msix, join(home, "AppData", "Roaming", "Claude")];
 }
 
 /** `to` relative to `from`, both resolved through symlinks; null when either does not exist. */

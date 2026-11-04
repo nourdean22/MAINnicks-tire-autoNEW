@@ -48,9 +48,12 @@ export function ensureProxyEnv() {
   process.exit(r.status ?? 1);
 }
 
+/** The token lookup's one process call, a property so a canary can count it (githubClient tests). */
+export const tokenDeps = { spawnSync };
+
 /** True if `cmd` resolves on PATH, without throwing when it does not. */
 function commandExists(cmd) {
-  const r = spawnSync(cmd, ["--version"], { encoding: "utf8", timeout: 5000 });
+  const r = tokenDeps.spawnSync(cmd, ["--version"], { encoding: "utf8", timeout: 5000 });
   return !r.error;
 }
 
@@ -63,7 +66,7 @@ function ghAuthToken() {
   const env = { ...process.env };
   delete env.GH_TOKEN;
   delete env.GITHUB_TOKEN;
-  const r = spawnSync("gh", ["auth", "token"], { encoding: "utf8", env, timeout: 10000 });
+  const r = tokenDeps.spawnSync("gh", ["auth", "token"], { encoding: "utf8", env, timeout: 10000 });
   const token = r.status === 0 ? r.stdout?.trim() : "";
   return token ? token : null;
 }
@@ -97,6 +100,10 @@ function recordCall(method, url) {
   }
 }
 
+// undefined until the first lookup; null (no token) is cached too: with gh logged out, a retry per request was two
+// blocking gh spawns each, about 28 s over 82 rows, and a run budget's timer cannot fire during blocking work (round 1).
+let cachedAuth;
+
 /** Low-level fetch against the GitHub REST API. Caller must have already called
  * ensureProxyEnv() once at process start. Throws if no token can be resolved. */
 export async function ghFetch(path, opts = {}) {
@@ -110,7 +117,9 @@ export async function ghFetch(path, opts = {}) {
       "github-client: HTTPS_PROXY is set but NODE_USE_ENV_PROXY!=1 — call ensureProxyEnv() as the FIRST line of your entry script before any GitHub call, or every request here silently 401s",
     );
   }
-  const auth = resolveToken();
+  // Once per process: resolveToken() spawns gh twice (~170 ms, blocking), and repo-status makes ~300 calls (2026-11-03).
+  if (cachedAuth === undefined) cachedAuth = resolveToken();
+  const auth = cachedAuth;
   if (!auth) {
     throw new Error(
       "no GitHub token available: `gh auth token` failed/absent and neither GH_TOKEN nor GITHUB_TOKEN is set",

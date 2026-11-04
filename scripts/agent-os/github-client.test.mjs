@@ -121,6 +121,16 @@ test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy
   assert.ok(Number(out) > 100, `expected >100 closed pull requests from page 30 on (proof pagination actually crossed a page boundary), got ${out}`);
 });
 
+// Manager round 1 (P3): only a found token was cached, so with gh logged out every request spawned gh twice (blocking,
+// ~28 s over 82 rows, and the run budget's timer cannot fire during blocking work). A failed lookup is cached too.
+test("a failed token lookup is cached: two requests with gh logged out run `gh auth token` once", () => {
+  const script = "import('./github-client.mjs').then(async (m) => { let n = 0; m.tokenDeps.spawnSync = (cmd, args) => { if (args[0] === 'auth') n++; return args[0] === '--version' ? { status: 0, stdout: 'gh version 2' } : { status: 1, stdout: '' }; }; for (const i of [1, 2]) { try { await m.ghFetch('http://127.0.0.1:9/repos/o/r/pulls'); } catch { /* no token: expected */ } } console.log(n); })";
+  const env = { ...process.env };
+  for (const k of ["GH_TOKEN", "GITHUB_TOKEN", "HTTPS_PROXY", "AGENT_OS_GH_CALL_LOG"]) delete env[k];
+  const r = spawnSync(process.execPath, ["-e", script], { cwd: import.meta.dirname, encoding: "utf8", env, timeout: 15000 });
+  assert.equal(r.stdout.trim(), "1", `gh auth token ran ${r.stdout.trim() || "?"} times for 2 requests; stderr: ${r.stderr}`);
+});
+
 test("resolveToken returns null when nothing is available", () => {
   const env = { ...process.env, PATH: "/nonexistent-empty-dir" };
   delete env.GH_TOKEN;

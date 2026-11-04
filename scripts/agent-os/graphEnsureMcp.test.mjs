@@ -5,12 +5,12 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { startMcpStub, startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
-import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE } from "./graph-ensure-mcp.mjs";
+import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE, takeLaunchLock } from "./graph-ensure-mcp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -178,8 +178,58 @@ test("concurrent starts: two hooks at once against one free port launch ONCE (co
   assert.equal(existsSync(counter) ? readFileSync(counter, "utf8").length : 0, 1, `launcher ran ${existsSync(counter) ? readFileSync(counter, "utf8").length : 0} times:\n${a.out}\n${b.out}`);
   const outs = [a.out, b.out].sort();
   assert.ok(outs.some((o) => /^\[graph\] mcp (started \(\d+ ms\)|launch requested, not verified)/.test(o)), JSON.stringify(outs));
-  assert.ok(outs.some((o) => /^\[graph\] mcp launch in progress \(another session holds the launch lock: pid \d+, \d+ s ago\), not verified/.test(o)), JSON.stringify(outs));
+  // "unreadable, written": the loser read in the microseconds between the winner's create and its write; still held.
+  assert.ok(outs.some((o) => /^\[graph\] mcp launch in progress \(another session holds the launch lock: (pid \d+,|unreadable, written) \d+ s ago\), not verified/.test(o)), JSON.stringify(outs));
   assert.ok(!existsSync(join(stateDir, LAUNCH_LOCK)), "the launch lock is released when the winner is done");
+});
+
+// The race behind "launcher ran 2 times" (CI run 41905313212, 2026-11-04): the winner's openSync("wx") made an EMPTY lock
+// and wrote its pid in a second step; a loser that read in that gap took the empty file as stale, deleted the winner's
+// lock and launched too. A fresh lock that cannot be read (yet) is HELD; only an old one, or one whose pid is dead, is not.
+const plantLock = (label, text, ageMs = 0) => {
+  const lock = join(SCRATCH, label, "state", LAUNCH_LOCK);
+  mkdirSync(dirname(lock), { recursive: true });
+  writeFileSync(lock, text);
+  if (ageMs) { const t = new Date(Date.now() - ageMs); utimesSync(lock, t, t); }
+  return lock;
+};
+const countingLauncher = (counter) => [process.execPath, "-e", `require("fs").appendFileSync(${JSON.stringify(counter)}, "x")`];
+
+test("a fresh EMPTY launch lock is held: launch in progress, the launcher does not run, the lock file stays", async () => {
+  const port = await freePort();
+  const lock = plantLock("empty-lock-fresh", "");
+  const counter = join(SCRATCH, "empty-lock-fresh-counter.txt");
+  const r = run("empty-lock-fresh", { port, launcher: countingLauncher(counter) });
+  assert.equal(r.code, 0, r.err);
+  assert.match(oneLine(r.out), /^\[graph\] mcp launch in progress \(another session holds the launch lock: unreadable, written \d+ s ago\), not verified/, r.out);
+  assert.ok(!existsSync(counter), "the launcher ran while another session's fresh lock was held");
+  assert.ok(existsSync(lock), "a loser deleted a fresh lock it could not read");
+});
+
+test("control: an EMPTY launch lock older than the fresh window is stale, so it is replaced and the launch runs once", async () => {
+  const port = await freePort();
+  const lock = plantLock("empty-lock-old", "", 10 * 60_000);
+  const counter = join(SCRATCH, "empty-lock-old-counter.txt");
+  const r = run("empty-lock-old", { port, launcher: countingLauncher(counter) });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(existsSync(counter) ? readFileSync(counter, "utf8").length : 0, 1, `an old empty lock must not block the launch forever:\n${r.out}`);
+  assert.ok(!existsSync(lock), "the winner releases the lock it took");
+});
+
+// Manager round 1 (P3): a write that failed after the "wx" create left an EMPTY lock, which now reads as held and would
+// block every launch for LOCK_FRESH_MS. The create is undone before the error goes on.
+test("a lock write that fails after the create leaves no lock file behind, and the error still surfaces", () => {
+  const dir = join(SCRATCH, "write-fails", "state");
+  const prev = process.env.NOURCITY_STATE_DIR;
+  process.env.NOURCITY_STATE_DIR = dir;
+  try {
+    const failing = () => { throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" }); };
+    assert.throws(() => takeLaunchLock({ write: failing }), /ENOSPC/);
+    assert.ok(!existsSync(join(dir, LAUNCH_LOCK)), "an empty launch lock was left behind after the failed write");
+  } finally {
+    if (prev === undefined) delete process.env.NOURCITY_STATE_DIR;
+    else process.env.NOURCITY_STATE_DIR = prev;
+  }
 });
 
 test("no answer (a listener that never answers initialize): UNKNOWN, next: command, and the launcher is NOT run (counter stays 0)", async () => {

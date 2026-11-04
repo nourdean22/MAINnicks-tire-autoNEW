@@ -29,7 +29,11 @@ export function sh(cmd, cwd) {
 /** Parse {owner, repo} from `git remote get-url origin`, handling both
  * `git@github.com:owner/repo.git` and `https://github.com/owner/repo(.git)`. */
 export function originOwnerRepo(cwd) {
-  const url = sh("git remote get-url origin", cwd);
+  return ownerRepoFromUrl(sh("git remote get-url origin", cwd));
+}
+
+/** owner/repo from a GitHub remote URL (https or ssh); throws on anything else. */
+export function ownerRepoFromUrl(url) {
   const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+?)(\.git)?$/);
   if (!m) throw new Error(`could not parse owner/repo from origin url: ${url}`);
   return { owner: m[1], repo: m[2] };

@@ -38,7 +38,7 @@
  */
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,24 +83,42 @@ function writeState(state, extra = {}) {
     process.stderr.write(`[graph] state not written (${short(err)})\n`);
   }
 }
-/** Take the launch lock: null when taken, else "pid N, M s ago" for the live holder. A dead or old holder is replaced. */
-function takeLaunchLock() {
+/**
+ * Take the launch lock: null when taken, else why it is held ("pid N, M s ago", or "unreadable, written M s ago").
+ * The pid goes in through the same fd that created the file, so the lock is never an empty file for long. A fresh lock
+ * that cannot be read (yet) is HELD: its owner is between create and write. Only an old lock, or a fresh one whose pid
+ * is dead, is replaced (CI run 41905313212, 2026-11-04: a loser read the empty file, deleted it, and both launched).
+ */
+export function takeLaunchLock({ write = writeSync } = {}) {
   const file = join(stateDir(), LAUNCH_LOCK);
   mkdirSync(stateDir(), { recursive: true });
+  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
   for (let attempt = 0; attempt < 2; attempt++) {
+    let fd;
     try {
-      closeSync(openSync(file, "wx"));
-      writeFileSync(file, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
-      return null;
+      fd = openSync(file, "wx");
     } catch (err) {
       if (err.code !== "EEXIST") throw err;
-      let holder = {};
-      try { holder = JSON.parse(readFileSync(file, "utf8")); } catch { /* unreadable: treat as stale */ }
-      const ageMs = Date.now() - (statSync(file).mtimeMs || 0);
-      const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
-      if (ageMs < LOCK_FRESH_MS && holder.pid && alive(holder.pid)) return `pid ${holder.pid}, ${Math.round(ageMs / 1000)} s ago`;
+      let holder = null;
+      try { holder = JSON.parse(readFileSync(file, "utf8")); } catch { /* empty or half-written: its owner is mid-write */ }
+      let ageMs;
+      try { ageMs = Date.now() - statSync(file).mtimeMs; } catch (e) { if (e.code === "ENOENT") continue; throw e; } // released meanwhile
+      const s = Math.round(ageMs / 1000);
+      if (ageMs < LOCK_FRESH_MS && !Number.isInteger(holder?.pid)) return `unreadable, written ${s} s ago`;
+      if (ageMs < LOCK_FRESH_MS && alive(holder.pid)) return `pid ${holder.pid}, ${s} s ago`;
       try { rmSync(file, { force: true }); } catch { /* the retry reports it */ }
+      continue;
     }
+    try {
+      write(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+    } catch (err) {
+      // An empty lock now reads as held for LOCK_FRESH_MS: undo the create before the error goes on (manager round 1).
+      try { closeSync(fd); } catch { /* the rm below is what matters */ }
+      rmSync(file, { force: true });
+      throw err;
+    }
+    closeSync(fd);
+    return null;
   }
   return "lock could not be taken";
 }
