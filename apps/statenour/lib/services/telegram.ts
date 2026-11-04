@@ -19,7 +19,8 @@ export async function sendTelegram(
   parseMode: "HTML" | "Markdown" = "HTML"
 ): Promise<boolean> {
   if (!BOT_TOKEN) {
-    log.info("send_skipped", { reason: "not_configured", preview: text.slice(0, 80) });
+    // No preview: the text can be a promise or a task title (R3 round 1, item 5).
+    log.info("send_skipped", { reason: "not_configured" });
     return false;
   }
 
@@ -117,7 +118,7 @@ export async function sendTelegramWithButtons(
   chatId?: string
 ): Promise<{ ok: boolean; messageId?: number }> {
   if (!BOT_TOKEN) {
-    log.info("send_buttons_skipped", { reason: "not_configured", preview: text.slice(0, 80) });
+    log.info("send_buttons_skipped", { reason: "not_configured" });
     return { ok: false };
   }
 

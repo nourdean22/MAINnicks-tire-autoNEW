@@ -302,3 +302,23 @@ export const MISSION_GOALS = {
  * unit-tested (tests/missions/mission-chats.test.tsx).
  */
 export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMission: {}, truncated: false, reviewByMission: {} };
+
+/**
+ * operator.promisesList (R3, the Promises section on /missions): read on every /missions load, so it is a fixture,
+ * not an allowlist entry (CI run 41905313228 failed the lane without it). The section is collapsed by default, so
+ * the render shows the count line "3 promises · 12 proposed"; the rows are the same DEMO shape the 390 px screenshot
+ * used. Every text is fictional and says so.
+ */
+export const MISSION_PROMISES: Wire<RouterOutputs["operator"]["promisesList"]> = {
+  active: [
+    { id: 9001, description: "Demo promise: send the demo supplier the signed quote", toWhom: "Demo Supplier", deadline: null, ageDays: 61, deadlineDays: null, task: null },
+    { id: 9002, description: "Demo promise: walk every morning this week", toWhom: "self", deadline: "2026-10-24", ageDays: 3, deadlineDays: 9, task: null },
+    { id: 9003, description: "Demo promise: book the demo dentist cleaning", toWhom: "self", deadline: "2026-10-11", ageDays: 40, deadlineDays: -4, task: { id: "demo-task-dentist", status: "READY" } },
+  ],
+  proposed: [
+    { id: 9101, description: "Demo proposal: call the demo insurance agent back", toWhom: "self", deadline: null, ageDays: 2, deadlineDays: null, task: null },
+    { id: 9102, description: "Demo proposal: write the weekly review on Sunday", toWhom: "self", deadline: null, ageDays: 5, deadlineDays: null, task: null },
+  ],
+  activeCount: 3,
+  proposedCount: 12,
+};

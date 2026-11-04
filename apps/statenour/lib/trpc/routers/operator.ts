@@ -137,6 +137,11 @@ import {
   dismissProposed,
   completeActiveCommitment,
   abandonActiveCommitment,
+  listPromises,
+  editPromise,
+  resolvePromise,
+  promiseToTask,
+  isCalendarDate,
 } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 import { logError } from "@/lib/utils/error-log";
@@ -1435,6 +1440,46 @@ export const operatorRouter = router({
       const ok = await dismissProposed(input.id);
       return { ok };
     }),
+
+  /**
+   * R3 · 2026-11-03 · the Promises section on /missions. One server path: lib/services/
+   * commitments.ts (listPromises / editPromise / resolvePromise / promiseToTask), every write
+   * stamped updatedBy "nour". A failed list read throws, so the client shows unknown, never empty.
+   */
+  promisesList: operatorProcedure.query(async () => listPromises()),
+
+  promiseEdit: operatorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        description: z.string().trim().min(1).max(2000).optional(),
+        toWhom: z.string().max(120).optional(),
+        // A real calendar day: the bare regex let 2026-13-01 through, which rendered "due undefined 1".
+        deadline: z.string().refine(isCalendarDate, "Deadline must be a real date (YYYY-MM-DD)").nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input: { id, ...patch } }) => {
+      const ok = await editPromise(id, patch);
+      // AGENTS.md: a mutation clears dashboard_brief + ultron_command_center_state_v1, or Nick reads the old text until the TTL.
+      if (ok) (await import("@/lib/services/tasks")).invalidateMutationCaches();
+      return { ok };
+    }),
+
+  promiseResolve: operatorProcedure
+    .input(z.object({ id: z.number().int().positive(), action: z.enum(["done", "drop"]) }))
+    .mutation(async ({ input }) => {
+      const resolved = await resolvePromise(input.id, input.action);
+      if (resolved) {
+        const { invalidate } = await import("@/lib/utils/cache");
+        invalidate("ultron_personal_pulse_v3");
+        (await import("@/lib/services/tasks")).invalidateMutationCaches();
+      }
+      return { resolved };
+    }),
+
+  promiseToTask: operatorProcedure
+    .input(z.object({ id: z.number().int().positive(), missionId: z.string().min(1).max(64).nullable() }))
+    .mutation(async ({ input }) => promiseToTask(input.id, input.missionId)),
 
   /**
    * BDN-104 · Home decision sensor. Fire-and-forget from the Home

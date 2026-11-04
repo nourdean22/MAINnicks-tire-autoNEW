@@ -1167,6 +1167,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Reading commitments…",
     icon: HandshakeIcon,
     color: "gold",
+    link: { href: "/missions#promises", label: "Open promises" },
     subtitle: rowsSubtitle(CommitmentsOutputSchema, (o: unknown[]) => asList(o).length, (n) => `${n} active`),
     outputSchema: CommitmentsOutputSchema,
     renderRich: (out) => <IntentRows tool="getCommitments" rows={INTENT_ROWS.getCommitments(out as never)} />,

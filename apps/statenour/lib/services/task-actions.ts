@@ -44,6 +44,7 @@ import { emitTaskEventAsync } from "@/lib/brain/task-events";
 // import this replaced, which added a chunk-load rejection path inside a catch.
 import { logError } from "@/lib/utils/error-log";
 import { createTask as createTaskService, liftGoalOnTaskComplete, maybeSpawnNextPhase } from "@/lib/services/tasks";
+import { closePromisesForTask } from "@/lib/services/commitments";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
 import type { TaskReward } from "@/lib/mastery/task-reward";
@@ -477,6 +478,8 @@ export async function checkTask(args: {
   // cascade respects that. (TaskStatus has no CANCELLED · DONE +
   // ARCHIVED are the only terminal states in the enum.)
   let childrenCascaded = 0;
+  // R3 Codex round: the cascaded children whose DONE write succeeded; each closes its own promise below.
+  const cascadedIds: string[] = [];
   if (cascadeChildren) {
     try {
       // Capture the child ids BEFORE the bulk update so each cascaded
@@ -500,6 +503,7 @@ export async function checkTask(args: {
       });
       childrenCascaded = cascadeResult.count;
       for (const child of cascadedChildren) {
+        cascadedIds.push(child.id);
         void creditTaskStats(child.id).catch(() => {});
         const childGoal = taskGoalServer(child)?.id ?? null;
         if (childGoal) void liftGoalOnTaskComplete(childGoal, child.id).catch(() => {});
@@ -545,6 +549,17 @@ export async function checkTask(args: {
         log.warn("goal_lift_failed", { taskId: id, goalId: liftGoalId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
         return false;
       });
+  }
+
+  // R3 round 1 (auto-close): a task made from a promise (Promises on /missions, executionRef task:<id>)
+  // keeps that promise. Ordered like the goal lift above: awaited, and a failure is logged and never
+  // fails the completion. Stamped system:task-done so the kill read tells it from Nour's taps.
+  // Codex (PR 3541): a cascaded child made from a promise closes its promise too, under the same rule.
+  for (const taskId of [id, ...cascadedIds]) {
+    await closePromisesForTask(taskId).catch((err) => {
+      log.warn("promise_close_failed", { taskId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      return 0;
+    });
   }
 
   // W8a (audit A1): the phase-progression hook. The only call used to sit in updateTask's UNREACHABLE
@@ -1113,15 +1128,25 @@ export async function createTaskFromAPI(
     try {
       payload.missionId = await resolveInboxMissionId();
     } catch (err) {
-      log.warn("missionId_default_failed", {
-        title: payload.title?.slice(0, 60),
-        error: sanitizeError(err),
-      });
+      // No title: a task made from a promise carries the promise's text (R3 round 1, item 5).
+      log.warn("missionId_default_failed", { error: sanitizeError(err) });
     }
   }
 
   const result = await createTaskService(payload);
+  await notifyTaskCreated(payload.title, payload.missionId, payload.priority);
+  return result;
+}
 
+/**
+ * The "NEW TASK CREATED" Telegram ping to Nour, shared by createTaskFromAPI and Make it a task
+ * (lib/services/commitments.ts promiseToTask). Never throws: a failed ping is logged with no text.
+ */
+export async function notifyTaskCreated(
+  title: string | null | undefined,
+  missionId: string | null | undefined,
+  priority?: string | null,
+): Promise<void> {
   // Telegram notification · fire-and-forget · errors surfaced via
   // structured logger so /system/errors picks them up if the token
   // rotated / chat deleted / network blip.
@@ -1129,17 +1154,11 @@ export async function createTaskFromAPI(
     const { sendTelegram } = await import("@/lib/services/telegram");
     await sendTelegram(
       `📋 NEW TASK CREATED\n\n` +
-        `${payload.title || "Untitled"}\n` +
-        `Mission: ${payload.missionId || "Inbox"}\n` +
-        `Priority: ${payload.priority || "normal"}`,
+        `${title || "Untitled"}\n` +
+        `Mission: ${missionId || "Inbox"}\n` +
+        `Priority: ${priority || "normal"}`,
     );
   } catch (err) {
-    log.warn("telegram_notify_failed", {
-      action: "task_created",
-      title: payload.title?.slice(0, 60),
-      error: sanitizeError(err),
-    });
+    log.warn("telegram_notify_failed", { action: "task_created", error: sanitizeError(err) });
   }
-
-  return result;
 }
