@@ -82,6 +82,8 @@ vi.mock("@/lib/trpc/client", () => {
 });
 
 import { PromisesSection } from "@/components/missions/promises-section";
+import { useMissionUIStore } from "@/app/(mastery)/missions/state/use-mission-ui-store";
+import { useLeaveFocusForPromises } from "@/app/(mastery)/missions/hooks/use-promises-hash";
 
 const MISSIONS = [
   { id: "m1", title: "Shop OS", status: "ACTIVE" },
@@ -166,6 +168,34 @@ describe("PromisesSection", () => {
     window.location.hash = "#promises";
     await mount();
     expect(rowOf(1)).not.toBeNull();
+  });
+
+  it("Codex (PR 3541) 5: a Focus mode left on is turned off by #promises, so the section mounts and scrolls into view", async () => {
+    const scroll = vi.fn();
+    const saved = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      useMissionUIStore.setState({ executionModeActive: true });
+      window.location.hash = "#promises";
+      // the page's branch: Focus mode renders the execution panel, never the deck sections
+      function Page() {
+        useLeaveFocusForPromises();
+        const focus = useMissionUIStore((s) => s.executionModeActive);
+        return focus ? <div data-testid="execution-panel" /> : <PromisesSection missions={MISSIONS} />;
+      }
+      await act(async () => {
+        root.render(<Page />);
+      });
+      await flush();
+      expect(useMissionUIStore.getState().executionModeActive).toBe(false);
+      expect(container.querySelector("[data-testid='execution-panel']")).toBeNull();
+      expect(rowOf(1)).not.toBeNull();
+      expect(scroll).toHaveBeenCalled();
+      expect((scroll.mock.contexts[0] as Element).id).toBe("promises");
+    } finally {
+      Element.prototype.scrollIntoView = saved;
+      useMissionUIStore.setState({ executionModeActive: false });
+    }
   });
 
   it("Done sends completed through promiseResolve and the row leaves at once", async () => {
@@ -261,12 +291,14 @@ describe("PromisesSection", () => {
   it("a promise with a task links to it instead of offering a second one", async () => {
     h.query = {
       ...h.query,
-      data: { ...LIST, active: [{ ...LIST.active[0], task: { id: "t9", status: "READY" } }], activeCount: 1 },
+      data: { ...LIST, active: [{ ...LIST.active[0], task: { id: "t1", status: "READY" } }], activeCount: 1 },
     };
     await mount();
     await open();
     expect(button("Make it a task", rowOf(1)!)).toBeUndefined();
-    expect(rowOf(1)!.querySelector("a[href='/missions#task-row-t9']")).not.toBeNull();
+    // Codex (PR 3541) 1: no row has id task-row-<id>; ?taskId= is what W8a's useOpenTaskFromUrl opens.
+    const link = rowOf(1)!.querySelector("a") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/missions?taskId=t1");
   });
 
   it("Accept reaches the existing proposal mutation", async () => {

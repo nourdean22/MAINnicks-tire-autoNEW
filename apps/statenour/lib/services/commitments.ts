@@ -248,16 +248,41 @@ export async function completeActiveCommitment(
   notes = "Completed (pulse ticker)",
   updatedBy = "operator",
 ): Promise<boolean> {
-  const res = await prisma.commitment.updateMany({
-    where: { id, status: "active", deletedAt: null },
-    data: { status: "completed", notes, updatedBy },
+  return closeOpenCommitment(id, "completed", notes, updatedBy);
+}
+
+/**
+ * The statuses every reader treats as an open promise (getCommitments, the command-center state, the legacy
+ * route, the brain readers). R3 Codex round: the Promises writers filtered `active` alone, so an `in_progress`
+ * row was read by Nick every chat and could not be listed, edited, closed or tasked.
+ */
+export const OPEN_COMMITMENT_STATUSES = ["active", "in_progress"] as const;
+const OPEN = { in: [...OPEN_COMMITMENT_STATUSES] };
+
+/**
+ * Close an open commitment. Two statuses qualify, so read which one, then swap on exactly that one (the
+ * verifyCommitment pattern): the transition event names the real old status and a racing flip loses.
+ */
+async function closeOpenCommitment(
+  id: number,
+  to: "completed" | "abandoned",
+  notes: string,
+  updatedBy: string,
+): Promise<boolean> {
+  const before = await prisma.commitment.findFirst({
+    where: { id, status: OPEN, deletedAt: null },
+    select: { status: true },
   });
-  // BDN-208 · stamp the conditions this completion happened under
-  // (sleep/energy/stress/day-state). Fire-and-forget — never blocks.
+  if (!before) return false;
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: before.status, deletedAt: null },
+    data: { status: to, notes, updatedBy },
+  });
+  // BDN-208 · stamp the conditions this close happened under (sleep/energy/stress/day-state). Fire-and-forget.
   if (res.count === 1) {
     const { captureCommitmentConditions } = await import("./commitment-conditions");
-    void captureCommitmentConditions(id, "completed");
-    await publishCommitmentTransition(id, "active", "completed");
+    void captureCommitmentConditions(id, to);
+    await publishCommitmentTransition(id, before.status, to);
   }
   return res.count === 1;
 }
@@ -273,18 +298,8 @@ export async function abandonActiveCommitment(
   notes = "Dropped (pulse ticker)",
   updatedBy = "operator",
 ): Promise<boolean> {
-  const res = await prisma.commitment.updateMany({
-    where: { id, status: "active", deletedAt: null },
-    data: { status: "abandoned", notes, updatedBy },
-  });
-  // BDN-208 · abandons carry conditions too — the contrast class is what
-  // makes per-condition completion rates readable.
-  if (res.count === 1) {
-    const { captureCommitmentConditions } = await import("./commitment-conditions");
-    void captureCommitmentConditions(id, "abandoned");
-    await publishCommitmentTransition(id, "active", "abandoned");
-  }
-  return res.count === 1;
+  // BDN-208 · abandons carry conditions too — the contrast class is what makes per-condition completion rates readable.
+  return closeOpenCommitment(id, "abandoned", notes, updatedBy);
 }
 
 // ─── Promises on /missions (R3 · 2026-11-03) ───────────────────────────
@@ -347,7 +362,7 @@ export async function listPromises(proposedLimit = 20): Promise<{
 }> {
   const [activeRows, proposedRows, activeCount, proposedCount] = await Promise.all([
     prisma.commitment.findMany({
-      where: { status: "active", deletedAt: null },
+      where: { status: OPEN, deletedAt: null },
       orderBy: [{ deadline: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
       take: 200,
       select: PROMISE_SELECT,
@@ -358,7 +373,7 @@ export async function listPromises(proposedLimit = 20): Promise<{
       take: proposedLimit,
       select: PROMISE_SELECT,
     }),
-    prisma.commitment.count({ where: { status: "active", deletedAt: null } }),
+    prisma.commitment.count({ where: { status: OPEN, deletedAt: null } }),
     prisma.commitment.count({ where: { status: "proposed", deletedAt: null } }),
   ]);
 
@@ -390,7 +405,7 @@ export async function editPromise(
   patch: { description?: string; toWhom?: string; deadline?: string | null },
 ): Promise<boolean> {
   const res = await prisma.commitment.updateMany({
-    where: { id, status: "active", deletedAt: null },
+    where: { id, status: OPEN, deletedAt: null },
     data: {
       ...(patch.description !== undefined ? { description: patch.description.trim() } : {}),
       ...(patch.toWhom !== undefined ? { toWhom: patch.toWhom.trim() || "self" } : {}),
@@ -421,7 +436,7 @@ export type PromiseToTaskResult =
  */
 export async function promiseToTask(id: number, missionId: string | null): Promise<PromiseToTaskResult> {
   const row = await prisma.commitment.findFirst({
-    where: { id, status: "active", deletedAt: null },
+    where: { id, status: OPEN, deletedAt: null },
     select: { description: true, executionRef: true },
   });
   if (!row) return { taskId: null, reason: "not_active" };
@@ -438,7 +453,7 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
 
   const claim = `${PENDING_REF}${Date.now()}`;
   const won = await prisma.commitment.updateMany({
-    where: { id, status: "active", deletedAt: null, executionRef: ref },
+    where: { id, status: OPEN, deletedAt: null, executionRef: ref },
     // No updatedBy here: a claim released after a failed create must leave no section mark for the kill read.
     data: { executionRef: claim },
   });
@@ -448,7 +463,8 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
       select: { executionRef: true, status: true, deletedAt: true },
     });
     // Closed or deleted elsewhere since the read: say so, not "still being made".
-    if (!winner || winner.status !== "active" || winner.deletedAt) return { taskId: null, reason: "not_active" };
+    const stillOpen = (OPEN_COMMITMENT_STATUSES as readonly string[]).includes(winner?.status ?? "");
+    if (!winner || !stillOpen || winner.deletedAt) return { taskId: null, reason: "not_active" };
     const winnerRef = winner.executionRef;
     return winnerRef?.startsWith(TASK_REF) && !winnerRef.startsWith(PENDING_REF)
       ? { taskId: winnerRef.slice(TASK_REF.length), created: false }
@@ -470,8 +486,10 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
         tx,
         afterCommit,
       )) as { id: string };
+      // Claim-before-act: pin everything the claim decided on. A promise closed or deleted after the claim
+      // matches 0 rows, the throw below rolls the task back, and nothing is linked to a closed promise.
       const linked = await tx.commitment.updateMany({
-        where: { id, executionRef: claim },
+        where: { id, executionRef: claim, status: OPEN, deletedAt: null },
         data: { executionRef: `${TASK_REF}${vm.id}`, updatedBy: PROMISE_ACTOR },
       });
       if (linked.count !== 1) throw new Error(`promise ${id} lost its task claim before the link`);
@@ -509,20 +527,21 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
 export async function closePromisesForTask(taskId: string): Promise<number> {
   const executionRef = `${TASK_REF}${taskId}`;
   const rows = await prisma.commitment.findMany({
-    where: { executionRef, status: "active", deletedAt: null },
-    select: { id: true },
+    where: { executionRef, status: OPEN, deletedAt: null },
+    select: { id: true, status: true },
   });
   let closed = 0;
-  for (const { id } of rows) {
+  for (const { id, status } of rows) {
+    // Swap on the status this read saw (and the ref), so the transition names the real old status.
     const res = await prisma.commitment.updateMany({
-      where: { id, executionRef, status: "active", deletedAt: null },
+      where: { id, executionRef, status, deletedAt: null },
       data: { status: "completed", notes: "Kept: its task was done", updatedBy: "system:task-done" },
     });
     if (res.count !== 1) continue;
     closed++;
     const { captureCommitmentConditions } = await import("./commitment-conditions");
     void captureCommitmentConditions(id, "completed");
-    await publishCommitmentTransition(id, "active", "completed");
+    await publishCommitmentTransition(id, status, "completed");
   }
   return closed;
 }

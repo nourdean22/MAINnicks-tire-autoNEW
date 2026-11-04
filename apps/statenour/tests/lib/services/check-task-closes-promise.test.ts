@@ -83,6 +83,8 @@ function onceTask() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations; the cascade cases install per-call ones, so start each case clean
+  for (const f of [mocks.task.findMany, mocks.commitment.findMany, mocks.commitment.updateMany]) f.mockReset();
   mocks.brainMemory.findMany.mockResolvedValue([]);
   mocks.brainMemory.upsert.mockResolvedValue({});
   mocks.brainMemory.create.mockResolvedValue({});
@@ -92,20 +94,55 @@ beforeEach(() => {
 describe("checkTask closes the promise its task was made from", () => {
   it("completing the task completes the linked active promise, stamped system:task-done", async () => {
     onceTask();
-    mocks.commitment.findMany.mockResolvedValueOnce([{ id: 4 }]);
+    mocks.commitment.findMany.mockResolvedValueOnce([{ id: 4, status: "active" }]);
     mocks.commitment.updateMany.mockResolvedValueOnce({ count: 1 });
 
     const r = await (checkTask as unknown as Exec)({ id: "t-9", action: "complete" });
 
     expect(r.ok).toBe(true);
     expect(mocks.commitment.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { executionRef: "task:t-9", status: "active", deletedAt: null } }),
+      expect.objectContaining({ where: { executionRef: "task:t-9", status: { in: ["active", "in_progress"] }, deletedAt: null } }),
     );
     expect(mocks.commitment.updateMany).toHaveBeenCalledTimes(1);
     expect(mocks.commitment.updateMany.mock.calls[0][0]).toMatchObject({
       where: { id: 4, executionRef: "task:t-9", status: "active", deletedAt: null },
       data: { status: "completed", updatedBy: "system:task-done" },
     });
+  });
+
+  it("Codex (PR 3541) 2: completing a parent with cascade closes the promise a cascaded child was made from", async () => {
+    onceTask();
+    mocks.task.findMany.mockImplementation(async (args: { where?: { parentTaskId?: string } }) =>
+      args?.where?.parentTaskId === "t-9" ? [{ id: "c-1", goal: null, mission: null }] : [],
+    );
+    mocks.commitment.findMany.mockImplementation(async (args: { where: { executionRef: string } }) =>
+      args.where.executionRef === "task:c-1" ? [{ id: 6, status: "active" }] : [],
+    );
+    mocks.commitment.updateMany.mockResolvedValue({ count: 1 });
+
+    const r = await (checkTask as unknown as Exec)({ id: "t-9", action: "complete", cascadeChildren: true });
+
+    expect(r.ok).toBe(true);
+    expect(r.childrenCascaded).toBe(1);
+    expect(mocks.commitment.updateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.commitment.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { id: 6, executionRef: "task:c-1", status: "active", deletedAt: null },
+      data: { status: "completed", updatedBy: "system:task-done" },
+    });
+  });
+
+  it("a cascaded child's failed close is logged and the parent still completes", async () => {
+    onceTask();
+    mocks.task.findMany.mockImplementation(async (args: { where?: { parentTaskId?: string } }) =>
+      args?.where?.parentTaskId === "t-9" ? [{ id: "c-1", goal: null, mission: null }] : [],
+    );
+    mocks.commitment.findMany.mockImplementation(async (args: { where: { executionRef: string } }) => {
+      if (args.where.executionRef === "task:c-1") throw new Error("db down");
+      return [];
+    });
+    const r = await (checkTask as unknown as Exec)({ id: "t-9", action: "complete", cascadeChildren: true });
+    expect(r.ok).toBe(true);
+    expect(mocks.warn.mock.calls.some((c) => c[1] === "promise_close_failed")).toBe(true);
   });
 
   it("a task no promise points at closes nothing", async () => {

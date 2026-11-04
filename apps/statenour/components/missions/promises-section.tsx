@@ -80,10 +80,13 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
   const dismiss = trpc.operator.commitmentDismiss.useMutation();
   const utils = trpc.useUtils();
 
-  // Home's proposed row and Nick's chip link to /missions#promises: land open.
+  // Home's proposed row and Nick's chip link to /missions#promises: land open and in view. The browser's own
+  // anchor jump ran before this client section existed (and Focus mode may have hidden it), so scroll here.
   useEffect(() => {
     const sync = () => {
-      if (window.location.hash === "#promises") setOpen(true);
+      if (window.location.hash !== "#promises") return;
+      setOpen(true);
+      document.getElementById("promises")?.scrollIntoView?.({ block: "start" });
     };
     sync();
     window.addEventListener("hashchange", sync);
@@ -227,7 +230,8 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
                       {r.task && (
                         <p className="text-[13px] text-fg-secondary">
                           {r.task.status === "DONE" ? "Its task is done. Mark the promise Done when it is kept. " : "Task made. "}
-                          <Link href={`/missions#task-row-${r.task.id}`} className="underline underline-offset-2 hover:text-fg">
+                          {/* ?taskId= opens the task's sheet (useOpenTaskFromUrl); no row carries id task-row-<id>. */}
+                          <Link href={`/missions?taskId=${r.task.id}`} className="underline underline-offset-2 hover:text-fg">
                             Open task
                           </Link>
                         </p>

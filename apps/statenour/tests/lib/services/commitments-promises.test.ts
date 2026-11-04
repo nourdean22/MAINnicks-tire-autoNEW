@@ -97,6 +97,7 @@ vi.mock("@/lib/services/task-actions", () => ({
 }));
 
 import {
+  OPEN_COMMITMENT_STATUSES,
   listPromises,
   editPromise,
   resolvePromise,
@@ -153,7 +154,7 @@ describe("listPromises", () => {
     for (const call of [...h.findMany.mock.calls, ...h.count.mock.calls]) {
       expect((call[0] as { where: { deletedAt: unknown } }).where.deletedAt).toBeNull();
     }
-    expect((h.findMany.mock.calls[0][0] as { where: { status: unknown } }).where.status).toBe("active");
+    expect((h.findMany.mock.calls[0][0] as { where: { status: unknown } }).where.status).toEqual({ in: ["active", "in_progress"] });
     expect((h.findMany.mock.calls[1][0] as { where: { status: unknown } }).where.status).toBe("proposed");
   });
 
@@ -198,7 +199,7 @@ describe("editPromise", () => {
     const ok = await editPromise(5, { description: " Call Mash ", toWhom: "", deadline: "2026-11-10" });
     expect(ok).toBe(true);
     const call = h.updateMany.mock.calls[0][0];
-    expect(call.where).toEqual({ id: 5, status: "active", deletedAt: null });
+    expect(call.where).toEqual({ id: 5, status: { in: ["active", "in_progress"] }, deletedAt: null });
     expect(call.data).toEqual({ description: "Call Mash", toWhom: "self", deadline: "2026-11-10", updatedBy: "nour" });
   });
 
@@ -212,6 +213,7 @@ describe("editPromise", () => {
 describe("resolvePromise", () => {
   it("Done writes completed, Drop writes abandoned, both stamped nour and active-only", async () => {
     expect(PROMISE_ACTOR).toBe("nour");
+    h.findFirst.mockResolvedValue({ status: "active" });
     h.updateMany.mockResolvedValue({ count: 1 });
     await expect(resolvePromise(3, "done")).resolves.toBe(true);
     await expect(resolvePromise(4, "drop")).resolves.toBe(true);
@@ -234,10 +236,10 @@ describe("promiseToTask", () => {
     expect(h.committed).toEqual(["t1"]);
     const [claim, link] = h.updateMany.mock.calls.map((c) => c[0]);
     // the claim is a compare-and-swap on the exact ref it read, with no section mark of its own
-    expect(claim.where).toEqual({ id: 7, status: "active", deletedAt: null, executionRef: null });
+    expect(claim.where).toEqual({ id: 7, status: { in: ["active", "in_progress"] }, deletedAt: null, executionRef: null });
     expect(String(claim.data.executionRef)).toMatch(PENDING);
     expect(claim.data).not.toHaveProperty("updatedBy");
-    expect(link.where).toEqual({ id: 7, executionRef: claim.data.executionRef });
+    expect(link.where).toEqual({ id: 7, executionRef: claim.data.executionRef, status: { in: ["active", "in_progress"] }, deletedAt: null });
     expect(link.data).toEqual({ executionRef: "task:t1", updatedBy: "nour" });
     expect(link.data).not.toHaveProperty("status");
     expect(h.inputs[0]).toMatchObject({ title: "Send Mash the alignment quote", status: "INBOX", missionId: "m-inbox" });
@@ -381,16 +383,87 @@ describe("promiseToTask", () => {
   it("refuses a promise that is no longer active", async () => {
     h.findFirst.mockResolvedValueOnce(null);
     await expect(promiseToTask(7, null)).resolves.toEqual({ taskId: null, reason: "not_active" });
-    expect(h.findFirst.mock.calls[0][0].where).toEqual({ id: 7, status: "active", deletedAt: null });
+    expect(h.findFirst.mock.calls[0][0].where).toEqual({ id: 7, status: { in: ["active", "in_progress"] }, deletedAt: null });
+  });
+});
+
+describe("Codex round (PR 3541): in_progress is open everywhere, and the link pins an open promise", () => {
+  it("OPEN_COMMITMENT_STATUSES is the established set the chat readers use", () => {
+    expect([...OPEN_COMMITMENT_STATUSES]).toEqual(["active", "in_progress"]);
+  });
+
+  it("an in_progress row is listed and counted as open", async () => {
+    h.findMany.mockResolvedValueOnce([row({ id: 3 })]).mockResolvedValueOnce([]);
+    h.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    await listPromises();
+    expect(h.findMany.mock.calls[0][0].where.status).toEqual({ in: ["active", "in_progress"] });
+    expect(h.count.mock.calls[0][0].where.status).toEqual({ in: ["active", "in_progress"] });
+  });
+
+  it("an in_progress row is editable", async () => {
+    h.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(editPromise(5, { deadline: null })).resolves.toBe(true);
+    expect(h.updateMany.mock.calls[0][0].where).toEqual({ id: 5, status: { in: ["active", "in_progress"] }, deletedAt: null });
+  });
+
+  it("an in_progress row closes with Done and Drop, swapped on the status it was read with", async () => {
+    h.findFirst.mockResolvedValue({ status: "in_progress" });
+    h.updateMany.mockResolvedValue({ count: 1 });
+    await expect(resolvePromise(3, "done")).resolves.toBe(true);
+    await expect(resolvePromise(4, "drop")).resolves.toBe(true);
+    expect(h.findFirst.mock.calls[0][0].where).toEqual({ id: 3, status: { in: ["active", "in_progress"] }, deletedAt: null });
+    const [done, drop] = h.updateMany.mock.calls.map((c) => c[0]);
+    expect(done.where).toEqual({ id: 3, status: "in_progress", deletedAt: null });
+    expect(done.data).toMatchObject({ status: "completed", updatedBy: "nour" });
+    expect(drop.where).toEqual({ id: 4, status: "in_progress", deletedAt: null });
+    expect(drop.data).toMatchObject({ status: "abandoned", updatedBy: "nour" });
+  });
+
+  it("an in_progress row can be turned into a task", async () => {
+    h.findFirst.mockResolvedValueOnce({ description: "x", executionRef: null });
+    h.updateMany.mockResolvedValue({ count: 1 });
+    await expect(promiseToTask(7, null)).resolves.toMatchObject({ created: true });
+    expect(h.findFirst.mock.calls[0][0].where).toEqual({ id: 7, status: { in: ["active", "in_progress"] }, deletedAt: null });
+    expect(claims()[0].where).toMatchObject({ status: { in: ["active", "in_progress"] }, deletedAt: null });
+  });
+
+  it("a lost swap on an in_progress row is still open, so it reports the winner, not not_active", async () => {
+    h.findFirst.mockResolvedValueOnce({ description: "x", executionRef: null });
+    h.updateMany.mockResolvedValueOnce({ count: 0 });
+    h.findUnique.mockResolvedValueOnce({ executionRef: "task:t9", status: "in_progress", deletedAt: null });
+    await expect(promiseToTask(7, null)).resolves.toEqual({ taskId: "t9", created: false });
+  });
+
+  it("the link pins an open, undeleted promise: closed between claim and link, no task is committed and nothing is linked", async () => {
+    // The real store would match 0 rows once the promise left the open set; the mock answers by the predicate.
+    h.findFirst.mockResolvedValueOnce({ description: "x", executionRef: null });
+    h.updateMany.mockImplementation(async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      const linking = String(args.data.executionRef ?? "").startsWith("task:t");
+      if (!linking) return { count: 1 }; // claim and release
+      const pinsOpen = JSON.stringify(args.where.status) === JSON.stringify({ in: ["active", "in_progress"] }) && args.where.deletedAt === null;
+      return { count: pinsOpen ? 0 : 1 }; // the promise was completed after the claim
+    });
+    await expect(promiseToTask(7, null)).rejects.toThrow();
+    expect(h.committed).toEqual([]);
+    const link = h.updateMany.mock.calls.map((c) => c[0]).find((a) => String(a.data.executionRef).startsWith("task:t"));
+    expect(link.where).toMatchObject({ id: 7, status: { in: ["active", "in_progress"] }, deletedAt: null });
+  });
+
+  it("auto-close closes an in_progress promise too, swapped on its read status", async () => {
+    h.findMany.mockResolvedValueOnce([{ id: 4, status: "in_progress" }]);
+    h.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(closePromisesForTask("t9")).resolves.toBe(1);
+    expect(h.findMany.mock.calls[0][0].where).toEqual({ executionRef: "task:t9", status: { in: ["active", "in_progress"] }, deletedAt: null });
+    expect(h.updateMany.mock.calls[0][0].where).toEqual({ id: 4, executionRef: "task:t9", status: "in_progress", deletedAt: null });
   });
 });
 
 describe("closePromisesForTask (auto-close when the task is done)", () => {
   it("completes each active promise linked to the task, pinned to the ref, stamped system:task-done", async () => {
-    h.findMany.mockResolvedValueOnce([{ id: 4 }]);
+    h.findMany.mockResolvedValueOnce([{ id: 4, status: "active" }]);
     h.updateMany.mockResolvedValueOnce({ count: 1 });
     await expect(closePromisesForTask("t9")).resolves.toBe(1);
-    expect(h.findMany.mock.calls[0][0].where).toEqual({ executionRef: "task:t9", status: "active", deletedAt: null });
+    expect(h.findMany.mock.calls[0][0].where).toEqual({ executionRef: "task:t9", status: { in: ["active", "in_progress"] }, deletedAt: null });
     const call = h.updateMany.mock.calls[0][0];
     expect(call.where).toEqual({ id: 4, executionRef: "task:t9", status: "active", deletedAt: null });
     expect(call.data).toMatchObject({ status: "completed", updatedBy: "system:task-done" });

@@ -1458,7 +1458,12 @@ export const operatorRouter = router({
         deadline: z.string().refine(isCalendarDate, "Deadline must be a real date (YYYY-MM-DD)").nullable().optional(),
       }),
     )
-    .mutation(async ({ input: { id, ...patch } }) => ({ ok: await editPromise(id, patch) })),
+    .mutation(async ({ input: { id, ...patch } }) => {
+      const ok = await editPromise(id, patch);
+      // AGENTS.md: a mutation clears dashboard_brief + ultron_command_center_state_v1, or Nick reads the old text until the TTL.
+      if (ok) (await import("@/lib/services/tasks")).invalidateMutationCaches();
+      return { ok };
+    }),
 
   promiseResolve: operatorProcedure
     .input(z.object({ id: z.number().int().positive(), action: z.enum(["done", "drop"]) }))
@@ -1467,6 +1472,7 @@ export const operatorRouter = router({
       if (resolved) {
         const { invalidate } = await import("@/lib/utils/cache");
         invalidate("ultron_personal_pulse_v3");
+        (await import("@/lib/services/tasks")).invalidateMutationCaches();
       }
       return { resolved };
     }),

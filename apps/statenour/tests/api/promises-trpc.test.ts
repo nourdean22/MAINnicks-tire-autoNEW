@@ -48,6 +48,7 @@ describe("operator.promises*", () => {
   });
 
   it("promiseResolve invalidates the pulse cache only when a promise closed", async () => {
+    db.commitment.findFirst.mockResolvedValue({ status: "active" });
     db.commitment.updateMany.mockResolvedValueOnce({ count: 1 });
     await expect(caller.operator.promiseResolve({ id: 3, action: "done" })).resolves.toEqual({ resolved: true });
     expect(invalidate).toHaveBeenCalledWith("ultron_personal_pulse_v3");
@@ -56,6 +57,29 @@ describe("operator.promises*", () => {
     await expect(caller.operator.promiseResolve({ id: 3, action: "drop" })).resolves.toEqual({ resolved: false });
     expect(invalidate).not.toHaveBeenCalled();
     await expect(caller.operator.promiseResolve({ id: 0, action: "done" })).rejects.toThrow();
+  });
+
+  it("Codex (PR 3541) 3: a successful edit or close clears the brief and command-center caches; a no-op or failed write clears nothing", async () => {
+    const keys = () => invalidate.mock.calls.map((c) => c[0]);
+    db.commitment.findFirst.mockResolvedValue({ status: "active" });
+
+    db.commitment.updateMany.mockResolvedValueOnce({ count: 1 });
+    await caller.operator.promiseEdit({ id: 1, description: "Call Mash" });
+    expect(keys()).toEqual(expect.arrayContaining(["dashboard_brief", "ultron_command_center_state_v1"]));
+
+    invalidate.mockClear();
+    db.commitment.updateMany.mockResolvedValueOnce({ count: 1 });
+    await caller.operator.promiseResolve({ id: 3, action: "done" });
+    expect(keys()).toEqual(expect.arrayContaining(["dashboard_brief", "ultron_command_center_state_v1", "ultron_personal_pulse_v3"]));
+
+    invalidate.mockClear();
+    db.commitment.updateMany.mockResolvedValueOnce({ count: 0 });
+    await caller.operator.promiseEdit({ id: 1, description: "Call Mash" });
+    db.commitment.updateMany.mockResolvedValueOnce({ count: 0 });
+    await caller.operator.promiseResolve({ id: 3, action: "drop" });
+    db.commitment.updateMany.mockRejectedValueOnce(new Error("db down"));
+    await expect(caller.operator.promiseEdit({ id: 1, description: "Call Mash" })).rejects.toThrow();
+    expect(keys()).toEqual([]);
   });
 
   it("promiseToTask refuses id 0 and an empty mission id", async () => {

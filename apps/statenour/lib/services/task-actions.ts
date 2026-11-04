@@ -478,6 +478,8 @@ export async function checkTask(args: {
   // cascade respects that. (TaskStatus has no CANCELLED · DONE +
   // ARCHIVED are the only terminal states in the enum.)
   let childrenCascaded = 0;
+  // R3 Codex round: the cascaded children whose DONE write succeeded; each closes its own promise below.
+  const cascadedIds: string[] = [];
   if (cascadeChildren) {
     try {
       // Capture the child ids BEFORE the bulk update so each cascaded
@@ -501,6 +503,7 @@ export async function checkTask(args: {
       });
       childrenCascaded = cascadeResult.count;
       for (const child of cascadedChildren) {
+        cascadedIds.push(child.id);
         void creditTaskStats(child.id).catch(() => {});
         const childGoal = taskGoalServer(child)?.id ?? null;
         if (childGoal) void liftGoalOnTaskComplete(childGoal, child.id).catch(() => {});
@@ -551,10 +554,13 @@ export async function checkTask(args: {
   // R3 round 1 (auto-close): a task made from a promise (Promises on /missions, executionRef task:<id>)
   // keeps that promise. Ordered like the goal lift above: awaited, and a failure is logged and never
   // fails the completion. Stamped system:task-done so the kill read tells it from Nour's taps.
-  await closePromisesForTask(id).catch((err) => {
-    log.warn("promise_close_failed", { taskId: id, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-    return 0;
-  });
+  // Codex (PR 3541): a cascaded child made from a promise closes its promise too, under the same rule.
+  for (const taskId of [id, ...cascadedIds]) {
+    await closePromisesForTask(taskId).catch((err) => {
+      log.warn("promise_close_failed", { taskId, err: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      return 0;
+    });
+  }
 
   // W8a (audit A1): the phase-progression hook. The only call used to sit in updateTask's UNREACHABLE
   // branch, so milestones 2..N never became tasks. checkTask is the one completion path every writer
