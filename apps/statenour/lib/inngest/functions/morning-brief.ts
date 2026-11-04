@@ -43,6 +43,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 import { GOALS_HEADER, NOT_SEEING_HEADER } from "@/lib/services/brief-private";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("inngest/morning-brief");
 const inngest = getInngest();
@@ -139,17 +140,162 @@ async function composeBrief(): Promise<ComposedBrief> {
  * `<b>` tags on the phone. Strip FIRST, then trim: slicing before
  * stripping could also cut a tag in half mid-notification.
  */
-export function pushBodyFromBrief(text: string): string {
+export function pushBodyFromBrief(text: string, checkInsDue = 0, weeklyReviewReady = false): string {
   // The weekly gap and Monday Goals sections are private: a lock screen never shows any of
   // them (PR #3221 review; goals-system W2). Cut at whichever comes first.
   const cuts = [NOT_SEEING_HEADER, GOALS_HEADER].map((h) => text.indexOf(h)).filter((i) => i >= 0);
   const cut = cuts.length > 0 ? Math.min(...cuts) : -1;
-  return (cut >= 0 ? text.slice(0, cut) : text)
+  const body = (cut >= 0 ? text.slice(0, cut) : text)
     .replace(/<[^>]+>/g, "")
     .replace(/\n+/g, " · ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
+    .trim();
+  // R2a (2026-11-03): goals due a check-in, as a COUNT after the cut; a title never goes on a
+  // lock screen. Then "Weekly review is ready" (claimed once per ISO week by deliverMorningBrief). Room
+  // is kept for the whole tail so the 200-char cap cannot cut it off.
+  const tail = [
+    checkInsDue > 0 ? `${checkInsDue} ${checkInsDue === 1 ? "goal needs" : "goals need"} a check-in` : "",
+    weeklyReviewReady ? "Weekly review is ready" : "",
+  ].filter(Boolean).join(" · ");
+  if (!tail) return body.slice(0, 200);
+  const head = body.slice(0, 200 - tail.length - 3).replace(/[\s·]+$/, "");
+  return head ? `${head} · ${tail}` : tail;
+}
+
+/** "YYYY-WNN" of a Monday "YYYY-MM-DD", in pure date math (no clock, no zone). */
+function isoWeekOfMonday(monday: string): string {
+  const thursday = new Date(`${monday}T00:00:00Z`);
+  thursday.setUTCDate(thursday.getUTCDate() + 3); // the week's Thursday names its ISO year
+  const year = thursday.getUTCFullYear();
+  const dayOfYear = Math.round((thursday.getTime() - Date.UTC(year, 0, 1)) / 86_400_000);
+  return `${year}-W${String(Math.floor(dayOfYear / 7) + 1).padStart(2, "0")}`;
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * R2a manager ruling (2026-11-03) · claim the "Weekly review is ready" line for the first brief after a
+ * review is written. The weekly-review cron runs Sunday ~22:00-23:00 ET (inside sendPush's quiet hours)
+ * and keys its row weekly:<that week's Monday>, so a Monday brief looks for this week's Monday or the
+ * one just ended; the newest wins. The claim is a weekly_review_nudge create keyed by the review's ISO
+ * week (claim-before-act: P2002 = an earlier brief this week took it, so no line). Any read or create
+ * failure = no line. The caller releases the claim when the brief reached nobody.
+ */
+type WeeklyClaim = { id: string; week: string; runId: string };
+
+async function claimWeeklyReviewLine(today: string, runId: string): Promise<WeeklyClaim | null> {
+  const thisMonday = addDaysYmd(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  let week: string | null = null;
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const rows = await prisma.brainMemory.findMany({
+      where: { category: "weekly_review", key: { in: [`weekly:${thisMonday}`, `weekly:${addDaysYmd(thisMonday, -7)}`] }, deletedAt: null },
+      select: { key: true },
+    });
+    if (rows.length === 0) return null;
+    const weekStart = rows.map((r) => r.key.slice("weekly:".length)).sort().at(-1)!;
+    week = isoWeekOfMonday(weekStart);
+    // brain-memory-direct-write: a once-per-week send marker (the claim), not a semantic memory. No
+    // expiresAt and confidence 1.0, so pruneNoise and data-cleanup never reach it; excluded from merge.
+    const row = await prisma.brainMemory.create({
+      data: {
+        category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+        key: week,
+        content: `Weekly review is ready line, morning brief of ${today}`,
+        confidence: 1.0,
+        source: "inngest/morning-brief",
+        metadata: { weekStart, briefDate: today, runId } as never,
+      },
+      select: { id: true },
+    });
+    return { id: row.id, week, runId };
+  } catch (err) {
+    if (week && (err as { code?: string } | null)?.code === "P2002") return ownClaimOfRun(week, runId);
+    await warn("weekly-review-claim", err, { week });
+    return null;
+  }
+}
+
+/** The P2002 winner is THIS brief's own only when the same Inngest run made it: a step retry after the
+ *  create committed, or a create that committed while the client saw an error, keeps its runId. Another
+ *  run on the same day (a manual Invoke or Replay, an at-least-once re-execution) is a different caller:
+ *  no line, and it never touches that claim (R2a round 2). A failed read = no line. */
+async function ownClaimOfRun(week: string, runId: string): Promise<WeeklyClaim | null> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const row = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE, key: week } },
+      select: { id: true, metadata: true },
+    });
+    const owner = (row?.metadata as { runId?: unknown } | null)?.runId;
+    return row && owner === runId ? { id: row.id, week, runId } : null;
+  } catch (err) {
+    await warn("weekly-review-claim", err, { week, stage2: "read-winner" });
+    return null;
+  }
+}
+
+/** Release a claim whose brief reached nobody, so the next brief can carry the line. A compare-and-swap:
+ *  the row must still be this run's (id AND metadata.runId), never a delete by id alone.
+ *  Never throws: a failed release must not mask the delivery result or the push error. */
+async function releaseWeeklyReviewLine(claim: WeeklyClaim): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.brainMemory.deleteMany({
+      where: {
+        id: claim.id,
+        category: BRAIN_CATEGORIES.WEEKLY_REVIEW_NUDGE,
+        key: claim.week,
+        metadata: { path: ["runId"], equals: claim.runId },
+      },
+    });
+  } catch (err) {
+    await warn("weekly-review-release", err, { week: claim.week });
+  }
+}
+
+/** A read the push can live without failed: recorded where /system/errors reads it, as a warn.
+ *  Never throws: a broken logger must not take the brief down with it. */
+async function warn(stage: string, err: unknown, extra: Record<string, unknown> = {}): Promise<void> {
+  try {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("inngest/morning-brief", err, { stage, ...extra }, "warn");
+  } catch {
+    // The logger itself failed; there is nowhere left to report it.
+  }
+}
+
+/** Active goals past their check-in cadence (lib/brain/goal-pace.ts), the read Home's
+ *  loadGoalCheckInDue makes. null = the read failed: no line, never a "0". */
+async function countCheckInsDue(now: number = Date.now()): Promise<number | null> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const { checkInOverdueDays } = await import("@/lib/brain/goal-pace");
+    const goals = await prisma.lifeGoal.findMany({
+      where: { deletedAt: null, status: "active" },
+      // shortcut: counts at most the 50 newest active goals; raise it if Nour ever holds more.
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, horizon: true, createdAt: true },
+    });
+    if (goals.length === 0) return 0;
+    const events = await prisma.goalEvent.findMany({
+      where: { goalId: { in: goals.map((g) => g.id) }, kind: "check_in" },
+      orderBy: { createdAt: "desc" },
+      distinct: ["goalId"],
+      select: { goalId: true, createdAt: true },
+    });
+    const last = new Map<string, Date>();
+    for (const e of events) if (!last.has(e.goalId)) last.set(e.goalId, e.createdAt);
+    return goals.filter((g) => checkInOverdueDays({ ...g, lastCheckInAt: last.get(g.id) ?? null }, now) >= 0).length;
+  } catch (err) {
+    await warn("check-in-count", err);
+    return null;
+  }
 }
 
 /**
@@ -167,6 +313,8 @@ async function briefTelegramFallback(
   brief: ComposedBrief,
   push: { sent: number; failed: number },
   ledgerId: string | null,
+  checkInsDue = 0,
+  weeklyReviewReady = false,
 ): Promise<{ status: "skipped_push_ok" | "sent" | "failed" }> {
   if (push.sent > 0) return { status: "skipped_push_ok" };
   const { sendTelegram, sendTelegramWithButtons } = await import("@/lib/services/telegram");
@@ -177,7 +325,7 @@ async function briefTelegramFallback(
       : "no live web-push subscription";
   const text =
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
-    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
+    `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text, checkInsDue, weeklyReviewReady)}\n\n` +
     `There is no brief page. Ask Nick on the home screen for the full brief: https://bdnick.info/`;
   // 2026-10-02 · this is the path the brief takes when push reaches no device,
   // and it was the one delivery of a ledgered brief with no way to rate it.
@@ -189,7 +337,7 @@ async function briefTelegramFallback(
   return { status: ok ? "sent" : "failed" };
 }
 
-async function sendBriefPush(brief: ComposedBrief): Promise<{
+async function sendBriefPush(brief: ComposedBrief, checkInsDue: number, weeklyReviewReady: boolean): Promise<{
   sent: number;
   failed: number;
   /** The ledger row the rating buttons point at; null when ledgering failed. */
@@ -230,7 +378,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     title: "Morning brief",
     // Trim aggressively · push body has a hard limit ~120 chars on
     // most platforms before the OS truncates with "…".
-    body: pushBodyFromBrief(brief.text),
+    body: pushBodyFromBrief(brief.text, checkInsDue, weeklyReviewReady),
     level: "high",
     // `chatSeed` below OVERRIDES this, so it is the no-seed fallback only. It
     // pointed at the retired /command route (which redirects home — a hop, not
@@ -265,29 +413,43 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
  * function retries, so a throw would re-send; the orchestrator declares the run
  * `partial` instead, which cron-lifecycle records and the Owner Panel reads.
  */
-export async function deliverMorningBrief(brief: ComposedBrief): Promise<{
+export async function deliverMorningBrief(brief: ComposedBrief, runId: string): Promise<{
   status: "sent" | "telegram_fallback" | "undelivered";
   push: { sent: number; failed: number };
+  /** Goals due a check-in; null = the read failed (no line was sent, and the run says so). */
+  checkInsDue: number | null;
 }> {
-  const push = await sendBriefPush(brief);
+  const checkInsDue = await countCheckInsDue();
+  const review = await claimWeeklyReviewLine(brief.date, runId);
+  let push: Awaited<ReturnType<typeof sendBriefPush>>;
+  try {
+    push = await sendBriefPush(brief, checkInsDue ?? 0, review !== null);
+  } catch (err) {
+    // The step retries on a throw; give the line back so the retry can claim it again.
+    if (review) await releaseWeeklyReviewLine(review);
+    throw err;
+  }
   const counts = { sent: push.sent, failed: push.failed };
   const { setShownSurface } = await import("@/lib/services/outcome-ledger");
   if (push.sent > 0) {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "web-push");
-    return { status: "sent", push: counts };
+    return { status: "sent", push: counts, checkInsDue };
   }
-  const fallback = await briefTelegramFallback(brief, push, push.ledgerId);
+  // Manager ruling (R2a round 1): a Telegram timeout or abort keeps the claim; a missed line beats a double line.
+  const fallback = await briefTelegramFallback(brief, push, push.ledgerId, checkInsDue ?? 0, review !== null);
   if (fallback.status === "sent") {
     if (push.ledgerId) await setShownSurface(push.ledgerId, "telegram-fallback");
-    return { status: "telegram_fallback", push: counts };
+    return { status: "telegram_fallback", push: counts, checkInsDue };
   }
+  // The brief reached nobody, so the review line did not either: release the claim.
+  if (review) await releaseWeeklyReviewLine(review);
   const { logError } = await import("@/lib/utils/error-log");
   logError(
     "inngest/morning-brief",
     new Error("morning brief reached no device and the Telegram fallback failed"),
-    { date: brief.date, pushFailed: push.failed, ledgerId: push.ledgerId },
+    { date: brief.date, pushFailed: push.failed, ledgerId: push.ledgerId, weeklyClaim: review?.week ?? null },
   );
-  return { status: "undelivered", push: counts };
+  return { status: "undelivered", push: counts, checkInsDue };
 }
 /**
  * Step 3 · generate a Cartesia-TTS audio file for the brief and
@@ -472,11 +634,12 @@ export const operatorMorningBrief = inngest.createFunction(
     triggers: [{ cron: "0 10 * * *" }],
     onFailure: onInngestFailure,
   },
-  async ({ step }) => {
+  async ({ step, runId }) => {
     const brief = await step.run("compose", composeBrief);
     // Push right after composing; ledger, rating buttons and the Telegram fallback
-    // live in deliverMorningBrief.
-    const delivery = await step.run("deliver-push", () => deliverMorningBrief(brief));
+    // live in deliverMorningBrief. runId owns the weekly-review claim: a step retry keeps it, a second
+    // run (manual Invoke, Replay) does not, so it can never send the line a second time.
+    const delivery = await step.run("deliver-push", () => deliverMorningBrief(brief, runId));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
     const pinned = await step.run("pin-scoreboard", () =>
@@ -494,6 +657,7 @@ export const operatorMorningBrief = inngest.createFunction(
       pushSent: delivery.push.sent,
       pushFailed: delivery.push.failed,
       delivery: delivery.status,
+      checkInsDue: delivery.checkInsDue ?? null,
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,

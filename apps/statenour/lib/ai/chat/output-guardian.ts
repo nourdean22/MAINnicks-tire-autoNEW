@@ -557,7 +557,7 @@ async function getActual(type: ClaimPattern["type"]): Promise<number | null> {
       }
       case "task_count": {
         const count = await prisma.task.count({
-          where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
+          where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] }, deletedAt: null },
         });
         return count;
       }

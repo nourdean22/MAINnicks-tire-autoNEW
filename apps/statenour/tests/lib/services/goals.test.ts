@@ -100,6 +100,50 @@ describe("Goals Service", () => {
       expect(result[0].nextMove?.id).toBe("t2");
     });
 
+    it("W8a: a task with no goal of its own counts for its mission's goal, read through goalTaskWhere (audit A2/C2)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", kind: "milestone", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([
+        { id: "t1", title: "Own", goalId: "g1", status: "DONE", mission: { lifeGoalId: null } },
+        { id: "t2", title: "Plan step", goalId: null, status: "READY", mission: { lifeGoalId: "g1" } },
+        { id: "t3", title: "Plan step 2", goalId: null, status: "READY", mission: { lifeGoalId: "g1" } },
+      ]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+
+      const [g] = await getGoals();
+
+      expect(mocks.task.findMany.mock.calls[0][0].where).toMatchObject({
+        deletedAt: null,
+        OR: [{ goalId: { in: ["g1"] } }, { goalId: null, mission: { lifeGoalId: { in: ["g1"] } } }],
+      });
+      expect(g.linkedTaskCount).toBe(3);
+      expect(g.linkedNextStepCount).toBe(2);
+      expect(g.progress).toBe(33);
+      expect(g.nextMove?.id).toBe("t2");
+    });
+
+    it("round 1 P1-6: a failed weekly-completes read is null (unknown), never '0 this week'", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Goal", kind: "milestone", progress: 0, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([{ id: "t1", title: "a", goalId: "g1", status: "DONE" }]);
+      mocks.taskEvent.findMany.mockRejectedValue(new Error("db down"));
+      const [g] = await getGoals();
+      expect(g.loopsThisWeek).toBeNull();
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      const [g2] = await getGoals();
+      expect(g2.loopsThisWeek).toBe(0);
+    });
+
+    it("W8a: a metric goal with a target shows its value %, whatever its tasks say (audit A5/C1)", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([{ id: "g1", title: "Revenue", kind: "metric", currentValue: 12000, targetValue: 15000, progress: 1, status: "active" }]);
+      mocks.task.findMany.mockResolvedValue([
+        { id: "t1", title: "a", goalId: "g1", status: "DONE" },
+        { id: "t2", title: "b", goalId: "g1", status: "READY" },
+        { id: "t3", title: "c", goalId: "g1", status: "READY" },
+      ]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+      const [g] = await getGoals();
+      expect(g.progress).toBe(80);
+    });
+
     it("surfaces the highest-priority active task when no task is doing", async () => {
       mocks.lifeGoal.findMany.mockResolvedValue([
         { id: "g1", title: "Priority Goal", progress: 0, status: "active" },
@@ -269,6 +313,18 @@ describe("Goals Service", () => {
     });
   });
 
+  describe("updateGoal · provenance (R2b: only the shop sync passes a source)", () => {
+    it("with no opts, the audit row and the progress_logged event say api:goals.PATCH", async () => {
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 10, targetValue: 100 });
+      mocks.lifeGoal.update.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 50, targetValue: 100 });
+      await updateGoal({ id: "g1", currentValue: 50 });
+      expect(mocks.logUpdate).toHaveBeenCalledWith("lifeGoal", "g1", expect.anything(), expect.anything(), { source: "api:goals.PATCH" });
+      expect(mocks.emitGoalEventAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "progress_logged", source: "api:goals.PATCH", payload: { delta: 40, before: 10, after: 50, target: 100 } }),
+      );
+    });
+  });
+
   describe("updateGoal · missed (W6 second reader)", () => {
     it("a goal moving to missed emits a missed GoalEvent once; staying missed emits none", async () => {
       mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 0, targetValue: 100 });
@@ -391,13 +447,14 @@ describe("getGoals health (W2 2026-11-02, Linear L2)", () => {
   it("carries the newest check-in's health, date and note per goal", async () => {
     mocks.lifeGoal.findMany.mockResolvedValue([goalRow("g1"), goalRow("g2")]);
     mocks.goalEvent.findMany.mockResolvedValue([
-      { goalId: "g1", payload: { health: "at_risk", note: "bank call slipped" }, createdAt: recent },
+      { goalId: "g1", kind: "check_in", payload: { health: "at_risk", note: "bank call slipped" }, createdAt: recent },
     ]);
     const [g1, g2] = await getGoals();
     expect(g1.health).toEqual({ state: "at_risk", at: recent.toISOString(), note: "bank call slipped" });
     expect(g2.health).toEqual({ state: "no_check_in", at: null, note: null });
     const where = mocks.goalEvent.findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ goalId: { in: ["g1", "g2"] }, kind: "check_in" });
+    // W8a: the one "latest check-in per goal" read (lib/services/goal-health.ts latestGoalEvents).
+    expect(where).toMatchObject({ goalId: { in: ["g1", "g2"] }, kind: { in: ["check_in", "horizon_set"] } });
   });
 
   it("a failed check-in read is unknown, never no_check_in", async () => {

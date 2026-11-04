@@ -33,6 +33,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     mission: mocks.mission,
     task: mocks.task,
+    // W8c · updateMission looks a new lifeGoalId up among the active goals (tests/services/mission-goal-link.test.ts).
+    lifeGoal: { findFirst: vi.fn(async ({ where }: { where: { id: string } }) => ({ id: where.id })) },
     $transaction: vi.fn(async (fn) =>
       fn({
         mission: mocks.mission,

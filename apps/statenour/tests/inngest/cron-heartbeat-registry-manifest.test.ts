@@ -165,6 +165,8 @@ describe("expectedJobs · derived from config/crons.ts", () => {
     for (const name of daily) {
       expect(jobs.get(name), name).toEqual({ name, maxAgeH: 26 });
     }
+    // R2b 2026-11-03: the nightly goal shop sync is watched like every evening child.
+    expect(jobs.get("goal-shop-sync")).toEqual({ name: "goal-shop-sync", maxAgeH: 26 });
     for (const name of new Set(WEEKLY_JOBS.map(nameOf))) {
       if (!daily.has(name)) expect(jobs.get(name), name).toEqual({ name, maxAgeH: 24 * 8 });
     }

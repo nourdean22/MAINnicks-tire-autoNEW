@@ -695,7 +695,7 @@
   },
   {
     "name": "completeTask",
-    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
+    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE; finishing the last task of a plan phase creates the next phase's tasks (nextPhaseSpawned). For a DAILY habit Nour did on a PAST day but never clicked (\"I journaled Oct 30, just didn't tap it\"), pass completedOn as that ET date: it records that day, fixes the streak, credits that day's XP once; call once per missed day. Example: {\"taskId\":\"142\"} or {\"taskId\":\"142\",\"completedOn\":\"2026-10-30\"}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -914,7 +914,7 @@
   },
   {
     "name": "createTask",
-    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
+    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` (from getGoals): completing the task counts it on that goal's card; for a milestone or narrative goal it is one step of the goal's task %, for a metric goal it is logged (the number moves only through a check-in or an edit). A task under a goal-linked mission counts for that goal without a goalId. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -948,7 +948,7 @@
           "type": "string"
         },
         "goalId": {
-          "description": "Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue",
+          "description": "The goal this task serves (id from getGoals). An unknown id is dropped and said. Omit under a goal-linked mission: the task inherits the mission's goal.",
           "type": "string"
         },
         "loopKind": {
@@ -1428,7 +1428,7 @@
   },
   {
     "name": "getHabitStreaks",
-    "description": "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
+    "description": "Habit check-offs for the last 7 ET days, per DAILY habit (workouts, journal, etc): which days are done (a day backfilled with completeTask.completedOn counts on its own day, an unchecked one does not), how many of 7, and the current streak. A read that failed says unknown.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -1491,7 +1491,7 @@
   },
   {
     "name": "getMissions",
-    "description": "Get active missions",
+    "description": "Get active missions with the goal each one serves (lifeGoalId + goal title, null when none): a task under a goal-linked mission counts for that goal.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
@@ -2152,6 +2152,42 @@
     }
   },
   {
+    "name": "logPersonInteraction",
+    "description": "Record a contact with someone already in Nour's people on the relationship ledger: a signed amount (a deposit +, a withdrawal -) and one line of what happened. The same row the /people log and Telegram /log write. Use when he says \"log +20 for Mash, covered the counter\". Never creates a person and never guesses one: no_match (offer to add them first), ambiguous (two people, or only a typo-close name; ask which, then call again with the exact name or that candidate's personId) and rejected_name come back for you to say. Do not also append a person.logInteraction block for the same contact. Example: {\"personQuery\":\"Mash\",\"amount\":20,\"note\":\"covered the counter\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "amount": {
+          "description": "Signed, as he said it: +20 is 20, -5 is -5",
+          "maximum": 100,
+          "minimum": -100,
+          "type": "integer"
+        },
+        "note": {
+          "description": "What happened, in his words. Omit only if he gave none.",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "personId": {
+          "description": "Only after an ambiguous result: the personId of the candidate Nour picked",
+          "maxLength": 64,
+          "type": "string"
+        },
+        "personQuery": {
+          "description": "The name as Nour said it",
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "personQuery",
+        "amount"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "logSituation",
     "description": "Log a real situation for strategic analysis — AI matches relevant Greene laws and provides tactical advice",
     "inputSchema": {
@@ -2251,7 +2287,7 @@
   },
   {
     "name": "pinMemory",
-    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'.",
+    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'. Pass goalId (from getGoals) or personId when the fact is about a goal or a person, so the /brain goal and person filters find it.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -2265,8 +2301,16 @@
           "description": "The fact or note to pin · plain English · 1-2 sentences ideal",
           "type": "string"
         },
+        "goalId": {
+          "description": "The goal this fact is about (id from getGoals); an unknown id is dropped and said",
+          "type": "string"
+        },
         "key": {
           "description": "Optional dedup key · defaults to slug of content first 60 chars",
+          "type": "string"
+        },
+        "personId": {
+          "description": "The person this fact is about (id from getRelated / the people list); an unknown id is dropped and said",
           "type": "string"
         }
       },

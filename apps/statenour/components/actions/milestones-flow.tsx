@@ -9,31 +9,37 @@
  * the plan is a wall of steps with no review checkpoints.
  *
  * Flow:
- *   1. Loading — POST /api/ai/plan-project mode=milestones with the
+ *   1. Loading — trpc.ai.planProject mode=milestones with the
  *      goal's title + target metric + deadline. AI returns 3-5
  *      verifiable checkpoints.
  *   2. Editing — Nour reviews the proposed milestones inline. Each
- *      one is editable (textarea), removable, and the list can be
- *      extended with a blank entry. Order matters.
- *   3. Generating — Nour confirms. Component creates a Mission row,
- *      calls plan-project mode=plan with milestones[] so the AI's
- *      phases map 1:1 to confirmed checkpoints, then spawns the
- *      first phase via /api/projects/[id]/spawn-tasks tagged with
- *      goalId.
+ *      one is editable (textarea, MILESTONE_MAX chars), removable, and
+ *      the list can be extended with a blank entry. Order matters.
+ *   3. Generating — Nour confirms. Component creates ONE Mission row
+ *      (its id is kept in a ref, so a retry reuses it and never makes a
+ *      second mission), then calls mode=plan with milestones[]. The
+ *      SERVER saves the plan and spawns phase 0 in the same call
+ *      (lib/services/ai-plan-project.ts), so a backgrounded phone cannot
+ *      skip the spawn; the toast reports the count the server returns.
  *   4. Done — emits onComplete(missionId) so the parent jumps to
  *      the new project + refreshes.
  *
- * Errors at any stage are toast-surfaced; the panel stays open so
- * Nour can retry. Cancel returns the goal card to its un-planned
- * state — no half-built project leaks.
+ * Errors at any stage are toast-surfaced; the panel stays open so Nour
+ * can retry. Cancel after step 3 started keeps the mission already made
+ * (visible on /missions, linked to the goal) and a retry from the card
+ * finds it through this panel's ref only while the panel is mounted;
+ * nothing is deleted on cancel.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Brain, Plus, Sparkles, Loader2, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { trpc } from "@/lib/trpc/client";
+
+/** CONTROLS RULE: one milestone's length, the same cap the server validates (lib/trpc/routers/ai.ts planProject). */
+export const MILESTONE_MAX = 200;
 
 interface SuggestedMilestone {
   label: string;
@@ -53,14 +59,38 @@ export interface MilestonesGoal {
 
 interface MilestonesFlowProps {
   goal: MilestonesGoal;
+  /** W8c · plan INTO this existing mission (the missions page's "Plan from milestones"): no mission is created. */
+  missionId?: string;
   onComplete?: (missionId: string) => void;
   onCancel: () => void;
 }
 
 type Phase = "loading" | "editing" | "generating";
 
+/** The toast after a plan lands, from what the server really did. */
+export function planToast(r: {
+  milestones: number;
+  skeleton: boolean;
+  spawned: number | undefined;
+  spawnFailed: string | undefined;
+  budget?: boolean;
+  alreadyPlanned?: boolean;
+}): string {
+  if (r.alreadyPlanned) return "This project already has its plan and its first tasks; nothing was created twice";
+  const tasks =
+    r.spawnFailed
+      ? ` · the first tasks could not be created (${r.spawnFailed.slice(0, 80)}); open the project to spawn them`
+      : r.spawned && r.spawned > 0
+        ? ` · ${r.spawned} starter task${r.spawned === 1 ? "" : "s"} on NOW`
+        : " · no starter task was created";
+  return r.skeleton
+    ? `Project spawned from your ${r.milestones} milestones (${r.budget ? "today's AI budget is used up" : "the AI planner did not answer"}; each milestone is one checkpoint task)${tasks}`
+    : `Project spawned · ${r.milestones} phases${tasks}`;
+}
+
 export function MilestonesFlow({
   goal,
+  missionId: existingMissionId,
   onComplete,
   onCancel,
 }: MilestonesFlowProps) {
@@ -68,19 +98,15 @@ export function MilestonesFlow({
   const [rationale, setRationale] = useState<string>("");
   const [milestones, setMilestones] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // task.createMission / task.spawnTasks replace POST /api/missions +
-  // POST /api/projects/:id/spawn-tasks. actions-surface slice · the
-  // plan-project AI calls (mode=milestones · mode=plan) now hit
-  // `trpc.ai.planProject` (replacing POST /api/ai/plan-project).
+  // The mission this panel made: a retry after a failed plan call reuses it (audit A4: every later error
+  // used to lose the id, and the retry created a second mission).
+  // A given mission seeds it, so the create step never runs and the server plans into that mission.
+  const missionIdRef = useRef<string | null>(existingMissionId ?? null);
   const createMission = trpc.task.createMission.useMutation();
-  const spawnTasks = trpc.task.spawnTasks.useMutation();
   const planProjectMut = trpc.ai.planProject.useMutation();
 
-  // Step 1: load milestone suggestions on mount.
-  // actions-surface slice · POST /api/ai/plan-project mode=milestones →
-  // trpc.ai.planProject. The procedure returns a discriminated union
-  // keyed on `mode` — narrow to the "milestones" variant before reading
-  // `milestones` / `rationale`.
+  // Step 1: load milestone suggestions once per goal. Keyed by the id: the board hands a fresh goal
+  // object on every render, and `[goal]` restarted this effect (and wiped Nour's edits) each time (audit A3).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -102,7 +128,7 @@ export function MilestonesFlow({
             const parts = [m.label];
             if (m.metric) parts.push(m.metric);
             if (m.estimatedDate) parts.push(`by ${m.estimatedDate}`);
-            return parts.join(" · ");
+            return parts.join(" · ").slice(0, MILESTONE_MAX);
           })
           .filter(Boolean);
         setMilestones(labels.length > 0 ? labels : ["", "", ""]);
@@ -119,17 +145,17 @@ export function MilestonesFlow({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goal]);
+  }, [goal.id]);
 
   const updateMilestone = (i: number, value: string) =>
-    setMilestones((prev) => prev.map((m, idx) => (idx === i ? value : m)));
+    setMilestones((prev) => prev.map((m, idx) => (idx === i ? value.slice(0, MILESTONE_MAX) : m)));
 
   const removeMilestone = (i: number) =>
     setMilestones((prev) => prev.filter((_, idx) => idx !== i));
 
   const addMilestone = () => setMilestones((prev) => [...prev, ""]);
 
-  // Step 3: generate full plan + spawn first phase
+  // Step 3: create the mission (once), then let the server plan and spawn.
   const generatePlan = async () => {
     const trimmed = milestones.map((m) => m.trim()).filter(Boolean);
     if (trimmed.length < 2) {
@@ -138,80 +164,67 @@ export function MilestonesFlow({
     }
     setPhase("generating");
     try {
-      // Create the Mission first · createMission validates the
-      // payload server-side against missionCreateSchema.
-      let missionId: string | undefined;
-      try {
-        const mission = await createMission.mutateAsync({
-          title: goal.title,
-          domain: (goal.domain || "PERSONAL").toUpperCase(),
-          // v7 · Apr 28 · priority is 1-10 per missionCreateSchema.
-          // Mid-high (7) for goal flows.
-          priority: 7,
-          roiScore: 60,
-          neglectCost: 40,
-          status: "ACTIVE",
-          // 2026-11-02 · the mission knows its goal, its finish line and its date. Before this
-          // the link was stripped by the schema (prod: 0 of 13 missions linked).
-          lifeGoalId: goal.id,
-          completionCriteria: trimmed[trimmed.length - 1],
-          deadline: goal.deadline ?? undefined,
-        });
-        missionId = (mission as { id?: string } | null)?.id;
-      } catch (err) {
-        toast.error(
-          `Couldn't create project${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
-        setPhase("editing");
-        return;
-      }
+      let missionId = missionIdRef.current;
       if (!missionId) {
-        toast.error("Project created but no id");
-        setPhase("editing");
-        return;
+        try {
+          const mission = await createMission.mutateAsync({
+            title: goal.title,
+            domain: (goal.domain || "PERSONAL").toUpperCase(),
+            // v7 · Apr 28 · priority is 1-10 per missionCreateSchema.
+            // Mid-high (7) for goal flows.
+            priority: 7,
+            roiScore: 60,
+            neglectCost: 40,
+            status: "ACTIVE",
+            // 2026-11-02 · the mission knows its goal, its finish line and its date. Before this
+            // the link was stripped by the schema (prod: 0 of 13 missions linked).
+            lifeGoalId: goal.id,
+            completionCriteria: trimmed[trimmed.length - 1],
+            deadline: goal.deadline ?? undefined,
+          });
+          missionId = (mission as { id?: string } | null)?.id ?? null;
+        } catch (err) {
+          toast.error(
+            `Couldn't create project${err instanceof Error ? `: ${err.message}` : ""}`,
+          );
+          setPhase("editing");
+          return;
+        }
+        if (!missionId) {
+          toast.error("Project created but no id");
+          setPhase("editing");
+          return;
+        }
+        missionIdRef.current = missionId;
       }
 
-      // Generate the plan with confirmed milestones constraining phases.
-      // actions-surface slice · POST /api/ai/plan-project mode=plan →
-      // trpc.ai.planProject. mutateAsync rejects on a server error · the
-      // outer catch surfaces the "Plan failed" toast.
-      let skeleton = false;
+      // The server writes the plan and spawns phase 0 in one call; its tasks carry the mission's goal.
+      let planned: Awaited<ReturnType<typeof planProjectMut.mutateAsync>>;
       try {
-        const planned = await planProjectMut.mutateAsync({
+        planned = await planProjectMut.mutateAsync({
           mode: "plan",
           missionId,
           title: goal.title,
           milestones: trimmed,
           domain: goal.domain,
         });
-        // The service turns a provider outage into a skeleton (one checkpoint per milestone),
-        // so a failure here is a save failure, not a slow model.
-        skeleton = planned.mode === "plan" && planned.fallback === "skeleton";
       } catch (err) {
-        toast.error(`Couldn't save the plan${err instanceof Error && err.message ? `: ${err.message.slice(0, 120)}` : ""}`);
+        toast.error(
+          `Couldn't save the plan${err instanceof Error && err.message ? `: ${err.message.slice(0, 120)}` : ""} · the project is kept; tap again to retry`,
+        );
         setPhase("editing");
         return;
       }
-
-      // Spawn the first phase (tagged with goalId so completing
-      // those tasks lifts the goal via the S3 hook). Best-effort —
-      // a spawn failure doesn't abort the (already-created) project.
-      let spawned = 0;
-      try {
-        const sd = await spawnTasks.mutateAsync({
-          missionId,
-          phaseIndex: 0,
-          goalId: goal.id,
-        });
-        spawned = sd?.spawned ?? 0;
-      } catch {
-        /* spawn is best-effort · project + plan already landed */
-      }
-
+      const plan = planned.mode === "plan" ? planned : null;
       toast.success(
-        skeleton
-          ? `Project spawned from your ${trimmed.length} milestones (the AI planner did not answer in time; each milestone is one checkpoint task)`
-          : `Project spawned · ${trimmed.length} phases${spawned > 0 ? ` · ${spawned} starter tasks on NOW` : ""}`,
+        planToast({
+          milestones: trimmed.length,
+          skeleton: plan?.fallback === "skeleton",
+          spawned: plan?.spawned,
+          spawnFailed: plan?.spawnFailed,
+          budget: plan?.fallbackReason === "budget",
+          alreadyPlanned: plan?.alreadyPlanned,
+        }),
       );
       notifyDataChanged("missions", { source: "milestones-flow", detail: "plan", id: missionId });
       notifyDataChanged("projects", { source: "milestones-flow", detail: "plan", id: missionId });
@@ -270,6 +283,7 @@ export function MilestonesFlow({
                   value={m}
                   onChange={(e) => updateMilestone(i, e.target.value)}
                   rows={1}
+                  maxLength={MILESTONE_MAX}
                   placeholder="What's the checkpoint here?"
                   className="flex-1 rounded-control border border-edge-default bg-content px-2 py-1 text-[11px] text-fg placeholder:text-fg-tertiary outline-none focus:border-accent resize-none leading-snug"
                   disabled={phase === "generating"}

@@ -98,18 +98,17 @@ export function isUserProject<
  * SELF-RESTORING BY DESIGN. Set a deadline and the percentage returns with no
  * code change.
  *
- * ACCURACY NOTE, corrected under review. Only `deadline` is operator-settable
- * today. `completionCriteria` has NO writer anywhere in the app — the sole
- * repo-wide reference outside this file is the ALTER TABLE that created it —
- * and its schema doc (prisma/schema.prisma:248) says it "defines what
+ * ACCURACY NOTE, corrected again 2026-11-03 (W8c). Both are operator-settable:
+ * `deadline`, and since 2026-11-02 `completionCriteria`, written by the mission
+ * edit drawer's "done when" field (components/missions/mission-edit-drawer.tsx,
+ * accepted by lib/validators/missions.ts). Its schema doc says it "defines what
  * sourceSystem is required for canClaimDone()", while the real canClaimDone
- * (lib/ai/receipts/action-receipt.ts:215) takes receipts and never reads the
- * column. The field is dead and its documentation is stale.
+ * (lib/ai/receipts/action-receipt.ts) takes receipts and never reads the
+ * column; that part of its documentation is still stale.
  *
- * It is still checked here rather than keying on `deadline` alone, because the
+ * It is checked here rather than keying on `deadline` alone, because the
  * concept the gate needs is "a declared completion condition" and that is what
- * this column is named for. Keying on the proxy would be indistinguishable
- * today and silently wrong the moment a writer lands. Including it costs
+ * this column is named for. Including it costs
  * nothing; omitting it buys a gate that stops working without ever failing.
  */
 export function missionHasEndState(mission: {

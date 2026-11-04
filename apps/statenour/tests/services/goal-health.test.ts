@@ -5,9 +5,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const h = vi.hoisted(() => ({ goalFindMany: vi.fn(), eventFindMany: vi.fn() }));
+const h = vi.hoisted(() => ({ goalFindMany: vi.fn(), eventFindMany: vi.fn(), taskFindMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { lifeGoal: { findMany: h.goalFindMany }, goalEvent: { findMany: h.eventFindMany } },
+  prisma: { lifeGoal: { findMany: h.goalFindMany }, goalEvent: { findMany: h.eventFindMany }, task: { findMany: h.taskFindMany } },
 }));
 
 import { activeGoalsWithHealth } from "@/lib/services/goal-health";
@@ -28,6 +28,7 @@ const POOL: Maxim[] = [
 beforeEach(() => {
   h.goalFindMany.mockReset().mockResolvedValue([goal("g1"), goal("g2")]);
   h.eventFindMany.mockReset().mockResolvedValue([]);
+  h.taskFindMany.mockReset().mockResolvedValue([]);
 });
 
 describe("activeGoalsWithHealth on a failed GoalEvent read", () => {

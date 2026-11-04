@@ -104,7 +104,7 @@ export function GoalsHeroView(p: {
 
       {g.nextMove ? (
         <Link
-          href={`/missions?taskId=${encodeURIComponent(g.nextMove.id)}`}
+          href={`/missions?goalId=${encodeURIComponent(g.id)}&taskId=${encodeURIComponent(g.nextMove.id)}`}
           className="flex min-h-11 w-full items-center rounded-control bg-accent px-3 text-[14px] font-medium text-[var(--text-inverse)] hover:bg-accent-hover"
         >
           <span className="truncate">

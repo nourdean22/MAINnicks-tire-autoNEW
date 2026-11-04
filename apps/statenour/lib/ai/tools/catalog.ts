@@ -159,6 +159,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "archiveTask",                  category: "personal_write", cost: "free" },
   { name: "logJournalEntry",              category: "personal_write", cost: "cheap" },
   { name: "logBodyEntry",                 category: "personal_write", cost: "free" },
+  // 2026-11-03 · the relationship ledger's in-turn writer (strict name resolution).
+  { name: "logPersonInteraction",         category: "personal_write", cost: "free" },
   { name: "createCommitment",             category: "personal_write", cost: "free" },
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },
   { name: "queueMissionExecution",        category: "personal_write", sideEffecting: true, cost: "medium", riskClass: "medium" },

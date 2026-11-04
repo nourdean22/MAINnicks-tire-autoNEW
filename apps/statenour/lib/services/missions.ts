@@ -107,7 +107,8 @@ export async function listMissions() {
         }
       },
       // 2026-11-02 · the goal a mission was planned from, for the card and the edit drawer.
-      lifeGoal: { select: { id: true, title: true } }
+      // W8a: deletedAt rides along so an archived goal reads as none (mapped below).
+      lifeGoal: { select: { id: true, title: true, deletedAt: true } }
     },
     orderBy: [
       {
@@ -119,7 +120,10 @@ export async function listMissions() {
     ]
   });
 
-  return decorateMissions(missions);
+  // W8a: an archived goal is no goal on the board or in the drawer.
+  return decorateMissions(
+    missions.map((m) => ({ ...m, lifeGoal: m.lifeGoal && !m.lifeGoal.deletedAt ? { id: m.lifeGoal.id, title: m.lifeGoal.title } : null })),
+  );
 }
 
 export async function getMissionById(id: string) {
@@ -325,6 +329,17 @@ export async function updateMission(id: string, input: unknown) {
 
   if (!existing) {
     throw new ServiceError("Mission not found.", 404);
+  }
+
+  // W8c GUARD · a goal link is an ACTIVE goal's id, looked up here, never a client string trusted as is (a goal
+  // title, a paused or deleted goal is refused). An unchanged id passes, so a mission under a goal that was later
+  // paused stays editable; null unlinks.
+  if (payload.lifeGoalId && payload.lifeGoalId !== existing.lifeGoalId) {
+    const goal = await prisma.lifeGoal.findFirst({
+      where: { id: payload.lifeGoalId, status: "active", deletedAt: null },
+      select: { id: true },
+    });
+    if (!goal) throw new ServiceError("That goal is not an active goal.", 400);
   }
 
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {

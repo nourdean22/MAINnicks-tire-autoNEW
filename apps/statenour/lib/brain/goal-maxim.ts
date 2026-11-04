@@ -44,9 +44,11 @@ export interface GoalMaxim {
 export function goalMomentState(g: Omit<GoalMomentInput, "id">): GoalMomentState | null {
   if (g.status === "achieved") return "achieved";
   if (g.status === "missed" || g.health === "off_track" || g.pace?.kind === "missed") return "off_track";
+  // W8a (audit C10): with no check-in the pace is computed from a value nobody has updated, so "behind" is a
+  // guess. The honest moment is "check in", before any pace state (a missed date above is still a fact).
+  if (g.health === "no_check_in") return "check_in_due";
   if (g.pace?.kind === "behind") return "behind_pace";
   if (g.health === "at_risk") return "at_risk";
-  if (g.health === "no_check_in") return "check_in_due";
   return null;
 }
 

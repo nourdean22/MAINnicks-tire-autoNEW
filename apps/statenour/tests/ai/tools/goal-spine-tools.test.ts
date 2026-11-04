@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   goalFindMany: vi.fn(),
+  taskFindMany: vi.fn(),
   goalFindFirst: vi.fn(),
   eventFindMany: vi.fn(),
   eventFindFirst: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     lifeGoal: { findMany: h.goalFindMany, findFirst: h.goalFindFirst },
     goalEvent: { findMany: h.eventFindMany, findFirst: h.eventFindFirst, create: h.eventCreate },
+    // W8a: open tasks are counted through goalTaskWhere (own goal, else the mission goal), not _count.
+    task: { findMany: h.taskFindMany },
   },
 }));
 vi.mock("@/lib/services/goals", () => ({ updateGoal: h.updateGoal }));
@@ -64,6 +67,11 @@ beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
   h.eventFindMany.mockResolvedValue([]);
   h.eventFindFirst.mockResolvedValue(null);
+  // g1 has two open tasks (one through its mission), g2 none: the counts the tests below read.
+  h.taskFindMany.mockResolvedValue([
+    { goalId: "g1", status: "READY", mission: { lifeGoalId: null } },
+    { goalId: null, status: "DOING", mission: { lifeGoalId: "g1" } },
+  ]);
 });
 
 describe("getGoals", () => {
@@ -178,12 +186,20 @@ describe("logGoalCheckIn", () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
-  it("an existing check-in today is reported, and nothing else is written", async () => {
+  it("an existing check-in today is reported; no second row, but a metric value still moves (W8a, audit A7)", async () => {
     h.eventFindFirst.mockResolvedValue({ id: "ge0", payload: { health: "on_track" }, createdAt: new Date(NOW - 60_000) });
     const r = await run("logGoalCheckIn", { goalId: "g1", health: "off_track", value: 1, note: "again" });
     expect(h.eventCreate).not.toHaveBeenCalled();
+    expect(h.updateGoal).toHaveBeenCalledWith({ id: "g1", currentValue: 1 });
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: true, existing: { health: "on_track" } });
+  });
+
+  it("an existing check-in today with no value writes nothing else", async () => {
+    h.eventFindFirst.mockResolvedValue({ id: "ge0", payload: { health: "on_track" }, createdAt: new Date(NOW - 60_000) });
+    const r = await run("logGoalCheckIn", { goalId: "g1", health: "off_track", note: "again" });
+    expect(h.eventCreate).not.toHaveBeenCalled();
     expect(h.updateGoal).not.toHaveBeenCalled();
-    expect(r).toMatchObject({ logged: false, duplicate: true, existing: { health: "on_track" } });
+    expect(r).toMatchObject({ logged: false, duplicate: true, valueSet: false });
   });
 
   it("a value on a non-metric goal is not written as currentValue", async () => {

@@ -8,6 +8,8 @@ import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
 import { peopleOnGoal } from "@/lib/services/people/people-on-goal";
 import { goalHealthFrom, type GoalHealth } from "@/lib/brain/goal-pace";
+import { goalProgress, latestGoalEvents } from "@/lib/services/goal-health";
+import { goalTaskWhere } from "@/lib/services/task-goal-server";
 import { missionPhaseLadder, type LadderPhase } from "@/lib/stats/goals-page";
 import { z } from "zod";
 
@@ -95,13 +97,16 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   });
 
   const goalIds = goals.map((g) => g.id);
+  // W8a (audit A2/C2): the ONE task-goal rule. A task counts for its own goal, or, with none of its own, for its
+  // mission's (lib/services/task-goal-server.ts goalTaskWhere); plan tasks spawned under a goal-linked mission count.
   const linkedTasks = goalIds.length
     ? await prisma.task.findMany({
-        where: activeOnly({ goalId: { in: goalIds } }),
+        where: activeOnly(goalTaskWhere(goalIds)),
         select: {
           id: true,
           title: true,
           goalId: true,
+          mission: { select: { lifeGoalId: true } },
           status: true,
           loopKind: true,
           streakCount: true,
@@ -118,22 +123,25 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
   const weeklyCompletes = new Map<string, number>();
+  // Round 1 P1-6: a failed read is null on every goal (the chip hides, staleness treats it as unknown), never 0.
+  let weeklyRead = true;
   if (goalIds.length > 0) {
     try {
       const recentEvents = await prisma.taskEvent.findMany({
         where: {
           kind: "completed",
           createdAt: { gte: sevenDaysAgo },
-          task: { goalId: { in: goalIds } },
+          task: goalTaskWhere(goalIds),
         },
-        select: { task: { select: { goalId: true } } },
+        select: { task: { select: { goalId: true, mission: { select: { lifeGoalId: true } } } } },
       });
       for (const e of recentEvents) {
-        const gid = e.task?.goalId;
+        const gid = e.task?.goalId ?? e.task?.mission?.lifeGoalId;
         if (!gid) continue;
         weeklyCompletes.set(gid, (weeklyCompletes.get(gid) ?? 0) + 1);
       }
     } catch (err) {
+      weeklyRead = false;
       console.warn(
         "[services/goals] weekly completes query failed (table missing?):",
         err instanceof Error ? err.message : err,
@@ -182,18 +190,13 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   }
 
   // W2 2026-11-02 (Linear L2) · health = the newest check_in GoalEvent per goal, gray past the cadence
-  // (lib/brain/goal-pace.ts). A failed read is "unknown" on every goal, never "no check-in".
+  // (lib/brain/goal-pace.ts). A failed read is "unknown" on every goal, never "no check-in". W8a: the one
+  // "latest check-in per goal" read (lib/services/goal-health.ts latestGoalEvents), shared with Nick's getGoals.
   const latestCheckIn = new Map<string, { payload: unknown; createdAt: Date }>();
   let checkInsRead = true;
   if (goalIds.length > 0) {
     try {
-      const events = await prisma.goalEvent.findMany({
-        where: { goalId: { in: goalIds }, kind: "check_in" },
-        orderBy: { createdAt: "desc" },
-        distinct: ["goalId"],
-        select: { goalId: true, payload: true, createdAt: true },
-      });
-      for (const e of events) if (!latestCheckIn.has(e.goalId)) latestCheckIn.set(e.goalId, e);
+      for (const [gid, l] of await latestGoalEvents(goalIds)) if (l.checkIn) latestCheckIn.set(gid, l.checkIn);
     } catch (err) {
       checkInsRead = false;
       console.warn("[services/goals] check-in read failed:", err instanceof Error ? err.message : err);
@@ -202,10 +205,11 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 
   const byGoal = new Map<string, typeof linkedTasks>();
   for (const t of linkedTasks) {
-    if (!t.goalId) continue;
-    const list = byGoal.get(t.goalId) || [];
+    const gid = t.goalId ?? t.mission?.lifeGoalId;
+    if (!gid) continue;
+    const list = byGoal.get(gid) || [];
     list.push(t);
-    byGoal.set(t.goalId, list);
+    byGoal.set(gid, list);
   }
 
   const enrichedGoals = goals.map((g) => {
@@ -222,17 +226,10 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
       0
     );
     
-    // 2026-06-01 · progress priority: task-based when the goal has tasks;
-    // else metric-based when it has a real target; else 0. The old fallback
-    // to the stored `g.progress` surfaced a stale 100% on unconfigured goals
-    // (targetValue=0, no tasks) — the divide-by-zero display artifact.
-    const hasTarget = (g.targetValue ?? 0) > 0;
-    const computedProgress =
-      total > 0
-        ? Math.round((done / total) * 100)
-        : hasTarget
-          ? Math.min(100, Math.round(((g.currentValue ?? 0) / g.targetValue) * 100))
-          : 0;
+    // W8a (audit A5/C1) · the ONE goal number (lib/services/goal-health.ts goalProgress): a metric goal with a
+    // target is its value %, every other goal its task %, else 0. Nick's prompt and the goals-page grounding
+    // compute the same; the stored `g.progress` column is never read (it showed a stale 100% once).
+    const computedProgress = goalProgress({ kind: g.kind, targetValue: g.targetValue ?? 0, currentValue: g.currentValue ?? 0, done, total });
 
     const activeTasks = tasks.filter((t) =>
       ["INBOX", "READY", "DOING"].includes(t.status),
@@ -278,7 +275,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
             status: nextMoveTask.status,
           }
         : null,
-      loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
+      loopsThisWeek: weeklyRead ? (weeklyCompletes.get(g.id) ?? 0) : null,
       // null = the read failed (the card says so); [] = no mission planned yet.
       missions: missionsRead ? (missionsByGoal.get(g.id) ?? []) : null,
       health: checkInsRead
@@ -408,7 +405,15 @@ export async function createGoal(rawData: z.infer<typeof createGoalSchema>) {
   return goal;
 }
 
-export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
+/**
+ * `opts.source` names a non-route writer on the audit row and on the value's progress_logged / achieved events
+ * (the nightly shop sync passes "shop-bridge"); `opts.progressPayload` rides on the progress_logged event.
+ */
+export async function updateGoal(
+  parsed: z.infer<typeof updateGoalSchema>,
+  opts: { source?: string; progressPayload?: Record<string, unknown> } = {},
+) {
+  const source = opts.source ?? "api:goals.PATCH";
   const { id, progressDelta, archive, restore: restoreFlag, ...rawData } = parsed;
   const data: Record<string, unknown> = { ...rawData };
 
@@ -501,7 +506,7 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     id,
     stripNoise(before as unknown as Record<string, unknown>),
     stripNoise(goal as unknown as Record<string, unknown>),
-    { source: "api:goals.PATCH" },
+    { source },
   );
 
   if (goal.status !== before.status) {
@@ -520,8 +525,9 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     emitGoalEventAsync({
       goalId: id,
       kind: "progress_logged",
-      source: "api:goals.PATCH",
+      source,
       payload: {
+        ...opts.progressPayload,
         delta: nextCurrent - before.currentValue,
         before: before.currentValue,
         after: nextCurrent,
@@ -539,7 +545,7 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     });
   }
   if (data.status === "achieved" && before.status !== "achieved") {
-    emitGoalEventAsync({ goalId: id, kind: "achieved", source: "api:goals.PATCH" });
+    emitGoalEventAsync({ goalId: id, kind: "achieved", source });
   }
   // W6 (2026-11-03): a missed goal is a brain moment too (lib/brain/goal-brain.ts reads the event).
   if (data.status === "missed" && before.status !== "missed") {
