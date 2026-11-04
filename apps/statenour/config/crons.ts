@@ -677,6 +677,18 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    // 2026-11-03 · R2b (job 2026-11-02-nour-os-interconnect): no writer moved a goal from shop numbers.
+    name: "goal-shop-sync",
+    schedule: null,
+    mode: "folded",
+    category: "ingest",
+    foldedInto: "mega-evening",
+    addedAt: "2026-11-03",
+    description: "FOLDED into mega-evening · sets currentValue on active metric business goals whose metric is revenue (bridge revenue_range totalDollars) or cars (its invoiceCount: a counter invoice is a closed job) over each goal's ET window, through updateGoal: one progress_logged GoalEvent source shop-bridge, a value only, never a check-in. A failed, slower than 3 s or zero-invoice read skips the goal with its reason and never writes 0; reviews goals are skipped (no shop review total to read).",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     // 2026-07-11 · resurrected. Deleted in the Wave-AE prune and never
     // re-wired — computeIdentitySnapshot had ZERO scheduled callers, so the
     // 8-axis self-model froze at the last manual refresh and every consumer

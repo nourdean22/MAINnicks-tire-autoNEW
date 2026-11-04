@@ -313,6 +313,18 @@ describe("Goals Service", () => {
     });
   });
 
+  describe("updateGoal · provenance (R2b: only the shop sync passes a source)", () => {
+    it("with no opts, the audit row and the progress_logged event say api:goals.PATCH", async () => {
+      mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 10, targetValue: 100 });
+      mocks.lifeGoal.update.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 50, targetValue: 100 });
+      await updateGoal({ id: "g1", currentValue: 50 });
+      expect(mocks.logUpdate).toHaveBeenCalledWith("lifeGoal", "g1", expect.anything(), expect.anything(), { source: "api:goals.PATCH" });
+      expect(mocks.emitGoalEventAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "progress_logged", source: "api:goals.PATCH", payload: { delta: 40, before: 10, after: 50, target: 100 } }),
+      );
+    });
+  });
+
   describe("updateGoal · missed (W6 second reader)", () => {
     it("a goal moving to missed emits a missed GoalEvent once; staying missed emits none", async () => {
       mocks.lifeGoal.findUnique.mockResolvedValue({ id: "g1", title: "Old", status: "active", currentValue: 0, targetValue: 100 });

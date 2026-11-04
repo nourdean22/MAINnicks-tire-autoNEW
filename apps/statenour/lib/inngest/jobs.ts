@@ -155,6 +155,8 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/os-snapshot",
   // 2026-10-19 · the health digest lost its only scheduler when the /system/health page was cut.
   "/api/cron/health-digest",
+  // 2026-11-03 · R2b · shop numbers into revenue/cars business goals, after the shop's day (value only).
+  "/api/cron/goal-shop-sync",
   "/api/cron/anticipate",
   // 2026-07-11 · resurrected. Deleted in the Wave-AE prune (2026-05-28)
   // and never re-wired — the 8-axis identity snapshot froze at the last
