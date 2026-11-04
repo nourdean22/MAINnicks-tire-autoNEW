@@ -10,10 +10,13 @@
  */
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
+import { DayActivityPanel } from "@/components/journal/day-activity";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { goalDue, timeLeftLabel } from "@/lib/brain/goal-pace";
-import type { GoalCheckInDue } from "@/lib/home/operator-brief";
+import type { GoalCheckInDue, WeeklyReviewDue } from "@/lib/home/operator-brief";
+import type { DayActivity } from "@/lib/services/journal-day";
+import { etDateKey } from "@/lib/utils/datetime";
 
 // UI v3 grammar (ratchet glassCard): ruled, not glass: a left rule, no panel, no radius, like the brief rows.
 const CARD = "block min-h-11 py-2";
@@ -157,6 +160,64 @@ export function GoalsCardView({
   );
 }
 
+/**
+ * The brief as the review row reads it: a failed brief is unknown, never a skeleton that stays up.
+ */
+export function reviewCardRead(brief: {
+  data?: { weeklyReviewDue?: WeeklyReviewDue | "unknown" } | null;
+  isError: boolean;
+}): WeeklyReviewDue | "unknown" | "loading" {
+  return brief.data ? (brief.data.weeklyReviewDue ?? "unknown") : brief.isError ? "unknown" : "loading";
+}
+
+/**
+ * W8b (item 7): the weekly review's standing (Sunsama S3), from the brief's loadWeeklyReviewDue. A row of its own,
+ * not a line in the Goals card: that card is one anchor to /stats and a review is not a goal.
+ * Ruling: Home row - the Goals card is a single <a> (W8a makes its due line a Link) and a nested anchor is invalid;
+ * cost if wrong: one extra card on Home.
+ */
+export function ReviewCardView({ read }: { read: WeeklyReviewDue | "unknown" | "loading" }) {
+  return (
+    <GlassCard as="a" ruled href="/journal?review=week" className={`${CARD} col-span-2`}>
+      <div aria-busy={read === "loading"}>
+        <p className="text-[13px] text-fg-secondary">Weekly review</p>
+        {read === "loading" ? (
+          <Skeleton />
+        ) : read === "unknown" ? (
+          <Unknown what="Weekly review" />
+        ) : read.due ? (
+          <p className="mt-1 text-[15px] text-amber-300">
+            {"Weekly review due"}
+            <span className="font-mono text-[12px] tabular-nums text-fg-secondary">
+              {read.daysSince === null ? " · never done" : ` · ${read.daysSince}d since the last`}
+            </span>
+          </p>
+        ) : (
+          <p className="mt-1 font-mono text-[12px] tabular-nums text-fg-secondary">{`Reviewed ${read.daysSince}d ago`}</p>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
+/** W8b (item 7): today's done tasks and contacts on Home, the W7 day panel over journal.day for today's ET date. */
+export function TodayCardView({ date, read }: { date: string; read: DayActivity | "loading" | "failed" }) {
+  return (
+    <section aria-labelledby="home-today-heading" className="col-span-2 border-l-2 border-edge pl-4">
+      <h3 id="home-today-heading" className="text-[13px] text-fg-secondary">
+        Today: done and contacts <span className="font-mono text-[11px] text-fg-tertiary">{date}</span>
+      </h3>
+      <DayActivityPanel read={read} />
+    </section>
+  );
+}
+
+function TodayPanel() {
+  const date = etDateKey(new Date());
+  const q = trpc.journal.day.useQuery({ date }, { staleTime: 60_000, refetchOnWindowFocus: false });
+  return <TodayCardView date={date} read={q.data ?? (q.isError ? "failed" : "loading")} />;
+}
+
 export function HomeCards() {
   const people = usePollingFetch<{ totals: PeopleTotals }>(`/api/people?limit=${PEOPLE_READ_LIMIT}`, {
     intervalMs: 5 * 60_000,
@@ -177,6 +238,10 @@ export function HomeCards() {
       <PeopleCardView read={peopleRead} />
       {/* A brief that failed or is loading shows no row here: the brief itself says it couldn't load. */}
       <GoalsCardView read={goalsRead} checkIn={brief.data?.goalCheckInDue} />
+      {/* W8b: the review row reads the same brief; while the brief loads or failed, it says so rather than "due". */}
+      {/* A brief payload without the field (an older server) is unknown, never "due" and never a crash. */}
+      <ReviewCardView read={reviewCardRead(brief)} />
+      <TodayPanel />
     </div>
   );
 }

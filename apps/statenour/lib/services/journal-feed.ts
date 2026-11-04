@@ -64,7 +64,7 @@ export interface FeedEntry {
   linkStatus?: string | null;
   linkConfidence?: number | null;
   linkedGoalTitle?: string | null;
-  /** Dumps only (W4 2026-11-02): the people the entry names, live ones, in the entry's order.
+  /** Dumps and reflections (W4 2026-11-02, W8b): the people the entry names, live ones, in the entry's order.
    *  null = the name read failed (couldn't load), never the same as [] (names no one). */
   people?: { id: string; name: string }[] | null;
 }
@@ -104,11 +104,14 @@ export async function buildJournalFeed(args: {
   search?: string;
   /** ISO date-time — only rows strictly older are returned. */
   cursor?: string;
+  /** One entry by id, any age (W8b): a dump or a reflection, the two tables a person link points at. */
+  entryId?: string;
 }): Promise<JournalFeedView> {
   const limit = Math.min(Math.max(args.limit ?? 50, 1), 200);
   const days = Math.min(Math.max(args.days ?? 30, 1), 365);
   const typeFilter = args.type;
-  const sourceFilter = args.source || "all";
+  const entryId = args.entryId ?? null;
+  const sourceFilter = entryId ? "entry" : args.source || "all";
   const search = args.search?.trim() || null;
   const cursorDate = args.cursor ? new Date(args.cursor) : null;
   const cursorWhere =
@@ -133,11 +136,11 @@ export async function buildJournalFeed(args: {
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
   const [brainDumps, reflections, situationLogs, decisions, missionRetros] = await Promise.all([
-    sourceFilter === "all" || sourceFilter === "dump"
+    sourceFilter === "all" || sourceFilter === "dump" || entryId
       ? prisma.brainDump
           .findMany({
             where: {
-              date: { gte: cutoffStr },
+              ...(entryId ? { id: entryId } : { date: { gte: cutoffStr } }),
               // schema.prisma: consumers MUST filter deletedAt — the
               // mission_retro branch below always did; this one didn't,
               // so soft-deleted dumps kept rendering (audit 2026-07-15).
@@ -159,11 +162,11 @@ export async function buildJournalFeed(args: {
           .catch(swallow("dump"))
       : Promise.resolve([]),
 
-    sourceFilter === "all" || sourceFilter === "reflection"
+    sourceFilter === "all" || sourceFilter === "reflection" || entryId
       ? prisma.reflection
           .findMany({
             where: {
-              date: { gte: cutoffStr },
+              ...(entryId ? { id: entryId } : { date: { gte: cutoffStr } }),
               deletedAt: null,
               ...cursorWhere,
               ...(search
@@ -236,7 +239,7 @@ export async function buildJournalFeed(args: {
   ]);
 
   const feed: FeedEntry[] = [];
-  const dumpPersonIds = new Map<string, string[]>();
+  const entryPersonIds = new Map<string, string[]>();
 
   for (const d of brainDumps) {
     let extracted: {
@@ -274,11 +277,13 @@ export async function buildJournalFeed(args: {
     });
     // The cast serves test fixtures built without the field; a real row always has it (default '{}').
     const ids = (d as { personIds?: string[] }).personIds ?? [];
-    if (ids.length) dumpPersonIds.set(d.id, ids);
+    if (ids.length) entryPersonIds.set(d.id, ids);
   }
 
   for (const r of reflections) {
     if (typeFilter && typeFilter !== "all" && typeFilter !== "reflection") continue;
+    const ids = (r as { personIds?: string[] }).personIds ?? [];
+    if (ids.length) entryPersonIds.set(r.id, ids);
     feed.push({
       id: r.id,
       source: "reflection",
@@ -388,7 +393,7 @@ export async function buildJournalFeed(args: {
   }
 
   // W4 · people chips: ONE query over every id on the page, live people only (a deleted person drops off the row).
-  const personIds = [...new Set([...dumpPersonIds.values()].flat())];
+  const personIds = [...new Set([...entryPersonIds.values()].flat())];
   if (personIds.length) {
     const named = await prisma.personProfile
       .findMany({ where: { id: { in: personIds }, deletedAt: null }, select: { id: true, name: true } })
@@ -398,7 +403,7 @@ export async function buildJournalFeed(args: {
         return null;
       });
     for (const e of feed) {
-      const ids = e.source === "dump" ? dumpPersonIds.get(e.id) : undefined;
+      const ids = entryPersonIds.get(e.id);
       if (!ids) continue;
       e.people = named
         ? ids.flatMap((id) => {
@@ -526,4 +531,15 @@ export async function buildJournalFeed(args: {
   };
 
   return { entries, counts, nextCursor, degraded };
+}
+
+/**
+ * One entry by id, any age, for /journal?entry=<id> (W8b). Null = no such live entry. A read that failed with no hit
+ * throws, so the page says "couldn't load", never "not found".
+ */
+export async function journalEntry(id: string): Promise<FeedEntry | null> {
+  const { entries, degraded } = await buildJournalFeed({ entryId: id, limit: 1 });
+  if (entries[0]) return entries[0];
+  if (degraded.length > 0) throw new Error(`journal entry read failed: ${degraded.join(", ")}`);
+  return null;
 }

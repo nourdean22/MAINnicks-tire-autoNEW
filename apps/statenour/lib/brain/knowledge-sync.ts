@@ -27,6 +27,7 @@ import { priorityFromLabel } from "@/lib/scoring/task-priority";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { recordError } from "@/lib/errors/record-error";
 import { logError } from "@/lib/utils/error-log";
+import { etDateKey } from "@/lib/utils/datetime";
 
 // ─── Types ───
 
@@ -300,7 +301,7 @@ async function backfillRawBrainDumps(): Promise<KnowledgeSyncResult["backfill"]>
   // Cap cron-mode promotion to 25 per run to keep the cron under the
   // 300s Vercel lambda timeout. The AI tool mode can raise this.
   for (const msg of toPromote.slice(0, 25)) {
-    const dateStr = msg.createdAt.toISOString().slice(0, 10);
+    const dateStr = etDateKey(msg.createdAt); // W8b: the ET day, like every other brain_dumps.date (a 9 pm ET chat is not tomorrow)
     const bd = await prisma.brainDump.create({
       data: {
         date: dateStr,
@@ -390,7 +391,7 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
 
   for (const msg of worthy) {
     const txt = (msg.content || "").trim();
-    const dateStr = msg.createdAt.toISOString().slice(0, 10);
+    const dateStr = etDateKey(msg.createdAt); // W8b: the ET day, like every other brain_dumps.date (a 9 pm ET chat is not tomorrow)
     const key = `nick_advice_${msg.id}`;
     const preview = txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt;
     const summary = `Nick advice (${dateStr}): ${preview}`;

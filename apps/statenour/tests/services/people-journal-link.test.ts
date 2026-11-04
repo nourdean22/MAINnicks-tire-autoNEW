@@ -29,6 +29,8 @@ const h = vi.hoisted(() => {
     findMany: vi.fn(async ({ where }: { where: { deletedAt?: null } }) => live(where)),
     findUnique: vi.fn(async () => people[0] ?? null),
     dumpUpdate: vi.fn(async () => ({ id: "d1" })),
+    reflUpdate: vi.fn(async () => ({ id: "r1" })),
+    reflFindUnique: vi.fn(async () => ({ personIds: [] as string[] })),
     once: vi.fn(),
     recordError: vi.fn(),
   };
@@ -38,6 +40,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     personProfile: { findFirst: h.findFirst, count: h.count, findMany: h.findMany, findUnique: h.findUnique },
     brainDump: { update: h.dumpUpdate },
+    reflection: { update: h.reflUpdate, findUnique: h.reflFindUnique },
     brainMemory: { create: vi.fn(async () => null) },
   },
 }));
@@ -47,8 +50,8 @@ vi.mock("@/lib/services/people/record-interaction", async (orig) => ({
   recordInteractionOnce: h.once,
 }));
 
+import { endOfDayET, startOfDayET } from "@/lib/utils/datetime";
 import {
-  JOURNAL_CONTACT_WINDOW_MS,
   JOURNAL_EXCERPT_CHARS,
   JOURNAL_LEDGER_NOTE_CHARS,
   journalExcerpt,
@@ -89,14 +92,75 @@ describe("linkJournalPeople · the resolver gate", () => {
       note: text,
       source: "journal",
       at: createdAt,
-      // once per (person, entry): the window opens AT the entry, so a re-process sees its own row and skips.
-      noRowSince: createdAt,
-      // Bounded (second reader P3-1): only a contact inside the entry day blocks it; a later gmail or manual row does not.
-      noRowBefore: new Date(createdAt.getTime() + JOURNAL_CONTACT_WINDOW_MS),
+      // W8b (audit B8): the window is the entry's ET DAY, so a 9 am digest and a 9 pm line are one contact in either
+      // order; a contact logged the next day never blocks it.
+      noRowSince: startOfDayET(createdAt),
+      noRowBefore: endOfDayET(createdAt),
       creditXp: false,
       metadata: { auto: true, via: "journal_ingest", dumpId: "d1", matchTier: "exact" },
     });
     expect(r).toMatchObject({ personIds: ["p_dania"], recorded: 1, skipped: 0, failed: 0 });
+  });
+
+  it("a 9 am and a 9 pm entry (ET) share one window; 11:30 pm and 00:30 am do not", async () => {
+    const windows = async (iso: string) => {
+      h.once.mockClear();
+      await linkJournalPeople({ dumpId: "d1", createdAt: new Date(iso), rawText: text, people: [{ name: "Dania", interacted: true }] });
+      const a = h.once.mock.calls[0][0] as { noRowSince: Date; noRowBefore: Date };
+      return [a.noRowSince.toISOString(), a.noRowBefore.toISOString()];
+    };
+    // 2026-11-02 is EST (UTC-5): 9 am ET = 14:00Z, 9 pm ET = 02:00Z next UTC day.
+    expect(await windows("2026-11-02T14:00:00Z")).toEqual(await windows("2026-11-03T02:00:00Z"));
+    expect(await windows("2026-11-02T14:00:00Z")).toEqual(["2026-11-02T05:00:00.000Z", "2026-11-03T05:00:00.000Z"]);
+    expect(await windows("2026-11-03T04:30:00Z")).not.toEqual(await windows("2026-11-03T05:30:00Z"));
+  });
+
+  it("the result names who was linked and who was refused, so a reply can say 'not on People: Zeinab'", async () => {
+    const r = await linkJournalPeople({
+      dumpId: "d1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: true }, { name: "Zeinab", interacted: false }, { name: "ali", interacted: false }],
+    });
+    expect(r.linkedNames).toEqual(["Dania"]);
+    expect(r.rejectedNames).toEqual(["Zeinab", "ali"]);
+    expect(r.rejected).toBe(2);
+  });
+
+  // W8b (audit B2): the /journal composer's reflections reach People through the same gate; the ids land on
+  // reflections.person_ids and a contact row says which reflection it came from.
+  it("silo reflection: ids go to the reflection row, the contact metadata names the reflection", async () => {
+    const r = await linkJournalPeople({
+      silo: "reflection",
+      dumpId: "r1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: true }],
+    });
+    expect(h.reflUpdate).toHaveBeenCalledWith({ where: { id: "r1" }, data: { personIds: ["p_dania"] } });
+    expect(h.dumpUpdate).not.toHaveBeenCalled();
+    expect(h.once.mock.calls[0][0].metadata).toEqual({ auto: true, via: "journal_reflect", reflectionId: "r1", matchTier: "exact" });
+    expect(r.personIds).toEqual(["p_dania"]);
+  });
+
+  it("merge: the ids already on the row survive a later pass that names fewer people", async () => {
+    h.reflFindUnique.mockResolvedValueOnce({ personIds: ["p_sam"] });
+    const r = await linkJournalPeople({
+      silo: "reflection",
+      merge: true,
+      dumpId: "r1",
+      createdAt,
+      rawText: text,
+      people: [{ name: "Dania", interacted: false }],
+    });
+    expect(r.personIds.sort()).toEqual(["p_dania", "p_sam"]);
+    expect(h.reflUpdate.mock.calls[0][0].data.personIds.sort()).toEqual(["p_dania", "p_sam"]);
+  });
+
+  it("asks the resolver for exact tiers only: no fuzzy pass, so no Auto-merged audit row for a name the gate refuses", async () => {
+    await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Danya", interacted: true }] });
+    // The Levenshtein tier scans every live person (findMany); with fuzzy off that scan never runs.
+    expect(h.findMany).not.toHaveBeenCalled();
   });
 
   it("an unmatched name writes no id and no row", async () => {
@@ -192,6 +256,22 @@ describe("linkJournalPeople · the resolver gate", () => {
   });
 });
 
+describe("linkNamedPeople · the save-time link with no model (W8b)", () => {
+  it("links every live person the line names (whole word, exact case) as a mention, through the same gate, and names them", async () => {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    const r = await linkNamedPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: "Talked to Dania; Samir came by. Danya did not, dania neither." });
+    expect(r.names.sort()).toEqual(["Dania", "Samir"]);
+    expect(h.reflUpdate.mock.calls[0][0].data.personIds.sort()).toEqual(["p_dania", "p_sam"]);
+    // A mention, never a contact: no ledger row, whatever the words say.
+    expect(h.once).not.toHaveBeenCalled();
+  });
+  it("no name in the text: nothing read from the resolver, nothing written", async () => {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    expect(await linkNamedPeople({ silo: "brain_dump", dumpId: "d1", createdAt, rawText: "Quiet day." })).toEqual({ names: [] });
+    expect(h.dumpUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("normalizeJournalPeople · the model's list", () => {
   it("keeps names, reads interacted only as boolean true, caps at 6", () => {
     const out = normalizeJournalPeople([
@@ -272,5 +352,18 @@ describe("journalExcerpt · the /people card line (gap 3)", () => {
     const t = `${"a".repeat(119)} b`;
     expect(t.length).toBe(JOURNAL_EXCERPT_CHARS + 1);
     expect(journalExcerpt(t)).toBe(`${"a".repeat(119)}…`);
+  });
+
+  // W8b (audit B12): the card line is windowed around the NAME, like chatSnippets, so a person named at character
+  // 300 is not shown a prefix that never mentions them.
+  it("windowed around the name when one is given; falls back to the prefix when the name is absent", () => {
+    const t = `${"x ".repeat(150)}Talked to Dania about the lease and she is fine. ${"y ".repeat(80)}`;
+    const w = journalExcerpt(t, "Dania");
+    expect(w).toContain("Dania");
+    expect(w.startsWith("…")).toBe(true);
+    expect(w.length).toBeLessThanOrEqual(JOURNAL_EXCERPT_CHARS + 2);
+    expect(journalExcerpt(t, "Zeinab")).toBe(journalExcerpt(t));
+    // A name at the start needs no leading ellipsis.
+    expect(journalExcerpt("Dania called.", "Dania")).toBe("Dania called.");
   });
 });

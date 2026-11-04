@@ -396,27 +396,10 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
       if (!isLightweight) withErrorCapture(
         "chat:people-intel",
         async () => {
-          const { runPeopleIntelligence } = await import("@/lib/brain/people-intelligence");
-          const lastRun = await prisma.auditEvent.findFirst({
-            where: {
-              eventType: "people_intelligence_run",
-              createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
-            },
-          });
-          if (lastRun) return null;
-          const result = await runPeopleIntelligence();
-          if (result) {
-            await prisma.auditEvent
-              .create({
-                data: {
-                  actor: "people_intelligence",
-                  eventType: "people_intelligence_run",
-                  detail: `Updated ${result.profilesUpdated} profiles, ${result.alerts.length} alerts${result.enrich ? ` (enrich: ${result.enrich})` : ""}`,
-                },
-              })
-              .catch(() => {});
-          }
-          return result;
+          // W8b: the run row is CLAIMED before the run (one transaction under the advisory lock) and settled after,
+          // so two turns a second apart cannot both run; the audit row used to be written after the run.
+          const { runPeopleIntelligenceClaimed } = await import("@/lib/brain/people-intelligence-run");
+          return runPeopleIntelligenceClaimed({ windowMs: 6 * 60 * 60 * 1000 });
         },
         { timeoutMs: 20_000, silentTimeout: true }
       );

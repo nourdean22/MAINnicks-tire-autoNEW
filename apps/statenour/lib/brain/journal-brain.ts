@@ -33,6 +33,7 @@ import { creditStatXp } from "@/lib/mastery/credit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { getJournalSettings, type JournalSettingsValues } from "@/lib/journal/settings";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordError } from "@/lib/errors/record-error";
 import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
 
 /** Every row but a weekly-review row. entryType is nullable, and `NOT` would drop the NULL rows in SQL. */
@@ -269,11 +270,13 @@ Return ONLY valid JSON:
   "domains": ["business|health|personal|finance|relationship|mastery"],
   "goalId": "<one G:<id> from the GOALS list, or null>",
   "missionId": "<one M:<id> from the MISSIONS list, or null>",
-  "confidence": 0.0
+  "confidence": 0.0,
+  "people": [{ "name": "<a real person's name exactly as written>", "interacted": true }]
 }
 
 Rules:
 - entryType: the kind of thinking (default "raw" when unsure).
+- people: the real people the entry names, at most 6, names exactly as written; never a pronoun, a role ("the caller") or a business. "interacted" is true ONLY when he reports actually talking, meeting or messaging that person; a thought about them is false. Empty list when no one is named.
 - goalId / missionId: ONLY an id that appears verbatim in the lists below, or null. Return the id WITHOUT the "G:"/"M:" prefix. Pick null unless the entry genuinely advances or reflects on that goal/mission — do NOT force a match.
 - confidence: how sure you are of the goal/mission link, 0.0 (no link) to 1.0 (certain). If both ids are null, confidence is 0.
 - Be honest. A wrong link is worse than no link.
@@ -295,6 +298,7 @@ ${missionMenu}`,
       goalId?: unknown;
       missionId?: unknown;
       confidence?: unknown;
+      people?: unknown;
     }>(res.content);
 
     if (!parsed.ok) {
@@ -336,6 +340,21 @@ ${missionMenu}`,
 
     // false = a weekly-review row: kept as he grounded it, so no credit and no notice either.
     if (!(await writeGrounding(silo, id, grounding, status))) return;
+
+    // W8b (audit B2): a reflection reaches People through the same gate the ingest uses. Merge keeps the ids the
+    // composer's save-time exact-name pass already stamped; brain_dumps are linked by ingestJournal, not here.
+    if (silo === "reflection") {
+      try {
+        const { linkJournalPeople, normalizeJournalPeople } = await import("@/lib/services/people/journal-link");
+        const people = normalizeJournalPeople(d.people);
+        if (people.length > 0) {
+          const row = await prisma.reflection.findUnique({ where: { id }, select: { createdAt: true } });
+          if (row) await linkJournalPeople({ silo: "reflection", merge: true, dumpId: id, createdAt: row.createdAt, rawText: body, people });
+        }
+      } catch (err) {
+        recordError("brain:journal-ingest", err, { phase: "reflection-people-link", reflectionId: id });
+      }
+    }
 
     // 4. SCORE — grounded bonus only when the GOAL link is auto-confirmed.
     //    A "proposed" link defers its credit to the confirm mutation, so the

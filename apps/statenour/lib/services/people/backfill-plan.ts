@@ -65,9 +65,55 @@ export interface PlannedChatRow {
  * The name as a whole word, on Unicode boundaries: `\b` is ASCII-only, so a name
  * ending in "é" or "." never matched (Codex on 3419).
  */
-export function nameMatcher(name: string): RegExp {
+export function nameMatcher(name: string, flags = "iu"): RegExp {
   const esc = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![\\p{L}\\p{N}_])${esc}(?![\\p{L}\\p{N}_])`, "iu");
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${esc}(?![\\p{L}\\p{N}_])`, flags);
+}
+
+/** The text before a match when the match opens a sentence: nothing, or a stop or newline, then quotes and spaces. */
+const SENTENCE_START = /(?:^|[.!?\n])["'\u201C\u2018(\s]*$/;
+
+const opensSentence = (text: string, at: number) => SENTENCE_START.test(text.slice(0, at));
+
+/**
+ * Where a line talks about this person, for the excerpt: by namedInText's rule first, then any exact-case hit, then
+ * any case (a line the model linked may spell the name in lower case). -1 when the name is not in the text.
+ */
+export function nameIndexIn(text: string, name: string): number {
+  const exact = [...text.matchAll(nameMatcher(name, "gu"))];
+  const counted = /\s/.test(name.trim()) ? exact[0] : exact.find((m) => !opensSentence(text, m.index));
+  return (counted ?? exact[0])?.index ?? text.search(nameMatcher(name));
+}
+
+/**
+ * Who a line names, for a link no model checks (W8b manager round 1): the composer's and the weekly review's save-time
+ * link and the journal backfill. It errs toward linking no one:
+ *   · case-sensitive: "I will call" is not Will (nameMatcher's "iu" stays for reading context, where a miss costs more);
+ *   · a one-word name that opens a sentence does not count: "Will called" reads the same as "Will do";
+ *   · a name more than one live profile answers to (any case) links nobody, counted in `ambiguous`;
+ *   · longest names first, and a matched full name is blanked: "Sam Jones" is not also Sam.
+ * The cost: "Dania called." alone links no one here; the model pass still can.
+ */
+export function namedInText(text: string, people: readonly PersonRef[]): { people: PersonRef[]; ambiguous: number } {
+  const byName = new Map<string, PersonRef[]>();
+  for (const p of people) {
+    const key = p.name.trim().toLowerCase();
+    if (key.length >= 2) byName.set(key, [...(byName.get(key) ?? []), p]);
+  }
+  const named = new Set<string>();
+  let ambiguous = 0;
+  let rest = text;
+  for (const [key, group] of [...byName].sort(([a], [b]) => b.length - a.length)) {
+    const fullName = /\s/.test(key);
+    const hit = group.some((p) =>
+      [...rest.matchAll(nameMatcher(p.name, "gu"))].some((m) => fullName || !opensSentence(rest, m.index)),
+    );
+    if (fullName) for (const p of group) rest = rest.replace(nameMatcher(p.name, "gu"), (m) => "_".repeat(m.length));
+    if (!hit) continue;
+    if (group.length > 1) ambiguous++;
+    else named.add(group[0].id);
+  }
+  return { people: people.filter((p) => named.has(p.id)), ambiguous };
 }
 
 /**

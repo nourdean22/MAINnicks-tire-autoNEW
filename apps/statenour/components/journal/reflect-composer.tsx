@@ -23,6 +23,7 @@
  * context. True circular practice.
  */
 
+import { reflectPeopleLine } from "./reflect-people-line";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -302,7 +303,8 @@ export function ReflectComposer() {
       // gets a "starting" signal here rather than waiting on
       // completion. The /journal feed will refresh when the BrainDump
       // lands via the data-change event below.
-      toast.success(result.extractionFired ? "reflection logged · extracting…" : "reflection logged");
+      // W8b: say who the entry reached (the save-time name link), so a name that landed on no one is visible.
+      toast.success(`${result.extractionFired ? "reflection logged · extracting…" : "reflection logged"}${reflectPeopleLine(result.peopleLinked)}`);
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       notifyDataChanged("any", { source: "ultron-reflect", detail: "reflection-saved" });
       // Auto-surface calibration when the model suggests memory-check

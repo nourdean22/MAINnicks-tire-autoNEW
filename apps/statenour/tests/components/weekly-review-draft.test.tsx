@@ -1,0 +1,189 @@
+/**
+ * W8b (item 6, audit B11) · the weekly review keeps a draft in localStorage (the reflect composer's DRAFT_KEY shape):
+ * an iOS PWA reload mid-review restores the notes, the actions AND the form's reviewId, so a save after the reload
+ * is the same review to the server (no double write). Saving clears the draft. localStorage is wrapped in try/catch:
+ * a blocked store never breaks the form. The saved screen is honest about a replay (goal actions unknown).
+ */
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import React, { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+
+const h = vi.hoisted(() => ({ mutateAsync: vi.fn(), invalidate: vi.fn(), lastReviewAt: null as string | null, failed: [] as string[] }));
+vi.mock("next/link", () => ({ default: (p: { href: string; children: React.ReactNode }) => <a href={p.href}>{p.children}</a> }));
+vi.mock("@/lib/trpc/client", () => ({
+  trpc: {
+    useUtils: () => ({ journal: { feed: { invalidate: h.invalidate }, weeklyReview: { invalidate: h.invalidate } } }),
+    journal: {
+      weeklyReview: {
+        useQuery: () => ({
+          isLoading: false,
+          isError: false,
+          data: {
+            since: "2026-10-27T15:00:00.000Z",
+            lastReviewAt: h.lastReviewAt,
+            goals: [{ goal: { id: "g1", title: "Goal one", horizon: "WEEK", due: null, canExtendOrClose: true }, doneTasks: [], entries: [] }],
+            failed: h.failed,
+            truncated: false,
+          },
+          refetch: vi.fn(),
+        }),
+      },
+      saveWeeklyReview: { useMutation: () => ({ mutateAsync: h.mutateAsync, isPending: false, isError: false, error: null }) },
+    },
+  },
+}));
+
+import { REVIEW_DRAFT_KEY, ReviewSavedView, WeeklyReview, WeeklyReviewGoalView } from "@/components/journal/weekly-review";
+
+let root: Root | null = null;
+let host: HTMLDivElement;
+const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+async function mount() {
+  host = document.createElement("div");
+  document.body.appendChild(host);
+  root = createRoot(host);
+  await act(async () => root!.render(<WeeklyReview />));
+  await flush();
+}
+const stored = () => JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY) ?? "null") as null | { reviewId: string; week: string; notes: Record<string, string>; actions: Record<string, string | null>; healths?: Record<string, string | null> };
+function type(el: HTMLTextAreaElement, value: string) {
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  h.mutateAsync.mockReset();
+  h.invalidate.mockReset();
+  h.lastReviewAt = null;
+  h.failed = [];
+});
+afterEach(() => {
+  act(() => root?.unmount());
+  host?.remove();
+  root = null;
+});
+
+describe("weekly review draft", () => {
+  it("typing persists the week note, the goal note, the health chip, the action and the reviewId; a reload restores all five", async () => {
+    await mount();
+    const [goalBox, weekBox] = Array.from(host.querySelectorAll("textarea")) as HTMLTextAreaElement[];
+    type(goalBox, "moved the shelving");
+    type(weekBox, "a slow week");
+    const button = (label: string) => Array.from(host.querySelectorAll("button")).find((b) => b.textContent === label) as HTMLButtonElement;
+    act(() => button("At risk").click());
+    act(() => button("Extend a week").click());
+    const d = stored();
+    expect(d).toMatchObject({ week: "a slow week", notes: { g1: "moved the shelving" }, healths: { g1: "at_risk" }, actions: { g1: "extend" } });
+    expect(d!.reviewId).toMatch(/[0-9a-f-]{20,}/);
+    const firstId = d!.reviewId;
+
+    // The reload: a fresh mount reads the draft back, same reviewId.
+    act(() => root?.unmount());
+    host.remove();
+    await mount();
+    const boxes = Array.from(host.querySelectorAll("textarea")) as HTMLTextAreaElement[];
+    expect(boxes.map((b) => b.value)).toEqual(["moved the shelving", "a slow week"]);
+    expect(Array.from(host.querySelectorAll('button[aria-pressed="true"]')).map((b) => b.textContent)).toEqual(["At risk", "Extend a week"]);
+    expect(stored()!.reviewId).toBe(firstId);
+  });
+
+  it("a saved review clears the draft; the server got the restored reviewId", async () => {
+    localStorage.setItem(REVIEW_DRAFT_KEY, JSON.stringify({ reviewId: "rev-restored-0001", week: "w", notes: {}, actions: {}, savedAt: new Date().toISOString(), lastReviewAt: null }));
+    h.mutateAsync.mockResolvedValue({ saved: ["d1"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], replayed: false, goalActions: "applied", people: { names: [] } });
+    await mount();
+    await act(async () => (Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "Save the review") as HTMLButtonElement).click());
+    await flush();
+    expect(h.mutateAsync.mock.calls[0][0]).toMatchObject({ reviewId: "rev-restored-0001", week: "w" });
+    expect(localStorage.getItem(REVIEW_DRAFT_KEY)).toBeNull();
+    expect(host.textContent).toContain("Saved 1 entry");
+  });
+
+  // Codex round, finding 5: a stale draft must not bring back old actions and an unsaved reviewId.
+  const stale = (over: Record<string, unknown>) =>
+    localStorage.setItem(
+      REVIEW_DRAFT_KEY,
+      JSON.stringify({ reviewId: "rev-stale-0001", week: "old week", notes: {}, healths: {}, actions: { g1: "extend" }, savedAt: new Date().toISOString(), lastReviewAt: null, ...over }),
+    );
+  const weekBox = () => Array.from(host.querySelectorAll("textarea")).at(-1) as HTMLTextAreaElement;
+
+  it("a review completed elsewhere since the draft: not restored, and not left in the store", async () => {
+    stale({});
+    h.lastReviewAt = "2026-11-03T15:00:00.000Z";
+    await mount();
+    expect(weekBox().value).toBe("");
+    expect(stored()).toBeNull();
+  });
+
+  it("a draft abandoned past the review window: not restored", async () => {
+    stale({ savedAt: new Date(Date.now() - 8 * 86_400_000).toISOString() });
+    await mount();
+    expect(weekBox().value).toBe("");
+  });
+
+  it("opening a draft does not reset its age: only typing does", async () => {
+    const savedAt = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    stale({ savedAt });
+    await mount();
+    await flush();
+    expect(JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY)!).savedAt).toBe(savedAt);
+    type(weekBox(), "a new line");
+    expect(JSON.parse(localStorage.getItem(REVIEW_DRAFT_KEY)!).savedAt).not.toBe(savedAt);
+  });
+
+  it("a draft with no timestamp is not trusted", async () => {
+    stale({ savedAt: undefined });
+    await mount();
+    expect(weekBox().value).toBe("");
+  });
+
+  it("control: a fresh draft in the same window comes back; so does one when the last review could not be read", async () => {
+    stale({});
+    await mount();
+    expect(weekBox().value).toBe("old week");
+    act(() => root?.unmount());
+    host.remove();
+    h.failed = ["last review"];
+    stale({ lastReviewAt: "2026-10-20T15:00:00.000Z" });
+    await mount();
+    expect(weekBox().value).toBe("old week");
+  });
+
+  it("a blocked localStorage never breaks the form", async () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    await mount();
+    type(host.querySelector("textarea") as HTMLTextAreaElement, "still typing");
+    expect((host.querySelector("textarea") as HTMLTextAreaElement).value).toBe("still typing");
+    spy.mockRestore();
+  });
+});
+
+describe("WeeklyReviewGoalView · the empty line (manager round 1, item 10)", () => {
+  const row = { goal: { id: "g1", title: "Goal one", horizon: "WEEK", due: null, canExtendOrClose: true }, doneTasks: [], entries: [] };
+  const view = (failed: string[]) => renderToStaticMarkup(<WeeklyReviewGoalView row={row} failed={failed} note="" action={null} onNote={() => {}} onAction={() => {}} />);
+  it("says nothing was written only when every read answered", () => {
+    expect(view([])).toContain("Nothing done or written");
+    for (const f of ["reflections", "entries", "done tasks"]) expect(view([f])).not.toContain("Nothing done or written");
+  });
+});
+
+describe("ReviewSavedView · replay honesty", () => {
+  const base = { saved: ["a"], extended: [], achieved: [], missed: [], checkedIn: [], alreadyCheckedIn: [], skipped: [], failed: [], ungrounded: [], people: null };
+  it("a replay says the goal changes are unknown and points at Goals; a fresh save says what it did", () => {
+    const replay = renderToStaticMarkup(<ReviewSavedView result={{ ...base, replayed: true, goalActions: "unknown" }} titles={new Map()} />);
+    expect(replay).toContain("already saved");
+    expect(replay).toMatch(/goal changes .*unknown/i);
+    expect(replay).not.toContain("not repeated");
+    const fresh = renderToStaticMarkup(<ReviewSavedView result={{ ...base, replayed: false, goalActions: "applied", extended: ["g1"] }} titles={new Map()} />);
+    expect(fresh).toContain("extended 1");
+  });
+  it("names the people the notes reached; a failed link is said", () => {
+    expect(renderToStaticMarkup(<ReviewSavedView result={{ ...base, replayed: false, goalActions: "applied", people: { names: ["Dania"] } }} titles={new Map()} />)).toContain("People: Dania");
+    expect(renderToStaticMarkup(<ReviewSavedView result={{ ...base, replayed: false, goalActions: "applied", people: null }} titles={new Map()} />)).toMatch(/people.*couldn/i);
+  });
+});

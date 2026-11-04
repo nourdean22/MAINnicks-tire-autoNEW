@@ -35,7 +35,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
-import { buildJournalFeed } from "@/lib/services/journal-feed";
+import { buildJournalFeed, journalEntry } from "@/lib/services/journal-feed";
 import { dayActivity } from "@/lib/services/journal-day";
 import { readWeeklyReview, saveWeeklyReview } from "@/lib/services/weekly-review";
 import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
@@ -121,6 +121,11 @@ export const journalRouter = router({
         cursor: input?.cursor ?? undefined,
       }),
     ),
+
+  /** W8b · one entry by id, any age: a link from People lands on it even past the feed's first page. */
+  entry: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .query(async ({ input }) => journalEntry(input.id)),
 
   /** W7 (Sunsama S3/S4) · per active goal, done tasks and grounded entries since the last review. */
   weeklyReview: operatorProcedure.query(async () => readWeeklyReview()),

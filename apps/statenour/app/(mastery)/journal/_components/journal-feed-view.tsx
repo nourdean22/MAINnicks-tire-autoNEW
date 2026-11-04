@@ -10,7 +10,7 @@ import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { useJournalFeed } from "../_hooks/use-journal-feed";
 
-export function JournalFeedView() {
+export function JournalFeedView({ hideEntryId = null }: { hideEntryId?: string | null } = {}) {
   const {
     entries,
     counts,
@@ -38,8 +38,8 @@ export function JournalFeedView() {
   // archive surface — the old client filter only saw the loaded window.
   // Sorting stays client-side over the loaded pages.
   const filteredEntries = useMemo(() => {
-    let result = entries;
-    result = [...result].sort((a, b) => {
+    // The entry a link pinned above the feed: one row, one bd-<id> anchor.
+    const result = entries.filter((e) => e.id !== hideEntryId).sort((a, b) => {
       if (sortKey === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (sortKey === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       if (sortKey === "alpha-asc") return a.title.localeCompare(b.title);
@@ -50,7 +50,7 @@ export function JournalFeedView() {
     });
 
     return result;
-  }, [entries, sortKey]);
+  }, [entries, sortKey, hideEntryId]);
 
   // Group by date
   const byDate = useMemo(() => {
@@ -159,7 +159,7 @@ export function JournalFeedView() {
                   className="inline-flex min-h-11 items-center rounded-control border border-edge-default px-4 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg"
                 >Retry</button>
               </div>
-            ) : filteredEntries.length === 0 ? (
+            ) : entries.length === 0 ? (
               <div className="text-center py-12 rounded-surface border border-edge-subtle bg-content">
                 <NotebookPen size={24} className="text-fg-tertiary mx-auto mb-3" />
                 <p className="text-[13px] font-semibold text-fg-secondary">No thoughts captured yet in this filter.</p>

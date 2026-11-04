@@ -18,18 +18,25 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { isAiSentinel } from "@/lib/ai/provider";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { isNeglected } from "@/lib/services/people/neglect";
-import { contactRowsOnly } from "@/lib/services/people/contact-rows";
+import { contactRowsOnly, GENERIC_NOTE } from "@/lib/services/people/contact-rows";
 import { nameMatcher } from "@/lib/services/people/backfill-plan";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
+import { logger as rootLogger } from "@/lib/logger";
 
-/** The fallback note both chat writers use when the digest gave no detail: it records a contact, nothing about the person. */
-const GENERIC_NOTE = /^interaction reported in chat \(/i;
+const log = rootLogger.withSurface("brain/people-intelligence");
+
 const CONTEXT_MAX = 3;
 /** A dismissed role/notes suggestion stays away this long, like a dismissed cadence (second reader on 3519). */
 const ENRICH_REPROPOSE_DAYS = 30;
+/** Model calls per run (W8b: one named cap; the rest of the sparse list is reported as `enrichDeferred`). */
+export const ENRICH_CALLS_PER_RUN = 5;
+/** A person whose answered call parked nothing is not called again within this many days (W8b: `metadata.enrichTriedAt`). */
+export const ENRICH_RETRY_DAYS = 7;
+const CADENCE_REPROPOSE_DAYS = 30;
 
 function proposedWithin(metadata: unknown, key: string, days: number): boolean {
   const at = (metadata as Record<string, unknown> | null)?.[key];
@@ -92,11 +99,14 @@ export async function runPeopleIntelligence(): Promise<{
   profilesUpdated: number;
   alerts: string[];
   /** Set when the enrich pass could not read its context: 0 updates then means UNKNOWN, not a quiet day. */
-  enrich?: "ledger_read_failed" | "chat_read_failed";
+  enrich?: "ledger_read_failed" | "chat_read_failed" | "model_failed" | "write_failed";
   /** People W2: cadence proposals parked for his accept this run. */
   cadenceProposed?: number;
   /** Set when the cadence pass could not read the ledger: no proposal was guessed. */
   cadence?: "ledger_read_failed";
+  /** W8b: sparse people with context the per-run cap left for a later run (0 = everyone due was tried). */
+  enrichChecked?: number;
+  enrichDeferred?: number;
 }> {
   const alerts: string[] = [];
 
@@ -158,13 +168,20 @@ export async function runPeopleIntelligence(): Promise<{
     (p) =>
       (p.role === "unknown" || !p.leverageNotes) &&
       !hasEnrichProposal(p.pendingClassification) &&
-      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS)
+      !proposedWithin(p.metadata, "enrichProposedAt", ENRICH_REPROPOSE_DAYS) &&
+      !proposedWithin(p.metadata, "enrichTriedAt", ENRICH_RETRY_DAYS)
   );
 
   let updated = 0;
   let ledgerReadFailed = false;
   let chatReadFailed = false;
+  let tried = 0;
+  let reached = 0;
+  let modelFailCount = 0;
+  let enrichFailCount = 0;
   const suggestedNow = new Set<string>();
+  // The metadata this run stamped, for the cadence write below: its swap must build on it, not the run-start read.
+  const stampedMeta = new Map<string, Record<string, unknown>>();
   if (sparse.length > 0) {
     // People W0 (2026-10-30): the context is the person's own ledger notes.
     // This used to read payload.peopleMentioned off conversation_digest audit
@@ -194,11 +211,11 @@ export async function runPeopleIntelligence(): Promise<{
       if (list.length < CONTEXT_MAX && note && !GENERIC_NOTE.test(note)) list.push(note.slice(0, 200));
     }
 
-    let enrichFailCount = 0;
     let calls = 0;
     // Nothing on record and nothing he wrote means nothing to ground a suggestion in: no call.
     for (const person of ledgerReadFailed ? [] : sparse) {
-      if (calls >= 5) break;
+      if (calls >= ENRICH_CALLS_PER_RUN) break;
+      reached++;
       const logged = ledgerContext[person.id] ?? [];
       const said =
         logged.length < CONTEXT_MAX
@@ -211,6 +228,15 @@ export async function runPeopleIntelligence(): Promise<{
       const contexts = [...logged, ...said];
       if (contexts.length === 0) continue;
       calls++;
+      tried++;
+      const meta =
+        person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
+          ? (person.metadata as Record<string, unknown>)
+          : {};
+      const triedAt = new Date().toISOString();
+      // Stamped on every ANSWERED call: one that parks nothing still spent the slot, and without the stamp the same
+      // quiet person was retried every run (audit B6). A failed call is not an answer (below).
+      let stamped = false;
 
       const enrichResult = await aiChat(
         [
@@ -238,90 +264,114 @@ Return ONLY JSON:
 
        
       const enrichExtracted = extractJsonObject<any>(enrichResult.content);
-      if (enrichExtracted.ok) {
-        try {
-          const enriched = enrichExtracted.value;
-          // SUGGEST, don't clobber. Validate the role against the canonical
-          // list; only propose a role change if it's valid AND differs from
-          // what's there. Write the whole proposal to pendingClassification
-          // for the operator to accept/dismiss on /people — role,
-          // leverageNotes, and trustScore are NEVER silently overwritten.
-          const suggestedRole =
-            isPersonRole(enriched.role) && enriched.role !== person.role
-              ? enriched.role
-              : null;
-          const suggestedNotes =
-            typeof enriched.leverageNotes === "string" &&
-            enriched.leverageNotes.trim() &&
-            enriched.leverageNotes.trim() !== (person.leverageNotes ?? "").trim()
-              ? enriched.leverageNotes.trim().slice(0, 2000)
-              : null;
-          const rawAdj = Number(enriched.trustAdjustment);
-          const trustAdjustment = Number.isFinite(rawAdj)
-            ? Math.max(-0.1, Math.min(0.1, rawAdj))
-            : 0;
+      // aiChat returns a sentinel on a total outage, it does not throw. No answer: no stamp, so the person is called
+      // again next run, and the run reads failed, never "nothing to propose".
+      if (isAiSentinel(enrichResult) || !enrichExtracted.ok) {
+        modelFailCount++;
+        continue;
+      }
+      try {
+        const enriched = enrichExtracted.value;
+        // SUGGEST, don't clobber. Validate the role against the canonical
+        // list; only propose a role change if it's valid AND differs from
+        // what's there. Write the whole proposal to pendingClassification
+        // for the operator to accept/dismiss on /people — role,
+        // leverageNotes, and trustScore are NEVER silently overwritten.
+        const suggestedRole =
+          isPersonRole(enriched.role) && enriched.role !== person.role
+            ? enriched.role
+            : null;
+        const suggestedNotes =
+          typeof enriched.leverageNotes === "string" &&
+          enriched.leverageNotes.trim() &&
+          enriched.leverageNotes.trim() !== (person.leverageNotes ?? "").trim()
+            ? enriched.leverageNotes.trim().slice(0, 2000)
+            : null;
+        const rawAdj = Number(enriched.trustAdjustment);
+        const trustAdjustment = Number.isFinite(rawAdj)
+          ? Math.max(-0.1, Math.min(0.1, rawAdj))
+          : 0;
 
-          // Nothing worth surfacing? Skip — don't park an empty suggestion.
-          if (suggestedRole || suggestedNotes || trustAdjustment !== 0) {
-            // Keep a waiting cadence proposal: one banner, and his Accept applies both.
-            const prior = person.pendingClassification;
-            const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
-            const meta =
-              person.metadata && typeof person.metadata === "object" && !Array.isArray(person.metadata)
-                ? (person.metadata as Record<string, unknown>)
-                : {};
-            // Compare-and-swap on the slot this run read: if he accepted or dismissed it during
-            // the model call, the write matches nothing (P2025) and is skipped below.
-            await prisma.personProfile.update({
-              where: {
-                id: person.id,
-                pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
-              },
-              data: {
-                metadata: { ...meta, enrichProposedAt: new Date().toISOString() } as object,
-                pendingClassification: {
-                  ...keep,
-                  role: suggestedRole,
-                  leverageNotes: suggestedNotes,
-                  trustAdjustment,
-                  basis: contexts.join("; ").slice(0, 400),
-                  suggestedAt: today(),
-                } as object,
-              },
-            });
-            updated++;
-            suggestedNow.add(person.id);
-          }
-        } catch (err) {
-          // Lost the swap: he answered the banner mid-run. His answer stands; not a failure.
-          if ((err as { code?: unknown } | null)?.code !== "P2025") enrichFailCount++;
+        // Nothing worth surfacing? Skip — don't park an empty suggestion.
+        if (suggestedRole || suggestedNotes || trustAdjustment !== 0) {
+          // Keep a waiting cadence proposal: one banner, and his Accept applies both.
+          const prior = person.pendingClassification;
+          const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
+          // Compare-and-swap on the slot this run read: if he accepted or dismissed it during
+          // the model call, the write matches nothing (P2025) and is skipped below.
+          await prisma.personProfile.update({
+            where: {
+              id: person.id,
+              pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
+            },
+            data: {
+              metadata: { ...meta, enrichProposedAt: triedAt, enrichTriedAt: triedAt } as object,
+              pendingClassification: {
+                ...keep,
+                // The cadence's own reasoning survives beside the enrich basis (audit B13).
+                ...(typeof keep.basis === "string" && keep.cadenceDays !== undefined ? { cadenceBasis: keep.basis } : {}),
+                role: suggestedRole,
+                leverageNotes: suggestedNotes,
+                trustAdjustment,
+                basis: contexts.join("; ").slice(0, 400),
+                suggestedAt: today(),
+              } as object,
+            },
+          });
+          stamped = true;
+          updated++;
+          suggestedNow.add(person.id);
+        }
+      } catch (err) {
+        // Lost the swap: he answered the banner mid-run. His answer stands; not a failure. Any other failed write
+        // parked nothing, so no stamp: the person stays eligible next run.
+        if ((err as { code?: unknown } | null)?.code !== "P2025") {
+          enrichFailCount++;
+          continue;
         }
       }
+      if (!stamped) {
+        const next = { ...meta, enrichTriedAt: triedAt };
+        await prisma.personProfile
+          .update({ where: { id: person.id }, data: { metadata: next as object } })
+          .then(() => stampedMeta.set(person.id, next))
+          .catch((err) => logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.stampTried" }));
+      }
     }
-    
-    if (enrichFailCount > 0) {
-      logError("brain.people-intelligence", new Error(`${enrichFailCount} people enrichment failures`), { fn: "runPeopleIntelligence.enrich" });
+
+    if (modelFailCount + enrichFailCount > 0) {
+      logError("brain.people-intelligence", new Error(`${modelFailCount} model failures, ${enrichFailCount} write failures`), { fn: "runPeopleIntelligence.enrich" });
     }
   }
 
   const cadence = await proposeCadences(
-    people.filter((p) => !p.cadenceDays && !p.pendingClassification && !suggestedNow.has(p.id)),
+    people
+      .filter((p) => !p.cadenceDays && !p.pendingClassification && !suggestedNow.has(p.id))
+      .map((p) => ({ ...p, metadata: stampedMeta.get(p.id) ?? p.metadata })),
   );
+
+  // Only the people the call cap kept the run from reaching: one with nothing to ground a call in was reached.
+  const enrichDeferred = ledgerReadFailed ? 0 : Math.max(0, sparse.length - reached);
+  if (enrichDeferred > 0) log.info("people_enrich_deferred", { enrichDeferred, tried, cap: ENRICH_CALLS_PER_RUN });
 
   return {
     profilesUpdated: updated,
     alerts,
+    enrichChecked: tried,
+    enrichDeferred,
     ...(ledgerReadFailed
       ? { enrich: "ledger_read_failed" as const }
       : chatReadFailed
         ? { enrich: "chat_read_failed" as const }
-        : {}),
+        : modelFailCount > 0
+          ? { enrich: "model_failed" as const }
+          : enrichFailCount > 0
+            ? { enrich: "write_failed" as const }
+            : {}),
     cadenceProposed: cadence.proposed,
     ...(cadence.readFailed ? { cadence: "ledger_read_failed" as const } : {}),
   };
 }
-
-const CADENCE_REPROPOSE_DAYS = 30;
 
 /**
  * People W2 (2026-10-30): park a cadence PROPOSAL for people with none, for his
@@ -331,12 +381,7 @@ const CADENCE_REPROPOSE_DAYS = 30;
 async function proposeCadences(
   candidates: ReadonlyArray<{ id: string; role: string; metadata: unknown }>,
 ): Promise<{ proposed: number; readFailed: boolean }> {
-  const cutoff = Date.now() - CADENCE_REPROPOSE_DAYS * 86_400_000;
-  const due = candidates.filter((p) => {
-    const at = (p.metadata as { cadenceProposedAt?: unknown } | null)?.cadenceProposedAt;
-    const ms = typeof at === "string" ? Date.parse(at) : NaN;
-    return !(Number.isFinite(ms) && ms > cutoff);
-  });
+  const due = candidates.filter((p) => !proposedWithin(p.metadata, "cadenceProposedAt", CADENCE_REPROPOSE_DAYS));
   if (due.length === 0) return { proposed: 0, readFailed: false };
 
   const rows = await prisma.relationshipLedger
@@ -362,8 +407,15 @@ async function proposeCadences(
     if (!s) continue;
     const meta = p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata) ? (p.metadata as Record<string, unknown>) : {};
     try {
+      // Compare-and-swap on the EMPTY slot this run read (audit B5): a proposal that landed since (Nick's
+      // person.update, the enrich pass) matches nothing (P2025) and is kept, not overwritten. The metadata is pinned
+      // too: this write replaces the whole object, so it must not land on a change it never read.
       await prisma.personProfile.update({
-        where: { id: p.id },
+        where: {
+          id: p.id,
+          pendingClassification: { equals: Prisma.AnyNull },
+          metadata: { equals: (p.metadata ?? Prisma.AnyNull) as Prisma.InputJsonValue },
+        },
         data: {
           pendingClassification: { cadenceDays: s.days, basis: s.basis, suggestedAt: today() } as object,
           metadata: { ...meta, cadenceProposedAt: new Date().toISOString() } as object,
@@ -371,7 +423,7 @@ async function proposeCadences(
       });
       proposed++;
     } catch (err) {
-      logError("brain.people-intelligence", err, { fn: "proposeCadences.update" });
+      if ((err as { code?: unknown } | null)?.code !== "P2025") logError("brain.people-intelligence", err, { fn: "proposeCadences.update" });
     }
   }
   return { proposed, readFailed: false };

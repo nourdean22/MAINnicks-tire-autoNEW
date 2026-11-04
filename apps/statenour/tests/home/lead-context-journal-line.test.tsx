@@ -9,12 +9,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 const h = vi.hoisted(() => ({
   taskFindUnique: vi.fn(),
   dumpFindFirst: vi.fn(),
+  reflFindFirst: vi.fn(),
   peopleFindMany: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     task: { findUnique: h.taskFindUnique },
     brainDump: { findFirst: h.dumpFindFirst },
+    reflection: { findFirst: h.reflFindFirst },
     personProfile: { findMany: h.peopleFindMany },
   },
 }));
@@ -108,6 +110,27 @@ describe("loadJournalLine (Home's latest journal line)", () => {
   it("no entries at all is a measured null", async () => {
     h.dumpFindFirst.mockResolvedValue(null);
     expect(await loadJournalLine()).toBeNull();
+  });
+
+  // W8b (audit B2): the /journal composer writes reflections, and Home's line used to read brain_dumps only.
+  it("a newer reflection wins over an older dump; its people come from reflections.person_ids", async () => {
+    h.dumpFindFirst.mockResolvedValue({ ...dump, createdAt: new Date("2026-11-01T14:00:00Z") });
+    h.reflFindFirst.mockResolvedValue({ id: "r1", insight: "**WHAT**: met Dania", createdAt: new Date("2026-11-03T14:00:00Z"), personIds: ["p1"] });
+    h.peopleFindMany.mockResolvedValue([{ id: "p1", name: "Dania" }]);
+    const line = await loadJournalLine();
+    expect(line).toMatchObject({ id: "r1", source: "reflection", people: [{ id: "p1", name: "Dania" }] });
+    expect(h.reflFindFirst.mock.calls[0][0]).toMatchObject({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } });
+  });
+
+  it("either table's read failing makes the line unknown: the entry that answered may not be the newest", async () => {
+    h.dumpFindFirst.mockResolvedValue({ ...dump, personIds: [] });
+    h.reflFindFirst.mockRejectedValue(new Error("column person_ids does not exist"));
+    expect(await loadJournalLine()).toBe("unknown");
+    h.dumpFindFirst.mockResolvedValue(null);
+    expect(await loadJournalLine()).toBe("unknown");
+    h.reflFindFirst.mockResolvedValue({ id: "r1", insight: "newest", createdAt: new Date(), personIds: [] });
+    h.dumpFindFirst.mockRejectedValue(new Error("db down"));
+    expect(await loadJournalLine()).toBe("unknown");
   });
 
   it("a failed names read keeps the line and marks people null (couldn't load), not []", async () => {

@@ -55,12 +55,12 @@ vi.mock("@/lib/prisma", () => {
 
 vi.mock("@/lib/errors/record-error", () => ({
   recordError: () => {},
+  // Swallows a rejection too, like the real wrapper (it awaits the task inside try): a background task this file
+  // does not mock (W8b's claimed people run reads prisma.$transaction) must not surface as an unhandled rejection.
   withErrorCapture: (_label: string, fn: () => unknown) => {
-    try {
-      void fn();
-    } catch {
-      /* swallowed like the real wrapper */
-    }
+    void Promise.resolve()
+      .then(fn)
+      .catch(() => {});
   },
 }));
 

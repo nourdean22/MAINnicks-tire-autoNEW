@@ -5,7 +5,12 @@
  *  IMPORTANT: The system operates in ET (Cleveland). Using UTC would
  *  return tomorrow's date when crons run at 5am UTC (midnight ET). */
 export function today(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return etDateKey(new Date());
+}
+
+/** The ET calendar day of `at` as YYYY-MM-DD: the key every day-bucketed row (brain_dumps.date) carries. */
+export function etDateKey(at: Date): string {
+  return at.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 /** Current hour (0-23) in Eastern Time. The server runs UTC (Railway), so
@@ -213,6 +218,12 @@ export function etCalendarParts(at: Date): {
     day: Number(v("day")),
     weekday: WD[v("weekday")] ?? 0,
   };
+}
+
+/** The ET calendar date before `at`'s (YYYY-MM-DD). By calendar parts: "minus 24 hours" misses on a 23- or 25-hour day. */
+export function previousEtDateKey(at: Date = new Date()): string {
+  const { year, month, day } = etCalendarParts(at);
+  return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
 }
 
 /** UTC instant of ET midnight for the given ET wall-clock Y/M/D. Date.UTC

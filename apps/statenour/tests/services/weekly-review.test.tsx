@@ -22,6 +22,8 @@ vi.mock("@/lib/prisma", () => ({
     lifeGoal: { findMany: h.goals },
     taskEvent: { findMany: h.events },
     brainDump: { findMany: h.dumps, findFirst: h.lastReview, create: h.create },
+    // W8b: the review reads reflections grounded to a goal too; empty here, pinned in weekly-review-people-replay.test.ts.
+    reflection: { findMany: vi.fn(async () => []) },
     $transaction: (fn: unknown, opts: unknown) => h.tx(fn, opts),
   },
 }));

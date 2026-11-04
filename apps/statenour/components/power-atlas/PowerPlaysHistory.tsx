@@ -13,8 +13,7 @@
  * `markPlayOutcome`. Optimistic local state · tRPC mutation persists.
  *
  * No emojis. Serif heading. Monospace timestamps + amounts.
- * 1px borders. Mounts in detail-panel left column below
- * TopicGoalOverlapCard.
+ * 1px borders. Mounts in the dossier's "deeper signals" disclosure.
  */
 
 import { useState } from "react";

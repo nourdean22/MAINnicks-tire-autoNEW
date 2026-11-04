@@ -28,7 +28,7 @@
 import type { Page } from "@playwright/test";
 
 import { CHAT_CONVERSATION, CHAT_LIST, CHAT_MIT, CHAT_PROVIDER_HEALTH, CHAT_REPLY, CHAT_TITLE, CHAT_TOOLS_HEALTH } from "./chat";
-import { HOME_BRIEF, HOME_GOALS, HOME_LOVE_MAP, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
+import { HOME_BRIEF, HOME_DAY, HOME_DAY_TASK, HOME_GOALS, HOME_LOVE_MAP, HOME_MAXIM, HOME_PEOPLE, HOME_REMEMBERS, HOME_SHOP_TODAY, HOME_WAITING } from "./home";
 import { ALPHA_TITLE, MISSIONS, MISSIONS_DECK, MISSION_CHATS, MISSION_GOALS, MISSION_PROMISES, MISSION_TASKS, NEXT_MOVE_TITLE } from "./missions";
 import { NOW_CARD_TITLE, NOW_COMPOSE } from "./now";
 import { SHELL_PULSE, SHELL_SIGNALS, SHELL_TICKER } from "./shell";
@@ -92,6 +92,8 @@ export const TRPC_FIXTURES: Record<string, unknown> = {
   "operator.shopToday": HOME_SHOP_TODAY,
   "operator.goalsSnapshot": HOME_GOALS,
   "task.loveMapQuestion": HOME_LOVE_MAP,
+  // W8b: Home's "Today: done and contacts" panel.
+  "journal.day": HOME_DAY,
   "operator.personalPulse": SHELL_PULSE,
   "operator.ticker": SHELL_TICKER,
   "operator.pulseFeed": SHELL_SIGNALS,
@@ -121,6 +123,9 @@ export const DEMO = {
   homeSummary: HOME_BRIEF.state.summary,
   homeHeadline: HOME_BRIEF.lead.headline,
   homeApproval: HOME_APPROVAL,
+  // W8b: the Home rows the interconnect added, each anchored on a fixture-only string.
+  homeCheckIn: HOME_BRIEF.goalCheckInDue && HOME_BRIEF.goalCheckInDue !== "unknown" ? HOME_BRIEF.goalCheckInDue.title : "",
+  homeToday: HOME_DAY_TASK,
   missionsNextMove: NEXT_MOVE_TITLE,
   missionTitle: ALPHA_TITLE,
   chatReply: CHAT_REPLY,

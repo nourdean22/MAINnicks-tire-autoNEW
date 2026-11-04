@@ -58,7 +58,7 @@ describe("GET /api/people · latestJournal", () => {
     ]);
     const body = await call();
     const by = Object.fromEntries(body.people.map((p) => [p.id, p.latestJournal]));
-    expect(by.p1).toEqual({ at: "2026-11-01T10:00:00.000Z", excerpt: "Talked to p1 about the move.", dumpId: "d2" });
+    expect(by.p1).toEqual({ at: "2026-11-01T10:00:00.000Z", excerpt: "Talked to p1 about the move.", dumpId: "d2", kind: "journal" });
     expect(by.p2?.dumpId).toBe("d_old");
     expect(by.p3).toBeNull();
     expect(body.reads).toEqual({ journal: "ok" });
@@ -73,6 +73,10 @@ describe("GET /api/people · latestJournal", () => {
     expect(sql).toMatch(/unnest\(d\.person_ids\)/);
     expect(sql).toMatch(/d\.deleted_at IS NULL/);
     expect(sql).toMatch(/ORDER BY pid, d\.created_at DESC/);
+    // W8b: reflections are journal entries too (the /journal composer writes them).
+    expect(sql).toMatch(/UNION ALL/);
+    expect(sql).toMatch(/FROM reflections/);
+    expect(sql).toMatch(/r\.deleted_at IS NULL/);
     expect(h.raw.mock.calls[0][1]).toEqual(["p1", "p2", "p3"]);
   });
 

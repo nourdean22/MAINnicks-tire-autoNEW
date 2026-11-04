@@ -72,7 +72,6 @@ vi.mock("@/components/power-atlas/PowerPlaysModal", () => ({ default: none }));
 vi.mock("@/components/power-atlas/SocialProof", () => ({ default: none }));
 vi.mock("@/components/power-atlas/ReciprocityCard", () => ({ default: none }));
 vi.mock("@/components/power-atlas/ToneShiftCard", () => ({ default: none }));
-vi.mock("@/components/power-atlas/TopicGoalOverlapCard", () => ({ default: none }));
 vi.mock("@/components/power-atlas/PowerPlaysHistory", () => ({ default: none }));
 vi.mock("@/components/power-atlas/PersonInsights", () => ({
   PendingClassificationBanner: none,

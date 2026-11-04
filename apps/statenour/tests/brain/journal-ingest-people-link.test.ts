@@ -67,9 +67,16 @@ describe("ingestJournal · links the people the entry names", () => {
   });
 
   it("P2-1: the ingest result carries peopleLinked (linked, contacts, failed), so a failed contact is not reported as success", async () => {
-    h.link.mockResolvedValue({ personIds: ["p_dania", "p_sam"], recorded: 1, skipped: 0, failed: 1, rejected: 0 });
+    h.link.mockResolvedValue({ personIds: ["p_dania", "p_sam"], recorded: 1, skipped: 0, failed: 1, rejected: 0, linkedNames: ["Dania", "Sam"], rejectedNames: [] });
     const r = await ingestJournal(text, "manual");
-    expect(r.peopleLinked).toEqual({ linked: 2, contacts: 1, failed: 1 });
+    expect(r.peopleLinked).toEqual({ linked: 2, contacts: 1, failed: 1, names: ["Dania", "Sam"], rejected: [] });
+  });
+
+  // W8b (audit B9): a refused name is not silent; the result carries it so the reply can say "not on People: Mo".
+  it("a refused name travels in peopleLinked.rejected", async () => {
+    h.link.mockResolvedValue({ personIds: ["p_dania"], recorded: 1, skipped: 0, failed: 0, rejected: 1, linkedNames: ["Dania"], rejectedNames: ["Mo"] });
+    const r = await ingestJournal(text, "manual");
+    expect(r.peopleLinked).toEqual({ linked: 1, contacts: 1, failed: 0, names: ["Dania"], rejected: ["Mo"] });
   });
 
   it("a re-process (reuseDumpId) links against the ORIGINAL entry and its original createdAt", async () => {

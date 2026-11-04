@@ -36,4 +36,22 @@ describe("acceptClassificationData", () => {
   it("no suggestion: nothing but the clear", () => {
     expect(acceptClassificationData(null, 0.5)).toEqual({ pendingClassification: null });
   });
+
+  // W8b (audit B7): a Home love-map answer he typed since the proposal is never overwritten by an older suggestion.
+  it("appends the suggested notes to non-empty, different current notes; replaces only empty ones", () => {
+    expect(acceptClassificationData({ leverageNotes: "Call on Sundays" }, 0.5, "Loves hiking")).toEqual({
+      pendingClassification: null,
+      leverageNotes: "Loves hiking\nCall on Sundays",
+    });
+    expect(acceptClassificationData({ leverageNotes: "Call on Sundays" }, 0.5, "")).toEqual({
+      pendingClassification: null,
+      leverageNotes: "Call on Sundays",
+    });
+    expect(acceptClassificationData({ leverageNotes: "Call on Sundays" }, 0.5, null)).toEqual({
+      pendingClassification: null,
+      leverageNotes: "Call on Sundays",
+    });
+    // Same text already there: no second copy.
+    expect(acceptClassificationData({ leverageNotes: " Call on Sundays " }, 0.5, "Call on Sundays")).toEqual({ pendingClassification: null });
+  });
 });

@@ -14,7 +14,7 @@ import type { OperatorBrief } from "@/lib/home/operator-brief";
 import type { WaitingSummary } from "@/lib/home/waiting-summary";
 import type { AppRouter } from "@/lib/trpc/root";
 
-import { NOW_ISO } from "./time";
+import { NOW_ISO, NOW_MS } from "./time";
 
 // The builder's attention budget (lead CTA + alternatives + visibleCap judgment rows) is kept in
 // the payload as a receipt. Since W2 the page composes its own cap of seven rows from this brief
@@ -96,7 +96,10 @@ export const HOME_BRIEF: OperatorBrief = {
     excerpt: "Demo entry: walked the demo floor with Demo Contractor A and agreed the shelving goes on the north wall.",
     createdAt: NOW_ISO,
     people: [{ id: "demo-person-1", name: "Demo Contractor A" }],
+    source: "dump",
   },
+  // W8b: the weekly review row (due: 9 days since the last review entry).
+  weeklyReviewDue: { lastReviewAt: new Date(NOW_MS - 9 * 86_400_000).toISOString(), daysSince: 9, due: true },
   budget: { visibleActionables: 6, cap: 7 },
 };
 
@@ -162,6 +165,18 @@ export const HOME_WAITING: WaitingSummary = {
  * mutation never fires. Typed against the router's own output (plain strings,
  * so the wire and the type agree).
  */
+/** W8b: Home's "Today: done and contacts" panel reads journal.day for today's ET date; one demo task, one demo contact. */
+export const HOME_DAY_TASK = "Demo task: hung the demo shelving on the north wall";
+export const HOME_DAY: inferRouterOutputs<AppRouter>["journal"]["day"] = {
+  date: NOW_ISO.slice(0, 10),
+  tasksDone: [{ taskId: "demo-task-alpha-shelving", title: HOME_DAY_TASK, at: NOW_ISO, goal: { id: "demo-goal-1", title: "Demo goal: finish the demo floor layout" } }],
+  contacts: [
+    { id: "demo-ledger-1", person: { id: "demo-person-1", name: "Demo Contractor A" }, note: "Demo contact: confirmed the demo delivery window", source: "manual", at: NOW_ISO },
+  ],
+  failed: [],
+  truncated: [],
+};
+
 export const HOME_REMEMBERS: inferRouterOutputs<AppRouter>["operator"]["nickRemembersContext"] = {
   anticipatedQuestions: [],
   followUps: [],

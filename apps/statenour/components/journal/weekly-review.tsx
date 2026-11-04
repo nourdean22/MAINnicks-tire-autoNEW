@@ -8,7 +8,8 @@
  * (lib/services/weekly-review.ts) and applies the goal actions. Nothing is written until Save.
  */
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
 
 import { trpc } from "@/lib/trpc/client";
 import type { ReviewGoal, SaveWeeklyReviewResult } from "@/lib/services/weekly-review";
@@ -17,6 +18,53 @@ import { CHECK_IN_HEALTH, type CheckInHealth } from "@/lib/brain/goal-pace";
 type GoalAction = "extend" | "achieved" | "missed" | null;
 
 const HEALTH_LABEL: Record<CheckInHealth, string> = { on_track: "On track", at_risk: "At risk", off_track: "Off track" };
+
+/**
+ * W8b (audit B11): the form's draft, the reflect composer's DRAFT_KEY shape. An iOS PWA reload mid-review used to
+ * lose every note; now it restores the notes, the health chips, the actions AND the reviewId, so the save after a reload is the same
+ * review to the server (no double write). Every localStorage call is wrapped: a blocked store never breaks the form.
+ */
+export const REVIEW_DRAFT_KEY = "ultron:review:draft";
+interface ReviewDraft {
+  reviewId: string;
+  week: string;
+  notes: Record<string, string>;
+  healths: Record<string, CheckInHealth | null>;
+  actions: Record<string, GoalAction>;
+  /** The draft's review: the last review it was written against, and when he last typed in it. */
+  lastReviewAt: string | null;
+  savedAt: string;
+}
+function readDraft(): ReviewDraft | null {
+  try {
+    const raw = localStorage.getItem(REVIEW_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Partial<ReviewDraft>;
+    return typeof d.reviewId === "string" && d.reviewId
+      ? { reviewId: d.reviewId, week: typeof d.week === "string" ? d.week : "", notes: d.notes ?? {}, healths: d.healths ?? {}, actions: d.actions ?? {}, lastReviewAt: d.lastReviewAt ?? null, savedAt: typeof d.savedAt === "string" ? d.savedAt : "" }
+      : null;
+  } catch {
+    return null;
+  }
+}
+/**
+ * A draft belongs to one review. A review finished elsewhere since, or a draft left past the review window, is a
+ * different review: restoring it would bring back old actions and an unsaved reviewId that saving would apply.
+ * An unreadable last review keeps the draft: his words are worth more than the doubt.
+ */
+function draftFits(d: ReviewDraft, read: { lastReviewAt: string | null; failed: string[] }): boolean {
+  const saved = Date.parse(d.savedAt);
+  if (!Number.isFinite(saved) || Date.now() - saved > REVIEW_WINDOW_DAYS * 86_400_000) return false;
+  return read.failed.includes("last review") || d.lastReviewAt === read.lastReviewAt;
+}
+function writeDraft(d: ReviewDraft | null) {
+  try {
+    if (d) localStorage.setItem(REVIEW_DRAFT_KEY, JSON.stringify(d));
+    else localStorage.removeItem(REVIEW_DRAFT_KEY);
+  } catch {
+    /* a blocked store loses the draft, never the form */
+  }
+}
 
 const TEXTAREA =
   "mt-2 block w-full rounded-control border border-edge-default bg-raised px-3 py-2 text-base text-fg placeholder:text-fg-tertiary focus:border-edge-strong focus:outline-none";
@@ -69,8 +117,11 @@ export function WeeklyReviewGoalView({
       {failed.includes("entries") && (
         <p role="status" className="mt-2 text-[12px] text-amber-300">Entries couldn&apos;t load</p>
       )}
+      {failed.includes("reflections") && (
+        <p role="status" className="mt-2 text-[12px] text-amber-300">Reflections couldn&apos;t load</p>
+      )}
       {doneTasks.length === 0 && entries.length === 0 ? (
-        failed.includes("done tasks") || failed.includes("entries") ? null : (
+        failed.length > 0 ? null : (
           <p className="mt-2 text-[13px] text-fg-tertiary">Nothing done or written for this goal since the last review.</p>
         )
       ) : (
@@ -122,7 +173,11 @@ export function ReviewSavedView({ result, titles }: { result: SaveWeeklyReviewRe
   return (
     <div className="py-6 text-[14px] text-fg">
       {result.replayed ? (
-        <p>This review was already saved ({result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}). Goal changes were not repeated.</p>
+        // W8b (audit B3): the first run's goal outcomes were never stored, so a replay cannot claim they were fine.
+        <p>
+          This review was already saved ({result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}). Whether its goal changes
+          applied is unknown: open Goals to check.
+        </p>
       ) : (
         <p>
           Saved {result.saved.length} {result.saved.length === 1 ? "entry" : "entries"}
@@ -147,6 +202,11 @@ export function ReviewSavedView({ result, titles }: { result: SaveWeeklyReviewRe
           Saved without a goal, because the goal is no longer active: {titleList(result.ungrounded, titles)}.
         </p>
       )}
+      {/* W8b: who the notes reached (the save-time name link); a failed link is said, not shown as "no one". */}
+      {!result.replayed && result.people === null && (
+        <p role="status" className="mt-1 text-[13px] text-amber-300">The people link couldn&apos;t run: who these notes name is unknown.</p>
+      )}
+      {result.people && result.people.names.length > 0 && <p className="mt-1 text-[13px] text-fg-secondary">{`People: ${result.people.names.join(", ")}`}</p>}
       <Link href="/journal" className="mt-3 inline-flex min-h-11 items-center text-[13px] text-fg-secondary underline-offset-2 hover:underline">
         Back to the journal
       </Link>
@@ -164,7 +224,32 @@ export function WeeklyReview() {
   const [actions, setActions] = useState<Record<string, GoalAction>>({});
   const [result, setResult] = useState<SaveWeeklyReviewResult | null>(null);
   // One id per review form: a retry after a lost response is recognised by the server and not saved twice.
-  const [reviewId] = useState(() => crypto.randomUUID());
+  // Restored from the draft on mount (W8b), so a reload mid-review keeps the same id.
+  const [reviewId, setReviewId] = useState(() => crypto.randomUUID());
+  const [hydrated, setHydrated] = useState(false);
+  const read = q.data;
+  useEffect(() => {
+    if (!read || hydrated) return;
+    const d = readDraft();
+    if (d && draftFits(d, read)) {
+      setReviewId(d.reviewId);
+      setWeek(d.week);
+      setNotes(d.notes);
+      setHealths(d.healths);
+      setActions(d.actions);
+    } else if (d) writeDraft(null);
+    setHydrated(true);
+  }, [read, hydrated]);
+  // Writes on change only, not on the hydration itself: opening a draft must not reset its age.
+  const armed = useRef(false);
+  useEffect(() => {
+    if (!hydrated || !read || result) return;
+    if (!armed.current) {
+      armed.current = true;
+      return;
+    }
+    writeDraft({ reviewId, week, notes, healths, actions, lastReviewAt: read.lastReviewAt, savedAt: new Date().toISOString() });
+  }, [hydrated, read, result, reviewId, week, notes, healths, actions]);
 
   if (q.isLoading) return <p className="py-6 text-[13px] text-fg-tertiary">Reading the week…</p>;
   if (q.isError || !q.data) {
@@ -205,6 +290,7 @@ export function WeeklyReview() {
       .catch(() => null);
     if (!res) return;
     setResult(res);
+    writeDraft(null);
     void utils.journal.feed.invalidate();
     void utils.journal.weeklyReview.invalidate();
   };

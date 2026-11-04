@@ -19,8 +19,36 @@
  */
 
 import { recordError } from "@/lib/errors/record-error";
+import type { JournalResult } from "@/lib/brain/journal-ingest";
 import { EARLY_BRAIN_DUMP, EARLY_SLASH_SAVE } from "./patterns";
 import { buildFastStream } from "./shared";
+
+/**
+ * The capture confirmation, one markdown line per fact. W8b (audit B9): the people line names who the entry
+ * reached and who is NOT on People, so a refused name never vanishes silently; a contact row that failed to
+ * write is said in the same line.
+ */
+export function captureReplyLines(
+  result: Pick<JournalResult, "entryType" | "summary" | "tasksCreated" | "insightsStored" | "commitmentsFound" | "peopleLinked">,
+): string[] {
+  const lines = [`**Captured** — ${result.entryType}`];
+  if (result.summary) lines.push(result.summary);
+  const counts: string[] = [];
+  if (result.tasksCreated > 0) counts.push(`${result.tasksCreated} task${result.tasksCreated !== 1 ? "s" : ""}`);
+  if (result.insightsStored > 0) counts.push(`${result.insightsStored} insight${result.insightsStored !== 1 ? "s" : ""}`);
+  if (result.commitmentsFound > 0) counts.push(`${result.commitmentsFound} commitment${result.commitmentsFound !== 1 ? "s" : ""}`);
+  if (counts.length > 0) lines.push(`**Extracted:** ${counts.join(" · ")}`);
+  const p = result.peopleLinked;
+  // No result means the link failed or never ran: not the same as a line that named no one.
+  if (!p) lines.push("**People:** couldn't link");
+  else if (p.names.length > 0 || p.rejected.length > 0) {
+    const parts = [p.names.length > 0 ? p.names.join(", ") : "none linked"];
+    if (p.failed > 0) parts.push(`${p.failed} contact not saved`);
+    if (p.rejected.length > 0) parts.push(`not on People: ${p.rejected.join(", ")}`);
+    lines.push(`**People:** ${parts.join(" · ")}`);
+  }
+  return lines;
+}
 
 export async function handleBrainDump(
   convId: string,
@@ -42,21 +70,7 @@ export async function handleBrainDump(
     console.log(
       `[ai/chat] Brain dump via fast path: ${result.brainDumpId} type=${result.entryType}`,
     );
-    const confirmationLines = [`**Captured** — ${result.entryType}`];
-    if (result.summary) confirmationLines.push(result.summary);
-    const counts: string[] = [];
-    if (result.tasksCreated > 0)
-      counts.push(`${result.tasksCreated} task${result.tasksCreated !== 1 ? "s" : ""}`);
-    if (result.insightsStored > 0)
-      counts.push(
-        `${result.insightsStored} insight${result.insightsStored !== 1 ? "s" : ""}`,
-      );
-    if (result.commitmentsFound > 0)
-      counts.push(
-        `${result.commitmentsFound} commitment${result.commitmentsFound !== 1 ? "s" : ""}`,
-      );
-    if (counts.length > 0)
-      confirmationLines.push(`**Extracted:** ${counts.join(" · ")}`);
+    const confirmationLines = captureReplyLines(result);
     confirmationLines.push(``);
     confirmationLines.push(`Surfaces on [/journal](/journal).`);
     return await buildFastStream(

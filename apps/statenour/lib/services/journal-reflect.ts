@@ -27,6 +27,7 @@ import { isAiSentinel } from "@/lib/ai/provider";
 import { toDateString } from "@/lib/utils/datetime";
 import { emitReflectionCreated } from "@/lib/db/brain-bus-emit";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordError } from "@/lib/errors/record-error";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
@@ -70,6 +71,11 @@ export interface ReflectResult {
   pushback: string | null;
   nextStep: "bet" | "memory-check" | "done";
   extractionFired: boolean;
+  /**
+   * W8b: the people this reflection names, linked at save time by the exact whole-word name rule (no model,
+   * no toggle); the composer toast reads them. null = the people read or link failed (unknown, not "no one").
+   */
+  peopleLinked: { names: string[] } | null;
 }
 
 /**
@@ -119,6 +125,18 @@ export async function createReflection(
       },
     },
   });
+
+  // W8b (audit B2): every reflection reaches People at save, with no toggle and no model call: each live person
+  // whose name appears whole-word in the text is linked as a MENTION (ids on reflections.person_ids) through the
+  // journal gate. The enrich pass below adds contact rows for people he reports talking to (merge, never un-link).
+  // Awaited (a few ms) so the composer toast can name them; a failure is unknown, never a failed save.
+  let peopleLinked: ReflectResult["peopleLinked"] = null;
+  try {
+    const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
+    peopleLinked = await linkNamedPeople({ silo: "reflection", dumpId: reflection.id, createdAt: reflection.createdAt, rawText: insight });
+  } catch (err) {
+    recordError("brain:journal-ingest", err, { phase: "reflect-people-link", reflectionId: reflection.id });
+  }
 
   // Silo wave (audit 2026-07-15) · reflections carried the grounding
   // columns but were never enriched live (brain_dump was the only silo
@@ -227,5 +245,6 @@ export async function createReflection(
     pushback,
     nextStep,
     extractionFired,
+    peopleLinked,
   };
 }

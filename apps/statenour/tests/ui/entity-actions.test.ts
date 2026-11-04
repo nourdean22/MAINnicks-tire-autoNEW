@@ -36,7 +36,7 @@ describe("hrefs", () => {
     expect(homeRouteFor({ kind: "memory", id: "m1" })).toBe("/brain?tab=memory&inspect=memory:m1");
     expect(homeRouteFor({ kind: "person", id: "p1" })).toBe("/people?inspect=person:p1");
     expect(homeRouteFor({ kind: "decision", id: "d1" })).toBe("/decisions/d1");
-    expect(homeRouteFor({ kind: "journal", id: "j1" })).toBe("/journal#bd-j1");
+    expect(homeRouteFor({ kind: "journal", id: "j1" })).toBe("/journal?entry=j1#bd-j1");
     expect(homeRouteFor({ kind: "pin", id: "p1" })).toBe("/brain?tab=memory#pin-p1");
     expect(homeRouteFor({ kind: "claim", id: "c1" })).toBeNull();
     expect(homeRouteFor({ kind: "experiment", id: "e1" })).toBeNull();
