@@ -7,6 +7,14 @@ import { describe, expect, it } from "vitest";
 
 import { EngineLine, SuggestionsWaiting } from "@/components/people/engine-line";
 
+describe("EngineLine · an old row (manager round 1, item 7b)", () => {
+  it("says the run happened and its result was not recorded", () => {
+    const html = renderToStaticMarkup(<EngineLine engine={{ state: "ran", at: null, reason: null }} />);
+    expect(html).toContain("result not recorded (old format)");
+    expect(html).not.toContain("proposed something");
+  });
+});
+
 describe("SuggestionsWaiting", () => {
   it("renders the count with the verb only when something waits", () => {
     expect(renderToStaticMarkup(<SuggestionsWaiting count={18} />)).toContain("18 waiting for your yes");

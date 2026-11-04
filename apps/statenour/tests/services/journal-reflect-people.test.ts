@@ -6,12 +6,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ create: vi.fn(), peopleFindMany: vi.fn(), link: vi.fn(), enrich: vi.fn(), ai: vi.fn() }));
+const h = vi.hoisted(() => ({ create: vi.fn(), peopleFindMany: vi.fn(), link: vi.fn(), enrich: vi.fn(), ai: vi.fn(), recordError: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: { reflection: { create: h.create }, personProfile: { findMany: h.peopleFindMany } },
 }));
 vi.mock("@/lib/ai/traced-aichat", () => ({ tracedAiChat: h.ai, makeTracedAiChat: () => h.ai }));
+vi.mock("@/lib/errors/record-error", () => ({ recordError: h.recordError }));
 vi.mock("@/lib/ai/provider", () => ({ isAiSentinel: () => true }));
 vi.mock("@/lib/ai/style-adapter", () => ({ applyOperatorStyle: async (s: string) => s }));
 vi.mock("@/lib/db/brain-bus-emit", () => ({ emitReflectionCreated: vi.fn(async () => undefined) }));
@@ -63,5 +64,7 @@ describe("createReflection · people at save", () => {
     const r = await createReflection(input);
     expect(r.reflection.id).toBe("r1");
     expect(r.peopleLinked).toBeNull();
+    // Manager round 1, items 5 + 15: an error the operator can see, not a log line.
+    expect(h.recordError).toHaveBeenCalledWith("brain:journal-ingest", expect.any(Error), expect.objectContaining({ phase: "reflect-people-link", reflectionId: "r1" }));
   });
 });

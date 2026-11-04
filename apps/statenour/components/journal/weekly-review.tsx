@@ -107,7 +107,7 @@ export function WeeklyReviewGoalView({
         <p role="status" className="mt-2 text-[12px] text-amber-300">Reflections couldn&apos;t load</p>
       )}
       {doneTasks.length === 0 && entries.length === 0 ? (
-        failed.includes("done tasks") || failed.includes("entries") ? null : (
+        failed.length > 0 ? null : (
           <p className="mt-2 text-[13px] text-fg-tertiary">Nothing done or written for this goal since the last review.</p>
         )
       ) : (

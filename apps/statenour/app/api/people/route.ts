@@ -34,7 +34,7 @@ const NOTE_LOOKBACK = 5;
 
 /** The engine line on /people: the newest run's state. `never` = no row ever; `unknown` = the read failed. */
 export interface EngineLine {
-  state: PeopleRunState | "never" | "unknown";
+  state: PeopleRunState | "ran" | "never" | "unknown";
   at: string | null;
   reason: string | null;
 }
@@ -52,7 +52,8 @@ function engineLineOf(row: { createdAt: Date; detail: string; payload: unknown }
   }
   if (p?.state === "ok" || p?.state === "failed" || p?.state === "nothing_to_propose") return { state: p.state, at, reason };
   const legacyFail = /\(enrich: (\w+)\)/.exec(row.detail);
-  return legacyFail ? { state: "failed", at, reason: legacyFail[1] } : { state: "ok", at, reason: null };
+  // An old row says only that it ran; "ok" would claim it proposed something.
+  return legacyFail ? { state: "failed", at, reason: legacyFail[1] } : { state: "ran", at, reason: null };
 }
 
 export const dynamic = "force-dynamic";

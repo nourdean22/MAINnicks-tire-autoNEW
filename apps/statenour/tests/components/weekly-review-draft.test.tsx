@@ -35,7 +35,7 @@ vi.mock("@/lib/trpc/client", () => ({
   },
 }));
 
-import { REVIEW_DRAFT_KEY, ReviewSavedView, WeeklyReview } from "@/components/journal/weekly-review";
+import { REVIEW_DRAFT_KEY, ReviewSavedView, WeeklyReview, WeeklyReviewGoalView } from "@/components/journal/weekly-review";
 
 let root: Root | null = null;
 let host: HTMLDivElement;
@@ -108,6 +108,15 @@ describe("weekly review draft", () => {
     type(host.querySelector("textarea") as HTMLTextAreaElement, "still typing");
     expect((host.querySelector("textarea") as HTMLTextAreaElement).value).toBe("still typing");
     spy.mockRestore();
+  });
+});
+
+describe("WeeklyReviewGoalView · the empty line (manager round 1, item 10)", () => {
+  const row = { goal: { id: "g1", title: "Goal one", horizon: "WEEK", due: null, canExtendOrClose: true }, doneTasks: [], entries: [] };
+  const view = (failed: string[]) => renderToStaticMarkup(<WeeklyReviewGoalView row={row} failed={failed} note="" action={null} onNote={() => {}} onAction={() => {}} />);
+  it("says nothing was written only when every read answered", () => {
+    expect(view([])).toContain("Nothing done or written");
+    for (const f of ["reflections", "entries", "done tasks"]) expect(view([f])).not.toContain("Nothing done or written");
   });
 });
 

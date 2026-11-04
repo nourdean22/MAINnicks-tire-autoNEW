@@ -64,7 +64,7 @@ export interface FeedEntry {
   linkStatus?: string | null;
   linkConfidence?: number | null;
   linkedGoalTitle?: string | null;
-  /** Dumps only (W4 2026-11-02): the people the entry names, live ones, in the entry's order.
+  /** Dumps and reflections (W4 2026-11-02, W8b): the people the entry names, live ones, in the entry's order.
    *  null = the name read failed (couldn't load), never the same as [] (names no one). */
   people?: { id: string; name: string }[] | null;
 }
@@ -236,7 +236,7 @@ export async function buildJournalFeed(args: {
   ]);
 
   const feed: FeedEntry[] = [];
-  const dumpPersonIds = new Map<string, string[]>();
+  const entryPersonIds = new Map<string, string[]>();
 
   for (const d of brainDumps) {
     let extracted: {
@@ -274,11 +274,13 @@ export async function buildJournalFeed(args: {
     });
     // The cast serves test fixtures built without the field; a real row always has it (default '{}').
     const ids = (d as { personIds?: string[] }).personIds ?? [];
-    if (ids.length) dumpPersonIds.set(d.id, ids);
+    if (ids.length) entryPersonIds.set(d.id, ids);
   }
 
   for (const r of reflections) {
     if (typeFilter && typeFilter !== "all" && typeFilter !== "reflection") continue;
+    const ids = (r as { personIds?: string[] }).personIds ?? [];
+    if (ids.length) entryPersonIds.set(r.id, ids);
     feed.push({
       id: r.id,
       source: "reflection",
@@ -388,7 +390,7 @@ export async function buildJournalFeed(args: {
   }
 
   // W4 · people chips: ONE query over every id on the page, live people only (a deleted person drops off the row).
-  const personIds = [...new Set([...dumpPersonIds.values()].flat())];
+  const personIds = [...new Set([...entryPersonIds.values()].flat())];
   if (personIds.length) {
     const named = await prisma.personProfile
       .findMany({ where: { id: { in: personIds }, deletedAt: null }, select: { id: true, name: true } })
@@ -398,7 +400,7 @@ export async function buildJournalFeed(args: {
         return null;
       });
     for (const e of feed) {
-      const ids = e.source === "dump" ? dumpPersonIds.get(e.id) : undefined;
+      const ids = entryPersonIds.get(e.id);
       if (!ids) continue;
       e.people = named
         ? ids.flatMap((id) => {

@@ -112,7 +112,13 @@ describe("GET /api/people · engine line", () => {
     h.audit.mockResolvedValue({ createdAt: new Date("2026-11-01T03:00:00Z"), detail: "Updated 1 profiles, 0 alerts (enrich: ledger_read_failed)", payload: null });
     expect((await call()).engine).toMatchObject({ state: "failed", reason: "ledger_read_failed" });
     h.audit.mockResolvedValue({ createdAt: new Date("2026-11-01T03:00:00Z"), detail: "Updated 1 profiles, 0 alerts", payload: null });
-    expect((await call()).engine.state).toBe("ok");
+    expect((await call()).engine.state).toBe("ran");
+  });
+
+  // Manager round 1, item 7b: an old row says nothing about what it proposed, so it never reads "proposed something".
+  it("an old row with no failure in its detail reads as ran, never as ok", async () => {
+    h.audit.mockResolvedValue({ createdAt: new Date("2026-11-01T03:00:00Z"), detail: "Updated 0 profiles, 0 alerts", payload: null });
+    expect((await call()).engine).toMatchObject({ state: "ran", reason: null });
   });
 
   it("a claim row that never finished: running while young, failed once stale", async () => {

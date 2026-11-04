@@ -18,6 +18,7 @@
  * counters summed to 191 against 23 ledger rows ever, none since 07-10).
  * Contact now has exactly one writer, lib/services/people/record-interaction.
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
@@ -91,24 +92,30 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
 
   let pendingProposed = false;
   if (suggestedRole || trustAdjustment !== 0) {
-    // W8b: land ON the slot. A waiting cadence proposal (and its basis) survives beside Nick's role proposal.
+    // W8b: land ON the slot. A waiting cadence proposal (and its basis) survives beside Nick's role proposal, and so
+    // does a parked engine suggestion. Compare-and-swap on the slot read above: if he answered the banner in between,
+    // the write matches nothing (P2025), his answer stands and nothing is proposed.
     const prior = current?.pendingClassification;
     const keep = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
-    await prisma.personProfile.update({
-      where: { id: personId },
-      data: {
-        pendingClassification: {
-          ...keep,
-          ...(typeof keep.basis === "string" && keep.cadenceDays !== undefined ? { cadenceBasis: keep.basis } : {}),
-          role: suggestedRole,
-          leverageNotes: null, // handled live above · not re-proposed
-          trustAdjustment,
-          basis: "nick_agent person.update",
-          suggestedAt: today(),
-        } as object,
-      },
-    });
-    pendingProposed = true;
+    try {
+      await prisma.personProfile.update({
+        where: { id: personId, pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue } },
+        data: {
+          pendingClassification: {
+            ...keep,
+            ...(typeof keep.basis === "string" && keep.cadenceDays !== undefined ? { cadenceBasis: keep.basis } : {}),
+            role: suggestedRole ?? keep.role ?? null,
+            leverageNotes: keep.leverageNotes ?? null, // this call's notes went live above · not re-proposed
+            trustAdjustment: trustAdjustment || keep.trustAdjustment || 0,
+            basis: "nick_agent person.update",
+            suggestedAt: today(),
+          } as object,
+        },
+      });
+      pendingProposed = true;
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code !== "P2025") throw err;
+    }
   }
 
   return {

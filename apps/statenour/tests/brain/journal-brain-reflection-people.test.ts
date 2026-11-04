@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   reflUpdate: vi.fn(),
   reflFindUnique: vi.fn(),
   dumpUpdateMany: vi.fn(),
+  recordError: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/ai/traced-aichat", () => ({ makeTracedAiChat: () => h.aiChat }));
+vi.mock("@/lib/errors/record-error", () => ({ recordError: h.recordError }));
 vi.mock("@/lib/journal/settings", () => ({
   getJournalSettings: vi.fn(async () => ({ autoConfirmThreshold: 0.8, creativeIntensity: "off", challengeCadence: "off" })),
 }));
@@ -84,5 +86,6 @@ describe("enrichJournalEntry · people on a reflection", () => {
   it("a failed link is logged, never thrown out of the enrich", async () => {
     h.link.mockRejectedValue(new Error("boom"));
     await expect(enrichJournalEntry("reflection", "r1", "Talked to Dania about the move tonight.")).resolves.toBeUndefined();
+    expect(h.recordError).toHaveBeenCalledWith("brain:journal-ingest", expect.any(Error), expect.objectContaining({ phase: "reflection-people-link", reflectionId: "r1" }));
   });
 });

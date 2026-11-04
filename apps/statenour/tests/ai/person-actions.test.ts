@@ -33,6 +33,7 @@ vi.mock("@/lib/brain/person-profile-fuzzy", () => ({ resolvePersonByName: m.reso
 vi.mock("@/lib/brain/person-roles", () => ({ isPersonRole: (r: string) => ["friend", "mentor", "family"].includes(r) }));
 vi.mock("@/lib/services/people/record-interaction", () => ({ recordInteraction: m.record }));
 
+import { Prisma } from "@prisma/client";
 import { handlePersonLogInteraction, handlePersonUpdate } from "@/lib/ai/agent-actions/person-actions";
 
 const MATCHED = { person: { id: "p1", name: "Dania" }, matched: true, matchTier: "exact" as const };
@@ -79,6 +80,39 @@ describe("person.update — an edit is not a contact", () => {
     const pc = m.personUpdate.mock.calls[0][0].data.pendingClassification as Record<string, unknown>;
     expect(pc).toMatchObject({ cadenceDays: 14, cadenceBasis: "default for friend", role: "mentor", basis: "nick_agent person.update" });
     expect(m.personFindUnique.mock.calls[0][0].select.pendingClassification).toBe(true);
+  });
+});
+
+describe("person.update — the proposal slot (manager round 1, item 7d)", () => {
+  const parked = { role: "friend", trustScore: 0.5, pendingClassification: { role: null, leverageNotes: "Ask her about the lease", trustAdjustment: 0.05, basis: "ledger", suggestedAt: "2026-11-01" } };
+
+  it("keeps a parked engine suggestion: Nick's role proposal lands beside its notes and trust change", async () => {
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    m.personFindUnique.mockResolvedValue(parked);
+    await handlePersonUpdate({ name: "Dania", role: "mentor" }, "person.update");
+    const pc = m.personUpdate.mock.calls[0][0].data.pendingClassification as Record<string, unknown>;
+    expect(pc).toMatchObject({ role: "mentor", leverageNotes: "Ask her about the lease", trustAdjustment: 0.05 });
+  });
+
+  it("is a compare-and-swap on the slot it read: no slot pins empty, a parked one pins itself", async () => {
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    m.personFindUnique.mockResolvedValue(parked);
+    await handlePersonUpdate({ name: "Dania", role: "mentor" }, "person.update");
+    expect(m.personUpdate.mock.calls[0][0].where).toEqual({ id: "p1", pendingClassification: { equals: parked.pendingClassification } });
+    m.personUpdate.mockClear();
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    m.personFindUnique.mockResolvedValue({ role: "friend", trustScore: 0.5, pendingClassification: null });
+    await handlePersonUpdate({ name: "Dania", role: "mentor" }, "person.update");
+    expect(m.personUpdate.mock.calls[0][0].where).toEqual({ id: "p1", pendingClassification: { equals: Prisma.AnyNull } });
+  });
+
+  it("a lost swap (he answered the banner mid-call) is not a failure and does not claim a proposal", async () => {
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    m.personFindUnique.mockResolvedValue(parked);
+    m.personUpdate.mockRejectedValueOnce(Object.assign(new Error("not found"), { code: "P2025" }));
+    const res = await handlePersonUpdate({ name: "Dania", role: "mentor" }, "person.update");
+    expect(res.success).toBe(true);
+    expect(res.result).toMatchObject({ pendingProposal: null });
   });
 });
 

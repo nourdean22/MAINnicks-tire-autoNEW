@@ -257,9 +257,9 @@ describe("linkJournalPeople · the resolver gate", () => {
 });
 
 describe("linkNamedPeople · the save-time link with no model (W8b)", () => {
-  it("links every live person named whole-word in the text as a mention, through the same gate, and names them", async () => {
+  it("links every live person the line names (whole word, exact case) as a mention, through the same gate, and names them", async () => {
     const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
-    const r = await linkNamedPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: "Talked to dania; Samir came by. Danya did not." });
+    const r = await linkNamedPeople({ silo: "reflection", dumpId: "r1", createdAt, rawText: "Talked to Dania; Samir came by. Danya did not, dania neither." });
     expect(r.names.sort()).toEqual(["Dania", "Samir"]);
     expect(h.reflUpdate.mock.calls[0][0].data.personIds.sort()).toEqual(["p_dania", "p_sam"]);
     // A mention, never a contact: no ledger row, whatever the words say.

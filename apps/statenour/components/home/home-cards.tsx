@@ -161,6 +161,16 @@ export function GoalsCardView({
 }
 
 /**
+ * The brief as the review row reads it: a failed brief is unknown, never a skeleton that stays up.
+ */
+export function reviewCardRead(brief: {
+  data?: { weeklyReviewDue?: WeeklyReviewDue | "unknown" } | null;
+  isError: boolean;
+}): WeeklyReviewDue | "unknown" | "loading" {
+  return brief.data ? (brief.data.weeklyReviewDue ?? "unknown") : brief.isError ? "unknown" : "loading";
+}
+
+/**
  * W8b (item 7): the weekly review's standing (Sunsama S3), from the brief's loadWeeklyReviewDue. A row of its own,
  * not a line in the Goals card: that card is one anchor to /stats and a review is not a goal.
  * Ruling: Home row - the Goals card is a single <a> (W8a makes its due line a Link) and a nested anchor is invalid;
@@ -230,7 +240,7 @@ export function HomeCards() {
       <GoalsCardView read={goalsRead} checkIn={brief.data?.goalCheckInDue} />
       {/* W8b: the review row reads the same brief; while the brief loads or failed, it says so rather than "due". */}
       {/* A brief payload without the field (an older server) is unknown, never "due" and never a crash. */}
-      <ReviewCardView read={brief.data ? (brief.data.weeklyReviewDue ?? "unknown") : brief.isError ? "unknown" : "loading"} />
+      <ReviewCardView read={reviewCardRead(brief)} />
       <TodayPanel />
     </div>
   );

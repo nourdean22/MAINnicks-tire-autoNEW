@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { PERSON_STORY_ENTRY_CAP, personStory } from "@/lib/services/people/person-story";
+import { TASK_GOAL_SELECT } from "@/lib/services/task-goal-server";
 
 const dump = (i: number) => ({ id: `d${i}`, createdAt: new Date(2026, 10, 1, 12, i), rawThoughts: `Entry ${i} about Dania and more words` });
 
@@ -84,6 +85,17 @@ describe("personStory · goals", () => {
     expect(h.memories.mock.calls[0][0].where).toMatchObject({ deletedAt: null, metadata: { path: ["personId"], equals: "p1" } });
     // Only the goal ids the tasks did not already name are looked up.
     expect(h.goals.mock.calls[0][0].where).toEqual({ id: { in: ["g3"] }, deletedAt: null });
+  });
+
+  // Manager round 1, item 7c: W8a's one rule. A deleted own goal falls through to the mission's live goal.
+  it("reads tasks through taskGoalServer: own live goal, else the mission's live goal", async () => {
+    h.tasks.mockResolvedValue([
+      { goal: { id: "g9", title: "Old", deletedAt: new Date() }, mission: { lifeGoal: { id: "g2", title: "Rest", deletedAt: null } } },
+      { goal: { id: "g8", title: "Gone", deletedAt: new Date() }, mission: { lifeGoal: { id: "g7", title: "Also gone", deletedAt: new Date() } } },
+    ]);
+    const s = await personStory({ personId: "p1", personName: "Dania" });
+    expect(s.goals.map((g) => g.id)).toEqual(["g2"]);
+    expect(h.tasks.mock.calls[0][0].select).toEqual(TASK_GOAL_SELECT);
   });
 
   it("no goal moments: no goal lookup at all", async () => {

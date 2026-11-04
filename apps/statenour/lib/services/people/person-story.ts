@@ -9,6 +9,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { TASK_GOAL_SELECT, taskGoalServer } from "@/lib/services/task-goal-server";
 import { journalExcerpt } from "./journal-link";
 
 /** Entries shown on the dossier before "more in the journal". */
@@ -54,11 +55,7 @@ export async function personStory(input: { personId: string; personName: string 
     }),
     prisma.task.findMany({
       where: { personId: input.personId, deletedAt: null },
-      select: {
-        goalId: true,
-        goal: { select: { id: true, title: true, deletedAt: true } },
-        mission: { select: { lifeGoalId: true, lifeGoal: { select: { id: true, title: true, deletedAt: true } } } },
-      },
+      select: TASK_GOAL_SELECT,
     }),
     prisma.brainMemory.findMany({
       where: { category: BRAIN_CATEGORIES.GOAL_MOMENT, deletedAt: null, metadata: { path: ["personId"], equals: input.personId } },
@@ -68,8 +65,8 @@ export async function personStory(input: { personId: string; personName: string 
 
   const goals = new Map<string, PersonStoryGoal>();
   for (const t of tasks) {
-    const g = t.goal ?? t.mission?.lifeGoal ?? null;
-    if (g && !g.deletedAt && !goals.has(g.id)) goals.set(g.id, { id: g.id, title: g.title, via: "tasks", href: goalHref(g.id) });
+    const g = taskGoalServer(t);
+    if (g && !goals.has(g.id)) goals.set(g.id, { id: g.id, title: g.title, via: "tasks", href: goalHref(g.id) });
   }
   const momentGoalIds = [
     ...new Set(

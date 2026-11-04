@@ -248,8 +248,8 @@ async function loadLeadContext(taskId: string | null): Promise<LeadContext | nul
 
 /**
  * The newest live journal entry and the live people it names (person_ids, names in one query). W8b: the newest of
- * brain_dumps AND reflections (the /journal composer writes the latter). A failed side read is logged and the other
- * side still answers; both failed, or the only possible newer side failed, is unknown.
+ * brain_dumps AND reflections (the /journal composer writes the latter). Either read failing is unknown: the entry
+ * that answered may not be the newest, and Home must not show it as if it were.
  */
 async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
   type Entry = { id: string; rawThoughts: string; createdAt: Date; personIds: string[]; source: JournalLine["source"] };
@@ -269,15 +269,15 @@ async function loadJournalLine(): Promise<JournalLine | null | "unknown"> {
   ]);
   if (dumpRes.status === "rejected") warn("dumps", dumpRes.reason);
   if (reflRes.status === "rejected") warn("reflections", reflRes.reason);
+  if (dumpRes.status === "rejected" || reflRes.status === "rejected") return "unknown";
   const candidates: Entry[] = [];
-  if (dumpRes.status === "fulfilled" && dumpRes.value) candidates.push({ ...dumpRes.value, source: "dump" });
-  if (reflRes.status === "fulfilled" && reflRes.value) {
+  if (dumpRes.value) candidates.push({ ...dumpRes.value, source: "dump" });
+  if (reflRes.value) {
     const r = reflRes.value;
     candidates.push({ id: r.id, rawThoughts: r.insight, createdAt: r.createdAt, personIds: r.personIds, source: "reflection" });
   }
   const dump = candidates.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
-  // No entry from a side that answered, and a side that did not: the newest entry is unknown, not absent.
-  if (!dump) return dumpRes.status === "rejected" || reflRes.status === "rejected" ? "unknown" : null;
+  if (!dump) return null;
   // The people page's excerpt rule (journal-link.ts), on one line.
   const excerpt = journalExcerpt(dump.rawThoughts.replace(/\s+/g, " "));
   let people: JournalLine["people"] = [];

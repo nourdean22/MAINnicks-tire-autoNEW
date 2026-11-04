@@ -33,6 +33,7 @@ import { creditStatXp } from "@/lib/mastery/credit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { getJournalSettings, type JournalSettingsValues } from "@/lib/journal/settings";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordError } from "@/lib/errors/record-error";
 import { REVIEW_ENTRY_TYPE } from "@/lib/brain/journal-review-marker";
 
 /** Every row but a weekly-review row. entryType is nullable, and `NOT` would drop the NULL rows in SQL. */
@@ -351,7 +352,7 @@ ${missionMenu}`,
           if (row) await linkJournalPeople({ silo: "reflection", merge: true, dumpId: id, createdAt: row.createdAt, rawText: body, people });
         }
       } catch (err) {
-        log.warn("journal_brain_people_failed", { silo, id, error: err instanceof Error ? err.message : String(err) });
+        recordError("brain:journal-ingest", err, { phase: "reflection-people-link", reflectionId: id });
       }
     }
 

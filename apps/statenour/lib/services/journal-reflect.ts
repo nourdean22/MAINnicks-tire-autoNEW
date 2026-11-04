@@ -27,6 +27,7 @@ import { isAiSentinel } from "@/lib/ai/provider";
 import { toDateString } from "@/lib/utils/datetime";
 import { emitReflectionCreated } from "@/lib/db/brain-bus-emit";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordError } from "@/lib/errors/record-error";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
@@ -134,7 +135,7 @@ export async function createReflection(
     const { linkNamedPeople } = await import("@/lib/services/people/journal-link");
     peopleLinked = await linkNamedPeople({ silo: "reflection", dumpId: reflection.id, createdAt: reflection.createdAt, rawText: insight });
   } catch (err) {
-    log.warn("reflect_people_link_failed", { reflectionId: reflection.id, error: sanitizeError(err) });
+    recordError("brain:journal-ingest", err, { phase: "reflect-people-link", reflectionId: reflection.id });
   }
 
   // Silo wave (audit 2026-07-15) · reflections carried the grounding

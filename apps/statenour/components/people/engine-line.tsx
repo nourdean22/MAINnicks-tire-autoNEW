@@ -16,6 +16,7 @@ export function SuggestionsWaiting({ count }: { count: number | undefined }) {
 
 const WORDS: Record<EngineLineData["state"], string> = {
   ok: "proposed something",
+  ran: "result not recorded (old format)",
   nothing_to_propose: "nothing to propose",
   failed: "failed",
   running: "running now",

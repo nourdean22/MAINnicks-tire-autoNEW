@@ -118,7 +118,7 @@ describe("cadence proposal claim", () => {
     h.peopleFindMany.mockResolvedValue([person("a", { cadenceDays: null, leverageNotes: "has notes" })]);
     await runPeopleIntelligence();
     const [u] = updatesFor("a");
-    expect(u.where).toEqual({ id: "a", pendingClassification: { equals: Prisma.AnyNull } });
+    expect(u.where).toMatchObject({ id: "a", pendingClassification: { equals: Prisma.AnyNull } });
     expect(h.logError).not.toHaveBeenCalled();
 
     h.personUpdate.mockRejectedValueOnce(Object.assign(new Error("no match"), { code: "P2025" }));

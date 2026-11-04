@@ -39,7 +39,9 @@ export function captureReplyLines(
   if (result.commitmentsFound > 0) counts.push(`${result.commitmentsFound} commitment${result.commitmentsFound !== 1 ? "s" : ""}`);
   if (counts.length > 0) lines.push(`**Extracted:** ${counts.join(" · ")}`);
   const p = result.peopleLinked;
-  if (p && (p.names.length > 0 || p.rejected.length > 0)) {
+  // No result means the link failed or never ran: not the same as a line that named no one.
+  if (!p) lines.push("**People:** couldn't link");
+  else if (p.names.length > 0 || p.rejected.length > 0) {
     const parts = [p.names.length > 0 ? p.names.join(", ") : "none linked"];
     if (p.failed > 0) parts.push(`${p.failed} contact not saved`);
     if (p.rejected.length > 0) parts.push(`not on People: ${p.rejected.join(", ")}`);

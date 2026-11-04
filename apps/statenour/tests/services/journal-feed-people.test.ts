@@ -5,13 +5,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ dumps: vi.fn(), people: vi.fn() }));
+const h = vi.hoisted(() => ({ dumps: vi.fn(), refls: vi.fn(), people: vi.fn() }));
 const { empty, zero } = vi.hoisted(() => ({ empty: () => vi.fn(async () => []), zero: () => vi.fn(async () => 0) }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     brainDump: { findMany: (a: unknown) => h.dumps(a), count: zero() },
-    reflection: { findMany: empty(), count: zero() },
+    reflection: { findMany: (a: unknown) => h.refls(a), count: zero() },
     situationLog: { findMany: empty(), count: zero() },
     decisionReplay: { findMany: empty(), count: zero() },
     brainMemory: { findMany: empty(), count: zero() },
@@ -44,6 +44,47 @@ const dump = (id: string, personIds: string[] | undefined) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.refls.mockResolvedValue([]);
+});
+
+const reflection = (id: string, personIds: string[]) => ({
+  id,
+  date: "2026-11-02",
+  createdAt: new Date("2026-11-02T18:00:00Z"),
+  insight: "**WHAT**: saw Dania",
+  evidence: "",
+  category: "reflection",
+  acknowledged: false,
+  actionable: false,
+  confidence: 1,
+  goalId: null,
+  missionId: null,
+  linkStatus: null,
+  linkConfidence: null,
+  enrichedAt: null,
+  metadata: null,
+  personIds,
+});
+
+// Manager round 1, item 11: every save links people now, so a reflection row shows them like a dump row does.
+describe("buildJournalFeed · people on reflection rows", () => {
+  it("a reflection carries its people, from one batched read over both tables", async () => {
+    h.dumps.mockResolvedValue([dump("d1", ["p_a"])]);
+    h.refls.mockResolvedValue([reflection("r1", ["p_b", "p_gone"])]);
+    h.people.mockResolvedValue([{ id: "p_a", name: "Ana" }, { id: "p_b", name: "Bo" }]);
+    const { entries } = await buildJournalFeed({ limit: 20 } as never);
+    expect(entries.find((e) => e.id === "r1")?.people).toEqual([{ id: "p_b", name: "Bo" }]);
+    expect(h.people).toHaveBeenCalledTimes(1);
+    expect(h.people.mock.calls[0][0].where).toEqual({ id: { in: ["p_a", "p_b", "p_gone"] }, deletedAt: null });
+  });
+
+  it("a failed people read leaves a reflection's people unknown (null), never empty", async () => {
+    h.dumps.mockResolvedValue([]);
+    h.refls.mockResolvedValue([reflection("r1", ["p_b"])]);
+    h.people.mockRejectedValue(new Error("down"));
+    const { entries } = await buildJournalFeed({ limit: 20 } as never);
+    expect(entries.find((e) => e.id === "r1")?.people).toBeNull();
+  });
 });
 
 describe("buildJournalFeed · people on journal rows", () => {

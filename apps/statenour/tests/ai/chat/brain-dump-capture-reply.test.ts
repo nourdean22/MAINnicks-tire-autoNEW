@@ -31,6 +31,10 @@ describe("captureReplyLines", () => {
     const lines = captureReplyLines({ ...base, tasksCreated: 2, peopleLinked: { linked: 0, contacts: 0, failed: 0, names: [], rejected: [] } });
     expect(lines.some((l) => l.startsWith("**People:**"))).toBe(false);
     expect(lines).toContain("**Extracted:** 2 tasks");
-    expect(captureReplyLines(base).some((l) => l.startsWith("**People:**"))).toBe(false);
+  });
+
+  // Manager round 1, item 5: a link that failed or did not run must not read as "named no one".
+  it("no link result at all says it couldn't link", () => {
+    expect(captureReplyLines(base)).toContain("**People:** couldn't link");
   });
 });

@@ -4,15 +4,16 @@
  * PR 3522 added brain_dumps.person_ids and W8b adds reflections.person_ids; both are filled for new entries by the
  * journal link. The 1,564 entries before them carry none, so the /people journal line, the person story and Home's
  * journal line cannot see what he wrote about anyone before 2026-11-02. This writes the ids and NOTHING else: no
- * ledger rows (a mention is not a contact), no model calls (the exact whole-word name rule, nameMatcher, the same
- * rule the people engine's chatSnippets uses), no counters.
+ * ledger rows (a mention is not a contact), no model calls (namedInText, the rule the composer's save-time link
+ * uses: case-sensitive, not at a sentence start, no namesakes), no counters.
  *
  *   (default) dry run: reads, prints counts, and RETURNS before the first write (prod-db-guard: the return is
  *              the guard, proven by tests/scripts/backfill-journal-person-ids.test.ts, which asserts the writer is
  *              never reached without --execute AND the env flag).
  *   --execute: writes, only when JOURNAL_PERSON_IDS_EXECUTE=1 is also set; otherwise exits 2 BEFORE any
- *              connection opens. Each write is a compare-and-swap on the still-empty column, and the rows it
- *              stamped go to ./backfill-journal-person-ids.applied.json (ids only).
+ *              connection opens. Each write is a compare-and-swap on the still-empty column. The planned rows go
+ *              to ./backfill-journal-person-ids.applied.json BEFORE the first write (ids only; every row's "before"
+ *              is empty, that is the swap), so a crash mid-loop leaves a revert input; a finished run rewrites it.
  *   --revert <manifest>: clears exactly those rows, each only while it still holds what was stamped (a row the live
  *              link has changed since keeps its ids). Same env flag.
  *   --limit N: entries read per table (default 5000).
@@ -40,7 +41,7 @@ loadEnvConfig(process.cwd());
 
 export const EXECUTE_ENV = "JOURNAL_PERSON_IDS_EXECUTE";
 
-/** --execute writes what it stamped here (cwd), the input --revert takes. Ids only, never a name or a note. */
+/** --execute writes its plan, then what it stamped, here (cwd): the input --revert takes. Ids only, never a name or a note. */
 export const MANIFEST_FILE = "backfill-journal-person-ids.applied.json";
 
 export interface Args {
@@ -64,17 +65,6 @@ export function parseArgs(argv: string[], env: Record<string, string | undefined
   const limit = li >= 0 ? Number(argv[li + 1]) : 5000;
   if (!Number.isInteger(limit) || limit < 1) throw new Error("--limit must be a positive integer");
   return { mode: revertFile !== null ? "revert" : execute ? "execute" : "dry", limit, revertFile };
-}
-
-/** The ids of the people whose name appears, whole-word and case-insensitively, in the text. */
-export function planPersonIds(
-  text: string,
-  people: ReadonlyArray<{ id: string; name: string }>,
-  matcher: (name: string) => RegExp,
-): string[] {
-  const out: string[] = [];
-  for (const p of people) if (p.name.trim().length >= 2 && matcher(p.name).test(text)) out.push(p.id);
-  return out;
 }
 
 interface Table {
@@ -109,7 +99,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       ? (JSON.parse(String(fs.readFileSync(args.revertFile!, "utf8"))) as Array<{ table: string; id: string; personIds: string[] }>)
       : null;
   const { prisma } = await import("@/lib/prisma");
-  const { nameMatcher } = await import("@/lib/services/people/backfill-plan");
+  const { namedInText } = await import("@/lib/services/people/backfill-plan");
 
   const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
   const tables: Table[] = [
@@ -165,15 +155,18 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   for (const table of tables) {
     const rows = await table.rows();
     let toStamp = 0;
+    let ambiguous = 0;
     const perPerson = new Map<string, number>();
     for (const row of rows) {
-      const personIds = planPersonIds(row.text, people, nameMatcher);
+      const named = namedInText(row.text, people);
+      ambiguous += named.ambiguous;
+      const personIds = named.people.map((p) => p.id);
       if (personIds.length === 0) continue;
       toStamp++;
       for (const id of personIds) perPerson.set(id, (perPerson.get(id) ?? 0) + 1);
       plans.push({ table, id: row.id, personIds });
     }
-    console.log(`${table.label}: scanned=${rows.length} to_stamp=${toStamp} people_named=${perPerson.size}`);
+    console.log(`${table.label}: scanned=${rows.length} to_stamp=${toStamp} people_named=${perPerson.size} ambiguous=${ambiguous}`);
     // Counts and id suffixes only: never a name or a note.
     for (const [id, n] of [...perPerson].sort((a, b) => b[1] - a[1]).slice(0, 25)) console.log(`  person …${id.slice(-6)}: ${n} entries`);
   }
@@ -184,23 +177,29 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return;
   }
 
+  const entry = (p: (typeof plans)[number]) => ({ table: p.table.label, id: p.id, personIds: p.personIds });
+  // Before the first write: a process that dies mid-loop still leaves the revert input. Revert matches the exact
+  // stamp, so a planned row that was never written stays untouched.
+  fs.writeFileSync(MANIFEST_FILE, JSON.stringify(plans.map(entry), null, 2));
   let written = 0;
   let skipped = 0;
   let failed = 0;
-  const applied: Array<{ table: string; id: string; personIds: string[] }> = [];
+  const applied: Array<ReturnType<typeof entry>> = [];
   for (const p of plans) {
     try {
       const r = await p.table.write(p.id, p.personIds);
       if (r.count === 1) {
         written++;
-        applied.push({ table: p.table.label, id: p.id, personIds: p.personIds });
+        applied.push(entry(p));
       } else skipped++;
     } catch (err) {
       failed++;
+      // A write that threw may have landed: it stays in the revert input.
+      applied.push(entry(p));
       console.error(`write failed ${p.table.label} …${p.id.slice(-6)}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  // The revert input: exactly what was stamped, ids only. Written even when some writes failed.
+  // The revert input, ids only: everything but the rows the live link had already stamped.
   fs.writeFileSync(MANIFEST_FILE, JSON.stringify(applied, null, 2));
   console.log(`written=${written} skipped_already_linked=${skipped} failed=${failed} manifest=${MANIFEST_FILE}`);
   await prisma.$disconnect();

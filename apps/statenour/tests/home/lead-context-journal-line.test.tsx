@@ -122,11 +122,14 @@ describe("loadJournalLine (Home's latest journal line)", () => {
     expect(h.reflFindFirst.mock.calls[0][0]).toMatchObject({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } });
   });
 
-  it("a failed reflection read does not hide a good dump; with no dump either it is unknown", async () => {
+  it("either table's read failing makes the line unknown: the entry that answered may not be the newest", async () => {
     h.dumpFindFirst.mockResolvedValue({ ...dump, personIds: [] });
     h.reflFindFirst.mockRejectedValue(new Error("column person_ids does not exist"));
-    expect(await loadJournalLine()).toMatchObject({ id: "d1", source: "dump" });
+    expect(await loadJournalLine()).toBe("unknown");
     h.dumpFindFirst.mockResolvedValue(null);
+    expect(await loadJournalLine()).toBe("unknown");
+    h.reflFindFirst.mockResolvedValue({ id: "r1", insight: "newest", createdAt: new Date(), personIds: [] });
+    h.dumpFindFirst.mockRejectedValue(new Error("db down"));
     expect(await loadJournalLine()).toBe("unknown");
   });
 

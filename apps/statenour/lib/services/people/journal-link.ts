@@ -7,7 +7,7 @@
  * The gate decides who a line is about, so it errs toward writing nothing:
  *   · names come from the extraction's `people` list (a typed list, not free-text linkedTopics) and are resolved by
  *     the existing fuzzy resolver with createIfMissing:false, so an unknown name stays text and creates no one;
- *   · only the `exact` tier, or a `case_insensitive` hit that is the ONLY case-insensitive match, is kept. The
+ *   · only an `exact` or `case_insensitive` hit that is the ONLY live profile with that name (any case) is kept. The
  *     resolver's own audit confidence is 1.0 for those; Levenshtein (0.95) and Jaro-Winkler (0.9) return the FIRST
  *     near name with no tie check, so "Dana" next to "Dania" and "Dina" would pick one at random;
  *   · a mention is not a contact (the 2026-09-16 rule in lib/brain/conversation-memory.ts): every resolved person is
@@ -20,7 +20,7 @@
 import { prisma } from "@/lib/prisma";
 import { resolvePersonByName } from "@/lib/brain/person-profile-fuzzy";
 import { PersonNotFoundError, recordInteractionOnce } from "@/lib/services/people/record-interaction";
-import { nameMatcher } from "@/lib/services/people/backfill-plan";
+import { nameMatcher, namedInText } from "@/lib/services/people/backfill-plan";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { endOfDayET, startOfDayET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
@@ -76,12 +76,12 @@ async function resolveUnique(name: string): Promise<{ id: string; name: string; 
   // fuzzy:false: the gate refuses the Levenshtein and Jaro-Winkler tiers, so they never run (and never log an Auto-merged row).
   const r = await resolvePersonByName(name, { createIfMissing: false, fuzzy: false });
   if (!r.matched || !r.person) return null;
-  if (r.matchTier === "exact") return { id: r.person.id, name: r.person.name, tier: "exact" };
-  if (r.matchTier !== "case_insensitive") return null;
+  if (r.matchTier !== "exact" && r.matchTier !== "case_insensitive") return null;
+  // Both tiers: the resolver's exact hit is the FIRST of two "Sam" profiles, which is a guess (W8b manager round 1).
   const hits = await prisma.personProfile.count({
     where: { name: { equals: name.trim(), mode: "insensitive" }, deletedAt: null },
   });
-  return hits === 1 ? { id: r.person.id, name: r.person.name, tier: "case_insensitive" } : null;
+  return hits === 1 ? { id: r.person.id, name: r.person.name, tier: r.matchTier } : null;
 }
 
 /** Resolve, store the ids on the entry, then write one contact row per interacted person. Throws only on the id write. */
@@ -176,7 +176,7 @@ export async function linkJournalPeople(args: {
 }
 
 /**
- * The save-time link with no model (W8b): every live person whose name appears whole-word in the text is linked as a
+ * The save-time link with no model (W8b): every live person the line names by namedInText's rule is linked as a
  * MENTION (never a contact: only the extraction knows "interacted"). The /journal composer and the weekly review's
  * notes use it so a saved line reaches People before any model runs. Returns the names linked; throws on a failed read.
  */
@@ -187,9 +187,10 @@ export async function linkNamedPeople(args: {
   rawText: string;
 }): Promise<{ names: string[] }> {
   const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
-  const named = people.filter((p) => p.name.trim().length >= 2 && nameMatcher(p.name).test(args.rawText)).map((p) => p.name);
+  const { people: named, ambiguous } = namedInText(args.rawText, people);
+  if (ambiguous > 0) log.info("journal_people_ambiguous", { dumpId: args.dumpId, ambiguous });
   if (named.length === 0) return { names: [] };
-  const linked = await linkJournalPeople({ ...args, people: named.map((name) => ({ name, interacted: false })) });
+  const linked = await linkJournalPeople({ ...args, people: named.map((p) => ({ name: p.name, interacted: false })) });
   return { names: linked.linkedNames };
 }
 

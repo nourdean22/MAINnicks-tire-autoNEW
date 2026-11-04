@@ -16,7 +16,7 @@ vi.mock("@/lib/services/outcome-ledger", () => ({ recordShownBounded: vi.fn(asyn
 
 import { __testInternals } from "@/lib/home/operator-brief";
 import { REVIEW_ENTRY_TYPE, REVIEW_WINDOW_DAYS } from "@/lib/brain/journal-review-marker";
-import { ReviewCardView, TodayCardView } from "@/components/home/home-cards";
+import { ReviewCardView, TodayCardView, reviewCardRead } from "@/components/home/home-cards";
 import { DayPickerView } from "@/components/journal/day-picker";
 
 const DAY = 86_400_000;
@@ -25,6 +25,18 @@ const NOW = new Date("2026-11-03T15:00:00Z");
 beforeEach(() => {
   h.dumpFindFirst.mockReset();
   logWarn.mockClear();
+});
+
+// Manager round 1, item 13: a failed brief must not leave the skeleton up forever.
+describe("reviewCardRead (the brief to the row)", () => {
+  const due = { due: true, daysSince: null } as const;
+  it("loading, unknown on a failed brief or an older payload, else the due state", () => {
+    expect(reviewCardRead({ data: undefined, isError: false })).toBe("loading");
+    expect(reviewCardRead({ data: undefined, isError: true })).toBe("unknown");
+    expect(reviewCardRead({ data: {}, isError: false })).toBe("unknown");
+    expect(reviewCardRead({ data: { weeklyReviewDue: due }, isError: false })).toEqual(due);
+    expect(reviewCardRead({ data: { weeklyReviewDue: "unknown" }, isError: false })).toBe("unknown");
+  });
 });
 
 describe("loadWeeklyReviewDue (the brief's read)", () => {

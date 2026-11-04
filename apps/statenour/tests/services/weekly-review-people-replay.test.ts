@@ -35,7 +35,7 @@ vi.mock("@/lib/logger", async (orig) => {
   return { ...m, logger: { ...m.logger, withSurface: (s: string) => ({ ...m.logger.withSurface(s), warn: vi.fn() }) } };
 });
 
-import { readWeeklyReview, saveWeeklyReview } from "@/lib/services/weekly-review";
+import { REVIEW_WINDOW_DAYS, readWeeklyReview, saveWeeklyReview } from "@/lib/services/weekly-review";
 
 const NOW = new Date("2026-11-03T15:00:00Z");
 const goal = (id: string) => ({ id, title: `Goal ${id}`, horizon: "WEEK", deadline: null, createdAt: new Date("2026-10-28T12:00:00Z") });
@@ -60,6 +60,8 @@ describe("readWeeklyReview · reflections", () => {
     const r = await readWeeklyReview(NOW);
     expect(r.goals[0].entries.map((e) => e.id)).toEqual(["r1", "d1"]);
     expect(h.refls.mock.calls[0][0].where).toMatchObject({ goalId: { in: ["g1"] }, deletedAt: null });
+    // Manager round 1, item 12: the window is the review's own, not every reflection ever grounded to the goal.
+    expect(h.refls.mock.calls[0][0].where.createdAt.gt).toEqual(new Date(NOW.getTime() - REVIEW_WINDOW_DAYS * 86_400_000));
     h.refls.mockRejectedValue(new Error("column person_ids does not exist"));
     const f = await readWeeklyReview(NOW);
     expect(f.failed).toContain("reflections");
