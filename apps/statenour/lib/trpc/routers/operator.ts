@@ -141,6 +141,7 @@ import {
   editPromise,
   resolvePromise,
   promiseToTask,
+  isCalendarDate,
 } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 import { logError } from "@/lib/utils/error-log";
@@ -1453,11 +1454,8 @@ export const operatorRouter = router({
         id: z.number().int().positive(),
         description: z.string().trim().min(1).max(2000).optional(),
         toWhom: z.string().max(120).optional(),
-        deadline: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .nullable()
-          .optional(),
+        // A real calendar day: the bare regex let 2026-13-01 through, which rendered "due undefined 1".
+        deadline: z.string().refine(isCalendarDate, "Deadline must be a real date (YYYY-MM-DD)").nullable().optional(),
       }),
     )
     .mutation(async ({ input: { id, ...patch } }) => ({ ok: await editPromise(id, patch) })),

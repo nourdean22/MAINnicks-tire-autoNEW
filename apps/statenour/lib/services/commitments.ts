@@ -298,6 +298,15 @@ const PENDING_REF = "task:pending:";
 /** A claim older than this is a crashed create, not a live one: the next tap may retake it. */
 const PENDING_STALE_MS = 60_000;
 
+/** A real YYYY-MM-DD day: 2026-13-01 and 2026-02-30 are refused (they used to render "due undefined 1"). */
+export function isCalendarDate(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d;
+}
+
 /** Whole ET calendar days from a to b, both YYYY-MM-DD. */
 function dayDiff(a: string, b: string): number {
   const ms = (s: string) => {
@@ -312,8 +321,8 @@ export interface PromiseRow {
   description: string;
   toWhom: string;
   deadline: string | null;
-  /** ET days since it was made. */
-  ageDays: number;
+  /** ET days since it was made; null when dateMade is not a calendar date (rows synced from elsewhere). */
+  ageDays: number | null;
   /** ET days until the deadline; negative is past due; null when undated. */
   deadlineDays: number | null;
   /** The task made from it (executionRef task:<id>), when that task still exists. */
@@ -368,8 +377,8 @@ export async function listPromises(proposedLimit = 20): Promise<{
     description: r.description,
     toWhom: r.toWhom,
     deadline: r.deadline,
-    ageDays: Math.max(0, dayDiff(r.dateMade, now)),
-    deadlineDays: r.deadline && /^\d{4}-\d{2}-\d{2}$/.test(r.deadline) ? dayDiff(now, r.deadline) : null,
+    ageDays: isCalendarDate(r.dateMade) ? Math.max(0, dayDiff(r.dateMade, now)) : null,
+    deadlineDays: r.deadline && isCalendarDate(r.deadline) ? dayDiff(now, r.deadline) : null,
     task: r.executionRef?.startsWith(TASK_REF) ? (taskById.get(r.executionRef.slice(TASK_REF.length)) ?? null) : null,
   });
   return { active: activeRows.map(shape), proposed: proposedRows.map(shape), activeCount, proposedCount };
@@ -405,9 +414,10 @@ export type PromiseToTaskResult =
 
 /**
  * Make it a task: creates one task (Inbox, or the chosen mission) and links it through
- * executionRef task:<id>. The promise stays active; Done closes it. Idempotent: the ref is
- * claimed by compare-and-swap BEFORE the create, so a second tap returns the same task and a
- * racing tap creates nothing.
+ * executionRef task:<id>. The promise stays active until its task is done (closePromisesForTask)
+ * or Nour taps Done. Idempotent: the ref is claimed by compare-and-swap BEFORE the create, so a
+ * second tap returns the same task and a racing tap creates nothing. The task and its link are
+ * written in ONE transaction, so a failed link leaves no orphan task for a retake to duplicate.
  */
 export async function promiseToTask(id: number, missionId: string | null): Promise<PromiseToTaskResult> {
   const row = await prisma.commitment.findFirst({
@@ -433,29 +443,88 @@ export async function promiseToTask(id: number, missionId: string | null): Promi
     data: { executionRef: claim },
   });
   if (won.count !== 1) {
-    const winner = await prisma.commitment.findUnique({ where: { id }, select: { executionRef: true } });
-    const winnerRef = winner?.executionRef ?? null;
+    const winner = await prisma.commitment.findUnique({
+      where: { id },
+      select: { executionRef: true, status: true, deletedAt: true },
+    });
+    // Closed or deleted elsewhere since the read: say so, not "still being made".
+    if (!winner || winner.status !== "active" || winner.deletedAt) return { taskId: null, reason: "not_active" };
+    const winnerRef = winner.executionRef;
     return winnerRef?.startsWith(TASK_REF) && !winnerRef.startsWith(PENDING_REF)
       ? { taskId: winnerRef.slice(TASK_REF.length), created: false }
       : { taskId: null, reason: "in_flight" };
   }
 
-  let task: { id: string };
+  const title = row.description.slice(0, 300);
+  const afterCommit: Array<() => void> = [];
+  let taskId: string;
+  let scheduleGlobalPrioritySync: (source: string) => void;
   try {
-    const { createTaskFromAPI } = await import("@/lib/services/task-actions");
-    task = (await createTaskFromAPI({
-      title: row.description.slice(0, 300),
-      ...(missionId ? { missionId, status: "READY" } : { status: "INBOX" }),
-    })) as { id: string };
+    const tasks = await import("@/lib/services/tasks");
+    scheduleGlobalPrioritySync = tasks.scheduleGlobalPrioritySync;
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    const target = missionId ?? (await resolveInboxMissionId());
+    taskId = await prisma.$transaction(async (tx) => {
+      const vm = (await tasks.createTask(
+        { title, missionId: target, status: missionId ? "READY" : "INBOX" },
+        tx,
+        afterCommit,
+      )) as { id: string };
+      const linked = await tx.commitment.updateMany({
+        where: { id, executionRef: claim },
+        data: { executionRef: `${TASK_REF}${vm.id}`, updatedBy: PROMISE_ACTOR },
+      });
+      if (linked.count !== 1) throw new Error(`promise ${id} lost its task claim before the link`);
+      return vm.id;
+    });
   } catch (err) {
-    await prisma.commitment.updateMany({ where: { id, executionRef: claim }, data: { executionRef: ref } });
+    try {
+      await prisma.commitment.updateMany({ where: { id, executionRef: claim }, data: { executionRef: ref } });
+    } catch (releaseErr) {
+      // A failed release must not replace the real error; the claim goes stale and is retaken in 60 s.
+      const { logError } = await import("@/lib/utils/error-log");
+      logError("commitments", releaseErr, { stage: "promise_task_release", id }, "warn");
+    }
     throw err;
   }
-  await prisma.commitment.updateMany({
-    where: { id, executionRef: claim },
-    data: { executionRef: `${TASK_REF}${task.id}`, updatedBy: PROMISE_ACTOR },
+
+  // Committed: the task and its link exist. Post-commit work must never turn that into a failure.
+  try {
+    for (const fn of afterCommit) fn();
+    scheduleGlobalPrioritySync("promiseToTask");
+    const { notifyTaskCreated } = await import("@/lib/services/task-actions");
+    void notifyTaskCreated(title, missionId);
+  } catch (err) {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("commitments", err, { stage: "promise_task_after_commit", id, taskId }, "warn");
+  }
+  return { taskId, created: true };
+}
+
+/**
+ * The task made from a promise is done: the promise was kept. Called from checkTask after the
+ * goal lift. Status-guarded and pinned to the ref, stamped "system:task-done" so the kill read
+ * can tell it from a tap. Returns how many promises closed; throws only on a failed read.
+ */
+export async function closePromisesForTask(taskId: string): Promise<number> {
+  const executionRef = `${TASK_REF}${taskId}`;
+  const rows = await prisma.commitment.findMany({
+    where: { executionRef, status: "active", deletedAt: null },
+    select: { id: true },
   });
-  return { taskId: task.id, created: true };
+  let closed = 0;
+  for (const { id } of rows) {
+    const res = await prisma.commitment.updateMany({
+      where: { id, executionRef, status: "active", deletedAt: null },
+      data: { status: "completed", notes: "Kept: its task was done", updatedBy: "system:task-done" },
+    });
+    if (res.count !== 1) continue;
+    closed++;
+    const { captureCommitmentConditions } = await import("./commitment-conditions");
+    void captureCommitmentConditions(id, "completed");
+    await publishCommitmentTransition(id, "active", "completed");
+  }
+  return closed;
 }
 
 /**

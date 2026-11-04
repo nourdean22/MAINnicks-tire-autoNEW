@@ -24,7 +24,7 @@ type PromiseRow = {
   description: string;
   toWhom: string;
   deadline: string | null;
-  ageDays: number;
+  ageDays: number | null;
   deadlineDays: number | null;
   task: { id: string; status: string } | null;
 };
@@ -33,6 +33,8 @@ type MissionOption = { id: string; title: string; status?: string; systemKind?: 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BUTTON =
   "inline-flex min-h-[44px] items-center rounded-control border border-edge-default px-3 text-[13px] font-medium text-fg-secondary transition-colors duration-[var(--motion-state)] hover:border-edge-strong hover:text-fg disabled:opacity-50";
+// A lost response is not a failed write: say the save is unconfirmed and re-read the truth.
+const RECHECK = "Could not confirm the save; rechecking.";
 // 16px: iOS Safari zooms the page on focus into any field under 16px.
 const FIELD = "w-full rounded-control border border-edge-default bg-transparent px-3 py-2 text-base text-fg";
 
@@ -57,7 +59,9 @@ function due(deadline: string | null, days: number | null): string {
 
 function meta(r: PromiseRow): string {
   const to = r.toWhom && r.toWhom.toLowerCase() !== "self" ? [`to ${r.toWhom}`] : [];
-  return [...to, due(r.deadline, r.deadlineDays), age(r.ageDays)].join(" · ");
+  // No age when the row's made-date could not be read: a blank beats a made-up "today".
+  const made = r.ageDays === null ? [] : [age(r.ageDays)];
+  return [...to, due(r.deadline, r.deadlineDays), ...made].join(" · ");
 }
 
 export function PromisesSection({ missions }: { missions: MissionOption[] }) {
@@ -113,7 +117,8 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
         next.delete(key);
         return next;
       });
-      toast.error("That did not save. The promise is still open.");
+      toast.error(RECHECK);
+      refresh();
     } finally {
       setBusy(null);
     }
@@ -146,7 +151,8 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
       setPanel(null);
       refresh();
     } catch {
-      toast.error("The task was not made. Try again.");
+      toast.error(RECHECK);
+      refresh();
     } finally {
       setBusy(null);
     }

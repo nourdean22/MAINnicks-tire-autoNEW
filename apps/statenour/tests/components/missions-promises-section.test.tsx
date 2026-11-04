@@ -39,7 +39,10 @@ const h = vi.hoisted(() => ({
   toTask: vi.fn(async (_i: unknown): Promise<unknown> => ({ taskId: "t9", created: true })),
   accept: vi.fn(async (_i: unknown): Promise<unknown> => ({ ok: true })),
   dismiss: vi.fn(async (_i: unknown): Promise<unknown> => ({ ok: true })),
-  invalidate: vi.fn(async () => {}),
+  invList: vi.fn(async () => {}),
+  invProposed: vi.fn(async () => {}),
+  invTaskList: vi.fn(async () => {}),
+  invDeck: vi.fn(async () => {}),
   confirm: vi.fn(async (_o: unknown) => true),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
@@ -59,7 +62,7 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
 }));
 vi.mock("@/lib/trpc/client", () => {
   const mutation = (fn: (i: unknown) => Promise<unknown>) => ({ useMutation: () => ({ mutateAsync: fn, isPending: false }) });
-  const inv = { invalidate: h.invalidate };
+
   return {
     trpc: {
       operator: {
@@ -71,8 +74,8 @@ vi.mock("@/lib/trpc/client", () => {
         commitmentDismiss: mutation(h.dismiss),
       },
       useUtils: () => ({
-        operator: { promisesList: inv, commitmentsProposed: inv },
-        task: { list: inv, deck: inv },
+        operator: { promisesList: { invalidate: h.invList }, commitmentsProposed: { invalidate: h.invProposed } },
+        task: { list: { invalidate: h.invTaskList }, deck: { invalidate: h.invDeck } },
       }),
     },
   };
@@ -127,7 +130,7 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   h.query = { data: LIST, isLoading: false, isError: false, refetch: vi.fn() };
-  for (const f of [h.resolve, h.edit, h.toTask, h.accept, h.dismiss, h.invalidate, h.toastError, h.toastSuccess, h.toastMessage, h.confirm]) f.mockClear();
+  for (const f of [h.resolve, h.edit, h.toTask, h.accept, h.dismiss, h.invList, h.invProposed, h.invTaskList, h.invDeck, h.toastError, h.toastSuccess, h.toastMessage, h.confirm]) f.mockClear();
   h.confirm.mockImplementation(async () => true);
   window.location.hash = "";
 });
@@ -171,7 +174,7 @@ describe("PromisesSection", () => {
     await click(button("Done", rowOf(1)!));
     expect(h.resolve).toHaveBeenCalledWith({ id: 1, action: "done" });
     expect(rowOf(1)).toBeNull();
-    expect(h.invalidate).toHaveBeenCalled();
+    expect(h.invList).toHaveBeenCalled();
   });
 
   it("Drop asks the house confirm in its danger tone, never window.confirm, then drops", async () => {
@@ -303,6 +306,94 @@ describe("PromisesSection", () => {
     expect(text()).toContain("0 promises · 0 proposed");
     await open();
     expect(text()).toContain("No open promises.");
+  });
+
+  it("an overdue row and a due-today row say so exactly, and only the overdue one is amber", async () => {
+    h.query = {
+      ...h.query,
+      data: {
+        ...LIST,
+        active: [
+          { ...LIST.active[1], id: 5, toWhom: "self", deadline: "2026-11-01", deadlineDays: -2, ageDays: 3 },
+          { ...LIST.active[1], id: 6, toWhom: "self", deadline: "2026-11-03", deadlineDays: 0, ageDays: 0 },
+        ],
+      },
+    };
+    await mount();
+    await open();
+    const meta = (id: number) => rowOf(id)!.querySelector("p.font-mono") as HTMLElement;
+    expect(meta(5).textContent).toBe("was due Nov 1 · 3 d");
+    expect(meta(5).className).toContain("text-amber-300/90");
+    expect(meta(6).textContent).toBe("due today · today");
+    expect(meta(6).className).not.toContain("text-amber");
+  });
+
+  it("a row whose age could not be read shows no age, never a made-up one", async () => {
+    h.query = { ...h.query, data: { ...LIST, active: [{ ...LIST.active[0], ageDays: null }] } };
+    await mount();
+    await open();
+    expect((rowOf(1)!.querySelector("p.font-mono") as HTMLElement).textContent).toBe("to Mash · no date");
+  });
+
+  it("opens when the hash changes to #promises after the page loaded", async () => {
+    await mount();
+    expect(rowOf(1)).toBeNull();
+    await act(async () => {
+      window.location.hash = "#promises";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await flush();
+    expect(rowOf(1)).not.toBeNull();
+  });
+
+  it("a failed Make it a task toasts an error and keeps the row", async () => {
+    h.toTask.mockRejectedValueOnce(new Error("db down"));
+    await mount();
+    await open();
+    await click(button("Make it a task", rowOf(1)!));
+    await click(button("Make the task", rowOf(1)!));
+    expect(h.toastError).toHaveBeenCalledTimes(1);
+    expect(rowOf(1)).not.toBeNull();
+  });
+
+  it("a lost response rechecks instead of claiming the write failed (Done and Make it a task)", async () => {
+    h.resolve.mockRejectedValueOnce(new Error("socket hang up"));
+    await mount();
+    await open();
+    await click(button("Done", rowOf(1)!));
+    expect(h.toastError).toHaveBeenLastCalledWith("Could not confirm the save; rechecking.");
+    expect(h.invList).toHaveBeenCalledTimes(1);
+
+    h.toTask.mockRejectedValueOnce(new Error("socket hang up"));
+    await click(button("Make it a task", rowOf(2)!));
+    await click(button("Make the task", rowOf(2)!));
+    expect(h.toastError).toHaveBeenLastCalledWith("Could not confirm the save; rechecking.");
+    expect(h.invList).toHaveBeenCalledTimes(2);
+  });
+
+  it("Make it a task says when a task is still being made, or the promise closed meanwhile", async () => {
+    h.toTask.mockResolvedValueOnce({ taskId: null, reason: "in_flight" }).mockResolvedValueOnce({ taskId: null, reason: "not_active" });
+    await mount();
+    await open();
+    await click(button("Make it a task", rowOf(1)!));
+    await click(button("Make the task", rowOf(1)!));
+    expect(h.toastMessage).toHaveBeenCalledWith("That task is still being made.");
+    await click(button("Make it a task", rowOf(2)!));
+    await click(button("Make the task", rowOf(2)!));
+    expect(h.toastError).toHaveBeenCalledWith("This promise is no longer open.");
+  });
+
+  it("a failed edit keeps the form and says so; an edit that matched nothing says the promise closed", async () => {
+    h.edit.mockRejectedValueOnce(new Error("db down")).mockResolvedValueOnce({ ok: false });
+    await mount();
+    await open();
+    await click(button("Edit", rowOf(2)!));
+    await type(rowOf(2)!.querySelector("textarea"), "Walk every morning");
+    await click(button("Save", rowOf(2)!));
+    expect(h.toastError).toHaveBeenLastCalledWith("That did not save. Your edit is still here.");
+    expect(rowOf(2)!.querySelector("textarea")).not.toBeNull();
+    await click(button("Save", rowOf(2)!));
+    expect(h.toastError).toHaveBeenLastCalledWith("This promise is no longer open.");
   });
 
   it("a failed write toasts and keeps the row", async () => {
