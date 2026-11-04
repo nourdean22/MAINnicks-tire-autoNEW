@@ -142,7 +142,7 @@ export function PromisesSection({ missions }: { missions: MissionOption[] }) {
         if (out.reason === "in_flight") toast.message("That task is still being made.");
         else toast.error("This promise is no longer open.");
       } else if (out.created) {
-        toast.success("Task made. The promise stays open until you mark it Done.");
+        toast.success("Task made. The promise closes when the task is done.");
         void utils.task.list.invalidate();
         void utils.task.deck.invalidate();
       } else {

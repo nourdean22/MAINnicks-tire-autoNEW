@@ -239,6 +239,8 @@ describe("PromisesSection", () => {
     expect(Array.from(select.options).map((o) => o.textContent)).toEqual(["Inbox", "Shop OS"]);
     await click(button("Make the task", row));
     expect(h.toTask).toHaveBeenLastCalledWith({ id: 1, missionId: null });
+    // the task-done close (checkTask) is what keeps the promise now; the toast says so
+    expect(h.toastSuccess).toHaveBeenLastCalledWith("Task made. The promise closes when the task is done.");
     expect(rowOf(1)).not.toBeNull();
 
     await click(button("Make it a task", rowOf(2)!));
