@@ -27,11 +27,22 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { idempotencyRecipe, idempotentCreate } from "@/lib/db/idempotency";
 import { createHash } from "node:crypto";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/goal-events");
+
+/** The source of the nightly shop sync's value events (lib/services/goal-shop-sync.ts). */
+export const SHOP_SYNC_SOURCE = "shop-bridge";
+/**
+ * progress_logged rows that Nour's own actions wrote ("goals lifted today", "loops this week"): the shop sync's
+ * values are not his doing. Spelled with an OR because SQL `source <> 'x'` is not true for a NULL source.
+ */
+export const OWN_PROGRESS_WHERE = {
+  OR: [{ source: null }, { source: { not: SHOP_SYNC_SOURCE } }],
+} satisfies Prisma.GoalEventWhereInput;
 
 export type GoalEventKind =
   | "created"
@@ -116,7 +127,7 @@ export function emitGoalEventAsync(input: GoalEventInput): void {
 
 /**
  * Sum of progress_logged deltas in the last N days. Drives the
- * "loops this week" counter on goal cards.
+ * "loops this week" counter on goal cards: Nour's own progress, so the shop sync's values are excluded.
  */
 export async function getProgressInWindow(
   goalId: string,
@@ -125,7 +136,7 @@ export async function getProgressInWindow(
   try {
     const since = new Date(Date.now() - windowDays * 86400_000);
     const rows = await prisma.goalEvent.findMany({
-      where: { goalId, kind: "progress_logged", createdAt: { gte: since } },
+      where: { goalId, kind: "progress_logged", createdAt: { gte: since }, ...OWN_PROGRESS_WHERE },
       select: { payload: true },
     });
     let total = 0;
