@@ -20,11 +20,15 @@
  */
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
+import { logError } from "@/lib/utils/error-log";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 import type { ActionParams, ActionResult } from "./types";
 
 const INTERACTION_KINDS: ReadonlySet<string> = new Set(["in_person", "call", "text", "video", "other"]);
 /** The seam clamps to ±100 (the modal's range); an LLM-decided swing is capped tighter. */
 const AGENT_AMOUNT_CAP = 25;
+/** A tool row this recent for the same person is the same report as the block (it runs after the reply). */
+const SAME_TURN_MS = 10 * 60_000;
 
 export async function handlePersonUpdate(params: ActionParams, type: string): Promise<ActionResult> {
   // person.update edits an EXISTING person · createIfMissing:false means a
@@ -241,6 +245,49 @@ export async function handlePersonLogInteraction(params: ActionParams, type: str
         resolution.matchTier === "rejected_nonname"
           ? `"${name}" is not a real name — never log to a pronoun or descriptor. Use the person's actual name.`
           : `No existing person matches "${name}". Do not assume one. Ask Nour: "want me to add ${name} to your people?" — then use person.create only after a yes, and log the interaction after that.`,
+    };
+  }
+
+  // 2026-11-03 · the in-turn logPersonInteraction tool may already have written this contact: the
+  // block runs after the reply, so a row from the tool for the same person minutes ago is the same
+  // report, not a second contact. A failed read falls back to writing (it proves no duplicate).
+  let toolRow: { id: string } | null = null;
+  try {
+    // Through contactRowsOnly like every ledger reader (tests/repo/ledger-readers-filter-contacts.test.ts):
+    // a tool row is a contact by construction, and the filter keeps that true if it ever is not.
+    const rows = await prisma.relationshipLedger.findMany({
+      where: {
+        personId: resolution.person.id,
+        source: "chat",
+        createdAt: { gte: new Date(Date.now() - SAME_TURN_MS) },
+        metadata: { path: ["via"], equals: "chat_tool" },
+        // Same report = same amount (a different amount minutes later is a second contact). The
+        // block clamps at the cap, so a capped block matches a tool row beyond it.
+        OR: [
+          { amount },
+          ...(Math.abs(amount) === AGENT_AMOUNT_CAP
+            ? [{ amount: amount > 0 ? { gt: AGENT_AMOUNT_CAP } : { lt: -AGENT_AMOUNT_CAP } }]
+            : []),
+        ],
+      },
+      select: { id: true, metadata: true },
+      take: 5,
+    });
+    toolRow = contactRowsOnly(rows)[0] ?? null;
+  } catch (err) {
+    logError("agent-actions.person", err, { fn: "handlePersonLogInteraction.dedupe" }, "warn");
+  }
+  if (toolRow) {
+    return {
+      action: type,
+      success: true,
+      result: {
+        id: resolution.person.id,
+        name: resolution.person.name,
+        ledgerId: toolRow.id,
+        deduped: true,
+        note: "already logged this turn by logPersonInteraction; no second row",
+      },
     };
   }
 

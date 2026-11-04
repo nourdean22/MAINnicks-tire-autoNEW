@@ -1222,6 +1222,12 @@ async function cmdLog(args: string, chatId: string): Promise<void> {
           chatId,
         );
         return;
+      case "ambiguous":
+        await sendTelegram(
+          `"${escapeHtml(out.name)}" matches more than one person (${out.candidates.map((c) => escapeHtml(c.name)).join(", ")}). Nothing logged; use the exact name.`,
+          chatId,
+        );
+        return;
       case "logged": {
         const r = out.recorded;
         const signed = r.amount > 0 ? `+${r.amount}` : `${r.amount}`;

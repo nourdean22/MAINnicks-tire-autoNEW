@@ -509,7 +509,10 @@ ${rawText}`,
               recordError("brain:journal-ingest", err, { phase: "task-create", brainDumpId: brainDump.id, entryType });
               return null;
             });
-            if (created && typeof (created as { id?: unknown }).id === "string") createdTaskIds.push((created as { id: string }).id);
+            // Only a create that returned a row counts: a failed one is recorded above, and
+            // "2 tasks created" or a critical alert for a task that is not in the inbox is a lie.
+            if (!created || typeof (created as { id?: unknown }).id !== "string") continue;
+            createdTaskIds.push((created as { id: string }).id);
             tasksCreated++;
             if (item.priority === "critical" || item.priority === "high") {
               criticalItems.push(item.title);

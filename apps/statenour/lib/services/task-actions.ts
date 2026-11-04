@@ -54,7 +54,8 @@ import { toDateString } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/task-actions");
 
-export type CheckAction = "complete" | "break";
+/** "uncheck" (2026-11-03) takes back today's DAILY check-off through uncheckDailyCompletion. */
+export type CheckAction = "complete" | "break" | "uncheck";
 
 export interface CheckTaskResult {
   ok: true;
@@ -71,6 +72,8 @@ export interface CheckTaskResult {
   streakCount?: number;
   lastCompletedAt?: Date | null;
   broken?: boolean;
+  /** action "uncheck": true when a check-off was taken back, false when the day had none. */
+  unchecked?: boolean;
   timeAdded?: number;
   autoLearn?: AutoLearnReport | null;
   /** 2026-05-23 · task #22 · count of subtasks marked DONE via the
@@ -108,7 +111,9 @@ export async function checkTask(args: {
    *  callers (chat/persist-user-turn, services/tasks, realtime/tool-call) go
    *  straight to this function and bypass zod entirely. The union makes the
    *  compiler the guard. No caller passes anything else today — this closes a
-   *  latent hazard, not an active bug. */
+   *  latent hazard, not an active bug.
+   *  2026-11-03 · "uncheck" is now a real action, branched off before the
+   *  coercion (the /missions habit row and tRPC task.check). */
   action?: CheckAction;
   /** 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · when the
    *  operator completes a parent task with open children, the UI
@@ -132,6 +137,19 @@ export async function checkTask(args: {
   outcomeLesson?: string | null;
 }): Promise<CheckTaskResult> {
   const { id, eventSource } = args;
+  // The /missions habit row's take-back. Same writer as the chat's uncheckTask: it appends an
+  // `uncompleted` event (the log is append-only) and rewinds the row; refuses a non-DAILY task.
+  if (args.action === "uncheck") {
+    const { uncheckDailyCompletion } = await import("@/lib/services/daily-backfill");
+    const r = await uncheckDailyCompletion({ id, source: eventSource ?? "service:checkTask" });
+    return {
+      ok: true,
+      unchecked: r.changed,
+      streakCount: r.streakCount,
+      lastCompletedAt: r.lastCompletedAt,
+      task: { id: r.taskId, loopKind: "DAILY", streakCount: r.streakCount, lastCompletedAt: r.lastCompletedAt },
+    };
+  }
   const action: CheckAction = args.action === "break" ? "break" : "complete";
   const cascadeChildren = args.cascadeChildren === true;
 

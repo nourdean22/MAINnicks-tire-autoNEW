@@ -205,6 +205,43 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setRetroState, collectOutcome],
   );
 
+  /**
+   * Take back today's tick on a DAILY rhythm (the row's two-tap uncheck). Same spine as the tick:
+   * task.check, action "uncheck", which appends an `uncompleted` event and rewinds the streak. The
+   * tick also parked the row WAITING until tomorrow (presentation only), so that comes off too.
+   */
+  const handleUncheckTask = useCallback(
+    async (id: string): Promise<boolean> => {
+      let res: Awaited<ReturnType<typeof checkTaskMut.mutateAsync>>;
+      try {
+        telemetry.event("uncheckTask", { taskId: id });
+        res = await checkTaskMut.mutateAsync({ id, action: "uncheck" });
+      } catch (err) {
+        log.error("uncheckTask_failed", { err });
+        // A refusal (a 400, e.g. not a daily habit) says why; anything else may have landed.
+        const refusal = (err as { data?: { code?: string }; message?: string } | null)?.data?.code === "BAD_REQUEST";
+        toast.error(refusal ? (err as Error).message : "Could not confirm the uncheck. Refresh to see where it stands.");
+        return false;
+      }
+      // The uncheck is written from here on: a failed un-park or refetch must not say otherwise.
+      if (res.unchecked) {
+        await updateTask
+          .mutateAsync({ id, fields: { status: "READY", snoozedUntil: null } })
+          .catch((err: unknown) => log.error("uncheckTask_unpark_failed", { err, taskId: id }));
+      }
+      await refetchAll().catch((err: unknown) => log.error("uncheckTask_refetch_failed", { err }));
+      const streak = typeof res.streakCount === "number" ? res.streakCount : null;
+      toast.success(
+        res.unchecked
+          ? `Unchecked for today. Streak ${streak === null ? "unknown" : `${streak} ${streak === 1 ? "day" : "days"}`}.`
+          : "Nothing to uncheck today.",
+      );
+      // The row shows "unchecked" only when the server took a check-off back.
+      return res.unchecked === true;
+    },
+    [checkTaskMut, updateTask, refetchAll, telemetry],
+  );
+
   const handleStartTask = useCallback(
     async (id: string) => {
       try {
@@ -513,6 +550,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     handleAddTask,
     handleAddRhythm,
     handleCompleteTask,
+    handleUncheckTask,
     handleStartTask,
     handleDeleteTask,
     handleUpdateTaskFields,

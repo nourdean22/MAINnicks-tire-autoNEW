@@ -73,4 +73,13 @@ describe("ingestJournal · records the tasks it made", () => {
       .filter((x: unknown): x is string => typeof x === "string");
     expect(JSON.parse(writes[writes.length - 1]).createdTaskIds).toEqual(["t2"]);
   });
+
+  // 2026-11-03 · second reader: the counter ran after the create whatever it returned, so a
+  // failed create came back to Nick as "2 tasks created" and the critical alert listed it.
+  it("a task that failed to create is not counted as created", async () => {
+    h.createTask.mockReset();
+    h.createTask.mockRejectedValueOnce(new Error("db")).mockResolvedValueOnce({ id: "t2" });
+    const r = await ingestJournal("Plan: call the supplier and book the dyno slot", "chat", { reuseDumpId: "d1" });
+    expect(r.tasksCreated).toBe(1);
+  });
 });

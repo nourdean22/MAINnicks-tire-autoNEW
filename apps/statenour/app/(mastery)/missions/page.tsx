@@ -361,6 +361,7 @@ function MissionsPageInner() {
               <DeckRhythms
                 rhythms={deck.rhythms}
                 onComplete={(id, loopKind) => actions.handleCompleteTask(id, { loopKind })}
+                onUncheck={actions.handleUncheckTask}
                 onEdit={handleEditRhythm}
                 onAdd={actions.handleAddRhythm}
               />

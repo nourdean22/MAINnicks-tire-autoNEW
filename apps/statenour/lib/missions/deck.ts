@@ -29,6 +29,7 @@ import { isGeneralAnchor, isInboxMission, isUserProject } from "@/lib/services/m
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
 import { startOfDayET, toDateString, weekdayET } from "@/lib/utils/datetime";
+import { logError } from "@/lib/utils/error-log";
 
 /** Is a rhythm due on this ET weekday (0 = Sun .. 6 = Sat)? A WEEKLY with no weekdays set is due some day this week, not today. */
 export function rhythmDueToday(loopKind: string | null, recurringDays: number[] | null | undefined, weekday: number): boolean {
@@ -253,6 +254,7 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
         dueDate: true,
         lastTouchedAt: true,
         lastCompletedAt: true,
+        streakCount: true,
         loopKind: true,
         recurringDays: true,
         manualPriorityOverride: true,
@@ -542,31 +544,15 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   );
   let rhythms: DeckRhythm[] = [];
   try {
-    const windowStart = new Date(todayStart.getTime() - (RHYTHM_WINDOW_DAYS - 1) * DAY_MS);
-    const events = rhythmTasks.length
-      ? await prisma.taskEvent.findMany({
-          where: {
-            taskId: { in: rhythmTasks.map((t: ScoredTask) => t.id) },
-            kind: "completed",
-            createdAt: { gte: windowStart },
-          },
-          select: { taskId: true, createdAt: true },
-        })
-      : [];
-    const daysByTask = new Map<string, Set<string>>();
-    for (const e of events) {
-      const key = toDateString(e.createdAt);
-      if (!daysByTask.has(e.taskId)) daysByTask.set(e.taskId, new Set());
-      daysByTask.get(e.taskId)!.add(key);
-    }
-    const todayKey = toDateString(now);
+    // The per-day ledger read the chat and /api/habits share: an uncheck (an `uncompleted`
+    // event) takes a day back, a backfill counts on its own day (2026-11-03).
+    const { habitDays } = await import("@/lib/services/daily-backfill");
+    const grid = await habitDays(rhythmTasks, RHYTHM_WINDOW_DAYS, toDateString(now));
     const weekday = weekdayET(now);
     rhythms = rhythmTasks
       .map((t: ScoredTask) => {
-        const days = daysByTask.get(t.id) ?? new Set<string>();
-        const doneToday =
-          days.has(todayKey) ||
-          (t.lastCompletedAt !== null && toDateString(new Date(t.lastCompletedAt)) === todayKey);
+        const days = grid.get(t.id) ?? [];
+        const doneToday = days[0]?.done ?? false;
         return {
           id: t.id,
           title: t.title,
@@ -574,12 +560,13 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
           recurringDays: t.recurringDays ?? [],
           dueToday: rhythmDueToday(t.loopKind, t.recurringDays, weekday),
           doneToday,
-          windowDone: days.size,
+          windowDone: days.filter((d) => d.done).length,
           windowOf: RHYTHM_WINDOW_DAYS,
         };
       })
       .sort((a: DeckRhythm, b: DeckRhythm) => Number(a.doneToday) - Number(b.doneToday) || a.title.localeCompare(b.title));
-  } catch {
+  } catch (err) {
+    logError("missions.deck", err, { fn: "rhythms.habitDays" }, "warn");
     unmeasured.push("rhythm history");
     rhythms = rhythmTasks.map((t: ScoredTask) => ({
       id: t.id,

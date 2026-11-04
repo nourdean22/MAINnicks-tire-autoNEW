@@ -17,6 +17,9 @@ vi.mock("@/lib/prisma", () => ({
     task: {
       findMany: vi.fn(),
     },
+    taskEvent: {
+      findMany: vi.fn(async () => []),
+    },
   },
 }));
 
@@ -109,11 +112,13 @@ describe("recentDailyHabits", () => {
   it("synthesizes one row per day per DAILY task", async () => {
     (prisma.task.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
+        id: "t-workout",
         title: "workout",
         streakCount: 3,
         lastCompletedAt: new Date(),
       },
       {
+        id: "t-journal",
         title: "journal",
         streakCount: 0,
         lastCompletedAt: null,
@@ -127,6 +132,31 @@ describe("recentDailyHabits", () => {
     expect(workoutRows.filter((r) => r.completed).length).toBe(3);
     const journalRows = out.filter((r) => r.habitKey === "journal");
     expect(journalRows.every((r) => r.completed === false)).toBe(true);
+  });
+
+  // 2026-11-03 · the rows used to be the streak counted back from lastCompletedAt, so a day
+  // backfilled before it (the dated check-off Nick can now write) never showed as done.
+  it("reads the event ledger: a day backfilled two days before lastCompletedAt is done that day", async () => {
+    const { toDateString } = await import("@/lib/utils/datetime");
+    const dayAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+    (prisma.task.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "h1", title: "journal", loopKind: "DAILY", streakCount: 1, lastCompletedAt: dayAgo(0) },
+    ]);
+    (prisma.taskEvent.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { taskId: "h1", kind: "completed", createdAt: dayAgo(2), payload: { backfilled: true } },
+      { taskId: "h1", kind: "completed", createdAt: dayAgo(0), payload: {} },
+    ]);
+    const out = await recentDailyHabits(7);
+    const doneOn = out.filter((r) => r.completed).map((r) => r.date);
+    expect(doneOn).toEqual([toDateString(dayAgo(0)), toDateString(dayAgo(2))]);
+  });
+
+  it("returns empty when the ledger read fails, never a week of not-done rows", async () => {
+    (prisma.task.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "h1", title: "journal", loopKind: "DAILY", streakCount: 3, lastCompletedAt: new Date() },
+    ]);
+    (prisma.taskEvent.findMany as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("db down"));
+    expect(await recentDailyHabits(7)).toEqual([]);
   });
 
   it("returns empty when no DAILY tasks exist", async () => {
