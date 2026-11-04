@@ -312,8 +312,8 @@ export const MISSION_CHATS: Wire<RouterOutputs["task"]["missionChats"]> = { byMi
 export const MISSION_PROMISES: Wire<RouterOutputs["operator"]["promisesList"]> = {
   active: [
     { id: 9001, description: "Demo promise: send the demo supplier the signed quote", toWhom: "Demo Supplier", deadline: null, ageDays: 61, deadlineDays: null, task: null },
-    { id: 9002, description: "Demo promise: walk every morning this week", toWhom: "self", deadline: "2026-10-20", ageDays: 3, deadlineDays: 9, task: null },
-    { id: 9003, description: "Demo promise: book the demo dentist cleaning", toWhom: "self", deadline: "2026-10-07", ageDays: 40, deadlineDays: -4, task: { id: "demo-task-dentist", status: "READY" } },
+    { id: 9002, description: "Demo promise: walk every morning this week", toWhom: "self", deadline: "2026-10-24", ageDays: 3, deadlineDays: 9, task: null },
+    { id: 9003, description: "Demo promise: book the demo dentist cleaning", toWhom: "self", deadline: "2026-10-11", ageDays: 40, deadlineDays: -4, task: { id: "demo-task-dentist", status: "READY" } },
   ],
   proposed: [
     { id: 9101, description: "Demo proposal: call the demo insurance agent back", toWhom: "self", deadline: null, ageDays: 2, deadlineDays: null, task: null },

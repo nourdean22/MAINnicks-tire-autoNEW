@@ -298,7 +298,7 @@ export async function abandonActiveCommitment(
   notes = "Dropped (pulse ticker)",
   updatedBy = "operator",
 ): Promise<boolean> {
-  // BDN-208 · abandons carry conditions too — the contrast class is what makes per-condition completion rates readable.
+  // BDN-208 · abandons carry conditions too: the contrast class is what makes per-condition completion rates readable.
   return closeOpenCommitment(id, "abandoned", notes, updatedBy);
 }
 
