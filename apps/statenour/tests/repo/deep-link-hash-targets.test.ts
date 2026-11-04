@@ -30,6 +30,8 @@ const PAGES: Record<string, string> = {
   brain: "app/(mastery)/brain/page.tsx",
   stats: "app/(mastery)/stats/page.tsx",
   settings: "app/(mastery)/settings/page.tsx",
+  // R3 round 1: Nick's "Commitments read" chip and Home's proposed row link to /missions#promises.
+  missions: "app/(mastery)/missions/page.tsx",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -80,7 +82,7 @@ function idsIn(files: string[]): { exact: Set<string>; prefixes: string[] } {
   return { exact, prefixes };
 }
 
-const LINK = /^\/(brain|stats|settings)(?:\?([^#]*))?#([\w-]*)(\u0000)?/;
+const LINK = /^\/(brain|stats|settings|missions)(?:\?([^#]*))?#([\w-]*)(\u0000)?/;
 const HOLE = "\u0000";
 
 /** "<file> -> /page#hash" for every hash link a source emits (comments are not nodes). */
@@ -236,6 +238,8 @@ describe("deep-link hashes name an element their page mounts", () => {
     expect(mounted(PAGES.stats).length).toBeGreaterThan(10);
     expect(IDS.brain.exact.has("contradictions")).toBe(true);
     expect(IDS.stats.exact.has("forecast-duel")).toBe(true);
+    expect(IDS.missions.exact.has("promises"), "the Promises section mounts on /missions").toBe(true);
+    expect(treeLinks().some((l) => l.endsWith("-> /missions#promises")), "a /missions#promises link was located").toBe(true);
     expect(treeLinks().length).toBeGreaterThan(20);
   });
 

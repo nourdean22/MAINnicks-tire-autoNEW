@@ -8,16 +8,24 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mocks = vi.hoisted(() => ({ updateMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { commitment: { updateMany: (...args: unknown[]) => mocks.updateMany(...args) } },
+  prisma: {
+    commitment: {
+      updateMany: (...args: unknown[]) => mocks.updateMany(...args),
+      // R3 Codex round: the close reads which open status the row has, then swaps on exactly that one.
+      findFirst: (...args: unknown[]) => mocks.findFirst(...args),
+    },
+  },
 }));
 
 import { completeActiveCommitment, abandonActiveCommitment } from "@/lib/services/commitments";
 
 beforeEach(() => {
   mocks.updateMany.mockReset();
+  mocks.findFirst.mockReset();
+  mocks.findFirst.mockResolvedValue({ status: "active" });
 });
 
 describe("completeActiveCommitment", () => {
