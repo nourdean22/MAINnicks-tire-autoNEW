@@ -57,7 +57,7 @@ function pluginPart(home) {
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))), CLAUDE_PROJECT_DIR: ROOT, HOME: home, USERPROFILE: home };
   const r = spawnSync(process.execPath, [SCRIPT, "--home", home, "--check", "--hook"], { encoding: "utf8", cwd: ROOT, env, timeout: 30000 });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-  return { line: /plugins (ok \(\d+ required\)|MISSING: [^|]+)/.exec(out)?.[0]?.trim() ?? `(no plugin part) ${out}`, out };
+  return { line: /plugins (ok \(\d+ required\)|MISSING: [^|]+|UNKNOWN \([^|]+\))/.exec(out)?.[0]?.trim() ?? `(no plugin part) ${out}`, out };
 }
 const MISSING_SYNCED = `plugins MISSING: ${synced.map((p) => p.name).join(", ")}`;
 
@@ -93,6 +93,16 @@ test("neither layout: the account plugins read MISSING", () => {
 test("another account's rpm bucket is not this account's plugins: MISSING", () => {
   const other = { accountUuid: "f6e38864-0000-4000-8000-000000000003", organizationUuid: "db3cbe41-0000-4000-8000-000000000004" };
   assert.equal(pluginPart(makeHome("other-account", (h) => desktopStore(msix(h), other, synced))).line, MISSING_SYNCED);
+});
+
+// Manager round 1 (P2): bootstrap-machine dropped enabledPlugins' warnings, so a manifest caught mid-rewrite brought back
+// the exact false "plugins MISSING ... FIX FIRST" this job removed. A failed read is UNKNOWN, and Nour is sent nowhere.
+test("an unreadable Desktop manifest (caught mid-rewrite) reads plugins UNKNOWN, never MISSING, and asks Nour to enable nothing", () => {
+  const r = pluginPart(makeHome("torn-manifest", (h) => {
+    write(join(msix(h), "rpm", ACCOUNT.accountUuid.slice(0, 8), ACCOUNT.organizationUuid.slice(0, 8), "manifest.json"), "{");
+  }));
+  assert.match(r.line, /^plugins UNKNOWN \(.*manifest\.json: bad JSON.*\)$/, r.out);
+  for (const p of synced) assert.ok(!r.out.includes(p.enable), `told Nour to enable ${p.name} on a failed read:\n${r.out}`);
 });
 
 test("a manifest entry whose folder is gone, and a folder the manifest does not list, both read MISSING", () => {

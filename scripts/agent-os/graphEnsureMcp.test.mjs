@@ -10,7 +10,7 @@ import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { startMcpStub, startMcpStubProcess } from "./fixtures/mcp-stub.mjs";
-import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE } from "./graph-ensure-mcp.mjs";
+import { LAUNCH_LOCK, LAUNCH_LOG, STATE_FILE, takeLaunchLock } from "./graph-ensure-mcp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -214,6 +214,22 @@ test("control: an EMPTY launch lock older than the fresh window is stale, so it 
   assert.equal(r.code, 0, r.err);
   assert.equal(existsSync(counter) ? readFileSync(counter, "utf8").length : 0, 1, `an old empty lock must not block the launch forever:\n${r.out}`);
   assert.ok(!existsSync(lock), "the winner releases the lock it took");
+});
+
+// Manager round 1 (P3): a write that failed after the "wx" create left an EMPTY lock, which now reads as held and would
+// block every launch for LOCK_FRESH_MS. The create is undone before the error goes on.
+test("a lock write that fails after the create leaves no lock file behind, and the error still surfaces", () => {
+  const dir = join(SCRATCH, "write-fails", "state");
+  const prev = process.env.NOURCITY_STATE_DIR;
+  process.env.NOURCITY_STATE_DIR = dir;
+  try {
+    const failing = () => { throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" }); };
+    assert.throws(() => takeLaunchLock({ write: failing }), /ENOSPC/);
+    assert.ok(!existsSync(join(dir, LAUNCH_LOCK)), "an empty launch lock was left behind after the failed write");
+  } finally {
+    if (prev === undefined) delete process.env.NOURCITY_STATE_DIR;
+    else process.env.NOURCITY_STATE_DIR = prev;
+  }
 });
 
 test("no answer (a listener that never answers initialize): UNKNOWN, next: command, and the launcher is NOT run (counter stays 0)", async () => {

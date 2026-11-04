@@ -66,6 +66,10 @@ export function effectiveEnabled(home, projectDir) {
 /** Enabled plugins: [{ name, dir, source, key? }] plus warnings. First source wins on a name seen twice. */
 export function enabledPlugins(home, projectDir) {
   const warnings = [];
+  // The subset of warnings that are FAILED reads (a source could not be read at all), as opposed to a read that worked and
+  // found something inconsistent: a caller deciding MISSING vs UNKNOWN needs the difference (manager round 1).
+  const readErrors = [];
+  const readFailed = (msg) => { warnings.push(msg); readErrors.push(msg); };
   const out = [];
   const seen = new Set();
   const add = (p) => { if (p.name && !seen.has(p.name)) { seen.add(p.name); out.push(p); } };
@@ -82,7 +86,7 @@ export function enabledPlugins(home, projectDir) {
     }
     if (gone) warnings.push(`${gone} enabled plugin install dir(s) missing from the cache`);
   } catch (err) {
-    warnings.push(`installed plugins unreadable (${err.message})`);
+    readFailed(`installed plugins unreadable (${err.message})`);
   }
 
   let acct = null;
@@ -99,7 +103,7 @@ export function enabledPlugins(home, projectDir) {
       }
     }
   } catch (err) {
-    warnings.push(`account plugins unreadable (${err.message})`);
+    readFailed(`account plugins unreadable (${err.message})`);
   }
 
   try {
@@ -117,9 +121,9 @@ export function enabledPlugins(home, projectDir) {
       if (gone) warnings.push(`${gone} Desktop account plugin dir(s) listed in rpm/manifest.json but missing`);
     }
   } catch (err) {
-    warnings.push(`Desktop account plugins unreadable (${err.message})`);
+    readFailed(`Desktop account plugins unreadable (${err.message})`);
   }
-  return { plugins: out, warnings };
+  return { plugins: out, warnings, readErrors };
 }
 
 /**

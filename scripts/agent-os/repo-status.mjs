@@ -70,7 +70,10 @@ export function runBounded(cmd, args, { cwd, env, timeoutMs = SPAWN_TIMEOUT_MS, 
     };
     const stop = (why) => {
       settle();
-      child.kill();
+      // The whole tree on Windows: `git` there is the Git\cmd wrapper, and killing it alone left the real git.exe and its
+      // conhost running (manager round 1). child.kill() stays the fallback, and the only kill elsewhere.
+      const tree = process.platform === "win32" && child.pid ? spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 5000 }) : null;
+      if (tree?.status !== 0) child.kill();
       child.stdout.destroy();
       child.stderr.destroy();
       reject(timedOut(why));
@@ -347,8 +350,10 @@ export async function gatherRemoteEvidence(
       const cmp = await ghJsonImpl(`${base}/compare/main...${encodeURIComponent(branch)}`);
       aheadOfMain = cmp.ahead_by;
       behindOfMain = cmp.behind_by;
-    } catch {
-      // compare can fail on an empty/orphan branch — leave undefined, not a false 0.
+    } catch (e) {
+      // compare can fail on an empty/orphan branch — leave undefined, not a false 0. A TIMEOUT is not that: it goes on,
+      // so the caller's cell reads UNKNOWN instead of a class built on a read that never answered (manager round 1).
+      if (e?.timedOut || e?.name === "TimeoutError" || e?.name === "AbortError") throw e;
     }
   }
 
@@ -446,14 +451,14 @@ async function main() {
   const errors = cells.filter((c) => c.startsWith("UNKNOWN (error")).length;
   const receipt =
     `receipt: ${rows.length} branch row(s) in ${((Date.now() - started) / 1000).toFixed(1)} s (budget ${BUDGET_MS / 1000} s)` +
-    ` · ${timeouts} UNKNOWN (timeout) · ${errors} UNKNOWN (error)`;
+    ` · ${timeouts} cell(s) UNKNOWN (timeout) · ${errors} cell(s) UNKNOWN (error)`; // cells: one failed remote read fills two
   const text = `repo:status · ${owner}/${repo} · local worktrees shown are THIS machine's only\n\n${formatStatusTable(rows)}\n\n${receipt}\n`;
   // Exit once the text is flushed: an orphaned grandchild or a keep-alive socket must not hold the answer back.
   process.stdout.write(text, () => process.exit(0));
 }
 
 /** One table row. Each read settles on its own, so a hung status still leaves the remote cells (and the reverse). */
-async function statusRow(branch, wt, { owner, repo, git, json, onOrigin, store }) {
+export async function statusRow(branch, wt, { owner, repo, git, json, onOrigin, store }) {
   const unknown = (e) =>
     e?.timedOut || ["AbortError", "TimeoutError"].includes(e?.name) ? TIMEOUT_CELL : `UNKNOWN (error: ${firstLine(e).slice(0, 60)})`;
   const upstream = (path) =>

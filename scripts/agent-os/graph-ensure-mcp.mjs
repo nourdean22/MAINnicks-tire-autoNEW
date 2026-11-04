@@ -89,7 +89,7 @@ function writeState(state, extra = {}) {
  * that cannot be read (yet) is HELD: its owner is between create and write. Only an old lock, or a fresh one whose pid
  * is dead, is replaced (CI run 41905313212, 2026-11-04: a loser read the empty file, deleted it, and both launched).
  */
-function takeLaunchLock() {
+export function takeLaunchLock({ write = writeSync } = {}) {
   const file = join(stateDir(), LAUNCH_LOCK);
   mkdirSync(stateDir(), { recursive: true });
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
@@ -110,10 +110,14 @@ function takeLaunchLock() {
       continue;
     }
     try {
-      writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
-    } finally {
-      closeSync(fd);
+      write(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+    } catch (err) {
+      // An empty lock now reads as held for LOCK_FRESH_MS: undo the create before the error goes on (manager round 1).
+      try { closeSync(fd); } catch { /* the rm below is what matters */ }
+      rmSync(file, { force: true });
+      throw err;
     }
+    closeSync(fd);
     return null;
   }
   return "lock could not be taken";

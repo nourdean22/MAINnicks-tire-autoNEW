@@ -213,11 +213,12 @@ export function plan(home) {
   return items;
 }
 
-/** Required plugins this account or machine has not enabled. */
+/** Required plugins this account or machine has not enabled, plus the plugin sources that could not be READ at all
+ * (`readErrors`; a read that worked and found a gap is a plain warning, and its gap stays MISSING). */
 export function missingPlugins(home, routing) {
-  const { plugins } = enabledPlugins(home, resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd()));
+  const { plugins, readErrors } = enabledPlugins(home, resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd()));
   const have = new Set(plugins.map((p) => p.name));
-  return (routing.required ?? []).filter((p) => !have.has(p.name));
+  return { missing: (routing.required ?? []).filter((p) => !have.has(p.name)), warnings: readErrors };
 }
 
 function main() {
@@ -233,13 +234,16 @@ function main() {
 
   if (argv.includes("--hook")) {
     const routing = readRouting(REPO);
-    const missing = missingPlugins(home, routing);
+    const { missing, warnings } = missingPlugins(home, routing);
+    // A plugin not found while a plugin source could not be read is UNKNOWN: never MISSING, never a FIX FIRST to enable
+    // what may already be enabled (a Desktop manifest.json caught mid-rewrite, manager round 1, 2026-11-04).
+    const unknown = missing.length > 0 && warnings.length > 0;
     const parts = [bad.length ? `bootstrap: ${bad.length} item(s) ${bad.map((x) => `${x.state} ${x.label.replace("~/.claude/", "")}`).join(", ")}` : "bootstrap ok"];
-    parts.push(missing.length ? `plugins MISSING: ${missing.map((p) => p.name).join(", ")}` : `plugins ok (${(routing.required ?? []).length} required)`);
+    parts.push(unknown ? `plugins UNKNOWN (${warnings.join("; ")})` : missing.length ? `plugins MISSING: ${missing.map((p) => p.name).join(", ")}` : `plugins ok (${(routing.required ?? []).length} required)`);
     const known = routing.knownConnectFailures?.servers?.length;
     if (known) parts.push(`known MCP connect failures: ${known} (as of ${routing.knownConnectFailures.asOf}, config/agent-os/required-plugins.json; not retried here)`);
-    const fixes = [...(bad.length ? [`node "${fwd(join(REPO, "scripts", "agent-os", "bootstrap-machine.mjs"))}"`] : []), ...missing.map((p) => `Nour: ${p.enable}`)];
-    const ok = !fixes.length;
+    const fixes = [...(bad.length ? [`node "${fwd(join(REPO, "scripts", "agent-os", "bootstrap-machine.mjs"))}"`] : []), ...(unknown ? [] : missing.map((p) => `Nour: ${p.enable}`))];
+    const ok = !fixes.length && !unknown;
     process.stdout.write(`[health] machine ${ok ? "ok | " : ""}${parts.join(" | ")}${fixes.length ? ` | FIX FIRST: ${fixes.map((f, n) => `(${n + 1}) ${f}`).join(" ")}` : ""}\n`);
     return 0;
   }

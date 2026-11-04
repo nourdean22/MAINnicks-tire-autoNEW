@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -63,7 +63,8 @@ test("repo-status: a hanging git child gives UNKNOWN (timeout) and a receipt, ex
   assert.ok(r.ms < WALL_MS, `must answer before the ${WALL_MS} ms wall; ${seen}`);
   assert.equal(r.code, 0, `UNKNOWN is a reported state, not a crash; ${seen}`);
   assert.match(r.stdout, /UNKNOWN \(timeout\)/, `the hung status read must say so; ${seen}`);
-  assert.match(r.stdout, /^receipt: 1 branch row\(s\) in [\d.]+ s \(budget \d+ s\) · \d+ UNKNOWN \(timeout\) · \d+ UNKNOWN \(error\)$/m, seen);
+  // The counts are CELLS: one failed remote read shows in two cells (origin, PR/class), so it says so (round 1, P3).
+  assert.match(r.stdout, /^receipt: 1 branch row\(s\) in [\d.]+ s \(budget \d+ s\) · \d+ cell\(s\) UNKNOWN \(timeout\) · \d+ cell\(s\) UNKNOWN \(error\)$/m, seen);
   // The refused GitHub reads are errors, never a confident "no" or "-": origin, PR/class and lease all say UNKNOWN.
   const row = r.stdout.split("\n").find((l) => l.startsWith("main "));
   assert.ok(row, `a row for branch main; ${seen}`);
@@ -95,6 +96,37 @@ test("budgetSignal: when the run budget ends, a child with a long limit of its o
   stop();
   assert.equal(e?.timedOut, true, `expected a budget stop, got ${e}`);
   assert.ok(Date.now() - started < 3000, `stopped after ${Date.now() - started} ms`);
+});
+
+// Manager round 1 (P2): `git` here is C:\Program Files\Git\cmd\git.exe, a wrapper; killing it alone left the real git.exe
+// (and its conhost) running, so every timeout orphaned a git and a truly hung one never died. The whole tree must go.
+test("runBounded: a timeout kills the whole tree on Windows, so the grandchild behind a wrapper dies too", { timeout: 20_000, skip: process.platform !== "win32" && "the git.cmd wrapper tree is the Windows case" }, async (t) => {
+  const { runBounded } = await import("./repo-status.mjs");
+  const pidFile = join(mkdtempSync(join(tmpdir(), "rb-tree-")), "grandchild.pid");
+  // detached: libuv puts a node child's own children in a kill-on-close job, so a plain node grandchild dies with its
+  // parent and proves nothing (first draft of this arm was green on the old code). git.exe's children are not in that
+  // job; a detached grandchild is outside it the same way.
+  const child = `const g = require("child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true }); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(g.pid)); setInterval(() => {}, 1000)`;
+  await assert.rejects(runBounded(process.execPath, ["-e", child], { timeoutMs: 2500 }), (e) => e.timedOut === true);
+  assert.ok(existsSync(pidFile), "the child never started its grandchild inside the limit (harness, not the subject)");
+  const gpid = Number(readFileSync(pidFile, "utf8"));
+  t.after(() => { try { process.kill(gpid); } catch { /* gone */ } });
+  const alive = () => { try { process.kill(gpid, 0); return true; } catch { return false; } };
+  for (let i = 0; i < 30 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(alive(), false, `grandchild pid ${gpid} outlived its parent's timeout`);
+});
+
+// Manager round 1 (P2): the compare read's empty catch turned a TIMEOUT into "ahead unknown", and a branch 0 commits
+// ahead then classified with confidence. A timed-out read must leave the class UNKNOWN.
+test("statusRow: a compare read that times out makes the PR/class cell UNKNOWN (timeout), not a class", async () => {
+  const { statusRow } = await import("./repo-status.mjs");
+  const json = async (path) => {
+    if (path.includes("/compare/")) throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    if (path.includes("/pulls?head=")) return [];
+    throw new Error(`unexpected read ${path}`);
+  };
+  const row = await statusRow("feature/x", undefined, { owner: "o", repo: "r", git: null, json, onOrigin: new Set(["feature/x"]), store: { getRef: async () => null } });
+  assert.equal(row[5], "UNKNOWN (timeout)", JSON.stringify(row));
 });
 
 test("runBounded: a fast child resolves its trimmed stdout; a failing one rejects without timedOut", { timeout: 10_000 }, async () => {
