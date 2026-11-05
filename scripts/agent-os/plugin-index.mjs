@@ -11,7 +11,8 @@
  *              and other accounts' buckets sit beside it and are not loaded).
  *   desktop    since at least 2026-11-03 Claude Desktop keeps account plugins in its own app data instead:
  *              <appData>/rpm/<accountUuid[0:8]>/<organizationUuid[0:8]>/manifest.json plugins[].id, each a plugin_<id> dir
- *              beside it (agentic-council and receipts-check were only there; the [health] line called them MISSING).
+ *              beside it (agentic-council and receipts-check were only there; the [health] line called them MISSING). <appData> is
+ *              the MSIX package's roaming folder, a Store build's %LOCALAPPDATA%\Claude-Data\<identity>, or %APPDATA%\Claude.
  * A plugin's name is .claude-plugin/plugin.json `name`. Its skills are skills/<slug>/SKILL.md and commands/<slug>.md
  * (a leading underscore is an internal include, not a command); the Skill tool name is `<plugin>:<slug>`.
  *
@@ -131,17 +132,26 @@ export function enabledPlugins(home, projectDir) {
   return { plugins: out, warnings, readErrors };
 }
 
+// A Desktop build's folder name: Claude_<hash>, or <publisher>.Claude_<hash> (AnthropicPBC.Claude_fnn82j28hfe8t on the Store
+// build; lowercase in Claude-Data). Anchored, so NotClaude_x, Claude-Data and a bare claude_ are not builds.
+const DESKTOP_BUILD = /^(?:[a-z0-9]+\.)?claude_[a-z0-9]+$/i;
+
 /**
  * Claude Desktop's app-data dirs that may hold its account-plugin store (rpm/): the MSIX package's redirected roaming
- * folder, then a plain install's %APPDATA%\Claude. Both are derived from `home`, so a fixture home never reads the real one.
- * shortcut: Windows layouts only (the one verified, 2026-11-03); add macOS ~/Library/Application Support/Claude when a Mac runs this.
+ * folder, each build's identity dir under %LOCALAPPDATA%\Claude-Data (the Store build keeps rpm/ there, not in the package;
+ * path facts as the shop PC MECHANICS session listed them, 2026-11-05), then a plain install's %APPDATA%\Claude. All derived
+ * from `home`, so a fixture home never reads the real one. The caller keeps the one store with the newest manifest.
+ * shortcut: Windows layouts only (MSIX package seen 2026-11-03, Claude-Data as reported 2026-11-05); add macOS
+ * ~/Library/Application Support/Claude when a Mac runs this.
  */
 function desktopAppDataDirs(home) {
-  const packages = join(home, "AppData", "Local", "Packages");
-  const msix = existsSync(packages)
-    ? readdirSync(packages).filter((n) => n.startsWith("Claude_")).map((n) => join(packages, n, "LocalCache", "Roaming", "Claude"))
-    : [];
-  return [...msix, join(home, "AppData", "Roaming", "Claude")];
+  const builds = (dir) => (existsSync(dir) ? readdirSync(dir).filter((n) => DESKTOP_BUILD.test(n)).map((n) => join(dir, n)) : []);
+  const local = join(home, "AppData", "Local");
+  return [
+    ...builds(join(local, "Packages")).map((pkg) => join(pkg, "LocalCache", "Roaming", "Claude")),
+    ...builds(join(local, "Claude-Data")),
+    join(home, "AppData", "Roaming", "Claude"),
+  ];
 }
 
 /** `to` relative to `from`, both resolved through symlinks; null when either does not exist. */
