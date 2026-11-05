@@ -695,6 +695,9 @@ export async function getSystemHealthSnapshot(): Promise<SystemHealthSnapshot> {
         }
       }),
       prisma.runnerNode.findFirst({
+        // Harness rows (lib/services/harness-status.ts) are PCs reporting state, not runners: one must
+        // not read as a live worker.
+        where: { nodeKey: { not: { startsWith: "harness:" } } },
         orderBy: {
           lastHeartbeatAt: "desc"
         }

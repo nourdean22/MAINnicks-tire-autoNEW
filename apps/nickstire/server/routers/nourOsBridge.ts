@@ -29,6 +29,12 @@ export const nourOsBridgeRouter = router({
       return getRecentEvents(input?.limit || 50);
     }),
 
+  /** The three PCs, open PRs and site commits, read from bdnick. Read-only; a failed read throws. */
+  harnessStatus: adminProcedure.query(async () => {
+    const { readHarnessFromBdnick } = await import("../services/harnessStatus");
+    return readHarnessFromBdnick();
+  }),
+
   /** Get shop floor snapshot (work order stats for command deck) */
   shopFloor: adminProcedure.query(async () => {
     const { getWorkOrderStats } = await import("../services/workOrderService");

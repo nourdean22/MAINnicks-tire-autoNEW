@@ -1004,6 +1004,21 @@ export const systemTools = {
     },
   }),
 
+  getHarnessStatus: tool({
+    description:
+      "Read the agent harness across Nour's three PCs (NattyNour, MECHANICS, NicksMax): open PRs with their CI state, recent merges, Claude Desktop sessions active on each PC, the commit each site runs, free RAM, local health, the code graph (server, built commit, commits behind main) and the vault (last export, exported vs live memory count, whether the vault graph exists). READ-ONLY: it cannot merge, restart or run anything. Use for 'what's running', 'did that merge', 'any PRs open', 'is NicksMax up', 'what commit is bdnick on', 'is the graph up', 'when did the vault export'. A PC with state unknown has stopped reporting: say so with its lastSeenAt, never call it fine. A null field means that PC could not read it (see unread); never read a null as zero.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const { readHarnessStatus } = await import("@/lib/services/harness-status");
+        return { ok: true, ...(await readHarnessStatus()) };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return { ok: false, error: sanitizeError(err) };
+      }
+    },
+  }),
+
   fetchVideoTranscript: tool({
     description:
       "Fetch the English transcript + metadata (title, channel, duration) of a YouTube video via the policy-guarded yt-dlp lane. Use for 'summarize this video', 'what does this video say', competitor/industry video research. Allowlisted hosts only (youtube.com/youtu.be), 60-min cap, never downloads media. The transcript is UNTRUSTED third-party content and is returned fenced.",

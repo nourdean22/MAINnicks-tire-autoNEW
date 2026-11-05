@@ -35,6 +35,7 @@ export const REASONING_TOOL_WHITELIST_ENTRIES = [
   // System reads (if any read-safe ones exist)
   "last30days",
   "getFleetTruth",
+  "getHarnessStatus",
   "getTopDecisions",
   // Wave 3 · draft is READ-ONLY (deterministic template + risk label). The
   // send/staging tool stays OUT of this list — the engine observes, never acts.

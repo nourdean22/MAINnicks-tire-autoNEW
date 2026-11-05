@@ -12,4 +12,6 @@ export const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
   "instagramStudio.brandedPhoto",
   // Admin assistant: up to five model rounds plus tool reads; batched, it would hold the page's reads.
   "nickActions.ask",
+  // Reads bdnick over HTTP with an 8 s timeout, polled every minute on Settings: batched, a slow bdnick holds the tab.
+  "nourOsBridge.harnessStatus",
 ]);

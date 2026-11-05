@@ -94,6 +94,7 @@ vi.mock("@/components/system/tool-usage-census-panel", () => ({ ToolUsageCensusP
 vi.mock("@/components/system/evidence-gate-panel", () => ({ EvidenceGatePanel: none }));
 vi.mock("@/components/system/observability-status-panel", () => ({ ObservabilityStatusPanel: none }));
 vi.mock("@/components/system/owner-panel", () => ({ OwnerPanel: none }));
+vi.mock("@/components/system/harness-panel", () => ({ HarnessPanel: none }));
 vi.mock("@/components/system/stale-data-panel", () => ({ StaleDataPanel: none }));
 
 import SystemPage from "@/app/(mastery)/system/page";

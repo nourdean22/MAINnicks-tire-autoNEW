@@ -30,6 +30,7 @@ const h = vi.hoisted(() => {
   return { q, proc };
 });
 
+vi.mock("@/pages/admin/settings/HarnessCard", () => ({ default: () => null }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     adminDashboard: { stats: h.proc("adminDashboard.stats") },

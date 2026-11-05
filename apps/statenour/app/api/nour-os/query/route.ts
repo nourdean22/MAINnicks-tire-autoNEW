@@ -28,6 +28,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
  *   • narrator_last       — current narrator voice + headline
  *   • brain_health        — memory counts + vector coverage + confidence
  *   • pulse               — compact single-payload with all key signals
+ *   • harness_status      — the three PCs, open PRs, site commits (nickstire /admin Harness card)
  */
 
 // v10.0.44 — switched from `header === syncKey` to constant-time
@@ -284,6 +285,11 @@ async function handleQuery(
       };
     }
 
+    case "harness_status": {
+      const { readHarnessStatus } = await import("@/lib/services/harness-status");
+      return readHarnessStatus();
+    }
+
     default:
       throw new Error(`Unknown query: ${query}`);
   }
@@ -345,6 +351,7 @@ export async function GET() {
         { name: "narrator_last", returns: "latest narrator voice + headline" },
         { name: "brain_health", returns: "memory/vector counts, freshness" },
         { name: "pulse", returns: "compact single-payload personal pulse" },
+        { name: "harness_status", returns: "the three PCs, open PRs, site commits" },
       ],
       auth: "x-sync-key header · STATENOUR_SYNC_KEY env var",
     },

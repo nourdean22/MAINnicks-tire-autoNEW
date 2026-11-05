@@ -1108,6 +1108,17 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return o?.elementsCount ? `${o.elementsCount} elements observed` : null;
     },
   },
+  getHarnessStatus: {
+    label: "Checking the harness",
+    doneLabel: "Harness checked",
+    runningLabel: "Checking the harness…",
+    icon: HeartPulse,
+    color: "sky",
+    subtitle: (out) => {
+      const o = out as { ok?: boolean; reporting?: number; pcs?: unknown[] } | null;
+      return o?.ok && o.pcs ? `${o.reporting} of ${o.pcs.length} PCs reporting` : null;
+    },
+  },
   // Typed cards (W6 PR 1): bodies and schemas in typed-cards.tsx.
   getFleetTruth: {
     label: "Checking the fleet",

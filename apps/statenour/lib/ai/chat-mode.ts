@@ -872,6 +872,12 @@ export async function pruneTools(
     addMatching(/getExternalWorker/i);
   }
 
+  // Harness status. Nour's words for it: "what's running", "did that merge". No bare "running" or
+  // "merge": a tire shop runs and merges plenty that is not this. The PC names are in-house words.
+  if (/\b(harness|code graph|graphify|graph (up|down|server)|vault|obsidian export|what'?s running|what is running|did .{0,30}\bmerge|did (that|it|this) (land|ship|go through)|(open|any|my|which) (prs?|pull requests?)|prs? open|is (that|it) (merged|live)|nicksmax|nattynour|(mechanics|shop pc|lot pc|front.?desk pc)\b.{0,30}\b(ram|up|down|online|reporting)|(ram|memory)\b.{0,30}\b(free|left)\b.{0,30}\b(mechanics|pc)|(shop|lot|front.?desk) pc|what (commit|sha|version)\b.{0,40}\b(bdnick|nickstire|site|live|running|deployed)|which (pc|machine)s?)\b/.test(text)) {
+    addMatching(/getHarnessStatus/i);
+  }
+
   // #11 · Competitive intelligence. "competitive analysis", "where are we
   // weak", "market position". No family covered competitive intent.
   if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/.test(text)) {
