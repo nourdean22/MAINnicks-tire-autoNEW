@@ -18,7 +18,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 90: 44 repo-specific + 20 always-on stance files + 26 vendored (SOURCE.md in each); invoke by exact name).
+- **Skills** (`.claude/skills/`, 106: 44 repo-specific + 20 always-on stance files + 42 vendored (SOURCE.md in each); invoke by exact name).
   `nour-command` is the cross-cutting router; each `SKILL.md` has its own trigger; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing any report → **answer-first**;
     recurring business/platform reports → `docs/reporting/REPORT-SKILL-SUITE.md` + the narrow reporting skill.
