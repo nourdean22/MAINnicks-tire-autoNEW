@@ -3,11 +3,13 @@
 ## The two jobs, and why one file could not do both
 
 `scripts/export-brain-to-obsidian.ts` writes category **rollup markdown** into the
-vault. It caps each category at `slice(0, 100)` so Obsidian does not choke on a
-huge note, and it filters `deletedAt: null`.
-
-That cap is **correct for reading**. It also means the vault is not a backup.
-Measured 2026-08-16:
+vault and filters `deletedAt: null`. Since 2026-11-05 it drops nothing for size:
+a category over 200 memories is split into `<CATEGORY>.md`, `<CATEGORY>_PART_002.md`,
+and so on (oldest first, so a new memory only rewrites the last page), a rerun
+removes pages the data no longer fills, and a run whose exported count is below
+the live count fails. The text below is the pre-2026-11-05 state: a 100-per-category
+cap that kept Obsidian from choking on a huge note and meant the vault was not a
+backup. Measured 2026-08-16:
 
 ```
 live memories .................. 18027
