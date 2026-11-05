@@ -337,6 +337,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "scrapeWebPage",                category: "research",       battle: true,  cost: "cheap",  riskClass: "low", requiredEnv: ["FIRECRAWL_API_KEY"] },
   { name: "getTopDecisions",              category: "business_read",  battle: true,  cost: "cheap",  riskClass: "low" },
   { name: "getFleetTruth",                category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
+  { name: "getHarnessStatus",             category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
   { name: "fetchVideoTranscript",         category: "research",       battle: true,  cost: "cheap",  riskClass: "low" },
   // 2026-08-13 · BDN-201/207 · mid-turn recovery lane + read-only sandbox.
   // invokeTool proxies READ-SAFE tools only (fail-closed via

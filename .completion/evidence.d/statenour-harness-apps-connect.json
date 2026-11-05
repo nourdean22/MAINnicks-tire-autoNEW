@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending: the Settings > Status Harness card shows UNKNOWN for all three PCs until they report, so a live walkthrough waits on the machine install. The same layout was checked at 375 px on the bdnick card with a fixture: no sideways scroll."
+    },
+    "capability-ledger-updated": {
+      "ref": "capability-ledger.json harness-in-both-apps added at exposure disabled, with REALITY-LEDGER.md rendered"
+    }
+  }
+}

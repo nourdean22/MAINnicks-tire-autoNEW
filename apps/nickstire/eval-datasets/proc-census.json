@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-01T01:32:27.128Z",
-  "count": 658,
+  "generatedAt": "2026-11-05T15:30:05.158Z",
+  "count": 659,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -523,6 +523,7 @@
     "query.nickActions.cronHealthSummary",
     "query.nickActions.customerMessagePreviews",
     "query.nickActions.shopPulse",
+    "query.nourOsBridge.harnessStatus",
     "query.nourOsBridge.outboxCompleteness",
     "query.nourOsBridge.recentEvents",
     "query.nourOsBridge.shopFloor",

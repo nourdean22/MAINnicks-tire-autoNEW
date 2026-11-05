@@ -52,6 +52,7 @@ vi.mock("@/components/system/agenda-desk", () => ({ AgendaDesk: none }));
 vi.mock("@/components/system/hub-grid", () => ({ SystemHubGrid: mark("hub") }));
 vi.mock("@/components/system/outbox-redrive-row", () => ({ OutboxRedriveRow: mark("outbox") }));
 vi.mock("@/components/system/owner-panel", () => ({ OwnerPanel: mark("owner") }));
+vi.mock("@/components/system/harness-panel", () => ({ HarnessPanel: mark("harness") }));
 vi.mock("@/components/ultron/observability/observability-row", () => ({ ObservabilityRow: mark("observability") }));
 vi.mock("@/components/ai/page-nick", () => ({ PageNick: mark("nick") }));
 vi.mock("@/components/system/wiring-census-panel", () => ({ WiringCensusPanel: mark("wiring") }));

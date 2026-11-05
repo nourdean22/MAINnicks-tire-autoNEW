@@ -168,6 +168,12 @@ export const healthProcedures = {
    */
   healthSummary: operatorProcedure.query(async () => buildSystemHealth()),
 
+  /** The three PCs, open PRs and site commits from the PCs' own snapshots. Read-only; a failed read throws. */
+  harnessStatus: operatorProcedure.query(async () => {
+    const { readHarnessStatus } = await import("@/lib/services/harness-status");
+    return readHarnessStatus();
+  }),
+
   /**
    * Returns the latest evaluated health governor decision.
    */
