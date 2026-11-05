@@ -1,3 +1,4 @@
+import { NOT_HARNESS_NODE } from "@/lib/services/harness-status";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getDailyCommandBrief } from "@/lib/services/dashboard";
@@ -56,6 +57,7 @@ async function computeCommandData() {
     fetchShopSnapshot().catch((): null => null),
     prisma.runnerNode
       .findFirst({
+        where: NOT_HARNESS_NODE,
         orderBy: { lastHeartbeatAt: "desc" },
         select: { lastHeartbeatAt: true, status: true, label: true },
       })

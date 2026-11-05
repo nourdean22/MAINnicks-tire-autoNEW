@@ -175,7 +175,7 @@ if (requireFile("CLAUDE.md", "Claude Code adapter")) {
   requireThin("CLAUDE.md", 60);
 }
 // ── 2a · Agent core (2026-10-11): soul, identity, operator profile, constitution ─────────
-// Loaded in every session through ONE import chain: CLAUDE.md / GEMINI.md -> CORE.md -> the four
+// Loaded in every session through ONE import chain: CLAUDE.md / GEMINI.md -> CORE.md -> the five
 // files. Each link must be a bare @ line (a markdown link loads nothing), and each file is capped
 // because every line is paid for in every conversation. Drop any link and the operator's voice and
 // profile silently stop loading while every other check stays green.
@@ -183,7 +183,7 @@ if (requireFile(".agents/core/CORE.md", "agent core index (imports soul, identit
   requireMatch("CLAUDE.md", /^@\.agents\/core\/CORE\.md$/m, "must IMPORT the agent core on its own @ line");
   requireMatch("GEMINI.md", /^@\.agents\/core\/CORE\.md$/m, "must import the agent core via memport");
   requireThin(".agents/core/CORE.md", 30);
-  for (const [f, cap] of [["SOUL.md", 50], ["IDENTITY.md", 35], ["USER.md", 70], ["CONSTITUTION.md", 35]]) {
+  for (const [f, cap] of [["SOUL.md", 50], ["IDENTITY.md", 35], ["USER.md", 70], ["CONSTITUTION.md", 35], ["STANDING-ORDERS.md", 60]]) {
     // Not named p: the capped-file invariant in adapters.test.mjs resolves an identifier passed to
     // requireThin through the FIRST same-named template binding in this file, so reusing p would hijack it.
     const corePath = `.agents/core/${f}`;

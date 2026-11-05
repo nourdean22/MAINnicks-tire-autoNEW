@@ -35,6 +35,8 @@ export interface ObsidianEngineStatus {
   lastDoctorRunAt: string | null;
   lastIngestRunAt: string | null;
   lastExportRunAt: string | null;
+  /** Memories written to the vault by the last export run (counts only). */
+  lastExportCount?: number;
   /** Updated by watch mode only. Lets the cloud UI distinguish a live daemon from stale history. */
   daemonHeartbeatAt?: string | null;
   /** Advances only when doctor -> ingest -> export -> doctor all succeed. */

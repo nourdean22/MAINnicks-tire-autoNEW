@@ -4,6 +4,13 @@
  * Queries active life goals, missions, reflections, and memories from the
  * Statenour database and writes them as structured markdown files in the Obsidian Vault.
  *
+ * Memory rollups: every live memory is written, in pages of ROLLUP_PAGE_SIZE per
+ * category (lib/obsidian/memory-rollup.ts). Excluded: keys starting `obsidian_`
+ * (they came from the vault) and the morning_brief_audio / suggestion_hypothesis
+ * categories. archive_document and gmail_* are included since 2026-11-05; they
+ * cannot loop back (the vault ingest skips Statenour/ and sync_direction none).
+ * A run that exports fewer memories than it counted fails (exit code 1).
+ *
  * Run: pnpm tsx scripts/export-brain-to-obsidian.ts [--memory-mode=rollup|individual]
  */
 
@@ -15,11 +22,18 @@ import { ObsidianEngineStatus, EngineIssue } from "../lib/obsidian/types";
 import {
   createNotePathClaimer,
   hasIdenticalNewestConflict,
+  isNoteHandEdited,
+  parseFrontmatter,
   planNoteWrite,
   pruneConflictDir,
   sanitizeFilename,
 } from "../lib/obsidian/note-writer";
-import { pickNewestIdsPerCategory } from "../lib/obsidian/memory-rollup";
+import {
+  exportShortfall,
+  findStalePageFiles,
+  pageIdsByCategory,
+  rollupPageFilename,
+} from "../lib/obsidian/memory-rollup";
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
@@ -312,92 +326,124 @@ async function main() {
           { key: { startsWith: "obsidian_" } },
           { category: "morning_brief_audio" },
           { category: "suggestion_hypothesis" },
-          { category: "ARCHIVE_DOCUMENT" },
-          { category: "GMAIL_THREAD" },
-          { category: "GMAIL_OUTGOING" },
-          { category: "archive_document" },
-          { category: "gmail_thread" },
-          { category: "gmail_outgoing" },
         ],
       },
     };
 
-    // Rollup is a READING surface, not the backup. Before 2026-09-28 this
-    // loaded every full BrainMemory row (~36k live rows in production) and
-    // then discarded everything beyond the newest 100/category below. Neon
-    // pg_stat_statements measured 744 executions returning ~26.5M rows.
-    //
-    // Keep the proven fast ordered scan, but make it narrow first. Then fetch
-    // full payloads only for the IDs the rollup can actually render. Individual
-    // mode intentionally remains complete; export-brain-archive.ts owns backup.
-    const memories = memoryMode === "rollup"
-      ? await (async () => {
-          const candidates = await prisma.brainMemory.findMany({
-            where: memoryWhere,
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            select: { id: true, category: true },
-          });
-          const selectedIds = pickNewestIdsPerCategory(candidates, 100);
-          if (selectedIds.length === 0) return [];
-          return prisma.brainMemory.findMany({
-            where: { id: { in: selectedIds } },
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          });
-        })()
-      : await prisma.brainMemory.findMany({
-          where: memoryWhere,
-          // Secondary id sort keeps the rendered order stable when createdAt
-          // ties — an order flip would read as a content change and rewrite.
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        });
-
-    // Group memories by category
-    const grouped: Record<string, typeof memories> = {};
-    for (const mem of memories) {
-      if (!grouped[mem.category]) {
-        grouped[mem.category] = [];
-      }
-      grouped[mem.category].push(mem);
-    }
+    // Live memories the filter above selects. Every one of them must reach a
+    // note (checked after the write loop); a shortfall fails the run.
+    const liveCount = await prisma.brainMemory.count({ where: memoryWhere });
+    // Rows the id scan saw: the same snapshot the pages are cut from. Rows that
+    // arrive between the count and the scan must not forgive a failed page, so
+    // the bar is the larger of the two.
+    let scannedCount = 0;
+    const expectedCount = () => Math.max(liveCount, scannedCount);
 
     if (memoryMode === "rollup") {
-      // Rollup Mode: Export as single category log files
-      for (const category of Object.keys(grouped)) {
-        const catMemories = grouped[category];
-        const cleanCatName = category.toUpperCase().replace(/[^A-Z0-9_]+/g, "_");
-        const filename = `${cleanCatName}.md`;
+      // Rollup is a READING surface; export-brain-archive.ts owns the backup.
+      // No memory is dropped for size: ids are scanned narrow (id + category,
+      // oldest first), split into pages of ROLLUP_PAGE_SIZE per category, and
+      // full payloads are fetched one page at a time so memory stays bounded.
+      // Oldest-first fixed pages mean a new memory only changes its category's
+      // last page; earlier pages stay byte-identical and are skipped.
+      const candidates = await prisma.brainMemory.findMany({
+        where: memoryWhere,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, category: true },
+      });
+      scannedCount = candidates.length;
+      const pagesByCategory = pageIdsByCategory(candidates);
+      const intendedFiles = new Set<string>();
+      let pageCount = 0;
 
-        const metadata = {
-          title: `Brain Memories Rollup: ${cleanCatName}`,
-          type: "memory_rollup",
-          category: category,
-          source: "statenour",
-          sync_direction: "none",
-        };
+      for (const [catName, pages] of pagesByCategory) {
+        for (let i = 0; i < pages.length; i++) {
+          const pageNumber = i + 1;
+          const pageMemories = await prisma.brainMemory.findMany({
+            where: { id: { in: pages[i] } },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          });
+          const filename = rollupPageFilename(catName, pageNumber);
+          intendedFiles.add(filename);
+          pageCount++;
 
-        // No "Last Synced" line in the body: the body must be deterministic for
-        // unchanged data or every run rewrites every rollup (frontmatter
-        // last_synced_at carries the sync time)
-        let body = `# 🧠 Brain Memories: ${cleanCatName}\n\n`;
+          const metadata = {
+            title: pageNumber === 1 ? `Brain Memories Rollup: ${catName}` : `Brain Memories Rollup: ${catName} part ${pageNumber}`,
+            type: "memory_rollup",
+            category: catName,
+            page: pageNumber,
+            source: "statenour",
+            sync_direction: "none",
+          };
 
-        // Cap to 100 most recent items to prevent Obsidian from freezing on huge files
-        for (const mem of catMemories.slice(0, 100)) {
-          body += `## Key: ${mem.key}\n`;
-          body += `- **Created:** ${mem.createdAt.toLocaleString()}\n`;
-          body += `- **Confidence:** ${mem.confidence}\n\n`;
-          body += `### Content:\n\`\`\`\n${mem.content}\n\`\`\`\n\n`;
-          
-          if (mem.metadata) {
-            body += `#### Metadata:\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n\n`;
+          // No "Last Synced" line in the body: the body must be deterministic for
+          // unchanged data or every run rewrites every rollup (frontmatter
+          // last_synced_at carries the sync time)
+          let body = pageNumber === 1
+            ? `# 🧠 Brain Memories: ${catName}\n\n`
+            : `# 🧠 Brain Memories: ${catName} (part ${pageNumber})\n\n`;
+
+          for (const mem of pageMemories) {
+            body += `## Key: ${mem.key}\n`;
+            body += `- **Created:** ${mem.createdAt.toLocaleString()}\n`;
+            body += `- **Confidence:** ${mem.confidence}\n\n`;
+            body += `### Content:\n\`\`\`\n${mem.content}\n\`\`\`\n\n`;
+
+            if (mem.metadata) {
+              body += `#### Metadata:\n\`\`\`json\n${JSON.stringify(mem.metadata, null, 2)}\n\`\`\`\n\n`;
+            }
+            body += `---\n\n`;
           }
-          body += `---\n\n`;
-          exportedMemories++;
-        }
 
-        const success = safeWriteNote(path.join(memoriesDir, filename), metadata, body);
+          // Count only memories that really reached the vault (a conflict or a failed write does not).
+          if (safeWriteNote(path.join(memoriesDir, filename), metadata, body)) {
+            exportedMemories += pageMemories.length;
+          }
+        }
       }
-      console.log(`    └─ ✅ Synced all active memories into ${Object.keys(grouped).length} category markdown logs`);
+      console.log(`    └─ ✅ ${exportedMemories} memories in ${pageCount} rollup notes across ${pagesByCategory.size} categories`);
+
+      // Pages the data no longer fills (a category shrank). Only on a clean run,
+      // and only files named like our pages AND carrying our rollup frontmatter.
+      if (exportShortfall(expectedCount(), exportedMemories) === 0 && exportFailed === 0) {
+        let removed = 0;
+        for (const stale of findStalePageFiles(fs.readdirSync(memoriesDir), intendedFiles)) {
+          const full = path.join(memoriesDir, stale);
+          try {
+            const raw = fs.readFileSync(full, "utf-8");
+            const meta = parseFrontmatter(raw).metadata;
+            // Only our own pages, with a stored hash, that nobody edited in Obsidian.
+            if (meta.type !== "memory_rollup" || !meta.hash) continue;
+            if (isNoteHandEdited(raw)) {
+              console.warn(`    └─ ⚠️ Stale rollup page ${stale} was edited by hand; kept, not removed.`);
+              continue;
+            }
+            fs.unlinkSync(full);
+            removed++;
+          } catch (err) {
+            // locked or raced: it stays for the next run
+            console.warn(`    └─ ⚠️ Could not remove stale rollup page ${stale}:`, err);
+          }
+        }
+        if (removed > 0) console.log(`    └─ 🧹 removed ${removed} stale rollup page(s)`);
+      }
     } else {
+      const memories = await prisma.brainMemory.findMany({
+        where: memoryWhere,
+        // Secondary id sort keeps the rendered order stable when createdAt
+        // ties — an order flip would read as a content change and rewrite.
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      });
+
+      // Group memories by category
+      const grouped: Record<string, typeof memories> = {};
+      for (const mem of memories) {
+        if (!grouped[mem.category]) {
+          grouped[mem.category] = [];
+        }
+        grouped[mem.category].push(mem);
+      }
+
       // Individual Mode: Export each memory as an individual markdown file
       for (const category of Object.keys(grouped)) {
         const catMemories = grouped[category];
@@ -432,6 +478,18 @@ async function main() {
         }
       }
       console.log(`    └─ ✅ ${exportedMemories} individual memory notes written to Statenour/Memories/`);
+    }
+
+    // Exported-vs-live: a shortfall is a failure, never a pass. Counts only.
+    const expected = expectedCount();
+    const shortfall = exportShortfall(expected, exportedMemories);
+    if (shortfall > 0) {
+      console.error(`    └─ ❌ Memory shortfall: ${exportedMemories} exported of ${expected} expected (${liveCount} live, ${scannedCount} scanned; ${shortfall} missing)`);
+      exportFailed++;
+      // Independent of the status file: a failed status write or a direct tsx run must not look like success.
+      process.exitCode = 1;
+    } else {
+      console.log(`    └─ ✅ Memory coverage: ${exportedMemories} exported of ${expected} expected (${liveCount} live)`);
     }
   } catch (err) {
     console.error("    └─ ❌ Failed to export Brain Memories:", err);
@@ -468,7 +526,13 @@ async function main() {
       }
     }
 
-    const hasFailures = exportFailed > 0 || (existingStatus ? existingStatus.health === "error" : false);
+    // An older "error" survives only when a doctor/ingest FAIL issue backs it. A
+    // bare "error" with no FAIL issue is a past export failure, which this run's
+    // own result replaces (it stuck forever and failed every run after 2026-11-03).
+    const inheritedError = existingStatus
+      ? existingStatus.health === "error" && existingStatus.issues.some(issue => issue.type === "FAIL")
+      : false;
+    const hasFailures = exportFailed > 0 || inheritedError;
     const health = hasFailures ? "error" : (exportConflicts.length > 0 || (existingStatus ? existingStatus.health === "degraded" : false) ? "degraded" : "healthy");
 
     const statusPayload: ObsidianEngineStatus = {
@@ -477,6 +541,7 @@ async function main() {
       lastDoctorRunAt: existingStatus ? existingStatus.lastDoctorRunAt : null,
       lastIngestRunAt: existingStatus ? existingStatus.lastIngestRunAt : null,
       lastExportRunAt: new Date().toISOString(),
+      lastExportCount: exportedMemories,
       stats: {
         totalNotes: existingStatus ? existingStatus.stats.totalNotes : (exportedGoals + exportedMissions + exportedReflections + exportedMemories),
         processed: exportedGoals + exportedMissions + exportedReflections + exportedMemories,

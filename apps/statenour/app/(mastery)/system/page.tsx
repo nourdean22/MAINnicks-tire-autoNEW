@@ -40,6 +40,7 @@ import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-pane
 import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
 import { OwnerPanel } from "@/components/system/owner-panel";
+import { HarnessPanel } from "@/components/system/harness-panel";
 import { DetailFold } from "@/components/system/detail-fold";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { StaleDataPanel } from "@/components/system/stale-data-panel";
@@ -347,6 +348,9 @@ export default function SystemPage() {
           evidence, decisions waiting, cost per outcome. Platform verdict above,
           owner verdict here; both list only exceptions. */}
       <OwnerPanel />
+
+      {/* 2026-11-05 · the three PCs, open PRs and what each site runs. A silent PC reads UNKNOWN. */}
+      <HarnessPanel />
 
       {/* Ops telemetry, cost SLO · voice latency · eval pass · drift */}
       <ObservabilityRow />

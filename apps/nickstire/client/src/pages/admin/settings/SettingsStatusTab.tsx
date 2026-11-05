@@ -48,6 +48,7 @@ import { PageHeader, KpiTile, Panel, ErrorState } from "../shared";
 import { timeAgoShort } from "../shared/format";
 import type { CronHealthSummary, CronJobSummary } from "./cron-issues";
 import { pauseSwitchLabel, pausedSince } from "./pauseSwitches";
+import HarnessCard from "./HarnessCard";
 
 // ─── Open Issue types ────────────────────────────────────
 
@@ -400,6 +401,8 @@ export default function SettingsStatusTab({ onOpenPauseSwitches }: { onOpenPause
           />
         </div>
       </Panel>
+
+      <HarnessCard />
 
       {/* ── Scheduled work (2026-10-26) ─────────────────────
           Replaces the flat 80-run log: one row per job over 24 h, failures first,

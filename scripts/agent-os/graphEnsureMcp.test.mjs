@@ -17,7 +17,6 @@ const ROOT = resolve(HERE, "..", "..");
 const SCRIPT = join(HERE, "graph-ensure-mcp.mjs");
 const STUB = join(HERE, "fixtures", "mcp-stub.mjs");
 const SETTINGS = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
-const BOOTSTRAP_SRC = readFileSync(join(HERE, "bootstrap-machine.mjs"), "utf8");
 const HOST = (process.env.COMPUTERNAME || hostname()).toUpperCase();
 const SCRATCH = mkdtempSync(join(tmpdir(), "graph-ensure-test-"));
 const pids = [];
@@ -268,9 +267,9 @@ test("the probe budget is 3 s: the `not verified` line's own ms figure stays und
 
 test("the user-level entry bootstrap writes has the same timeout as the repo registration (15)", () => {
   const repo = (SETTINGS.hooks.SessionStart ?? []).flatMap((g) => g.hooks ?? []).find((h) => h.command.includes("graph-ensure-mcp.mjs")).timeout;
-  const m = /key: "graph-ensure-mcp\.mjs",[^\n]*timeout: (\d+)/.exec(BOOTSTRAP_SRC);
-  assert.ok(m, "bootstrap must register graph-ensure-mcp.mjs with a timeout");
-  assert.equal(Number(m[1]), repo);
+  const entry = JSON.parse(readFileSync(join(HERE, "..", "..", "config", "agent-os", "user-layer.json"), "utf8")).hooks.find((h) => h.key === "graph-ensure-mcp.mjs");
+  assert.ok(entry, "the layer must register graph-ensure-mcp.mjs");
+  assert.equal(entry.timeout, repo);
 });
 
 // The launcher itself (local-mcp-servers.ps1): a recorded pid that is alive, named python/graphify and younger than 45 s is

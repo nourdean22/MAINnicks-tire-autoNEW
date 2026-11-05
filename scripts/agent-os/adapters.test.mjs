@@ -73,6 +73,7 @@ const FIXTURE_FILES = [
   ".agents/core/IDENTITY.md",
   ".agents/core/USER.md",
   ".agents/core/CONSTITUTION.md",
+  ".agents/core/STANDING-ORDERS.md",
   "config/agent-os/required-plugins.json",
 ];
 
@@ -259,6 +260,27 @@ canary(
   "GEMINI.md",
   (s) => s.replace(/^@\.agents\/core\/CORE\.md$/m, "see .agents/core/CORE.md"),
   "must import the agent core via memport",
+);
+
+canary(
+  "CORE.md must IMPORT STANDING-ORDERS.md on its own @ line",
+  ".agents/core/CORE.md",
+  (s) => s.replace(/^@STANDING-ORDERS\.md$/m, "[STANDING-ORDERS.md](STANDING-ORDERS.md)"),
+  "CORE.md must IMPORT STANDING-ORDERS.md",
+);
+
+canary(
+  "STANDING-ORDERS.md over its line cap fails",
+  ".agents/core/STANDING-ORDERS.md",
+  (s) => s + "\nline\n".repeat(30),
+  "STANDING-ORDERS.md is",
+);
+
+canary(
+  "a STANDING-ORDERS.md line over 140 chars fails",
+  ".agents/core/STANDING-ORDERS.md",
+  (s) => s + "\n" + "x".repeat(141) + "\n",
+  "STANDING-ORDERS.md",
 );
 
 canary(

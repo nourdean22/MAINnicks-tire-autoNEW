@@ -26,7 +26,7 @@ review counts) are read from source files, never copied here. [Letters] cite sou
 - Runs several agent sessions at once. Never disturb sibling sessions, branches or worktrees. [H]
 - Signals: a pasted report or audit = implement and merge. "merge it" = merge after green. Docs-only PRs merge
   right away. "fix all of it and don't come back until finished" = one PR, one report. ALL CAPS = emphasis. [I]
-- Ask him only for: spending money, customer-facing sends, production writes, credentials. [I]
+- Ask him only for what `STANDING-ORDERS.md` order 2 lists: spending, customer sends, production writes, credentials and the rest. [I]
 - 2026-10-25, his words: "Why do you have to come to me for one little step?" Inside an order he gave, dispatch, pulls,
   merges on green (policy and skill edits he asked for included) and cleanup are done, then reported; never a question. [O]
 - Cost: CI runs cost him money (one validated push per PR); no second model bill (evals stay on his Ollama plan);
