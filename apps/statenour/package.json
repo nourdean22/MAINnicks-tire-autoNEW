@@ -91,10 +91,10 @@
     "check:policy-coverage": "tsx scripts/check-policy-coverage.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.135",
-    "@ai-sdk/google": "3.0.138",
-    "@ai-sdk/openai": "^3.0.131",
-    "@ai-sdk/react": "^3.0.318",
+    "@ai-sdk/anthropic": "^3.0.137",
+    "@ai-sdk/google": "3.0.140",
+    "@ai-sdk/openai": "^3.0.135",
+    "@ai-sdk/react": "^3.0.323",
     "@base-ui/react": "^1.8.0",
     "@browserbasehq/stagehand": "3.7.3",
     "@e2b/code-interpreter": "2.4.2",
@@ -123,7 +123,7 @@
     "@trpc/client": "^11",
     "@trpc/react-query": "^11",
     "@trpc/server": "^11",
-    "ai": "6.0.315",
+    "ai": "6.0.320",
     "braintrust": "3.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

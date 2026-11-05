@@ -21,11 +21,11 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@remotion/bundler": "4.0.538",
-    "@remotion/renderer": "4.0.538",
+    "@remotion/bundler": "4.0.539",
+    "@remotion/renderer": "4.0.539",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "remotion": "4.0.538"
+    "remotion": "4.0.539"
   },
   "devDependencies": {
     "@types/node": "25.9.4",
