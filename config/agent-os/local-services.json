@@ -13,7 +13,7 @@
   "machines": [
     { "name": "NATTYNOUR", "role": "operator laptop, agent host, serves the graphify MCP server", "reach": "local", "evidence": "hostname" },
     { "name": "NicksMax", "role": "always-on camera and recovery edge; no heavy services", "reach": "Tailscale + SSH on the tailnet interface", "evidence": "docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md:36-55" },
-    { "name": "MECHANICS", "role": "shop front-desk PC, office intelligence lane", "reach": "Tailscale (mechanics, 100.98.25.123, signed in 2026-11-03) + Chrome Remote Desktop", "evidence": "docs/agent-os/MACHINE-SYNC.md (its session, 2026-11-03); agent memory office-lane-shop-pc.md" },
+    { "name": "MECHANICS", "role": "shop front-desk PC, office intelligence lane", "reach": "Chrome Remote Desktop", "evidence": "agent memory office-lane-shop-pc.md (CLAIM)" },
     { "name": "iPhone", "role": "operator reads both PWAs", "reach": "internet", "evidence": ".agents/core/USER.md" }
   ],
   "sites": [
