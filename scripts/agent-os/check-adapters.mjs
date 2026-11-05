@@ -175,7 +175,7 @@ if (requireFile("CLAUDE.md", "Claude Code adapter")) {
   requireThin("CLAUDE.md", 60);
 }
 // ── 2a · Agent core (2026-10-11): soul, identity, operator profile, constitution ─────────
-// Loaded in every session through ONE import chain: CLAUDE.md / GEMINI.md -> CORE.md -> the four
+// Loaded in every session through ONE import chain: CLAUDE.md / GEMINI.md -> CORE.md -> the five
 // files. Each link must be a bare @ line (a markdown link loads nothing), and each file is capped
 // because every line is paid for in every conversation. Drop any link and the operator's voice and
 // profile silently stop loading while every other check stays green.

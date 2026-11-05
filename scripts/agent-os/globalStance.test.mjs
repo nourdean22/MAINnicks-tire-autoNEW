@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,9 +13,15 @@ import { targets } from "./global-stance.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, "global-stance.mjs");
 const ORDERS = readFileSync(resolve(HERE, "..", "..", ".agents", "core", "STANDING-ORDERS.md"), "utf8").replaceAll("\r\n", "\n").trim();
-const home = () => mkdtempSync(join(tmpdir(), "stance-test-"));
+const bare = () => mkdtempSync(join(tmpdir(), "stance-test-"));
+const home = () => {
+  const dir = bare();
+  for (const [, file] of targets(dir)) mkdirSync(dirname(file), { recursive: true });
+  return dir;
+};
+const { CLAUDE_CONFIG_DIR: _config, CODEX_HOME: _codex, COPILOT_HOME: _copilot, ...cleanEnv } = process.env;
 const run = (dir, ...args) => {
-  const r = spawnSync(process.execPath, [SCRIPT, "--home", dir, ...args], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [SCRIPT, "--home", dir, ...args], { encoding: "utf8", env: cleanEnv });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
 const claudeFile = (dir) => join(dir, ".claude", "CLAUDE.md");
@@ -24,7 +30,7 @@ const put = (file, text) => { mkdirSync(dirname(file), { recursive: true }); wri
 test("check fails on a home with no stance, and names every program", () => {
   const r = run(home(), "--check");
   assert.equal(r.code, 1);
-  for (const name of ["Claude", "Codex", "Gemini", "Copilot CLI", "VS Code Copilot"]) assert.match(r.out, new RegExp(`${name}: MISSING`));
+  for (const name of ["Claude", "Codex", "Gemini", "Copilot CLI", "VS Code Copilot", "Codex size limit"]) assert.match(r.out, new RegExp(`${name}: MISSING`));
 });
 
 test("install reaches every program, and check then passes", () => {
@@ -77,7 +83,7 @@ test("a file with one marker is never rewritten, and the run fails", () => {
   put(claudeFile(dir), broken);
   const r = run(dir);
   assert.equal(r.code, 1);
-  assert.match(r.out, /Claude: DRIFT, broken markers/);
+  assert.match(r.out, /Claude: DRIFT, cannot be set safely/);
   assert.equal(readFileSync(claudeFile(dir), "utf8"), broken);
 });
 
@@ -124,7 +130,110 @@ test("the VS Code file gets its applyTo header back, and check notices it missin
 test("the Claude target follows CLAUDE_CONFIG_DIR, as bootstrap does", () => {
   const dir = home();
   const other = join(dir, "profile-two");
-  const r = spawnSync(process.execPath, [SCRIPT, "--home", dir], { encoding: "utf8", env: { ...process.env, CLAUDE_CONFIG_DIR: other } });
-  assert.equal(r.status, 0);
+  mkdirSync(other);
+  const r = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8", env: { ...cleanEnv, HOME: dir, USERPROFILE: dir, CLAUDE_CONFIG_DIR: other } });
+  assert.equal(r.status, 0, r.stdout);
   assert.ok(readFileSync(join(other, "CLAUDE.md"), "utf8").includes(ORDERS));
+});
+
+test("--home ignores CLAUDE_CONFIG_DIR, so a test can never write a real CLAUDE.md", () => {
+  const dir = home();
+  const real = bare();
+  const file = join(real, "CLAUDE.md");
+  put(file, "# real\n");
+  const r = spawnSync(process.execPath, [SCRIPT, "--home", dir], { encoding: "utf8", env: { ...cleanEnv, CLAUDE_CONFIG_DIR: real } });
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(readFileSync(file, "utf8"), "# real\n");
+  assert.ok(readFileSync(claudeFile(dir), "utf8").includes(ORDERS));
+});
+
+test("a program that is not on this PC is skipped, not created, and check stays clean", () => {
+  const dir = bare();
+  mkdirSync(join(dir, ".claude"));
+  assert.equal(run(dir).code, 0);
+  const r = run(dir, "--check");
+  assert.equal(r.code, 0, r.out);
+  for (const name of ["Codex", "Gemini", "Copilot CLI", "VS Code Copilot", "Codex size limit"]) assert.match(r.out, new RegExp(`${name}: skip`));
+  assert.match(r.out, /Claude: ok/);
+  for (const absent of [".codex", ".gemini", ".copilot"]) assert.equal(existsSync(join(dir, absent)), false, absent);
+  assert.equal(existsSync(targets(dir).at(-1)[1]), false);
+});
+
+test("VS Code counts as present when its user folder exists, with no prompts folder yet", () => {
+  const dir = bare();
+  mkdirSync(dirname(dirname(targets(dir).at(-1)[1])), { recursive: true });
+  run(dir);
+  assert.ok(readFileSync(targets(dir).at(-1)[1], "utf8").includes(ORDERS));
+});
+
+test("a BOM on the VS Code file is dropped, so the header stays first", () => {
+  const dir = home();
+  const file = targets(dir).at(-1)[1];
+  put(file, "\ufeff# mine\n");
+  run(dir);
+  const text = readFileSync(file, "utf8");
+  assert.ok(text.startsWith('---\napplyTo: "**"\n---\n'));
+  assert.ok(text.includes("# mine") && !text.includes("\ufeff"));
+});
+
+test("a narrowed applyTo is put back to the whole workspace, and check notices it", () => {
+  const dir = home();
+  run(dir);
+  const file = targets(dir).at(-1)[1];
+  writeFileSync(file, readFileSync(file, "utf8").replace('applyTo: "**"', 'applyTo: "**/*.js"'));
+  assert.equal(run(dir, "--check").code, 1);
+  run(dir);
+  const text = readFileSync(file, "utf8");
+  assert.match(text, /^---\napplyTo: "\*\*"\n---\n/);
+  assert.ok(!text.includes("*.js"));
+  assert.equal(run(dir, "--check").code, 0);
+});
+
+test("Gemini's configured context file gets the orders, GEMINI.md does not", () => {
+  const dir = home();
+  put(join(dir, ".gemini", "settings.json"), JSON.stringify({ context: { fileName: ["AGENTS.md", "CONTEXT.md"] } }));
+  run(dir);
+  assert.ok(readFileSync(join(dir, ".gemini", "AGENTS.md"), "utf8").includes(ORDERS));
+  assert.equal(existsSync(join(dir, ".gemini", "GEMINI.md")), false);
+});
+
+test("macOS VS Code uses Application Support, Linux uses .config", () => {
+  assert.match(targets("/h", {}, "darwin").at(-1)[1].replaceAll("\\", "/"), /\/h\/Library\/Application Support\/Code\/User\/prompts\//);
+  assert.match(targets("/h", {}, "linux").at(-1)[1].replaceAll("\\", "/"), /\/h\/\.config\/Code\/User\/prompts\//);
+});
+
+test("a non-empty Codex override gets the orders, because it is the file Codex reads", () => {
+  const dir = home();
+  const override = join(dir, ".codex", "AGENTS.override.md");
+  put(override, "# for today\n");
+  run(dir);
+  assert.ok(readFileSync(override, "utf8").includes(ORDERS));
+  assert.equal(existsSync(join(dir, ".codex", "AGENTS.md")), false);
+});
+
+test("an empty Codex override is ignored", () => {
+  const dir = home();
+  put(join(dir, ".codex", "AGENTS.override.md"), "");
+  run(dir);
+  assert.ok(readFileSync(join(dir, ".codex", "AGENTS.md"), "utf8").includes(ORDERS));
+});
+
+test("the Codex size limit lands first in config.toml and keeps his settings", () => {
+  const dir = home();
+  const config = join(dir, ".codex", "config.toml");
+  put(config, 'model = "x"\n\n[tui]\ntheme = "dark"\n');
+  assert.equal(run(dir, "--check").code, 1);
+  run(dir);
+  assert.equal(readFileSync(config, "utf8"), 'project_doc_max_bytes = 65536\nmodel = "x"\n\n[tui]\ntheme = "dark"\n');
+  assert.equal(run(dir, "--check").code, 0);
+});
+
+test("a lower Codex limit is reported and left for him to change", () => {
+  const dir = home();
+  const config = join(dir, ".codex", "config.toml");
+  put(config, "project_doc_max_bytes = 1024\n");
+  const r = run(dir);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Codex size limit: DRIFT/);
+  assert.equal(readFileSync(config, "utf8"), "project_doc_max_bytes = 1024\n");
 });

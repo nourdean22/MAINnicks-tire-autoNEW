@@ -263,6 +263,27 @@ canary(
 );
 
 canary(
+  "CORE.md must IMPORT STANDING-ORDERS.md on its own @ line",
+  ".agents/core/CORE.md",
+  (s) => s.replace(/^@STANDING-ORDERS\.md$/m, "[STANDING-ORDERS.md](STANDING-ORDERS.md)"),
+  "CORE.md must IMPORT STANDING-ORDERS.md",
+);
+
+canary(
+  "STANDING-ORDERS.md over its line cap fails",
+  ".agents/core/STANDING-ORDERS.md",
+  (s) => s + "\nline\n".repeat(30),
+  "STANDING-ORDERS.md is",
+);
+
+canary(
+  "a STANDING-ORDERS.md line over 140 chars fails",
+  ".agents/core/STANDING-ORDERS.md",
+  (s) => s + "\n" + "x".repeat(141) + "\n",
+  "STANDING-ORDERS.md",
+);
+
+canary(
   "CORE.md must IMPORT SOUL.md on its own @ line",
   ".agents/core/CORE.md",
   (s) => s.replace(/^@SOUL\.md$/m, "[SOUL.md](SOUL.md)"),
