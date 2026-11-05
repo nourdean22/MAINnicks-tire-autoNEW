@@ -55,3 +55,6 @@ b5c9ab82ebaea69b029d001a0aa76b162d5807ef:apps/statenour/tests/ai/code-sandbox-es
 # signature canary, declared as a single high-entropy string constant (never a credential).
 # The next commits replaced it with a low-entropy fake value. Pinned to that one commit/line.
 5ed51655bda891e0998e67e5a83945513e6feb0d:apps/nickstire/server/routes/webhooks/vapi.signature.test.ts:generic-api-key:48
+
+# 2026-11-05: a fake placeholder key in an upstream eval prompt (marketingskills, skill video), vendored verbatim; not a credential.
+829c243654e5e8fd715cc34664cf4751adac75f8:.claude/skills/video/evals/evals.json:generic-api-key:104

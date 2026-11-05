@@ -2,7 +2,7 @@
 // Every control goes through the REAL script as a child process with the stdin JSON the harness sends
 // (guard-red-team rule 5), never through an imported function. Mutants are planted by copying the script
 // to the OS temp dir with one constant changed and running that copy against the same controls.
-// The routing controls run against a FIXTURE home (two user skills shaped like receiving-code-review and pptx, plus
+// The routing controls run against a FIXTURE home (two user skills shaped like quote-review-reception and pptx, names no repo skill holds or the repo copy would win, plus
 // an unloadable nested SKILL.md), so the suite reads the same on every machine; one test looks at the real user root.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,9 +34,9 @@ const skillFile = (name, description, triggers) => `---\nname: ${name}\ndescript
 function makeHome(label, synthetic = 0) {
   const home = join(SCRATCH, label);
   const skills = join(home, ".claude", "skills");
-  mkdirSync(join(skills, "receiving-code-review"), { recursive: true });
-  writeFileSync(join(skills, "receiving-code-review", "SKILL.md"), skillFile("receiving-code-review",
-    "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation"));
+  mkdirSync(join(skills, "quote-review-reception"), { recursive: true });
+  writeFileSync(join(skills, "quote-review-reception", "SKILL.md"), skillFile("quote-review-reception",
+    "Use when receiving a quote review, before accepting suggestions, especially if the quote seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation"));
   mkdirSync(join(skills, "pptx"), { recursive: true });
   writeFileSync(join(skills, "pptx", "SKILL.md"), skillFile("pptx",
     "Use when creating, editing or reading PowerPoint slide decks: slides, layouts, speaker notes, templates and exports to pdf or images"));
@@ -71,7 +71,7 @@ const CONTROLS = [
   // phrase and nothing else, so nothing may print. antislop-ui has no word of this prompt in its body.
   ["open the W2 brief for Home deck and Missions, approve in place, detent sheet", [], { maxNonRepo: 0, absent: ["nickstire-ios-pwa-primitives"] }],
   // Round 4: the user root scores on the same rule as the repo; these two are true matches a 1.5x bar had dropped.
-  ["the feedback is unclear", ["receiving-code-review"], { first: true }],
+  ["the quote is unclear", ["quote-review-reception"], { first: true }],
   ["slides for the deck", ["pptx"], { first: true }],
   // Round 3: one generic word inside a trigger phrase must not print a repo skill on its own (home screen, page,
   // empty labels, loading). The MIN_HITS mutant sets the minimum to 1 and this control fails.
@@ -242,7 +242,7 @@ test("index: every flat .claude/skills SKILL.md, the fixture user skills, no nes
   const repoCount = countSkillFiles(join(ROOT, ".claude", "skills"));
   assert.ok(repoCount >= 50, `repo has ${repoCount} SKILL.md files, expected at least 50`);
   assert.ok(j.index.repo >= repoCount, `indexed ${j.index.repo} repo skills, on disk ${repoCount}`);
-  assert.equal(j.index.user, 3, `fixture home holds receiving-code-review, pptx and nested-host: indexed ${j.index.user}`);
+  assert.equal(j.index.user, 3, `fixture home holds quote-review-reception, pptx and nested-host: indexed ${j.index.user}`);
   assert.ok(j.index.names.includes("pptx") && j.index.names.includes("nested-host"));
   assert.ok(!j.index.names.includes("nested-draft-skill"), "a SKILL.md under a skill's references must not be indexed");
   // 2026-10-26: enabled plugins ARE indexed now (plugin-index.mjs reads installed_plugins.json + enabledPlugins and the
@@ -324,10 +324,10 @@ test("--scope global outside a repo: no .claude/skills at the root, statistics f
   // in for a real ~/.claude/skills; with three skills alone no term clears the floor, which is a limit, not a defect.
   const bare = join(SCRATCH, "proj-bare");
   mkdirSync(bare, { recursive: true });
-  const r = run(["--scope", "global"], hookInput("the feedback is unclear"), SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG);
+  const r = run(["--scope", "global"], hookInput("the quote is unclear"), SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG);
   assert.equal(r.code, 0, r.err);
-  assert.equal(named(r.out)[0], "receiving-code-review", `expected receiving-code-review from a bare folder, got: ${r.out}`);
-  const j = JSON.parse(run(["--json", "--text", "the feedback is unclear"], undefined, SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG).out);
+  assert.equal(named(r.out)[0], "quote-review-reception", `expected quote-review-reception from a bare folder, got: ${r.out}`);
+  const j = JSON.parse(run(["--json", "--text", "the quote is unclear"], undefined, SCRIPT, { CLAUDE_PROJECT_DIR: bare }, HOME_BIG).out);
   assert.equal(j.index.repo, 0);
   assert.ok(j.picked.every((p) => p.score > 0), `scores must stay positive without a repo cohort: ${JSON.stringify(j.picked)}`);
   const src = readFileSync(SCRIPT, "utf8");
@@ -335,8 +335,8 @@ test("--scope global outside a repo: no .claude/skills at the root, statistics f
   assert.ok(src.includes(anchor), `anchor "${anchor}" missing from skill-recall.mjs`);
   const repoOnly = join(SCRATCH, "mutant-repo-only.mjs");
   writeFileSync(repoOnly, src.replace(anchor, "const cohort = repo;"));
-  const m = run(["--scope", "global"], hookInput("the feedback is unclear"), repoOnly, { CLAUDE_PROJECT_DIR: bare, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-mutant-repo-only") }, HOME_BIG);
-  assert.notEqual(named(m.out)[0], "receiving-code-review", `the repo-only table must fail this control, got: ${m.out}`);
+  const m = run(["--scope", "global"], hookInput("the quote is unclear"), repoOnly, { CLAUDE_PROJECT_DIR: bare, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-mutant-repo-only") }, HOME_BIG);
+  assert.notEqual(named(m.out)[0], "quote-review-reception", `the repo-only table must fail this control, got: ${m.out}`);
 });
 
 test("--scope global from the home directory itself: the user settings file is not a project file, recall still prints", () => {
@@ -348,15 +348,15 @@ test("--scope global from the home directory itself: the user settings file is n
     hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: 'node "C:/x/scripts/agent-os/skill-recall.mjs" --scope global' }] }] },
   }));
   const env = { CLAUDE_PROJECT_DIR: home, HOME: home, USERPROFILE: home, SKILL_RECALL_CACHE_DIR: join(SCRATCH, "cache-home-as-project") };
-  const r = run(["--scope", "global"], hookInput("the feedback is unclear"), SCRIPT, env);
+  const r = run(["--scope", "global"], hookInput("the quote is unclear"), SCRIPT, env);
   assert.equal(r.code, 0, r.err);
-  assert.equal(named(r.out)[0], "receiving-code-review", `expected recall from the home directory, got: ${JSON.stringify(r.out)}`);
+  assert.equal(named(r.out)[0], "quote-review-reception", `expected recall from the home directory, got: ${JSON.stringify(r.out)}`);
   // Round 7: the one directory is the user root only, never counted twice as repo and user (which gave every user
   // skill REPO_BOOST and the kind "repo").
-  const j = JSON.parse(run(["--json", "--text", "the feedback is unclear"], undefined, SCRIPT, env).out);
+  const j = JSON.parse(run(["--json", "--text", "the quote is unclear"], undefined, SCRIPT, env).out);
   assert.equal(j.index.repo, 0, `home-as-project must index no repo skills: ${JSON.stringify(j.index)}`);
   assert.equal(j.index.user, 503);
-  assert.equal(j.picked[0]?.name, "receiving-code-review");
+  assert.equal(j.picked[0]?.name, "quote-review-reception");
   assert.equal(j.picked[0]?.kind, "user", `the match must carry kind user: ${JSON.stringify(j.picked[0])}`);
   // Mutant: without the home-directory exemption the guard reads the user file as a project file and goes silent.
   const src = readFileSync(SCRIPT, "utf8");
@@ -364,7 +364,7 @@ test("--scope global from the home directory itself: the user settings file is n
   assert.ok(src.includes(anchor), `anchor "${anchor}" missing from skill-recall.mjs`);
   const noExempt = join(SCRATCH, "mutant-no-home-exempt.mjs");
   writeFileSync(noExempt, src.replace(anchor, ""));
-  const m = run(["--scope", "global"], hookInput("the feedback is unclear"), noExempt, env);
+  const m = run(["--scope", "global"], hookInput("the quote is unclear"), noExempt, env);
   assert.equal(m.out, "", `without the exemption the hook must go silent (that is the defect): ${m.out}`);
 });
 

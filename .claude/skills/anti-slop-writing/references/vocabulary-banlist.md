@@ -1,0 +1,308 @@
+# Vocabulary and Phrase Review List
+
+Editorial vocabulary preferences, organized by category. These are review prompts, not bans, a detector, or a measured fingerprint of any model. Preserve accurate technical terms, quotations, necessary hedges, requested wording, and structures required by the format. Do not weaken or change meaning merely to avoid a listed item.
+
+## Legacy review lists retained from earlier versions
+
+### Original review list
+Additionally, boasts, bolstered, crucial, delve/delves/delving, emphasizing, enduring, garner, intricate/intricacies, interplay, key (adjective), landscape (figurative), meticulous/meticulously, pivotal, underscore, tapestry, testament, valuable, vibrant
+
+### Additional review list
+Align with, bolstered, crucial, emphasizing, enhance, enduring, fostering, highlighting, pivotal, showcasing, underscore, vibrant
+
+### Attribution and emphasis
+Emphasizing, enhance, highlighting, showcasing, plus words associated with notability/attribution emphasis
+
+### v4.0 cross-model review (September 27, 2026)
+Apply these preferences to drafts from ChatGPT, Claude, Gemini, and Grok when wording is vague or repetitive. Release documentation does not establish vocabulary frequency ratios for the current models; see [model coverage and evidence](model-coverage.md).
+
+**Possible padding:** ensuring, ensures, highlights, supports, reflects, plays a role in, contributes to. Keep the verb when it describes a real action; otherwise name the action.
+
+**Vague role claims:** "plays a [crucial/critical/important] role in shaping". Explain the role instead of asserting importance.
+
+**Plain-language options:** capable of → able to | rather than → a direct comparison when clearer | conversely → but | nevertheless → still
+
+**Intensifiers to check:** significantly, effectively, directly, increasingly, remarkably, notably. Retain only when the evidence or context supports their meaning.
+
+**Abstract wording to check:** comprehensive, nuanced, fundamentally, paradigm, in essence, essentially, worth noting, inherent tensions, thoughtful approach, metacognitive. Preserve precise domain terms; cut vague praise or commentary.
+
+**Qualification to check:** typically, often, sometimes, potentially, usually. Keep genuine uncertainty; remove stacked qualifications that add no information.
+
+**Closers:** "one thing is clear", "the key takeaway", "at the end of the day", "as X continues to evolve"
+
+Presence or absence of a word or punctuation mark does not establish authorship. Do not extrapolate a legacy model's alleged habits to a newer release.
+
+## Commonly Overused Language to Review by Category
+
+### Significance Puffers
+- pivotal
+- crucial
+- vital
+- key (as adjective modifying role/moment/factor)
+- significant/significance
+- essential
+- groundbreaking (figurative)
+- remarkable
+- transformative
+- indelible (mark/impact)
+- profound
+- testament
+- enduring
+- lasting
+- ongoing (legacy/commitment)
+- deep/deeply rooted
+- focal point
+- turning point (key turning point)
+- milestone
+
+### Analytical/Emphasis Verbs
+- underscore
+- highlight (as verb meaning "to emphasize")
+- showcase
+- foster/fostering
+- garner
+- bolster/bolstered
+- delve/delving
+- embark
+- leverage
+- facilitate
+- utilize
+- encompass
+- cultivate
+- emphasize/emphasizing (when used as participial tack-on)
+- illuminate
+- elucidate
+- underscore
+- navigate (figurative, "navigate challenges")
+
+### Promotional/Puffery Adjectives
+- vibrant
+- rich (figurative, "rich history/heritage")
+- comprehensive
+- robust
+- seamless
+- innovative
+- dynamic
+- cutting-edge
+- meticulous/meticulously
+- intricate/intricacies
+- nuanced
+- nestled
+- breathtaking
+- renowned
+- diverse array
+- bustling
+- stunning
+- groundbreaking
+- state-of-the-art
+
+### Figurative/Poetic Nouns
+- tapestry (figurative)
+- landscape (figurative, "evolving landscape")
+- realm
+- paradigm
+- ecosystem (figurative)
+- journey (figurative, "journey of discovery")
+- nexus
+- interplay
+- mosaic
+- fabric (of society/community)
+- bedrock
+- cornerstone (figurative)
+- beacon
+- pillar
+
+### Copula-Avoidance Constructions
+- serves as (a) → use "is"
+- stands as (a) → use "is"
+- marks (a) → describe directly
+- represents (a shift/change) → use "is" or describe directly
+- boasts (meaning "has") → use "has"
+- features (meaning "has") → use "has"
+- offers (meaning "has") → use "has"
+- holds the distinction of → use "is"
+- ventured into → use "entered" or "became"
+
+### Formal Connectives (replace with simple alternatives)
+- furthermore → also, and
+- moreover → also, and
+- consequently → so
+- accordingly → so
+- nonetheless → still, but
+- nevertheless → still, but
+- henceforth → from now on
+- thereby → this way
+- wherein → where, in which
+- thus → so
+- hence → so
+
+### Opening/Closing Crutches
+- "In today's [world/society/landscape]"
+- "In the ever-evolving landscape of"
+- "In conclusion"
+- "In summary"
+- "Overall"
+- "To recap"
+- "It is important to note that"
+- "It's worth noting that"
+- "It should be mentioned that"
+- "At the end of the day"
+- "No discussion of X would be complete without"
+- "Crucially"
+- "As a matter of fact"
+
+### Promotional Phrases
+- "commitment to [excellence/innovation/sustainability]"
+- "natural beauty"
+- "in the heart of"
+- "diverse range of experiences"
+- "rich cultural heritage"
+- "a testament to"
+- "setting the stage for"
+- "contributing to the broader"
+- "reflects broader trends"
+- "shaping the future of"
+- "paving the way for"
+- "at the forefront of"
+- "pushing the boundaries of"
+- "redefining what it means to"
+
+### Vague Attribution Phrases
+- "Experts argue/say/note"
+- "Observers have cited"
+- "Industry reports suggest"
+- "Some critics argue"
+- "Several sources/publications"
+- "Many believe/argue"
+- "According to some"
+- "It is widely regarded"
+- "It is generally accepted"
+- "Research suggests" (without naming specific research)
+
+### Collaborative Chat Artifacts (remove when they do not belong in the deliverable)
+- "I hope this helps!"
+- "Of course!"
+- "Certainly!"
+- "You're absolutely right!"
+- "Would you like me to..."
+- "Is there anything else..."
+- "Let me know if..."
+- "Here is a..."
+- "As an AI language model..."
+
+## Replacement Strategy
+
+When a listed word adds no meaning, don't just swap it for a synonym. Restructure the sentence to say what you mean in plain language while preserving supported claims.
+
+**Before:** "The festival serves as a vibrant testament to the region's rich cultural heritage, showcasing the intricate tapestry of traditions."
+
+**After:** "The festival began in [supported year]. Its program includes [supported activities]."
+
+Replace vague praise with specific facts when the source supports them. If no supporting detail is available, remove the praise rather than inventing one.
+
+---
+
+## Bahasa Indonesia Phrases to Review
+
+Indonesian prose can sound bureaucratic or translated when these words and constructions add no useful meaning. Review them in context; they do not establish machine authorship.
+
+### Significance Puffers (Indonesian)
+- sangat penting → state specifically why it matters or drop the qualifier
+- sangat krusial / krusial → drop; if something is critical, show evidence
+- sangat signifikan / signifikan → quantify the significance instead
+- sangat relevan → specify what makes it relevant to this context
+- fundamental / mendasar (as vague praise) → say what specifically makes it foundational
+- luar biasa (as generic praise) → say what specifically is remarkable
+- mendalam (without substance) → provide the actual depth
+- berarti / bermakna (as vague praise) → specify what meaning it carries
+
+### Analytical Verbs to Review (Indonesian)
+- menyoroti / menyorot → "menunjukkan" or describe the finding directly
+- menggarisbawahi → "menunjukkan" or remove the meta-commentary
+- memfasilitasi → "membantu" or "memungkinkan"
+- mengoptimalkan → "memperbaiki" or state what is being optimized
+- memanfaatkan → "menggunakan"
+- mengimplementasikan → "menerapkan" or "menjalankan"
+- berkontribusi pada → state the specific contribution
+- berperan dalam → state the specific action performed
+- mengedepankan → "mengutamakan"
+- mewujudkan → "membuat" or "menciptakan"
+- merealisasikan → "mewujudkan" → "membuat"
+
+### Promotional/Puffery Adjectives (Indonesian)
+- komprehensif → state what is actually covered
+- holistik → name all the parts
+- inovatif → state what is actually new
+- dinamis → state what changes and how
+- inklusif → name who is included
+- berbagai macam (as vague filler) → list the actual things
+- beragam (as vague filler) → list the actual variety
+- terkini (without a date) → give the actual date or timeframe
+
+### Formal Connectives to Review (Indonesian)
+Replace with simpler alternatives or restructure.
+- selain itu → "juga" or restructure the sentence
+- di sisi lain → "tapi" or "namun" (not as a hollow pivot)
+- lebih lanjut → restructure or continue without the transition
+- dengan demikian → "jadi" or "maka"
+- oleh karena itu → "jadi" or "makanya" (colloquial contexts)
+- tak kalah penting / tidak kalah pentingnya → state what it actually is
+- menariknya → lead with the interesting fact; drop the framing word
+- sehubungan dengan hal tersebut → restructure the sentence entirely
+- berkaitan dengan hal ini → be specific about what "this" is
+- dalam hal ini → specify what "this" means
+
+### Opening/Closing Crutches (Indonesian)
+- "Di era modern ini," → start with a specific fact
+- "Dalam konteks [X] yang semakin [Y]," → start with the fact, not the framing
+- "Seiring perkembangan zaman," → state the specific change and when
+- "Perlu diketahui bahwa" → drop; just state what follows
+- "Penting untuk diingat" → drop or write "Ingat:" or just state it
+- "Sebagai kesimpulan," → drop or write a conclusion that says something new
+- "Dapat disimpulkan bahwa" → state the conclusion directly
+- "Dengan demikian, dapat disimpulkan" → drop entirely
+- "Pada akhirnya," → restructure or use "Akhirnya" only for actual sequence
+
+### Copula-Avoidance Constructions (Indonesian)
+AI substitutes elaborate verb phrases for simple "adalah" or "punya."
+- merupakan → "adalah" when possible, or restructure
+- berperan sebagai → "adalah"
+- berfungsi sebagai → "adalah" or "digunakan sebagai"
+- menjadi salah satu... → restructure to be specific
+- memiliki peran penting → state what the role is
+- "menjadi [X] yang [Y] dalam/bagi [Z]" → state directly
+
+### Vague Attribution (Indonesian)
+- "para ahli menyatakan" → name the expert
+- "penelitian menunjukkan" → name the study or researcher
+- "banyak kalangan berpendapat" → name who and cite them
+- "menurut beberapa sumber" → name the sources
+- "studi menunjukkan" → which study, when, by whom?
+- "komunitas ilmiah sepakat" → who specifically?
+
+### AI Promotional Phrases (Indonesian)
+- "memiliki komitmen untuk" → state what they actually do
+- "memberikan dampak positif" → state the specific impact
+- "berperan penting dalam" → state how specifically
+- "dalam rangka [positive goal]" → state what they are doing
+- "dalam upaya [X]" → state what they are doing
+- "guna meningkatkan" → state what actually increased
+- "untuk mencapai tujuan tersebut" → state what the goal is and what they did
+
+### Collaborative Chat Artifacts (Indonesian; remove when they do not belong in the deliverable)
+- "Semoga membantu!"
+- "Tentu saja!"
+- "Baik, berikut adalah..."
+- "Apakah ada yang ingin Anda tanyakan?"
+- "Jika ada pertanyaan, jangan ragu untuk bertanya."
+- "Sebagai AI, saya..."
+
+## Indonesian Replacement Strategy
+
+When editing Indonesian, check for phrasing that sounds bureaucratic or translated in the requested context. This is a contextual review, not a claim about all Indonesian writers or models.
+
+**Before (constructed editorial example):**
+> Festival ini merupakan salah satu momen penting yang tidak hanya menampilkan kekayaan budaya lokal, tetapi juga memperkuat ikatan sosial antar masyarakat, menjadikannya sebagai ajang yang sangat krusial dalam pelestarian tradisi.
+
+**After (use only details supplied by the source):**
+> Festival ini melestarikan budaya lokal dan memperkuat ikatan sosial.

@@ -1,0 +1,66 @@
+{
+  "_doc": "The personal layer bootstrap-machine.mjs writes on every PC. Audit and reasons: docs/agent-os/MACHINE-SYNC.md, section Personal layer. {claude} is the config dir, {repo} this machine's primary checkout. A key not allowed by the gate in bootstrap-machine.mjs makes the install refuse: no permission entry installs from here.",
+  "skills": [
+    "antislop-code",
+    "antislop-copywriting",
+    "antislop-human",
+    "antislop-layoutmobile",
+    "antislop-ui",
+    "ponytail-audit",
+    "ponytail-debt",
+    "ponytail-gain",
+    "ponytail-help",
+    "ponytail-review",
+    "brainstorming",
+    "systematic-debugging",
+    "test-driven-development",
+    "reverse-engineer-anything",
+    "differential-review",
+    "supply-chain-risk-auditor",
+    "diagnosing-superpowers",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "receiving-code-review",
+    "requesting-code-review",
+    "subagent-driven-development",
+    "writing-skills",
+    "anti-slop-writing",
+    "ad-creative",
+    "ads",
+    "ads-creative",
+    "ads-meta",
+    "ads-tiktok",
+    "social",
+    "video",
+    "humanizer"
+  ],
+  "settings": {
+    "skillListingBudgetFraction": 0.02,
+    "outputStyle": "Concise",
+    "theme": "dark",
+    "skipWorkflowUsageWarning": true,
+    "precomputeCompactionEnabled": true,
+    "switchModelsOnFlag": true,
+    "inputNeededNotifEnabled": true,
+    "agentPushNotifEnabled": true,
+    "extraKnownMarketplaces": {
+      "claude-code-workflows": { "source": { "source": "github", "repo": "wshobson/agents" } },
+      "nourcity": { "source": { "source": "github", "repo": "nourdean22/MAINnicks-tire-autoNEW" } }
+    }
+  },
+  "hooks": [
+    { "event": "SessionStart", "matcher": "startup|resume|clear|compact", "sources": ["startup", "resume", "clear", "compact"], "key": "always-on-skills.mjs", "command": "node \"{claude}/hooks/always-on-skills.mjs\"" },
+    { "event": "UserPromptSubmit", "matcher": "", "key": "find-skills-turn.mjs", "command": "node \"{claude}/hooks/find-skills-turn.mjs\"", "timeout": 5 },
+    { "event": "UserPromptSubmit", "matcher": "", "key": "skill-recall.mjs", "command": "node \"{repo}/scripts/agent-os/skill-recall.mjs\" --scope global" },
+    { "event": "UserPromptSubmit", "matcher": "", "key": "prompt-sharpen.mjs", "command": "node \"{repo}/scripts/agent-os/prompt-sharpen.mjs\" --scope global", "timeout": 5 },
+    { "event": "SessionStart", "matcher": "", "key": "graph-ensure-mcp.mjs", "command": "node \"{repo}/scripts/agent-os/graph-ensure-mcp.mjs\" --scope global", "timeout": 15 },
+    { "event": "UserPromptSubmit", "matcher": "", "key": "graph-recall.mjs", "command": "node \"{repo}/scripts/agent-os/graph-recall.mjs\" --scope global", "timeout": 5 },
+    { "event": "PreToolUse", "matcher": "Bash", "key": "rtk hook claude", "command": "rtk hook claude", "requires": "rtk" }
+  ],
+  "files": [
+    { "src": "config/agent-os/RTK.md", "dest": "RTK.md", "requires": "rtk" }
+  ],
+  "mcpServers": {
+    "vapi-docs": { "type": "http", "url": "https://docs.vapi.ai/_mcp/server" }
+  }
+}
