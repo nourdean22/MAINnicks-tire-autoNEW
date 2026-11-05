@@ -19,7 +19,7 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 | Graphify code graph + MCP | NATTYNOUR only, `127.0.0.1:8765/mcp` (job 2026-10-19, W9 `chore/graphify-always-on`) | other PCs become **clients over the tailnet**, never builders: `docs/agent-os/TAILNET-MCP.md` | Nour: `tailscale serve 8765` + ACL on NATTYNOUR; repo: per-host URL (follow-up 1) |
 | BrainMemory (the brain) | Neon, canonical (`apps/statenour/docs/KNOWLEDGE-ENGINES.md`) | it is the cloud | none |
 | Obsidian vault | NATTYNOUR, `OneDrive\Documents\Obsidian Vault` (default in `scripts/install-cockpit-plugins.ps1`, NOT CHECKED live) | not synced to other PCs today | Nour's decision (step 5) |
-| Personal skills, 1,434 in `~/.claude/skills` on NATTYNOUR (`apps/statenour/data/skills-registry.json`, 2026-07-30) | NATTYNOUR home folder, outside the repo | **not synced**. Two of the always-on eight (`find-skills`, `steal-like-an-artist`) have no repo copy, so bootstrap leaves them MISSING on every other PC (FACT) | vendor them into `.claude/skills` (owed since the 2026-10-26 ledger) or a private `claude-home` repo (follow-up 3) |
+| Personal layer: skills, settings, hooks, MCP entries, CLAUDE.md rules | `config/agent-os/user-layer.json`, `.claude/skills`, `config/agent-os/global-claude-md-block.md` | git, then `node scripts/agent-os/bootstrap-machine.mjs`; `--check` names each missing or drifted item. Audit below ("Personal layer") | after every ff-sync |
 | Agent memory (`~/.claude/projects/*/memory`) | per machine | not synced; the shared part is `.claude/agent-memory/` + `MEMORY-INDEX-GUARD.md` | NOT CHECKED whether the shop PCs need any of it |
 
 ## Where each machine is (2026-11-03)
@@ -62,12 +62,158 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
    clone without `.claude` they reported "ok" for the machine half and "not expected on this host", and the hooks did
    not exist. Add one line: `project: .claude MISSING from sparse checkout, fix: git sparse-checkout add .claude`.
 3. DONE in #3535 (2026-11-03): `find-skills` and `steal-like-an-artist` vendored into `.claude/skills` with SOURCE.md and
-   licence; NicksMax and MECHANICS both read `[bootstrap] clean` on 2026-11-05. The wider "personal layer into the
-   repo" job (manager W12, Nour's "yes, everything" 2026-11-03 10:04) is still queued on NATTYNOUR; no branch yet.
+   licence; NicksMax and MECHANICS both read `[bootstrap] clean` on 2026-11-05. The wider job (Nour's "yes, everything",
+   2026-11-03 10:04) is the "Personal layer" section below.
 4. DONE in #3543 (2026-11-04): `plugin-index.mjs` reads Claude Desktop's own account-plugin store, so the false
    agentic-council / receipts-check / desktop-commander MISSING is gone on both machines (MECHANICS line 2026-11-05:
    `plugins ok (7 required)`). Still truly per-machine: the three marketplace plugins and `nourcity-harness` (#3545),
    installed on NicksMax at user scope 2026-11-05 07:47 on Nour's go.
+
+## Personal layer
+
+Job `2026-11-03-personal-layer-into-repo`. Nour: "Yes, everything", "I want all my rules and everything across all comps"
+(2026-11-03), "Yes, start it" (2026-11-05). The audit of NATTYNOUR's `~/.claude` against what `bootstrap-machine.mjs` installs,
+read 2026-11-05. Decisions: **vendor** (copied into the repo, bootstrap installs it), **generate** (bootstrap writes it from
+`config/agent-os/user-layer.json`), **skip** (with the reason), **Nour decides** (nothing installs until he says yes). Item names
+only: nothing here is a secret, a token, an absolute path or a private address.
+
+Ruling: Nour, 2026-11-05 09:55 EST, relayed by the manager session, on the first five open cells with their defaults: "approved all go".
+Cells he ruled on read "(Nour, 2026-11-05)". The three skills with a Bash grant came after that list: Nour, 10:45 EST, relayed the same way: "yes i want it too those are good skills needed".
+
+### Skills in `~/.claude/skills` (47 folders, FACT)
+
+The registry `apps/statenour/data/skills-registry.json` lists 1,434 skills from an older generation on another machine
+(generated 2026-07-30; 129 critical, 25 offensive). This machine holds 47 folders, so the 1,434 is not this layer (FACT).
+All of them stay in skill-recall (see "Recall time" below).
+
+#### Already installed by bootstrap (9, no change)
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| using-superpowers, ponytail, karpathy-guidelines, i-have-adhd, verification-before-completion, find-skills, prompt-gallery, steal-like-an-artist, antislop | portable | keep | The always-on set; repo copies exist and bootstrap installs them today. |
+
+#### In the repo, not installed at user level (16)
+
+These work inside NOURCITY on every PC through `.claude/skills`, and are missing in any other project on a PC that never had
+them. Bootstrap adds all 16 to its install list. An existing machine `description:` is kept, as for the always-on set.
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| antislop-code, antislop-copywriting, antislop-layoutmobile, antislop-ui | portable | generate (install) | Machine copies differ from the repo copies; the repo wins and the old file goes to the backup folder. |
+| ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review | portable | generate (install) | Differ only by the repo's `triggers:` line. |
+| brainstorming, systematic-debugging, test-driven-development | portable | generate (install) | Differ by the `triggers:` line and, for brainstorming, two script files. |
+| reverse-engineer-anything | portable | generate (install) | Differs only in SOURCE.md. |
+| antislop-human, differential-review, supply-chain-risk-auditor | portable | generate (install, Nour, 2026-11-05) | Each grants itself Bash in `allowed-tools`. His words: "yes i want it too those are good skills needed". `BASH_GRANTS` in `bootstrap-machine.mjs` names exactly these three folders and exactly these grants; any other Bash grant still refuses. |
+
+#### Not in the repo (22)
+
+| Item | Kind | Source, licence (FACT, `gh api` or the local clone) | Registry risk | Decision | Reason |
+|---|---|---|---|---|---|
+| diagnosing-superpowers | portable | obra/superpowers, MIT | not listed | vendor | Byte-identical to upstream 8ca22dba. |
+| dispatching-parallel-agents | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical to upstream. |
+| executing-plans | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical; ships two shell scripts, read before the copy. |
+| receiving-code-review | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical to upstream. |
+| requesting-code-review | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical to upstream. |
+| subagent-driven-development | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical; ships three shell scripts, read before the copy. |
+| writing-skills | portable | obra/superpowers, MIT | unknown | vendor | Byte-identical; `skill-forge` names it as the TDD doctrine for skills. |
+| finishing-a-development-branch | portable | obra/superpowers, MIT | **critical** | skip (Nour, 2026-11-05) | The guardrail skips any skill the registry marks critical or high. The label comes from the registry's text scan, and `commit` and `bash-pro` carry it too (FACT), so it may be a false alarm (INFERRED). |
+| using-git-worktrees | portable | obra/superpowers, MIT | **critical** | skip (Nour, 2026-11-05) | Same. |
+| writing-plans | portable | obra/superpowers, MIT | **critical** | skip (Nour, 2026-11-05) | Same. |
+| anti-slop-writing | portable | adenaufal/anti-slop-writing, MIT (LICENSE in the folder and the local clone at 104fae8c) | not listed | vendor | Upstream reads 404 today (FACT, 2026-11-05): the clone and the kept LICENSE are the provenance. The MIT grant does not lapse. |
+| ad-creative, ads, social, video | portable | coreyhaines31/marketingskills, MIT | unknown or not listed | vendor | Junctions into `~/.agents/skills`. The always-on hook tells every PC to use them for ad and reel work, so a PC without them is told to invoke a skill it lacks (FACT). |
+| ads-creative, ads-meta, ads-tiktok | portable | agricidaniel/claude-ads, MIT | not listed | vendor | Same reason. |
+| humanizer | portable | blader/humanizer, MIT | not listed | vendor | Junction into `~/.agents/skills`; the upstream `.github/` folder stays out. |
+| graphify | machine | Graphify-Labs/graphify, Apache-2.0 | no risk field | skip | Installed by its own tool and needs the Python package; other PCs are graph clients by policy (`local-services.json`). The repo profile already says what to do when it is absent. |
+| video-cutter | machine | house | not listed | skip | Names NATTYNOUR's own folders and drives tools that exist only there. Not portable until those are parameterised. |
+| synced | machine | account bucket | n/a | skip | 733 files that follow the login. Not a skill folder. |
+
+### Hooks
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| `~/.claude/hooks/always-on-skills.mjs`, `find-skills-turn.mjs` | portable | keep | Byte copies from `scripts/agent-os/`, installed today. |
+| SessionStart `always-on-skills.mjs` | portable | keep, moved to user-layer.json | Installed today. |
+| SessionStart `graph-ensure-mcp.mjs --scope global` | portable | keep, moved to user-layer.json | Installed today. |
+| UserPromptSubmit `skill-recall.mjs`, `find-skills-turn.mjs`, `prompt-sharpen.mjs`, `graph-recall.mjs` | portable | keep, moved to user-layer.json | Installed today. |
+| PreToolUse Bash `rtk hook claude` | needs a tool | generate, only where `rtk` is on PATH | Not installed today. A hook naming a missing binary errors on every Bash call, so it is written only where the lookup finds `rtk`. No binary is installed on any PC (Nour, 2026-11-05). |
+
+### `~/.claude/CLAUDE.md`
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| Output style rules 1-10, exceptions | portable | vendor into the block | The rules every PC should have. The opening sentence is personal and stays out; the skill names stay. |
+| Always-on invocation rules (using-superpowers, ponytail, brainstorming order) | portable | vendor into the block | Short form; the install history stays out. |
+| `@RTK.md` import | needs a tool | generate, only where `rtk` is on PATH | With `~/.claude/RTK.md`, vendored at `config/agent-os/RTK.md`. |
+| Machine layout | machine | skip | Absolute paths and folders of one PC. |
+| Three-missing-skills substitution note | portable | skip | `CLAUDE-OPERATING-PROFILE.md` already carries it. |
+| graphify pointer | machine | skip | The profile already carries it. |
+| The `nourcity-always-on` block | portable | keep | Installed today; this job adds to its source file. One fenced block, no `@import`: the import would point at a path that differs per PC. |
+
+NATTYNOUR keeps its own copy of these lines above the block, so it reads them twice until Nour trims them. Bootstrap never
+edits text outside its markers.
+
+### `~/.claude/settings.json` keys
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| `skillListingBudgetFraction` | portable | generate | Keeps skill descriptions in the listing. |
+| `outputStyle`, `theme` | portable | generate | His setup. |
+| `skipWorkflowUsageWarning`, `precomputeCompactionEnabled`, `switchModelsOnFlag`, `inputNeededNotifEnabled`, `agentPushNotifEnabled` | portable | generate | His setup. |
+| `extraKnownMarketplaces` (`claude-code-workflows`, `nourcity`) | portable | generate | Public GitHub sources. Listing a marketplace installs nothing. |
+| `cleanupPeriodDays`, `effortLevel`, `autoContinueAtUsageLimit` | portable | skip (Nour, 2026-11-05, for the first) | Owned by the Global preferences job, which set 365, xhigh and true on this PC on 2026-11-05. Not in the bootstrap allowlist, so bootstrap never touches them. |
+| `enabledPlugins` | account | skip (Nour, 2026-11-05) | 112 on, 69 off across 3 marketplaces, against 7 required (FACT). Copying the list would enable about 105 plugins on a 2-core PC. Bootstrap writes nothing here; `required-plugins.json` stays the check. |
+
+### Permissions
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| `~/.claude/settings.json` `permissions` | n/a | nothing to copy | The key is absent: 0 allow, 0 deny, 0 ask (FACT). |
+| `~/.claude/settings.local.json` | n/a | nothing to copy | Absent (FACT). |
+| `~/.claude.json` per-project `allowedTools` | n/a | nothing to copy | 84 projects, 0 entries (FACT). |
+| `allowed-tools: Read Write Edit Glob Grep` in antislop, antislop-code, antislop-copywriting, antislop-layoutmobile, antislop-ui | portable | install | File tools only, active only while the skill runs. `antislop` installs this way today. Bash outside `BASH_GRANTS` refuses. |
+| Primary checkout `.claude/settings.local.json`, entry: one skill by name | machine | skip (Nour, 2026-11-05) | Untracked, per machine. Bootstrap installs no permission entry. |
+| Same file, entry: one scheduled-tasks read tool | machine | skip (Nour, 2026-11-05) | Same. |
+| Same file, entries: two connector read tools (connector ids stay out of this page) | machine | skip (Nour, 2026-11-05) | Same; the ids are per account. |
+| Same file, entries: two `curl` reads of the live sites | machine | skip (Nour, 2026-11-05) | Same; written for one long-past check (INFERRED). |
+
+Bootstrap refuses a `permissions` key in `user-layer.json` outright. A yes here is a code change in a PR, never a table edit
+alone.
+
+### MCP entries in `~/.claude.json`
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| `graphify` | portable | keep | Installed today (#3533). |
+| `vapi-docs` | portable | generate | A public docs URL with no key. |
+
+### Everything else in `~/.claude`
+
+| Item | Kind | Decision | Reason |
+|---|---|---|---|
+| `.credentials.json` and its temp file | secret | skip | Never read, never copied. |
+| Agents, commands, output styles at user level | n/a | nothing to copy | The folders do not exist (FACT). The repo's lane agents and commands already travel by git. |
+| `RTK.md` | needs a tool | vendor | See the CLAUDE.md table. |
+| `session-skills.md` | machine | skip | A generated index from 2026-10-08, already stale; the profile says it is not a source of truth. |
+| `scheduled-tasks/nourcity-heartbeat-*` (4) | machine | skip | They must fire on one PC. Copies on three PCs would run the heartbeat three times. |
+| `dev-mods/` | machine | skip | The mod is `.claude/mods/nourcity-harness` (#3545), installed by plugin. |
+| `.claude.json` inside `~/.claude` | machine | skip | Ids and migration flags of this install. |
+| `projects/` (agent memory and transcripts) | machine | skip | Per machine; may hold private text. |
+| `agent-os/`, `backups/`, `bootstrap-backup/`, `cache/`, `debug/`, `file-history/`, `plugins/`, `session-env/`, `sessions/`, `shell-snapshots/`, `state/`, `telemetry/`, `uploads/`, `mcp-needs-auth-cache.json`, `.last-cleanup`, `remote-settings.json.synced-at`, `settings.json.bak*` | machine | skip | Runtime state and backups. |
+
+### Recall time
+
+Budget: about 2 s per prompt on a 2-core box. No curated subset is needed.
+
+- FACT: `skill-recall.mjs` over 106 repo, 5 user and 1,031 plugin skills took 561 to 1,621 ms cold and 398 to 1,702 ms warm on this 8-core
+  laptop under load. The tree before vendoring (90 repo skills) took 773 to 2,403 ms cold and 331 to 788 ms warm in the same two rounds, so
+  the 16 added skills are inside the noise. They are 1.4% of the index.
+- FACT: `bootstrap-machine.mjs --check --hook` with the gate took 620 ms here.
+- NOT CHECKED: NicksMax itself. INFERRED under budget there: plugins are 90% of this index, and it enables a fraction of them.
+
+### Plugin read on the other PCs
+
+Acceptance item 4 of the brief is already done: PR 3544 (b4ccd15e64) taught `plugin-index.mjs` the Desktop stores, and MECHANICS
+reads `plugins ok (7 required)` live. Not redone here.
 
 ## Receipts (NicksMax, 2026-11-03, this session)
 

@@ -1,0 +1,7 @@
+| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
+|---|---|---|---|---|---|---|---|
+| 2026-11-03-personal-layer-into-repo | 2026-11-05 | Nour ("Yes, everything", "I want all my rules and everything across all comps"): NATTYNOUR's personal `~/.claude` layer audited in MACHINE-SYNC.md, 16 community skills vendored, config/agent-os/user-layer.json as the one source, bootstrap installs it idempotently, a public-repo gate refuses secrets, machine paths, key files, permission keys and any Bash grant outside three named skills | platform | MERGED | this PR | Run `git pull --ff-only origin main; node scripts/agent-os/bootstrap-machine.mjs` on NATTYNOUR, NicksMax and MECHANICS; live check 2026-11-06: `[health] machine` reads `bootstrap ok` on all three | A gate's first draft misses YAML spellings of the same key (a quoted `"allowed-tools"` passed); a timing that returns in 65 ms with empty output measured an early exit, not the work |
+
+| Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
+|---|---|---|---|---|---|---|---|
+| 2026-11-03-personal-layer-into-repo | n/a yet | 0 | 19 failing of 45 in the file, then 3 of 52 | 24 / 25 valid kills; 1 mutant crashed instead of testing, corrected form not run | open | 0 | this PR |

@@ -33,7 +33,7 @@
  * set, the settings keys and marketplaces, the hook list above, the extra MCP entries and RTK.md. Audit and reasons:
  * docs/agent-os/MACHINE-SYNC.md, section Personal layer. An item that needs a tool (`requires`) reads n/a where it is not on
  * PATH. Before anything is written, every source file passes the public-repo gate: a secret, a machine path, a private
- * address, a key file, a skill that registers hooks or grants itself Bash, or a layer key outside the allowlists reads REFUSE,
+ * address, a key file, a skill that registers hooks, a Bash grant outside BASH_GRANTS, or a layer key outside the allowlists reads REFUSE,
  * and an install writes nothing. A permission entry can only arrive by editing SETTINGS_KEYS in a PR, after Nour's yes.
  * Canary: bootstrapMachine.test.mjs.
  */
@@ -115,8 +115,17 @@ const UNSAFE = [
 ];
 const KEY_FILE = /^(?:\.env(?:\..*)?|\.credentials\.json|id_(?:rsa|dsa|ecdsa|ed25519)|.*\.(?:pem|key|p12|pfx))$/i;
 
+// Nour, 2026-11-05 10:45 EST, on these three: "yes i want it too those are good skills needed". Exactly these folders, exactly
+// these grants: any other skill granting Bash, and any change to one of these lines, refuses.
+const BASH_GRANTS = new Map([
+  ["antislop-human", "Bash(python *) Bash(python3 *) Read Write Edit Glob Grep"],
+  ["differential-review", "Read Write Grep Glob Bash"],
+  ["supply-chain-risk-auditor", "Read Write Bash Glob Grep"],
+]);
+const FRONT_KEY = (key) => new RegExp(String.raw`(?:^|[{,][ \t]*)["']?${key}["']?[ \t]*:.*(?:\r?\n[ \t]+.*)*`, "gim");
+
 /** Why one source file may not install, as "<kind>" or "<line> <kind>" strings. Never the matched text. */
-export function fileProblems(name, buf) {
+export function fileProblems(name, buf, skill = null) {
   const out = KEY_FILE.test(name) ? ["a key or env file by its name"] : [];
   const text = buf.toString("utf8");
   for (const [kind, re] of UNSAFE) {
@@ -125,8 +134,10 @@ export function fileProblems(name, buf) {
   }
   if (name === "SKILL.md") {
     const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
-    if (/^hooks\s*:/im.test(fm)) out.push("a hooks key in the frontmatter");
-    if (/\bBash\b/i.test(/^allowed[-_]?tools\s*:.*(?:\r?\n[ \t]+.*)*/im.exec(fm)?.[0] ?? "")) out.push("a Bash grant in allowed-tools");
+    if (FRONT_KEY("hooks").test(fm)) out.push("a hooks key in the frontmatter");
+    const grants = [...fm.matchAll(FRONT_KEY("allowed[-_]?tools"))].map((m) => m[0]);
+    const named = grants.length === 1 && grants[0].slice(grants[0].indexOf(":") + 1).trim() === BASH_GRANTS.get(skill);
+    if (grants.some((g) => /\bBash\b/i.test(g)) && !named) out.push("a Bash grant in allowed-tools");
   }
   return out;
 }
@@ -157,7 +168,9 @@ export function plan(home) {
   for (const p of layerProblems(layer)) refuse(`config/agent-os/user-layer.json: ${p}`);
   for (const f of sources) {
     const buf = read(f);
-    if (buf) for (const p of fileProblems(basename(f), buf)) refuse(`${fwd(relative(REPO, f))}:${p}`);
+    // Only a skill's own top-level SKILL.md can match BASH_GRANTS: the name comes from the folder, never from the file.
+    const parts = fwd(relative(join(REPO, ".claude", "skills"), f)).split("/");
+    if (buf) for (const p of fileProblems(basename(f), buf, parts.length === 2 ? parts[0] : null)) refuse(`${fwd(relative(REPO, f))}:${p}`);
   }
   if (items.length) return items;
 

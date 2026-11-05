@@ -437,12 +437,12 @@ test("layer: a drifted setting reads DRIFT by name, apply restores it and backs 
   assert.ok(backups.some((b) => json(join(home, ".claude", "bootstrap-backup", b)).skillListingBudgetFraction === 0.5), "no backup holds the old value");
 });
 
-test("layer: a machine SKILL.md with CRLF keeps its description without a carriage return, and the install is stable", () => {
+test("layer: a machine SKILL.md with CRLF keeps its multi-line description without a carriage return, and the install is stable", () => {
   const home = makeHome("layer-crlf");
-  write(join(home, ".claude", "skills", "brainstorming", "SKILL.md"), "---\r\nname: brainstorming\r\ndescription: my words\r\n---\r\nold body\r\n");
+  write(join(home, ".claude", "skills", "brainstorming", "SKILL.md"), "---\r\nname: brainstorming\r\ndescription: |\r\n  my words\r\n  more words\r\n---\r\nold body\r\n");
   runOn(home);
   const got = readFileSync(join(home, ".claude", "skills", "brainstorming", "SKILL.md"), "utf8");
-  assert.match(got, /^description: my words$/m);
+  assert.match(got, /^description: \|\n  my words\n  more words$/m);
   assert.doesNotMatch(got, /\r/, "a carriage return came through from the machine copy");
   assert.equal(runOn(home, { args: ["--check"] }).code, 0);
 });
@@ -506,7 +506,7 @@ test("every layer skill has a repo copy; a community skill carries LICENSE and a
     assert.ok(existsSync(join(ROOT, ".claude", "skills", s, "LICENSE")), `${s} has no LICENSE`);
     assert.match(readFileSync(join(ROOT, ".claude", "skills", s, "SOURCE.md"), "utf8"), /^Pinned: [0-9a-f]{40}\s*$/m, `${s} has no pin`);
   }
-  for (const s of ["finishing-a-development-branch", "using-git-worktrees", "writing-plans", "video-cutter", "graphify", "differential-review", "supply-chain-risk-auditor", "antislop-human"]) {
+  for (const s of ["finishing-a-development-branch", "using-git-worktrees", "writing-plans", "video-cutter", "graphify"]) {
     assert.ok(!LAYER.skills.includes(s), `${s} must stay out of the install list`);
   }
   for (const s of ["finishing-a-development-branch", "using-git-worktrees", "writing-plans", "video-cutter", "graphify"]) assert.ok(!existsSync(join(ROOT, ".claude", "skills", s)), `${s} must not be vendored`);
@@ -621,6 +621,7 @@ test("gate: no permission entry installs: a permissions key anywhere in the laye
     "an MCP plain http URL": (l) => ({ ...l, mcpServers: { x: { type: "http", url: "http://a.test" } } }),
     "a file outside the config dir": (l) => ({ ...l, files: [{ src: "config/agent-os/RTK.md", dest: "../evil.md" }] }),
     "a hook with no key": (l) => ({ ...l, hooks: [{ event: "Stop", matcher: "", command: "x" }] }),
+    "a hook with no command": (l) => ({ ...l, hooks: [{ event: "Stop", matcher: "", key: "x" }] }),
   };
   for (const [label, mutate] of Object.entries(cases)) {
     const { repo, script } = fixtureRepo(`perm-${label.replace(/\W/g, "")}`);
@@ -645,4 +646,84 @@ test("gate: a skill that registers hooks or grants itself Bash refuses; file-too
     if (refused) assertRefused(r, home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md/);
     else assert.equal(r.code, 0, r.out);
   }
+});
+
+// Nour, 2026-11-05 10:45 EST: these three install at user level with their Bash grant. Exactly these three, exactly these grants.
+const BASH_SKILLS = { "antislop-human": "Bash(python *) Bash(python3 *) Read Write Edit Glob Grep", "differential-review": "Read Write Grep Glob Bash", "supply-chain-risk-auditor": "Read Write Bash Glob Grep" };
+const inLayer = (repo, ...names) => {
+  const f = join(repo, "config", "agent-os", "user-layer.json");
+  write(f, JSON.stringify({ ...json(f), skills: names }, null, 2));
+};
+
+test("bash list: each of the three named skills installs on a bare home with its grant, and the real gate passes", () => {
+  const home = makeHome("bash-three");
+  const r = runOn(home);
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /REFUSE/, r.out);
+  for (const [s, grant] of Object.entries(BASH_SKILLS)) {
+    assert.ok(LAYER.skills.includes(s), `${s} is not in the install list`);
+    assert.match(readFileSync(join(home, ".claude", "skills", s, "SKILL.md"), "utf8"), new RegExp(`^allowed-tools: ${grant.replace(/[()*]/g, "\\$&")}\\r?$`, "m"), s);
+  }
+});
+
+test("bash list: a fourth skill with a grant copied from the list is refused, and a frontmatter name cannot borrow a listed one", () => {
+  for (const [label, front] of [["copied", "name: karpathy-guidelines\ndescription: clean\nallowed-tools: Read Write Grep Glob Bash"], ["borrowed", "name: differential-review\ndescription: clean\nallowed-tools: Read Write Grep Glob Bash"]]) {
+    const { repo, script } = fixtureRepo(`bash-fourth-${label}`);
+    write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `---\n${front}\n---\nbody\n`);
+    const home = makeHome(`bash-fourth-${label}-home`);
+    const before = mtimes(home);
+    assertRefused(runOn(home, { script }), home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md:a Bash grant/);
+  }
+});
+
+test("bash list: a nested SKILL.md under a listed skill gets no pass", () => {
+  const { repo, script } = fixtureRepo("bash-nested");
+  inLayer(repo, "differential-review");
+  write(join(skillDir(repo, "differential-review"), "SKILL.md"), `---\nname: differential-review\ndescription: clean\nallowed-tools: ${BASH_SKILLS["differential-review"]}\n---\nbody\n`);
+  write(join(skillDir(repo, "differential-review"), "x", "SKILL.md"), `---\nname: x\ndescription: clean\nallowed-tools: ${BASH_SKILLS["differential-review"]}\n---\nbody\n`);
+  const home = makeHome("bash-nested-home");
+  const before = mtimes(home);
+  assertRefused(runOn(home, { script }), home, before, /REFUSE.*differential-review\/x\/SKILL\.md:a Bash grant/);
+});
+
+test("bash list: a listed skill passes only with its exact grant: a wider one, a second key or hooks refuse, CRLF does not", () => {
+  const exact = BASH_SKILLS["differential-review"];
+  const cases = [
+    ["exact", `allowed-tools: ${exact}`, false],
+    ["exact-crlf", `allowed-tools: ${exact}`.replace(/$/, "\r"), false],
+    ["wider", `allowed-tools: ${exact} Edit`, true],
+    ["wildcard", "allowed-tools: Bash(*)", true],
+    ["second-key", `allowed-tools: ${exact}\nallowed-tools: Bash(rm *)`, true],
+    ["list-form", "allowed-tools:\n  - Read\n  - Bash", true],
+    ["hooks", `allowed-tools: ${exact}\nhooks:\n  Stop: []`, true],
+    ["no-grant", "allowed-tools: Read", false],
+  ];
+  for (const [label, front, refused] of cases) {
+    const { repo, script } = fixtureRepo(`bash-exact-${label}`);
+    inLayer(repo, "differential-review");
+    write(join(skillDir(repo, "differential-review"), "SKILL.md"), `---\nname: differential-review\ndescription: clean\n${front}\n---\nbody\n`);
+    const home = makeHome(`bash-exact-${label}-home`);
+    const before = mtimes(home);
+    const r = runOn(home, { script });
+    if (refused) assertRefused(r, home, before, /REFUSE.*differential-review\/SKILL\.md/);
+    else assert.equal(r.code, 0, `${label}: ${r.out}`);
+  }
+});
+
+test("frontmatter spellings cannot hide a grant or a hook: quoted key, flow map, upper case, underscore", () => {
+  for (const [label, front] of [["quoted", `"allowed-tools": Read Bash`], ["single", `'allowed-tools': Bash`], ["upper", "ALLOWED-TOOLS: Bash"], ["under", "allowed_tools: Bash"],
+    ["flow", "{ allowed-tools: Bash }"], ["quoted-hooks", `"hooks":\n  Stop: []`], ["flow-hooks", "{ hooks: { Stop: [] } }"]]) {
+    const { repo, script } = fixtureRepo(`front-spell-${label}`);
+    write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `---\nname: karpathy-guidelines\ndescription: clean\n${front}\n---\nbody\n`);
+    const home = makeHome(`front-spell-${label}-home`);
+    const before = mtimes(home);
+    assertRefused(runOn(home, { script }), home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md/);
+  }
+});
+
+test("mention is not a grant: a description naming Bash, hooks or allowed-tools passes", () => {
+  const { repo, script } = fixtureRepo("front-mention");
+  write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `---\nname: karpathy-guidelines\ndescription: "Use when a hook or Bash call fails; hooks and allowed-tools are not touched here"\n---\nThe allowed-tools: Bash line goes in the frontmatter.\n`);
+  const r = runOn(makeHome("front-mention-home"), { script });
+  assert.equal(r.code, 0, r.out);
 });
