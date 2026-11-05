@@ -510,7 +510,7 @@ async function applyRow(db: Db, pass: PassName, row: Row, ctx: ApplyCtx): Promis
   const read = ctx.ledger.get(r.ledgerId);
   if (!read) return "ledger_row_gone";
   const n = await noteFor(read, ctx.snippets, ctx.genericNote);
-  if ("reason" in n) return "no_note";
+  if ("reason" in n) return `no_note:${n.reason}`;
   if (fileToken(n.line) !== r.noteSha) return "snippet_changed";
   const res = await db.relationshipLedger.updateMany({
     where: { id: read.id, note: read.note },
@@ -604,10 +604,12 @@ async function executePass(
   }
   const base = { pass, marker: pass === "notes" ? NOTE_MARKER : markerFor(pass), backupTable: table, generatedAt: now.toISOString() };
   const planned = rows.map((r) => receiptRow(pass, r));
-  const path = writeReceipt({ ...base, status: "planned", rows: planned, written: [], lost: [] });
+  // No written list until the run finishes: a receipt left "planned" by a dead process reverts nothing (round 2).
+  const path = writeReceipt({ ...base, status: "planned", rows: planned });
   console.log(`[${pass}] receipt ${path} (planned ${rows.length})`);
   const written: string[] = [];
   const lost: Skip[] = [];
+  let inFlight: string | null = null;
   let done = false;
   try {
     const ctx: ApplyCtx = { snippets, genericNote: /$^/, ledger: new Map(), liveGoals: new Set() };
@@ -626,14 +628,16 @@ async function executePass(
       console.log((await goalRanker(db, await activeGoals(db), links.map((r) => r.missionId))).coverage);
     }
     for (const r of rows) {
+      inFlight = keyOf(pass, r);
       const why = await applyRow(db, pass, r, ctx);
+      inFlight = null;
       if (why === null) written.push(keyOf(pass, r));
       else lost.push({ id: keyOf(pass, r), reason: why });
     }
     done = true;
   } finally {
-    // A throw mid-loop still leaves the receipt naming what was written, so a revert finds it.
-    writeReceipt({ ...base, status: done ? "applied" : "aborted", rows: planned, written, lost });
+    // A throw mid-loop still leaves the receipt naming what was written, and the row whose write threw (it may have landed).
+    writeReceipt({ ...base, status: done ? "applied" : "aborted", rows: planned, written, lost, ...(done ? {} : { inFlight }) });
   }
   console.log(
     `[${pass}] backup ${table} (${backup.backup} rows) · written ${written.length} · lost ${lost.length} ${JSON.stringify(countBy(lost.map((l) => l.reason)))} · receipt ${path}`,
@@ -643,11 +647,24 @@ async function executePass(
 
 // ── revert ────────────────────────────────────────────────────────────────────────────────────────
 
-async function revertReceipt(db: Db, receipt: { pass: PassName; rows: Array<Record<string, unknown>> }): Promise<{ reverted: number; left: number }> {
+type Receipt = ReturnType<typeof parseReceipt>;
+
+/**
+ * The receipt rows its own run wrote: the written list, plus an aborted run's in-flight row (that write may have
+ * landed; the marker swap below finds out). null when the receipt never finished (no written list): nothing is known.
+ */
+function rowsToRevert(receipt: Receipt): Array<Record<string, unknown>> | null {
+  if (!receipt.written) return null;
+  const keys = new Set(receipt.written);
+  if (receipt.inFlight) keys.add(receipt.inFlight);
+  return receipt.rows.filter((r) => keys.has(keyOf(receipt.pass, r as unknown as Row)));
+}
+
+async function revertReceipt(db: Db, receipt: Receipt, rows: Array<Record<string, unknown>>): Promise<{ reverted: number; left: number }> {
   let reverted = 0;
   const done = (res: { count: number }) => (reverted += res.count);
   if (receipt.pass === "orphan" || receipt.pass === "missions") {
-    for (const r of receipt.rows) {
+    for (const r of rows) {
       done(
         await db.mission.updateMany({
           where: { id: String(r.missionId), lifeGoalId: String(r.lifeGoalId), updatedBy: markerFor(receipt.pass) },
@@ -656,21 +673,28 @@ async function revertReceipt(db: Db, receipt: { pass: PassName; rows: Array<Reco
       );
     }
   } else {
-    const reads = await db.relationshipLedger.findMany({ where: { id: { in: receipt.rows.map((r) => String(r.ledgerId)) } }, select: { id: true, note: true, metadata: true } });
+    const reads = await db.relationshipLedger.findMany({ where: { id: { in: rows.map((r) => String(r.ledgerId)) } }, select: { id: true, note: true, metadata: true } });
     for (const read of reads) {
       const { noteVia, originalNote, ...rest } = asObj(read.metadata);
       if (noteVia !== NOTE_MARKER || typeof originalNote !== "string") continue;
       done(await db.relationshipLedger.updateMany({ where: { id: read.id, note: read.note }, data: { note: originalNote, metadata: rest as object } }));
     }
   }
-  return { reverted, left: receipt.rows.length - reverted };
+  return { reverted, left: rows.length - reverted };
 }
 
-function parseReceipt(contents: string): { pass: PassName; rows: Array<Record<string, unknown>> } {
+function parseReceipt(contents: string) {
   const raw = asObj(JSON.parse(contents));
   if (!(PASS_ORDER as readonly string[]).includes(String(raw.pass)) || !Array.isArray(raw.rows)) throw new Error("not a backfill receipt");
-  return { pass: raw.pass as PassName, rows: raw.rows.map(asObj) };
+  return {
+    pass: raw.pass as PassName,
+    rows: raw.rows.map(asObj),
+    written: Array.isArray(raw.written) ? raw.written.map(String) : null,
+    inFlight: typeof raw.inFlight === "string" ? raw.inFlight : null,
+  };
 }
+
+const NEVER_FINISHED = "receipt never finished: re-run --revert after checking the rows by marker";
 
 // ── main ──────────────────────────────────────────────────────────────────────────────────────────
 
@@ -704,10 +728,21 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv, now:
     return 2;
   }
 
-  if (args.mode === "revert" && !args.execute) {
+  let revertRows: Array<Record<string, unknown>> = [];
+  if (args.mode === "revert") {
     const r = parseReceipt(fileContents!);
-    console.log(`revert dry run · ${r.pass} · ${r.rows.length} receipt rows (only rows still holding the backfill's value are undone) · token ${fileToken(fileContents!)}`);
-    return 0;
+    const rows = rowsToRevert(r);
+    if (!rows) {
+      console.log(`revert · ${r.pass} · reverted 0 · left ${r.rows.length} · ${NEVER_FINISHED}`);
+      return 1;
+    }
+    if (!args.execute) {
+      console.log(
+        `revert dry run · ${r.pass} · ${rows.length} of ${r.rows.length} receipt rows written by this run (only rows still holding the backfill's value are undone) · token ${fileToken(fileContents!)}`,
+      );
+      return 0;
+    }
+    revertRows = rows;
   }
 
   const { prisma } = await import("@/lib/prisma");
@@ -715,8 +750,10 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv, now:
   try {
     if (args.mode === "revert") {
       const r = parseReceipt(fileContents!);
-      const out = await revertReceipt(db, r);
-      console.log(`revert · ${r.pass} · reverted ${out.reverted} · left ${out.left} (changed since, or never written)`);
+      const out = await revertReceipt(db, r, revertRows);
+      console.log(
+        `revert · ${r.pass} · reverted ${out.reverted} · left ${out.left} (changed since) · ${r.rows.length - revertRows.length} not written by this run`,
+      );
       return 0;
     }
     if (args.mode === "dry") {

@@ -605,8 +605,13 @@ describe("revert by receipt", () => {
     const { main, NOTE_MARKER } = await load();
     const { fileToken } = await import("@/lib/services/people/backfill-apply");
     const receipts: Record<string, string> = {
-      "/r/m.json": JSON.stringify({ pass: "missions", status: "applied", rows: [{ missionId: "mis_link0001", lifeGoalId: "goal_fit0001", priorUpdatedBy: "user" }] }),
-      "/r/n.json": JSON.stringify({ pass: "notes", status: "applied", rows: [{ ledgerId: "led_generic1" }] }),
+      "/r/m.json": JSON.stringify({
+        pass: "missions",
+        status: "applied",
+        rows: [{ missionId: "mis_link0001", lifeGoalId: "goal_fit0001", priorUpdatedBy: "user" }],
+        written: ["mis_link0001"],
+      }),
+      "/r/n.json": JSON.stringify({ pass: "notes", status: "applied", rows: [{ ledgerId: "led_generic1" }], written: ["led_generic1"] }),
     };
     for (const [p, c] of Object.entries(receipts)) h.state.files.set(p, c);
     set("relationshipLedger", "findMany", () => [
@@ -782,7 +787,7 @@ describe("revert", () => {
   it("T3 a ledger row without this backfill's noteVia is never reverted, even with an originalNote", async () => {
     const { main } = await load();
     const { fileToken } = await import("@/lib/services/people/backfill-apply");
-    const c = JSON.stringify({ pass: "notes", status: "applied", rows: [{ ledgerId: "led_other07" }] });
+    const c = JSON.stringify({ pass: "notes", status: "applied", rows: [{ ledgerId: "led_other07" }], written: ["led_other07"] });
     h.state.files.set("/r/n2.json", c);
     set("relationshipLedger", "findMany", () => [
       { id: "led_other07", note: "his own words", metadata: { noteVia: "some-other-writer", originalNote: "interaction reported in chat (call)" } },
@@ -880,7 +885,8 @@ describe("notes scoping end to end", () => {
 
 type MRow = { id: string; lifeGoalId: string | null; updatedBy: string | null; deletedAt: Date | null; status: string; updatedAt: Date };
 /** A stateful Mission table: updateMany applies only when every where field still holds, like Postgres would. */
-function missionTable(rows: Array<Partial<MRow> & { id: string }>, throwOn?: { id: string; err: Error }) {
+/** throwOn.landed: the write commits, then the call throws (a connection lost after the commit). */
+function missionTable(rows: Array<Partial<MRow> & { id: string }>, throwOn?: { id: string; err: Error; landed?: boolean }) {
   const table = new Map<string, MRow>(
     rows.map((r) => [r.id, { lifeGoalId: null, updatedBy: "user", deletedAt: null, status: "ACTIVE", updatedAt: new Date(T0), ...r }]),
   );
@@ -893,10 +899,12 @@ function missionTable(rows: Array<Partial<MRow> & { id: string }>, throwOn?: { i
     });
   h.state.writeImpl = (model, method, args) => {
     if (model !== "mission" || method !== "updateMany") return { count: 1 };
-    if (throwOn && args.where.id === throwOn.id) throw throwOn.err;
+    const throws = throwOn && args.where.id === throwOn.id;
+    if (throws && !throwOn.landed) throw throwOn.err;
     const row = table.get(args.where.id);
     if (!row || !holds(row, args.where)) return { count: 0 };
     Object.assign(row, args.data, { updatedAt: new Date(row.updatedAt.getTime() + 1000) });
+    if (throws) throw throwOn.err;
     return { count: 1 };
   };
   return table;
@@ -1175,5 +1183,118 @@ describe("round 1 item 10: the orphan link paths and the no-vector fallback, fro
     expect(r.rows).toEqual([]);
     expect(r.decisions![0]).toMatchObject({ basis: "words", decision: "list", reason: "no_comparable_embedding" });
     expect(r.decisions![0].top[0].goalId).toBe("goal_fit0001");
+  });
+});
+
+// ── round 2 (manager ruling on b175ed4dbd): a revert undoes only what its own run wrote ──────────────────────
+
+const receiptsOf = (pass: string) =>
+  [...h.state.files.entries()]
+    .filter(([p]) => p.replace(/\\/g, "/").includes(`/.completion/backfill-${pass}-`))
+    .map(([path, body]) => ({ path, body, json: JSON.parse(body) }));
+
+describe("round 2: revert walks the rows its run wrote", () => {
+  it("(a) two same-day missions runs: run 2 writes the row run 1 lost; reverting run 1 leaves run 2's row linked", async () => {
+    goalsAndNoVectors("goal_fit0001");
+    // mis_lost0002 was edited after run 1's plan, so run 1 loses it; run 2 plans it fresh and links it.
+    const table = missionTable([{ id: "mis_won00001" }, { id: "mis_lost0002", updatedAt: new Date("2026-11-03T15:00:00Z") }]);
+    const { main } = await load();
+    const { fileToken } = await import("@/lib/services/people/backfill-apply");
+    const q = quiet();
+    const run1 = await handPlan({ missions: [link("mis_won00001", "goal_fit0001"), link("mis_lost0002", "goal_fit0001")] });
+    await main(["--execute", "--plan-file", PLAN, "--token", run1], EXEC, NOW);
+    const run2 = await handPlan({ missions: [link("mis_lost0002", "goal_fit0001", { updatedAt: table.get("mis_lost0002")!.updatedAt.toISOString() })] });
+    await main(["--execute", "--plan-file", PLAN, "--token", run2], EXEC, NOW);
+    expect(table.get("mis_lost0002")).toMatchObject({ lifeGoalId: "goal_fit0001" });
+    const [first] = receiptsOf("missions").filter((r) => r.path.endsWith("-2026-11-03.json"));
+    expect(first.json).toMatchObject({ written: ["mis_won00001"], lost: [{ id: "mis_lost0002", reason: "swap_lost" }] });
+    expect(await main(["--revert", first.path, "--execute", "--token", fileToken(first.body)], EXEC, NOW)).toBe(0);
+    const printed = q.printed();
+    q.restore();
+    expect(table.get("mis_won00001")).toMatchObject({ lifeGoalId: null, updatedBy: "user" });
+    expect(table.get("mis_lost0002")).toMatchObject({ lifeGoalId: "goal_fit0001", updatedBy: "backfill:2026-11-03:missions" });
+    expect(printed).toContain("revert · missions · reverted 1");
+  });
+
+  it("(b) an aborted receipt names its in-flight row; when that write landed, the revert undoes it too", async () => {
+    goalsAndNoVectors("goal_fit0001");
+    const table = missionTable([{ id: "mis_row00001" }, { id: "mis_row00002" }, { id: "mis_row00003" }], {
+      id: "mis_row00002",
+      err: new Error("connection reset"),
+      landed: true,
+    });
+    const token = await handPlan({ missions: ["mis_row00001", "mis_row00002", "mis_row00003"].map((id) => link(id, "goal_fit0001")) });
+    const { main } = await load();
+    const { fileToken } = await import("@/lib/services/people/backfill-apply");
+    const q = quiet();
+    expect(await main(["--execute", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
+    const r = receiptOf("missions")!;
+    expect(r.json).toMatchObject({ status: "aborted", written: ["mis_row00001"], inFlight: "mis_row00002" });
+    expect(table.get("mis_row00002")).toMatchObject({ lifeGoalId: "goal_fit0001" });
+    h.state.writeImpl = null;
+    missionTable([
+      { id: "mis_row00001", lifeGoalId: "goal_fit0001", updatedBy: "backfill:2026-11-03:missions" },
+      { id: "mis_row00002", lifeGoalId: "goal_fit0001", updatedBy: "backfill:2026-11-03:missions" },
+      { id: "mis_row00003" },
+    ]);
+    expect(await main(["--revert", r.path, "--execute", "--token", fileToken(r.body)], EXEC, NOW)).toBe(0);
+    const printed = q.printed();
+    q.restore();
+    expect(rowWrites().filter((w) => w.args.data.lifeGoalId === null).map((w) => w.args.where.id)).toEqual(["mis_row00001", "mis_row00002"]);
+    expect(printed).toContain("revert · missions · reverted 2");
+  });
+
+  it("(c) a planned-only receipt (the process died before the finally) reverts nothing and says so", async () => {
+    const table = missionTable([{ id: "mis_link0001", lifeGoalId: "goal_fit0001", updatedBy: "backfill:2026-11-03:missions" }]);
+    const c = JSON.stringify({ pass: "missions", status: "planned", rows: [link("mis_link0001", "goal_fit0001")] });
+    h.state.files.set("/r/planned.json", c);
+    const { main } = await load();
+    const { fileToken } = await import("@/lib/services/people/backfill-apply");
+    const q = quiet();
+    const code = await main(["--revert", "/r/planned.json", "--execute", "--token", fileToken(c)], EXEC, NOW);
+    const printed = q.printed();
+    q.restore();
+    expect(code).toBe(1);
+    expect(printed).toContain("reverted 0 · left 1 · receipt never finished: re-run --revert after checking the rows by marker");
+    expect(rowWrites()).toHaveLength(0);
+    expect(table.get("mis_link0001")).toMatchObject({ lifeGoalId: "goal_fit0001" });
+  });
+
+  it("the planned receipt carries no written list, so a dead run is told apart from one that wrote nothing", async () => {
+    goalsAndNoVectors("goal_fit0001");
+    missionTable([{ id: "mis_okay0003" }]);
+    const token = await handPlan({ missions: [link("mis_okay0003", "goal_fit0001")] });
+    const seen: any[] = [];
+    const { main } = await load();
+    const q = quiet();
+    const real = h.state.writeImpl!;
+    h.state.writeImpl = (model, method, args) => {
+      seen.push(JSON.parse(receiptOf("missions")!.body));
+      return real(model, method, args);
+    };
+    expect(await main(["--execute", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(0);
+    q.restore();
+    expect(seen[0]).toMatchObject({ status: "planned" });
+    expect(seen[0]).not.toHaveProperty("written");
+  });
+});
+
+describe("round 2: no_note keeps the inner reason", () => {
+  it("a planned note that is already rewritten at execute is lost as no_note:already_noted", async () => {
+    allFixtures();
+    const token = await dryRunWithPlan();
+    set("relationshipLedger", "findMany", () => [
+      {
+        id: "led_generic1",
+        note: "interaction reported in chat (call)",
+        metadata: { via: "backfill:conversation_digest", conversationId: "conv_1", noteVia: "someone-else" },
+        person: { name: "Dania", deletedAt: null },
+      },
+    ]);
+    const { main } = await load();
+    const q = quiet();
+    expect(await main(["--execute", "--pass", "notes", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
+    q.restore();
+    expect(receiptOf("notes")!.json).toMatchObject({ written: [], lost: [{ id: "led_generic1", reason: "no_note:already_noted" }] });
   });
 });
