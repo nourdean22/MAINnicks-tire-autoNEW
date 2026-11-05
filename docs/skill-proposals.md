@@ -2740,3 +2740,33 @@ the named-ref integrate recipe in monorepo-manager `references/review-and-merge.
 - **Proposed edit:** both skills say: a timing canary compares against a baseline measured in the same run (the same regex on a 10x smaller input, cap at 3x the ratio a linear scan predicts) or caps at 3x a generous absolute, never a bare wall-clock number. This canary is not edited here (a candidate branch may not edit its judges).
 - **Confidence:** high (two runs, one day, same number).
 - **Status:** proposed
+
+## 2026-11-05 · NOUR OS interconnect job, wave 2 (manager session, PRs 3534-3544)
+
+### P1 · monorepo-manager (session pipeline: sweep)
+- **Trigger (witnessed):** on 2026-11-04 three merge gates started detached (`nohup ... &`) died silently with no `EXIT=` line, and later Claude restarts killed tracked gates mid-run; a side chat then wrongly concluded PR 3544's gate had stopped.
+- **Cost:** about an hour of PRs sitting green and unmerged across the evening, plus one wrong status claim to Nour.
+- **Proposed edit:** under step 5 (Sweep) add: "Run every merge gate as a harness-tracked background job, never detached. On every resume after a restart or compaction, read each open PR's gate log for `EXIT=` first and restart any gate that has none."
+- **Confidence:** high (recurred 4 times in one job)
+- **Status:** proposed
+
+### P2 · monorepo-manager (references/review-and-merge.md)
+- **Trigger (witnessed):** PRs 3541 and 3542: the fix was pushed before the Codex threads were replied to and resolved, so the agent-policy review-gate step ran first and left a stale red that needed `gh run rerun --failed`.
+- **Cost:** two extra CI reruns (about 2 x 10 runner-minutes) and a gate retry each.
+- **Proposed edit:** "After fixing review findings: reply on each thread and resolve it BEFORE pushing the fix commit; the review-gate step reads thread state at run time."
+- **Confidence:** high (2x)
+- **Status:** proposed
+
+### P3 · monorepo-manager (step 14 or the merge-gate note)
+- **Trigger (witnessed):** PR 3542's gate ran from the primary checkout; the manager fast-forwarded the primary to PR 3543 mid-gate; the gate's in-process sweep then failed with `cli-common.mjs does not provide an export named 'ownerRepoFromUrl'` (old module cached, new one imported).
+- **Cost:** the post-merge worktree sweep did not run; one manual sweep later.
+- **Proposed edit:** "Never fast-forward the checkout a running merge-gate was started from; wait for its EXIT line, or start gates from a checkout you will not move."
+- **Confidence:** medium (once, clear cause)
+- **Status:** proposed
+
+### P4 · monorepo-manager (step 6, Dispatch)
+- **Trigger (witnessed):** the W10b brief's acceptance line required `forge.mjs check .claude/skills/statenour-verify` to exit 0; the lane found it exits 1 on unedited main (7 pre-existing problems), so the line could never pass.
+- **Cost:** one lane round spent proving the acceptance line was unmeetable.
+- **Proposed edit:** "Before dispatch, run each ACCEPTANCE / VERIFY WITH command once on the unedited base; a command that is already red there is rewritten or dropped from the brief."
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
