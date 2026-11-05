@@ -5,9 +5,9 @@
  * TWO DIFFERENT JOBS, PREVIOUSLY CONFLATED.
  *
  *   export-brain-to-obsidian.ts is a READING surface. It writes category rollup
- *   markdown and caps each at `slice(0, 100)` so Obsidian does not choke on a
- *   huge note. That cap is CORRECT for reading — and it means the vault is not a
- *   backup. Measured 2026-08-16: 2,822 of 18,027 live memories reachable
+ *   markdown. Until 2026-11-05 it capped each at `slice(0, 100)` so Obsidian did
+ *   not choke on a huge note (now it pages large categories instead, see
+ *   lib/obsidian/memory-rollup.ts) — and the vault is still not a backup. Measured 2026-08-16: 2,822 of 18,027 live memories reachable
  *   (15.7%); 15,205 never exported, 17 categories truncated, `archive_document`
  *   losing 6,969 and `insight` losing 1,024. It also filters `deletedAt: null`,
  *   so anything soft-deleted is absent entirely.
