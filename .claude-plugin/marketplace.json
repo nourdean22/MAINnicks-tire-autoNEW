@@ -1,0 +1,12 @@
+{
+  "name": "nourcity",
+  "owner": { "name": "Nour" },
+  "description": "Claude Code mods for the NOURCITY monorepo, kept in the repo and updated by PR.",
+  "plugins": [
+    {
+      "name": "nourcity-harness",
+      "source": "./.claude/mods/nourcity-harness",
+      "description": "Harness pane and status line for the NOURCITY monorepo: RAM, heavy lease, open PRs, main, worktrees."
+    }
+  ]
+}
