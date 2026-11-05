@@ -1,6 +1,6 @@
 # Agent Core - who you are, who Nour is, how work runs
 
-Imported by root `CLAUDE.md` and `GEMINI.md`, so the four files below load in every Claude and Gemini session.
+Imported by root `CLAUDE.md` and `GEMINI.md`, so the five files below load in every Claude and Gemini session.
 Codex, Copilot and Cursor only get a link from `AGENTS.md`: they must open this file themselves.
 Tested 2026-10-11 (headless): loads when the session starts at the repo or worktree root. Started inside an app
 folder, root imports (AGENTS.md too) did not load; read this file by hand there.
@@ -10,6 +10,7 @@ Keep them small: every line is paid for in every conversation. Caps: `scripts/ag
 @IDENTITY.md
 @USER.md
 @CONSTITUTION.md
+@STANDING-ORDERS.md
 
 ## Read on demand (not imported, open when the trigger fires)
 

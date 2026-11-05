@@ -122,7 +122,7 @@ test("the REAL repo: the committed files match the generator (pnpm agent:parity 
 const PARITY_FILES = [
   "AGENTS.md", "CLAUDE.md", "GEMINI.md", "NOUR-COMMAND.md", "AGENT-OPERATING-PROFILE.md", "CLAUDE-OPERATING-PROFILE.md", ".antigravityrules",
   ".github/copilot-instructions.md", ".cursor/rules/repo-core.mdc", ".cursor/rules/nickstire.mdc", ".cursor/rules/statenour.mdc",
-  ".agents/core/CORE.md", ".agents/core/SOUL.md", ".agents/core/IDENTITY.md", ".agents/core/USER.md", ".agents/core/CONSTITUTION.md", ".agents/frameworks/ciitty/SKILL.md",
+  ".agents/core/CORE.md", ".agents/core/STANDING-ORDERS.md", ".agents/core/SOUL.md", ".agents/core/IDENTITY.md", ".agents/core/USER.md", ".agents/core/CONSTITUTION.md", ".agents/frameworks/ciitty/SKILL.md",
   "apps/nickstire/AGENTS.md", "apps/nickstire/CLAUDE.md", "apps/nickstire/DEPLOY.md", "apps/nickstire/docs/OPERATOR-DIRECTIVE.md", "apps/statenour/AGENTS.md", "apps/statenour/CLAUDE.md", "apps/worker/AGENTS.md", "apps/worker/CLAUDE.md",
   "config/agent-os/local-services.json", "config/agent-os/required-plugins.json", "docs/ANTIGRAVITY-RULES.md", "docs/agent-os/NOUR-RUNTIME-KERNEL.md", "docs/codebase-memory-mcp.md", "scripts/start-codebase-mcp.ps1",
   ...FILES,
