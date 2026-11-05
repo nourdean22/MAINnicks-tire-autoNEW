@@ -8,7 +8,7 @@
  *
  * Storage is RunnerNode (nodeKey `harness:<pc>`, snapshot in metadata), so no table and no migration.
  * lastHeartbeatAt is stamped by this server, so a PC with a wrong clock cannot read as fresh.
- * The harness rows are not runners: getStatusSnapshot in runner-state.ts filters them out.
+ * The harness rows are not runners: runner-liveness reads filter them with NOT_HARNESS_NODE.
  *
  * A PC that stops pushing goes UNKNOWN and its numbers are dropped: a pushed value does not expire
  * on its own (the Prometheus Pushgateway page warns of exactly this), so the reader must age it.
@@ -26,6 +26,8 @@ export type HarnessPcKey = (typeof HARNESS_PCS)[number]["key"];
 export const HARNESS_STALE_MS = 15 * 60_000;
 
 const NODE_PREFIX = "harness:";
+/** Harness rows are PCs reporting state, not runners: every runner-liveness read must exclude them. */
+export const NOT_HARNESS_NODE = { nodeKey: { not: { startsWith: NODE_PREFIX } } };
 export const harnessNodeKey = (pc: HarnessPcKey) => `${NODE_PREFIX}${pc}`;
 export const harnessPcLabel = (pc: HarnessPcKey) => HARNESS_PCS.find((p) => p.key === pc)!.label;
 
@@ -78,7 +80,7 @@ export const harnessSnapshotSchema = z
     vaultGraph: z.object({ exists: z.boolean(), builtAt: z.string().max(40).nullable() }).strict().nullable(),
     sites: z.object({ bdnick: sha, nickstire: sha }).strict(),
     // What this PC could not read, and why: a missing source is null plus a reason here, never a zero.
-    unread: z.record(z.string().max(30), safeText(200)),
+    unread: z.record(z.string().max(30), safeText(200)).refine((u) => Object.keys(u).length <= 20, "too many unread sources"),
   })
   .strict();
 export type HarnessSnapshot = z.infer<typeof harnessSnapshotSchema>;
@@ -228,6 +230,7 @@ async function readVaultDb(): Promise<HarnessVaultDb> {
     out.unread.exportedCount = "The export status could not be read";
   }
   try {
+    // Close to the export's population: it skips deleted rows and keeps superseded ones. It also skips a few categories, so the two will not match exactly.
     out.liveCount = await prisma.brainMemory.count({ where: { deletedAt: null } });
   } catch {
     out.unread.liveCount = "The memory count could not be read";

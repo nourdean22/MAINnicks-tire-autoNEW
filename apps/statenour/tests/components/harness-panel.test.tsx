@@ -117,6 +117,10 @@ describe("HarnessPanel", () => {
     expect(html).toContain("Vault graph not built");
   });
 
+  it("shows when the picture was read", () => {
+    expect(render({ data: harnessStatusFromRows([], NOW) })).toContain("Read Nov 5, 10:00 AM");
+  });
+
   it("a failed read is marked unreadable and draws no PCs", () => {
     const html = render({ isError: true, error: { message: "boom" } });
     expect(html).toContain("data-read-failed");

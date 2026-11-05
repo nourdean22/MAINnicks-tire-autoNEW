@@ -21,9 +21,10 @@ if (-not (Test-Path $config)) { throw "config not found: $config. Write it first
 
 # Through hidden PowerShell, as the repo's other tasks run: node.exe directly opens a console window
 # on the desktop every tick, and one of these PCs is the shop's front desk.
-# Quotes doubled: the shop PC's checkout sits under a user folder with an apostrophe in its name.
-$node = (Get-Command node -ErrorAction Stop).Source -replace "'", "''"
-$quoted = $script -replace "'", "''"
+# Quotes doubled, curly ones too (PowerShell reads those as quotes): the shop PC's checkout sits under a
+# user folder with an apostrophe in its name.
+$node = (Get-Command node -ErrorAction Stop).Source -replace "['\u2018\u2019\u201A\u201B]", '$0$0'
+$quoted = $script -replace "['\u2018\u2019\u201A\u201B]", '$0$0'
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $RepoRoot `
     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"& '$node' '$quoted'`""
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `

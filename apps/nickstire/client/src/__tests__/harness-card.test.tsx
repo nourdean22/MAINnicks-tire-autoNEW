@@ -96,6 +96,19 @@ describe("HarnessCard", () => {
     expect(screen.getByText(/Code graph unknown. No reporting PC has the code graph/)).toBeTruthy();
   });
 
+  it("shows when the picture was read", () => {
+    state.q = { data: status() };
+    render(<HarnessCard />);
+    expect(screen.getByText(/^Read Nov 5, 10:00 AM/)).toBeTruthy();
+  });
+
+  it("a failed refresh over old data says so, with the time of the last good read", () => {
+    state.q = { data: status(), isError: true };
+    render(<HarnessCard />);
+    expect(screen.getByText(/Last refresh failed.*state unknown.*Nov 5, 10:00 AM/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
+  });
+
   it("a failed read says unknown and draws no PCs", () => {
     state.q = { isError: true };
     render(<HarnessCard />);

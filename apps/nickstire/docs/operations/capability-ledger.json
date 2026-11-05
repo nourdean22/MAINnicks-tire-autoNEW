@@ -5926,7 +5926,7 @@
       "name": "Harness in both apps: PCs push a read-only snapshot to bdnick; Nick's tool and the /system and Settings cards read it",
       "owner": "system",
       "evidence": {
-        "codeCommit": "2026-11-05 branch statenour/harness-apps-connect: scripts/agent-os/harness-snapshot.mjs posts to POST /api/devices/harness (device door, RunnerNode rows, no table). lib/services/harness-status.ts ages the rows: over 15 min reads UNKNOWN and drops the numbers. Readers: getHarnessStatus, trpc.system.harnessStatus, /api/nour-os/query harness_status, nickstire nourOsBridge.harnessStatus and settings/HarnessCard.tsx.",
+        "codeCommit": "2026-11-05 branch statenour/harness-connect: scripts/agent-os/harness-snapshot.mjs posts to POST /api/devices/harness (device door, RunnerNode rows, no table). lib/services/harness-status.ts ages the rows: over 15 min reads UNKNOWN and drops the numbers. Readers: getHarnessStatus, trpc.system.harnessStatus, /api/nour-os/query harness_status, nickstire nourOsBridge.harnessStatus and settings/HarnessCard.tsx.",
         "tests": [
           "statenour tests/services/harness-status.test.ts, tests/api/devices-harness-route.test.ts, tests/services/runner-state-harness-rows.test.ts, tests/components/harness-panel.test.tsx, tests/ai/harness-tool-reachability.test.ts",
           "nickstire server/services/harnessStatus.test.ts, client/src/__tests__/harness-card.test.tsx",

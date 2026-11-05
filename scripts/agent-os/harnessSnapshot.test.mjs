@@ -1,11 +1,11 @@
 // Canary for harness-snapshot.mjs (job 2026-11-05-harness-apps-connect). A failed read is null plus a
 // reason, a real zero stays zero, and nothing local reaches the wire.
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { buildSnapshot, countActiveSessions, parseGraph, parseHealth, readVaultGraph, scrub, sendSnapshot } from "./harness-snapshot.mjs";
+import { buildSnapshot, countActiveSessions, countSessionsAcross, parseGraph, parseHealth, readVaultGraph, recordFailure, requireSha, scrub, sendSnapshot } from "./harness-snapshot.mjs";
 
 const ok = {
   sha: () => "726f3baad4",
@@ -131,8 +131,59 @@ test("countActiveSessions counts live unarchived sessions only; a missing store 
   write("not-a-session.json", { lastActivityAt: now, isArchived: false });
   assert.equal(countActiveSessions(root, now), 1);
   assert.throws(() => countActiveSessions(join(root, "nope"), now), /no Desktop session store/);
+});
+
+test("a session store with no session files is unknown, not zero", () => {
   const empty = mkdtempSync(join(tmpdir(), "harness-empty-"));
-  assert.equal(countActiveSessions(empty, now), 0);
+  assert.throws(() => countActiveSessions(empty), /no session files/);
+});
+
+test("a recent session file with no readable activity time is unknown, not zero", () => {
+  const root = mkdtempSync(join(tmpdir(), "harness-fields-"));
+  const dir = join(root, "account", "org");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "local_a.json"), JSON.stringify({ isArchived: false }));
+  assert.throws(() => countActiveSessions(root), /activity time/);
+});
+
+test("a stored session that has gone quiet is a real zero", () => {
+  const root = mkdtempSync(join(tmpdir(), "harness-quiet-"));
+  const dir = join(root, "account", "org");
+  mkdirSync(dir, { recursive: true });
+  const old = Date.now() - 3_600_000;
+  const file = join(dir, "local_a.json");
+  writeFileSync(file, JSON.stringify({ lastActivityAt: old, isArchived: false }));
+  utimesSync(file, new Date(old), new Date(old));
+  assert.equal(countActiveSessions(root), 0);
+});
+
+test("requireSha turns a blank or bad commit into a reason, so one field cannot sink the snapshot", () => {
+  assert.equal(requireSha("726f3baad4\n"), "726f3baad4");
+  assert.throws(() => requireSha(""), /no commit/);
+  assert.throws(() => requireSha("not-a-sha"), /no commit/);
+});
+
+test("recordFailure writes the last failure as one line and a success clears it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "harness-log-"));
+  recordFailure(dir, new Error("bdnick refused the snapshot: HTTP 401"), new Date("2026-11-05T15:00:00.000Z"));
+  const file = join(dir, "harness-snapshot-last-failure.txt");
+  assert.equal(readFileSync(file, "utf8"), "2026-11-05T15:00:00.000Z bdnick refused the snapshot: HTTP 401\n");
+  recordFailure(dir, null);
+  assert.equal(existsSync(file), false);
+});
+
+test("countSessionsAcross finds a Store build's session store, not only a plain install's", () => {
+  const home = mkdtempSync(join(tmpdir(), "harness-home-"));
+  const now = Date.now();
+  const store = join(home, "AppData", "Local", "Claude-Data", "anthropicpbc.claude_abc123", "claude-code-sessions", "account", "org");
+  mkdirSync(store, { recursive: true });
+  writeFileSync(join(store, "local_a.json"), JSON.stringify({ lastActivityAt: now - 1000, isArchived: false }));
+  assert.equal(countSessionsAcross(home, now), 1);
+  const plain = join(home, "AppData", "Roaming", "Claude", "claude-code-sessions", "account", "org");
+  mkdirSync(plain, { recursive: true });
+  writeFileSync(join(plain, "local_b.json"), JSON.stringify({ lastActivityAt: now - 1000, isArchived: false }));
+  assert.equal(countSessionsAcross(home, now), 2);
+  assert.throws(() => countSessionsAcross(mkdtempSync(join(tmpdir(), "harness-none-")), now), /no Desktop session store/);
 });
 
 test("sendSnapshot posts to the harness door with the key and fails loudly on a refusal", async () => {

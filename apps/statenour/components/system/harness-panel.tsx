@@ -135,7 +135,9 @@ export function HarnessView({ status }: { status: HarnessStatus }) {
       <Sites status={status} />
       <GraphAndVault status={status} />
       <Prs status={status} />
-      <p className="text-[11px] text-fg-tertiary">Read-only. Nothing here can merge, restart or run anything.</p>
+      <p className="text-[11px] text-fg-tertiary">
+        Read {lastSeen(status.generatedAt)}. Read-only. Nothing here can merge, restart or run anything.
+      </p>
     </>
   );
 }

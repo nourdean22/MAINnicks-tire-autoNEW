@@ -46,6 +46,20 @@ export default function HarnessCard() {
   return (
     <Panel title="Harness" subtitle={`${status.reporting} of ${status.pcs.length} PCs reporting`} icon={<Activity className="w-4 h-4" />}>
       <div className="flex flex-col gap-4 p-2">
+        {query.isError ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-[12px] text-amber-400">Last refresh failed; state unknown. This is the read from {lastSeen(status.generatedAt)}.</p>
+            <button
+              type="button"
+              onClick={() => void query.refetch()}
+              className="min-h-12 min-w-12 self-start px-4 rounded-md border border-border/40 text-[12px] text-foreground/85"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-foreground/50">Read {lastSeen(status.generatedAt)}</p>
+        )}
         <ul className="flex flex-col gap-3">
           {status.pcs.map((pc) =>
             pc.state === "unknown" ? (

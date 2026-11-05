@@ -16,12 +16,13 @@
  * Canary: harnessSnapshot.test.mjs.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { refresh } from "./board.mjs";
 import { readFreeMb, readLock, staleReason } from "./heavy.mjs";
+import { desktopAppDataDirs } from "./plugin-index.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -79,22 +80,50 @@ export function readVaultGraph(vault) {
 export function countActiveSessions(root, now = Date.now()) {
   if (!existsSync(root)) throw new Error("no Desktop session store on this PC");
   let active = 0;
+  let files = 0;
   for (const account of readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
     for (const org of readdirSync(join(root, account.name), { withFileTypes: true }).filter((d) => d.isDirectory())) {
       const dir = join(root, account.name, org.name);
       for (const name of readdirSync(dir).filter((n) => /^local_.*\.json$/.test(n))) {
         const file = join(dir, name);
+        files += 1;
         if (now - statSync(file).mtimeMs > ACTIVE_MS) continue;
+        let session;
         try {
-          const { lastActivityAt, isArchived } = JSON.parse(readFileSync(file, "utf8"));
-          if (!isArchived && now - new Date(lastActivityAt).getTime() <= ACTIVE_MS) active += 1;
+          session = JSON.parse(readFileSync(file, "utf8"));
         } catch {
-          // The app is mid-write on this file; the next tick reads it.
+          continue; // The app is mid-write on this file; the next tick reads it.
         }
+        const at = new Date(session.lastActivityAt).getTime();
+        if (Number.isNaN(at)) throw new Error("a session file has no activity time");
+        if (!session.isArchived && now - at <= ACTIVE_MS) active += 1;
       }
     }
   }
+  if (files === 0) throw new Error("no session files in the Desktop store");
   return active;
+}
+
+/** Across every Desktop build on this PC: the Store build keeps its data outside %APPDATA%\Claude. */
+export function countSessionsAcross(home, now = Date.now()) {
+  const stores = desktopAppDataDirs(home).map((d) => join(d, "claude-code-sessions")).filter(existsSync);
+  if (!stores.length) throw new Error("no Desktop session store on this PC");
+  return stores.reduce((sum, store) => sum + countActiveSessions(store, now), 0);
+}
+
+/** One bad field must not cost the whole snapshot: the server refuses it, and a working PC would read "Silent". */
+export function requireSha(value) {
+  const sha = String(value ?? "").trim();
+  if (!/^[0-9a-f]{7,40}$/.test(sha)) throw new Error("no commit in the reply");
+  return sha;
+}
+
+/** The last failed send, kept on the PC so a refused key, a bad body and a dead network read differently. Null clears it. */
+export function recordFailure(dir, err, now = new Date()) {
+  const file = join(dir, "harness-snapshot-last-failure.txt");
+  if (!err) return rmSync(file, { force: true });
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, `${now.toISOString()} ${scrub(err?.message ?? err)}\n`);
 }
 
 const run = (cmd, args, { env = process.env, timeout = 20_000 } = {}) => {
@@ -109,9 +138,7 @@ const slotState = (name) => {
 const siteCommit = async (url, pick) => {
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const commit = pick(await res.json())?.build?.commit;
-  if (typeof commit !== "string") throw new Error("no commit in the reply");
-  return commit;
+  return requireSha(pick(await res.json())?.build?.commit);
 };
 const ghEnv = () => {
   const env = { ...process.env };
@@ -140,18 +167,18 @@ const realSources = () => {
     return existsSync(file) ? readFileSync(file, "utf8") : null;
   };
   return {
-  sha: () => run("git", ["rev-parse", "HEAD"]).trim(),
+  sha: () => requireSha(run("git", ["rev-parse", "HEAD"])),
   ramFreeMb: () => readFreeMb(),
   heavy: () => slotState("heavy"),
   chrome: () => slotState("chrome"),
-  sessionsActive: () => countActiveSessions(join(process.env.APPDATA || join(homedir(), ".config"), "Claude", "claude-code-sessions")),
+  sessionsActive: () => countSessionsAcross(homedir()),
   worktrees: () => run("git", ["worktree", "list", "--porcelain"]).split("\n").filter((l) => l.startsWith("worktree ")).length - 1,
   health: () => parseHealth(healthLine()),
   graph: () => parseGraph(healthLine(), graphReport()),
   vaultGraph: () => readVaultGraph(process.env.OBSIDIAN_VAULT_PATH || join(homedir(), "OneDrive", "Documents", "Obsidian Vault")),
   prs: readPrs,
   merged: readMerged,
-  mainSha: () => run("git", ["ls-remote", "origin", "refs/heads/main"]).split(/\s/)[0],
+  mainSha: () => requireSha(run("git", ["ls-remote", "origin", "refs/heads/main"]).split(/\s/)[0]),
   bdnick: () => siteCommit("https://bdnick.info/api/version", (b) => b.data),
   nickstire: () => siteCommit("https://nickstire.org/api/version", (b) => b),
   };
@@ -174,9 +201,10 @@ export async function buildSnapshot(pc, sources) {
   return {
     pc,
     ...rest,
-    health: rest.health && { ok: rest.health.ok, problems: rest.health.problems.map((p) => scrub(p, 60)) },
-    prs: rest.prs && rest.prs.map((p) => ({ ...p, title: scrub(p.title), branch: scrub(p.branch, 120) })),
-    merged: rest.merged && rest.merged.map((p) => ({ ...p, title: scrub(p.title) })),
+    // Capped to the server's limits: a body it refused would make a working PC read "Silent".
+    health: rest.health && { ok: rest.health.ok, problems: rest.health.problems.slice(0, 12).map((p) => scrub(p, 60)) },
+    prs: rest.prs && rest.prs.slice(0, 60).map((p) => ({ ...p, title: scrub(p.title), branch: scrub(p.branch, 120) })),
+    merged: rest.merged && rest.merged.slice(0, 15).map((p) => ({ ...p, title: scrub(p.title) })),
     sites: { bdnick, nickstire },
     unread,
   };
@@ -202,6 +230,8 @@ function readConfig() {
   };
 }
 
+const logDir = () => join(process.env.LOCALAPPDATA || join(homedir(), ".local", "state"), "nourcity");
+
 async function main(args) {
   const config = readConfig();
   const print = args.includes("--print");
@@ -213,6 +243,7 @@ async function main(args) {
     return;
   }
   await sendSnapshot(snapshot, config);
+  recordFailure(logDir(), null);
   const missing = Object.keys(snapshot.unread);
   console.log(`[harness-snapshot] sent for ${config.pc}${missing.length ? `; unread: ${missing.join(", ")}` : ""}`);
 }
@@ -221,5 +252,6 @@ if (process.argv[1] && basename(process.argv[1]) === "harness-snapshot.mjs") {
   main(process.argv.slice(2)).catch((err) => {
     console.error(`[harness-snapshot] ${scrub(err?.message ?? err)}`);
     process.exitCode = 1;
+    if (!process.argv.includes("--print")) recordFailure(logDir(), err);
   });
 }

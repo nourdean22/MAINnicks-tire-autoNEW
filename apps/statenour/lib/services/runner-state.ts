@@ -3,6 +3,7 @@ import { Prisma, ServiceState, WorkItemStatus, WorkItemType } from "@prisma/clie
 
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/runtime";
+import { NOT_HARNESS_NODE } from "@/lib/services/harness-status";
 
 type ServiceHealthView = {
   service: string;
@@ -697,7 +698,7 @@ export async function getSystemHealthSnapshot(): Promise<SystemHealthSnapshot> {
       prisma.runnerNode.findFirst({
         // Harness rows (lib/services/harness-status.ts) are PCs reporting state, not runners: one must
         // not read as a live worker.
-        where: { nodeKey: { not: { startsWith: "harness:" } } },
+        where: NOT_HARNESS_NODE,
         orderBy: {
           lastHeartbeatAt: "desc"
         }

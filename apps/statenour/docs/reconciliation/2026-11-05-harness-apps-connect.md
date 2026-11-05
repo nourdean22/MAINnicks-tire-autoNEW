@@ -1,6 +1,6 @@
 > ## 2026-11-05 · Harness in both apps: PCs push a read-only snapshot, Nick reads it, cards on /system and /admin · 1 ship
 >
-> Branch `statenour/harness-apps-connect` (job 2026-11-05-harness-apps-connect). Nour: "i also want both apps/websites
+> Branch `statenour/harness-connect` (job 2026-11-05-harness-apps-connect). Nour: "i also want both apps/websites
 > especially the chat and the admin connnected to the herness".
 >
 > - Sender: `scripts/agent-os/harness-snapshot.mjs` (every 5 min, `scripts/register-harness-snapshot-task.ps1`) posts to

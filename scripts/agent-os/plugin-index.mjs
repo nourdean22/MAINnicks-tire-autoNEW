@@ -144,7 +144,7 @@ const DESKTOP_BUILD = /^(?:[a-z0-9]+\.)?claude_[a-z0-9]+$/i;
  * shortcut: Windows layouts only (MSIX package seen 2026-11-03, Claude-Data as reported 2026-11-05); add macOS
  * ~/Library/Application Support/Claude when a Mac runs this.
  */
-function desktopAppDataDirs(home) {
+export function desktopAppDataDirs(home) {
   const builds = (dir) => (existsSync(dir) ? readdirSync(dir).filter((n) => DESKTOP_BUILD.test(n)).map((n) => join(dir, n)) : []);
   const local = join(home, "AppData", "Local");
   return [
