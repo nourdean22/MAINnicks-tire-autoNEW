@@ -52,6 +52,18 @@ describe("scanKeptWords", () => {
     expect(key).toBe("y:m1");
   });
 
+  it("a shared nickname the model hands back lands on nobody, even when the line passes the gate on a name", async () => {
+    h.chat.mockResolvedValue([{ ...msg, content: "Mash said mom will send the papers tomorrow" }]);
+    h.people.mockResolvedValue([
+      { id: "m", name: "Mash", metadata: null },
+      { id: "y", name: "Yummah", metadata: { nicknames: ["mom"] } },
+      { id: "o", name: "Olivia", metadata: { nicknames: ["mom"] } },
+    ]);
+    h.ai.mockResolvedValue({ content: JSON.stringify({ promises: [{ personName: "mom", promise: "send papers", dueHint: null }] }) });
+    expect((await scanKeptWords()).newPromises).toBe(0);
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
   it("a shared nickname lands on nobody", async () => {
     h.chat.mockResolvedValue([msg]);
     h.people.mockResolvedValue([

@@ -159,8 +159,9 @@ describe("linkJournalPeople · the resolver gate", () => {
 
   it("asks the resolver for exact tiers only: no fuzzy pass, so no Auto-merged audit row for a name the gate refuses", async () => {
     await linkJournalPeople({ dumpId: "d1", createdAt, rawText: text, people: [{ name: "Danya", interacted: true }] });
-    // The Levenshtein tier scans every live person (findMany); with fuzzy off that scan never runs.
-    expect(h.findMany).not.toHaveBeenCalled();
+    // The scan runs for the nickname tier now; with fuzzy off it still merges nothing.
+    const { prisma } = await import("@/lib/prisma");
+    expect(prisma.brainMemory.create).not.toHaveBeenCalled();
   });
 
   it("an unmatched name writes no id and no row", async () => {

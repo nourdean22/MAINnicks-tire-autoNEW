@@ -21,9 +21,11 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(async ({ where }: { where: { name: { equals: string } } }) =>
         h.people.filter((p) => p.name.toLowerCase() === where.name.equals.toLowerCase()).length,
       ),
-      findMany: vi.fn(async ({ where }: { where: { name?: { equals: string } } }) =>
-        where.name ? h.people.filter((p) => p.name.toLowerCase() === where.name!.equals.toLowerCase()) : h.people,
-      ),
+      // Honours the select, so a read that forgets metadata sees no nicknames, as it would in production.
+      findMany: vi.fn(async ({ where, select }: { where: { name?: { equals: string } }; select?: { metadata?: boolean } }) => {
+        const rows = where.name ? h.people.filter((p) => p.name.toLowerCase() === where.name!.equals.toLowerCase()) : h.people;
+        return select?.metadata ? rows : rows.map(({ id, name }) => ({ id, name }));
+      }),
     },
     task: { findUnique: vi.fn(async () => h.task), updateMany: h.taskUpdate },
     brainDump: { update: vi.fn() },
@@ -82,7 +84,7 @@ describe("namedInText · nicknames", () => {
     expect(ids(namedInText("met Sam Jones", [sam, full]))).toEqual(["f"]);
     const mike = { id: "k", name: "Mike" };
     const big = { id: "b", name: "Robert", metadata: { nicknames: ["big mike"] } };
-    expect(ids(namedInText("saw big mike", [mike, big]))).toEqual(["b"]);
+    expect(ids(namedInText("saw Big Mike", [mike, big]))).toEqual(["b"]);
   });
 
   it("a name and its own nickname in one line link once", () => {
