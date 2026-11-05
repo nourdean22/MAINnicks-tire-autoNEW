@@ -67,10 +67,14 @@ non-obvious and two of them silently lie if run carelessly.
   caught it. Never report "verified" off typecheck alone.
 - **`pnpm typecheck` never compiles `scripts/` either** — both `scripts/`
   and `tests/` are tsconfig-excluded. Verify a new or changed script with
-  a scoped tsconfig extending the app's: `{"extends":"./tsconfig.json",
-  "include":["scripts/<file>","next-env.d.ts"]}`, then `tsc --noEmit -p`
-  that file. Tests have no such workaround — they're verified by
-  execution only, never by typecheck.
+  a scoped tsconfig extending the app's, with the script under `files`:
+  `{"extends":"./tsconfig.json","files":["scripts/<file>","next-env.d.ts"],
+  "include":[]}`, then `tsc --noEmit -p` that file. Check
+  `tsc --listFilesOnly -p <config>` names the script before trusting its
+  exit 0: a child `include` does not undo the base `exclude`, so the old
+  `include` form compiled nothing and exited 0 (measured 2026-11-05, a
+  planted type error went unseen). Tests have no such workaround —
+  they're verified by execution only, never by typecheck.
 - **A green `tsc` can still ship a broken `next build` — a different
   failure mode from the `tests/`/`scripts/` exclusion above, same "green
   tsc lied" shape.** Before importing between `lib/observability/*` (or
