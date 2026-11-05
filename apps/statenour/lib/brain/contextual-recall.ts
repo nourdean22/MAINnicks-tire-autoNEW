@@ -14,6 +14,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+import { nicknameMatchers } from "@/lib/services/people/backfill-plan";
 // v10.0.64 · AgentTrace coverage. getEmbedding kept direct (its own
 // cost-tracking via VectorEmbedding writes).
 import { getEmbedding } from "@/lib/ai/provider";
@@ -2405,11 +2406,22 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
   // W8a (C11) · live rows, matched in SQL; no term means no read.
   const peopleWhere = recallPeopleWhere(topicLower);
   if (!peopleWhere) return;
+  const nicknamed = new Set<string>();
   const allPeople = await prisma.personProfile
     .findMany({
       where: peopleWhere,
       take: 30,
       select: { id: true, name: true, role: true, relationship: true },
+    })
+    .then(async (rows) => {
+      // A topic "mom" names someone only through their metadata, which the SQL above cannot match in any case.
+      const live = await prisma.personProfile.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, role: true, relationship: true, metadata: true },
+      });
+      const said = nicknameMatchers(live).filter((n) => topicLower.some((t) => n.re.test(t)));
+      for (const n of said) nicknamed.add(n.person.id);
+      return [...said.map((n) => n.person).filter((p) => !rows.some((r) => r.id === p.id)), ...rows];
     })
     .catch((err: unknown) => {
       logError("brain.contextual-recall", err, { fn: "appendRelatedContext.people" }, "warn");
@@ -2421,7 +2433,7 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
   }
 
   const relevantPeople = allPeople.filter(
-    (p) => matchesTopic(p.name) || matchesTopic(p.relationship)
+    (p) => nicknamed.has(p.id) || matchesTopic(p.name) || matchesTopic(p.relationship)
   );
   if (relevantPeople.length > 0) {
     const shown = relevantPeople.slice(0, 3);

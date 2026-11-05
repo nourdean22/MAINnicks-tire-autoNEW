@@ -12,8 +12,9 @@
  *
  *   1. Exact case-sensitive match (fast path)
  *   2. Case-insensitive exact (catches "MIKE" vs "Mike")
- *   3. Levenshtein distance ≤ 1 for names ≥ 4 chars (catches "Dania" vs "Danai")
- *   4. Jaro-Winkler similarity ≥ 0.92 for names ≥ 5 chars (catches softer typos)
+ *   3. A nickname (metadata.nicknames, whole, any case), one live owner only
+ *   4. Levenshtein distance ≤ 1 for names ≥ 4 chars (catches "Dania" vs "Danai")
+ *   5. Jaro-Winkler similarity ≥ 0.92 for names ≥ 5 chars (catches softer typos)
  *
  * If any check matches, the EXISTING row is updated + a BrainMemory
  * audit row written so the operator can review the auto-merge later.
@@ -28,6 +29,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
+import { nicknameOwners } from "@/lib/people/nicknames";
 
 const log = rootLogger.withSurface("brain/person-profile-fuzzy");
 
@@ -138,11 +140,15 @@ interface ResolveResult {
   matchTier:
     | "exact"
     | "case_insensitive"
+    | "nickname"
     | "levenshtein"
     | "jaro_winkler"
     | "created"
     | "no_match"
+    | "shared_nickname"
     | "rejected_nonname";
+  /** On shared_nickname: who uses it, for the caller to ask which. */
+  candidates?: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -175,9 +181,9 @@ export async function resolvePersonByName(
   const fuzzy = createDefaults.fuzzy ?? true;
   // 2026-06-06 · never resolve OR create from a pronoun / generic descriptor
   // ("her", "the caller") or a too-short token · those created ghost rows.
-  if (name.length < 2 || isNonName(name)) {
-    return { person: null, matched: false, matchTier: "rejected_nonname" };
-  }
+  if (name.length < 2) return { person: null, matched: false, matchTier: "rejected_nonname" };
+  // Past the guard only as a nickname: a word he gave someone works for them and still creates no one.
+  const nonName = isNonName(name);
 
   // ── Tier 1 · exact case-sensitive ──────────────────────────────
   // Wave AM · 2026-05-28 · soft-delete safety · don't merge new mentions
@@ -185,14 +191,14 @@ export async function resolvePersonByName(
   // brings Tiers 1+2 to parity. Otherwise operator deletes "John Smith" ·
   // a new mention of "John Smith" gets resolved INTO the deleted record ·
   // creates a phantom-revive scenario.
-  const exact = await prisma.personProfile.findFirst({
+  const exact = nonName ? null : await prisma.personProfile.findFirst({
     where: { name, deletedAt: null },
     select: { id: true, name: true },
   });
   if (exact) return { person: exact, matched: true, matchTier: "exact" };
 
   // ── Tier 2 · case-insensitive ──────────────────────────────────
-  const ci = await prisma.personProfile.findFirst({
+  const ci = nonName ? null : await prisma.personProfile.findFirst({
     where: {
       name: { equals: name, mode: "insensitive" },
       deletedAt: null,
@@ -204,14 +210,25 @@ export async function resolvePersonByName(
     return { person: ci, matched: true, matchTier: "case_insensitive" };
   }
 
-  // ── Tier 3 + 4 · Levenshtein + Jaro-Winkler ────────────────────
+  // ── Tier 3 · nickname ──────────────────────────────────────────
+  // Whole and in any case, never fuzzy. No audit row: he chose this name. A shared nickname stops here, so it can
+  // neither reach a typo-close name nor create anyone.
+  const live = await prisma.personProfile.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true, metadata: true },
+  });
+  const owners = nicknameOwners(live)
+    .get(name.toLowerCase())
+    ?.map((p) => ({ id: p.id, name: p.name }));
+  if (owners?.length === 1) return { person: owners[0], matched: true, matchTier: "nickname" };
+  if (owners) return { person: null, matched: false, matchTier: "shared_nickname", candidates: owners };
+  if (nonName) return { person: null, matched: false, matchTier: "rejected_nonname" };
+
+  // ── Tier 4 + 5 · Levenshtein + Jaro-Winkler ────────────────────
   // Only worth the scan if input is long enough to typo into a similar
   // existing name. Skip for very short names (false-positive risk).
   if (fuzzy && name.length >= 4) {
-    const allActive = await prisma.personProfile.findMany({
-      where: { deletedAt: null },
-      select: { id: true, name: true },
-    });
+    const allActive = live.map((p) => ({ id: p.id, name: p.name }));
     const inputLower = name.toLowerCase();
 
     // Levenshtein ≤ 1
@@ -239,7 +256,7 @@ export async function resolvePersonByName(
     }
   }
 
-  // ── Tier 5 · create ────────────────────────────────────────────
+  // ── Tier 6 · create ────────────────────────────────────────────
   // 2026-06-06 · callers that only want to ENRICH existing people (the
   // background conversation digest, person.update) pass createIfMissing:false
   // so a never-before-seen name does NOT silently become a new profile.

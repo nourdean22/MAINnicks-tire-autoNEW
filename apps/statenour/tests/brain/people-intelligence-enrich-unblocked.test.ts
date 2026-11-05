@@ -141,8 +141,8 @@ describe("enrich pass after the backfill", () => {
     await runPeopleIntelligence();
 
     const [a, b] = enrichWrites();
-    expect(a.where).toEqual({ id: "a", pendingClassification: { equals: CADENCE_ONLY } });
-    expect(b.where).toEqual({ id: "b", pendingClassification: { equals: Prisma.AnyNull } });
+    expect(a.where).toEqual({ id: "a", pendingClassification: { equals: CADENCE_ONLY }, metadata: { equals: Prisma.AnyNull } });
+    expect(b.where).toEqual({ id: "b", pendingClassification: { equals: Prisma.AnyNull }, metadata: { equals: Prisma.AnyNull } });
   });
 
   it("he answered the banner mid-run: the stale write matches nothing and is skipped, not a failure", async () => {
@@ -187,5 +187,37 @@ describe("enrich pass after the backfill", () => {
 
     expect(h.aiChat).not.toHaveBeenCalled();
     expect(out.enrich).toBe("chat_read_failed");
+  });
+});
+
+describe("people intelligence · metadata (nicknames beside the engine's stamps)", () => {
+  const meta = { nicknames: ["mom"], enrichTriedAt: "2020-01-01T00:00:00.000Z" };
+
+  it("the proposal write is pinned to the metadata it read and keeps every key", async () => {
+    h.peopleFindMany.mockResolvedValueOnce([person("a", { metadata: meta, relationship: "", leverageNotes: null, interactionCount: 0 })]);
+    h.ledgerFindMany.mockResolvedValue([{ personId: "a", note: "helped with the move", createdAt: new Date(), source: "manual", metadata: null }]);
+    await runPeopleIntelligence();
+    const [write] = enrichWrites() as unknown as Array<{ where: { metadata?: unknown }; data: { metadata: Record<string, unknown> } }>;
+    expect(write.where.metadata).toEqual({ equals: meta });
+    expect(write.data.metadata.nicknames).toEqual(["mom"]);
+  });
+
+  it("the tried stamp is pinned too: a nickname saved mid-run loses the stamp, never the nickname", async () => {
+    h.peopleFindMany.mockResolvedValueOnce([person("a", { metadata: meta, relationship: "", leverageNotes: null, interactionCount: 0 })]);
+    h.ledgerFindMany.mockResolvedValue([{ personId: "a", note: "helped with the move", createdAt: new Date(), source: "manual", metadata: null }]);
+    h.aiChat.mockResolvedValue({ content: JSON.stringify({ role: "friend", trustAdjustment: 0 }), provider: "ollama" });
+    await runPeopleIntelligence();
+    const stamp = h.personUpdate.mock.calls.map((c) => c[0] as { where: { metadata?: unknown }; data: { metadata?: { enrichTriedAt?: string }; pendingClassification?: unknown } }).find((a) => a.data.metadata && !a.data.pendingClassification);
+    expect(stamp?.where.metadata).toEqual({ equals: meta });
+    h.logError.mockClear();
+  });
+
+  it("a lost stamp swap is not logged as a failure", async () => {
+    h.peopleFindMany.mockResolvedValueOnce([person("a", { metadata: meta, relationship: "", leverageNotes: null, interactionCount: 0 })]);
+    h.ledgerFindMany.mockResolvedValue([{ personId: "a", note: "helped with the move", createdAt: new Date(), source: "manual", metadata: null }]);
+    h.aiChat.mockResolvedValue({ content: JSON.stringify({ role: "friend", trustAdjustment: 0 }), provider: "ollama" });
+    h.personUpdate.mockRejectedValue(Object.assign(new Error("gone"), { code: "P2025" }));
+    await runPeopleIntelligence();
+    expect(h.logError.mock.calls.filter((c) => (c[2] as { fn?: string })?.fn === "runPeopleIntelligence.stampTried")).toEqual([]);
   });
 });

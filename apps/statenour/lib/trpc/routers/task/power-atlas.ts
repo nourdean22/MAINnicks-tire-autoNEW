@@ -13,6 +13,7 @@ import { z } from "zod";
 import { operatorProcedure } from "../../trpc";
 import { TaskStatus } from "@prisma/client";
 import { PERSON_ROLES } from "@/lib/brain/person-roles";
+import { NICKNAME_MAX_CHARS, NICKNAMES_PER_PERSON, readNicknames, workingNicknames } from "@/lib/people/nicknames";
 import { prisma } from "@/lib/prisma";
 import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
@@ -62,6 +63,7 @@ export const powerAtlasProcedures = {
       // to this person — linked via the personId FK OR (transitional) a
       // free-text promiseTo that matches the name but predates the link.
       // This is what makes /people actually READ the task list.
+      const livePeople = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true, metadata: true } });
       const openTasks = await prisma.task.findMany({
         where: {
           deletedAt: null,
@@ -81,6 +83,7 @@ export const powerAtlasProcedures = {
                   },
                 ]
               : []),
+            ...workingNicknames(person, livePeople).map((n) => ({ promiseTo: { equals: n, mode: "insensitive" as const } })),
           ],
         },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
@@ -104,10 +107,10 @@ export const powerAtlasProcedures = {
   personStory: operatorProcedure
     .input(z.object({ personId: z.string().min(1).max(64) }))
     .query(async ({ input }) => {
-      const person = await prisma.personProfile.findUnique({ where: { id: input.personId }, select: { name: true } });
+      const person = await prisma.personProfile.findUnique({ where: { id: input.personId }, select: { name: true, metadata: true } });
       if (!person) throw new Error("Person not found");
       const { personStory } = await import("@/lib/services/people/person-story");
-      return personStory({ personId: input.personId, personName: person.name });
+      return personStory({ personId: input.personId, personName: person.name, nicknames: readNicknames(person.metadata) });
     }),
 
   logLedger: operatorProcedure
@@ -164,6 +167,20 @@ export const powerAtlasProcedures = {
         if (err instanceof PersonNotFoundError) throw new Error("Person not found");
         throw err;
       }
+    }),
+
+  /** Add or remove nicknames; the one writer keeps every other metadata key and says which ones link nobody. */
+  editPersonNicknames: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        add: z.array(z.string().max(NICKNAME_MAX_CHARS)).max(NICKNAMES_PER_PERSON).optional(),
+        remove: z.array(z.string().max(NICKNAME_MAX_CHARS)).max(NICKNAMES_PER_PERSON).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { editNicknames } = await import("@/lib/services/people/nicknames");
+      return editNicknames(input.personId, { add: input.add, remove: input.remove });
     }),
 
   flipPersonStatus: operatorProcedure
@@ -385,6 +402,9 @@ export const powerAtlasProcedures = {
       // 2026-06-06 · resolver returns person:null for a pronoun/descriptor
       // name (createIfMissing defaults true here, so this only triggers on a
       // rejected non-name). Surface a friendly error instead of crashing.
+      if (resolved.matchTier === "shared_nickname") {
+        throw new Error(`More than one person goes by that nickname: ${resolved.candidates?.map((c) => c.name).join(", ")}.`);
+      }
       if (!resolved.person) {
         throw new Error("Please enter a real person's name.");
       }

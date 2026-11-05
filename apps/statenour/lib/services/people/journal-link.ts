@@ -72,17 +72,19 @@ export interface JournalLinkResult {
   rejectedNames: string[];
 }
 
-async function resolveUnique(name: string): Promise<{ id: string; name: string; tier: "exact" | "case_insensitive" } | null> {
+type LinkTier = "exact" | "case_insensitive" | "nickname";
+
+async function resolveUnique(name: string): Promise<{ id: string; name: string; tier: LinkTier } | null> {
   // Counted BEFORE the resolver: it writes an Auto-merged row when it matches, and its hit on two "Sam" profiles is the
   // FIRST of them, which is a guess. A refused namesake must leave nothing behind (W8b).
   const hits = await prisma.personProfile.count({
     where: { name: { equals: name.trim(), mode: "insensitive" }, deletedAt: null },
   });
-  if (hits !== 1) return null;
+  if (hits > 1) return null;
   // fuzzy:false: the gate refuses the Levenshtein and Jaro-Winkler tiers, so they never run (and never log an Auto-merged row).
   const r = await resolvePersonByName(name, { createIfMissing: false, fuzzy: false });
   if (!r.matched || !r.person) return null;
-  if (r.matchTier !== "exact" && r.matchTier !== "case_insensitive") return null;
+  if (r.matchTier !== "exact" && r.matchTier !== "case_insensitive" && r.matchTier !== "nickname") return null;
   return { id: r.person.id, name: r.person.name, tier: r.matchTier };
 }
 
@@ -99,7 +101,7 @@ export async function linkJournalPeople(args: {
   people: JournalPersonMention[];
 }): Promise<JournalLinkResult> {
   const silo = args.silo ?? "brain_dump";
-  const resolved = new Map<string, { name: string; tier: "exact" | "case_insensitive"; interacted: boolean }>();
+  const resolved = new Map<string, { name: string; tier: LinkTier; interacted: boolean }>();
   const rejectedNames: string[] = [];
   for (const m of args.people.slice(0, JOURNAL_PEOPLE_MAX)) {
     const hit = await resolveUnique(m.name);
@@ -188,7 +190,7 @@ export async function linkNamedPeople(args: {
   createdAt: Date;
   rawText: string;
 }): Promise<{ names: string[] }> {
-  const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true } });
+  const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true, metadata: true } });
   const { people: named, ambiguous } = namedInText(args.rawText, people);
   if (ambiguous > 0) log.info("journal_people_ambiguous", { dumpId: args.dumpId, ambiguous });
   if (named.length === 0) return { names: [] };
@@ -208,12 +210,14 @@ export interface LatestJournal {
 /**
  * The card excerpt: whole up to JOURNAL_EXCERPT_CHARS, else JOURNAL_EXCERPT_CHARS characters (trailing space trimmed)
  * plus an ellipsis. With a `name`, the window opens a little before the mention nameIndexIn picks (W8b, audit B12, the
- * chatSnippets shape), so the line shows the sentence about the person, not an unrelated prefix or "I will".
+ * chatSnippets shape), so the line shows the sentence about the person, not an unrelated prefix or "I will". A line
+ * that never spells the name windows on the first of their `nicknames` it has.
  */
-export function journalExcerpt(raw: string, name?: string): string {
+export function journalExcerpt(raw: string, name?: string, nicknames: readonly string[] = []): string {
   const t = raw.trim();
   if (t.length <= JOURNAL_EXCERPT_CHARS) return t;
-  const from = Math.max(0, (name ? nameIndexIn(t, name) : 0) - 40);
+  const at = name ? ([name, ...nicknames].map((n) => nameIndexIn(t, n)).find((i) => i >= 0) ?? 0) : 0;
+  const from = Math.max(0, at - 40);
   const lead = from > 0 ? "…" : "";
   return `${lead}${t.slice(from, from + JOURNAL_EXCERPT_CHARS).trim()}…`;
 }

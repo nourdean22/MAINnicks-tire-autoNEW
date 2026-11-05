@@ -7,9 +7,9 @@
  * Unicode word boundaries, case-insensitive), never by attendee email: the schema
  * marks PersonProfile.email "NOT a match key". shortcut: a short first name ("Ana")
  * can match a different person with the same name; the W4 kill criterion watches
- * for that.
+ * for that. A nickname counts the same way, when one person alone uses it.
  */
-import { nameMatcher } from "./backfill-plan";
+import { nameMatcher, nicknameMatchers } from "./backfill-plan";
 import { toDateString } from "@/lib/utils/datetime";
 
 export interface TitledEvent {
@@ -23,11 +23,14 @@ const ALL_DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** personId -> start of the earliest upcoming event that names them. */
 export function nextEventByPerson(
   events: readonly TitledEvent[],
-  people: ReadonlyArray<{ id: string; name: string }>,
+  people: ReadonlyArray<{ id: string; name: string; metadata?: unknown }>,
   now: Date,
 ): Map<string, Date> {
   const todayKey = toDateString(now);
-  const matchers = people.map((p) => ({ id: p.id, re: nameMatcher(p.name) }));
+  const matchers = [
+    ...people.map((p) => ({ id: p.id, re: nameMatcher(p.name) })),
+    ...nicknameMatchers(people).map((m) => ({ id: m.person.id, re: m.re })),
+  ];
   const out = new Map<string, Date>();
   for (const e of events) {
     if (!e.summary || !e.start) continue;

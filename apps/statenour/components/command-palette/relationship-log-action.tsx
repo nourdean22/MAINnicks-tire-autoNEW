@@ -31,12 +31,14 @@ interface PersonLite {
   id: string;
   name: string;
   role: string;
+  nicknames?: string[];
 }
 
 /**
  * Fuzzy-rank PersonProfile rows by similarity to `rawName`. The match
  * scoring is simple and predictable so the operator's muscle memory
  * stays consistent:
+ *   - the name or a nickname, whichever scores higher
  *   - exact (case-insensitive) match → 1.0
  *   - prefix match → 0.85
  *   - substring match → 0.7
@@ -45,18 +47,20 @@ interface PersonLite {
  * If the top score is ≥0.85 AND second-best is <0.6, treat as
  * single-high-confidence match (auto-log eligible).
  */
-function rankCandidates(
+export function rankCandidates(
   rawName: string,
   people: PersonLite[],
 ): Array<PersonLite & { score: number }> {
   const needle = rawName.toLowerCase();
   return people
     .map((p) => {
-      const hay = p.name.toLowerCase();
       let score = 0;
-      if (hay === needle) score = 1;
-      else if (hay.startsWith(needle)) score = 0.85;
-      else if (hay.includes(needle)) score = 0.7;
+      for (const word of [p.name, ...(p.nicknames ?? [])]) {
+        const hay = word.toLowerCase();
+        if (hay === needle) score = 1;
+        else if (hay.startsWith(needle)) score = Math.max(score, 0.85);
+        else if (hay.includes(needle)) score = Math.max(score, 0.7);
+      }
       return { ...p, score };
     })
     .filter((p) => p.score > 0)

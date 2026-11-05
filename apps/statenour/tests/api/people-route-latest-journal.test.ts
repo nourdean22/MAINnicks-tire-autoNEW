@@ -64,6 +64,15 @@ describe("GET /api/people · latestJournal", () => {
     expect(body.reads).toEqual({ journal: "ok" });
   });
 
+  it("a person's nicknames ride the row, and the excerpt windows on one", async () => {
+    h.people.mockResolvedValue([{ ...person("p1"), name: "Yummah", metadata: { nicknames: ["mom"] } }]);
+    const line = `${"filler words here ".repeat(10)}then mom called about the move ${"and more ".repeat(10)}`;
+    h.raw.mockResolvedValue([{ person_id: "p1", id: "d1", created_at: new Date("2026-11-01T10:00:00Z"), raw_thoughts: line }]);
+    const [row] = (await call()).people as Array<{ nicknames: string[]; latestJournal: LJ }>;
+    expect(row.nicknames).toEqual(["mom"]);
+    expect(row.latestJournal?.excerpt).toContain("mom called");
+  });
+
   it("the read is ONE query: newest per person, live entries only, over the listed ids", async () => {
     h.raw.mockResolvedValue([]);
     await call();

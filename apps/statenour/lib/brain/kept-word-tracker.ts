@@ -26,6 +26,8 @@ import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { nicknameOwners } from "@/lib/people/nicknames";
+import { nicknameMatchers } from "@/lib/services/people/backfill-plan";
 
 interface ExtractedPromise {
   personName: string;
@@ -64,11 +66,13 @@ export async function scanKeptWords(): Promise<{
 
   const people = await prisma.personProfile.findMany({
     where: { status: { not: "blown_up" }, deletedAt: null },
-    select: { id: true, name: true },
+    select: { id: true, name: true, metadata: true },
   });
   if (people.length === 0) {
     return { scanned: messages.length, newPromises: 0, resolved: 0 };
   }
+  const owners = nicknameOwners(people);
+  const nicknames = nicknameMatchers(people);
 
   let newPromises = 0;
   const resolved = 0;
@@ -81,7 +85,7 @@ export async function scanKeptWords(): Promise<{
     const mentionedPeople = people.filter((p) =>
       contentLower.includes(p.name.toLowerCase()),
     );
-    if (mentionedPeople.length === 0) continue;
+    if (mentionedPeople.length === 0 && !nicknames.some((n) => n.re.test(msg.content))) continue;
 
     // Quick filter · skip messages without promise-shape language
     if (
@@ -110,10 +114,10 @@ export async function scanKeptWords(): Promise<{
         .replace(/\s*```\s*$/, "");
       const parsed = JSON.parse(raw) as { promises: ExtractedPromise[] };
       for (const promise of parsed.promises ?? []) {
-        const matchedPerson = people.find(
-          (p) =>
-            p.name.toLowerCase() === promise.personName.toLowerCase(),
-        );
+        const said = promise.personName.toLowerCase();
+        const shared = owners.get(said);
+        const matchedPerson =
+          people.find((p) => p.name.toLowerCase() === said) ?? (shared?.length === 1 ? shared[0] : undefined);
         if (!matchedPerson) continue;
         await prisma.brainMemory.upsert({
           where: {

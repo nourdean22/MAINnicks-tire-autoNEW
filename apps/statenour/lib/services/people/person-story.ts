@@ -39,7 +39,7 @@ export interface PersonStory {
 
 const goalHref = (id: string) => `/stats?tab=goals#goal-${id}`;
 
-export async function personStory(input: { personId: string; personName: string }): Promise<PersonStory> {
+export async function personStory(input: { personId: string; personName: string; nicknames?: string[] }): Promise<PersonStory> {
   const [dumps, refls, tasks, moments] = await Promise.all([
     prisma.brainDump.findMany({
       where: { deletedAt: null, personIds: { has: input.personId } },
@@ -90,7 +90,7 @@ export async function personStory(input: { personId: string; personName: string 
       id: e.id,
       kind: e.kind,
       at: e.createdAt.toISOString(),
-      excerpt: journalExcerpt(e.text.replace(/\s+/g, " "), input.personName),
+      excerpt: journalExcerpt(e.text.replace(/\s+/g, " "), input.personName, input.nicknames),
       href: journalEntryHref(e.id),
     })),
     entriesTruncated: all.length > PERSON_STORY_ENTRY_CAP,
