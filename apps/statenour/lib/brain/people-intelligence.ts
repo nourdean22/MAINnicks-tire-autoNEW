@@ -23,6 +23,7 @@ import { daysAgo, today } from "@/lib/utils/datetime";
 import { isNeglected } from "@/lib/services/people/neglect";
 import { contactRowsOnly, GENERIC_NOTE } from "@/lib/services/people/contact-rows";
 import { nameMatcher } from "@/lib/services/people/backfill-plan";
+import { workingNicknames } from "@/lib/people/nicknames";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
 import { logger as rootLogger } from "@/lib/logger";
@@ -56,15 +57,19 @@ function hasEnrichProposal(pc: unknown): boolean {
 /**
  * Up to `max` snippets of HIS OWN chat messages naming the person (whole word), newest first. `conversationId`
  * keeps them to one chat (scripts/backfill-interconnect.ts: a dated ledger row gets words from its own conversation);
- * `before` keeps them at or before that row, so a later mention in the same chat never rewrites history.
+ * `before` keeps them at or before that row, so a later mention in the same chat never rewrites history. `nicknames`
+ * count as the name.
  */
-export async function chatSnippets(name: string, max: number, conversationId?: string, before?: Date): Promise<string[]> {
-  const re = nameMatcher(name);
+export async function chatSnippets(name: string, max: number, conversationId?: string, before?: Date, nicknames: readonly string[] = []): Promise<string[]> {
+  const terms = [name, ...nicknames].map((t) => t.trim());
+  const res = terms.map((t) => nameMatcher(t));
   // shortcut: a short name inside many longer words can fill the 20 rows with non-matches; widen take if a name that short appears.
   const rows = await prisma.chatMessage.findMany({
     where: {
       role: "user",
-      content: { contains: name.trim(), mode: "insensitive" },
+      ...(terms.length > 1
+        ? { OR: terms.map((t) => ({ content: { contains: t, mode: "insensitive" as const } })) }
+        : { content: { contains: terms[0], mode: "insensitive" as const } }),
       ...(conversationId !== undefined ? { conversationId } : {}),
       ...(before ? { createdAt: { lte: before } } : {}),
     },
@@ -74,7 +79,7 @@ export async function chatSnippets(name: string, max: number, conversationId?: s
   });
   const out: string[] = [];
   for (const r of rows) {
-    const m = re.exec(r.content);
+    const m = res.map((re) => re.exec(r.content)).find(Boolean);
     if (!m) continue;
     const from = Math.max(0, m.index - 80);
     out.push(r.content.slice(from, from + 200).replace(/\s+/g, " ").trim());
@@ -228,7 +233,7 @@ export async function runPeopleIntelligence(): Promise<{
       const logged = ledgerContext[person.id] ?? [];
       const said =
         logged.length < CONTEXT_MAX
-          ? await chatSnippets(person.name, CONTEXT_MAX - logged.length).catch((err) => {
+          ? await chatSnippets(person.name, CONTEXT_MAX - logged.length, undefined, undefined, workingNicknames(person, people)).catch((err) => {
               logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.chatSnippets" });
               chatReadFailed = true;
               return [] as string[];
@@ -312,6 +317,8 @@ Return ONLY JSON:
             where: {
               id: person.id,
               pendingClassification: { equals: (prior ?? Prisma.AnyNull) as Prisma.InputJsonValue },
+              // This write replaces the whole object after a model call: pinned, so a nickname saved meanwhile survives.
+              metadata: { equals: (person.metadata ?? Prisma.AnyNull) as Prisma.InputJsonValue },
             },
             data: {
               metadata: { ...meta, enrichProposedAt: triedAt, enrichTriedAt: triedAt } as object,
@@ -342,9 +349,15 @@ Return ONLY JSON:
       if (!stamped) {
         const next = { ...meta, enrichTriedAt: triedAt };
         await prisma.personProfile
-          .update({ where: { id: person.id }, data: { metadata: next as object } })
+          .update({
+            where: { id: person.id, metadata: { equals: (person.metadata ?? Prisma.AnyNull) as Prisma.InputJsonValue } },
+            data: { metadata: next as object },
+          })
           .then(() => stampedMeta.set(person.id, next))
-          .catch((err) => logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.stampTried" }));
+          .catch((err) => {
+            // Lost the swap: something else changed the metadata mid-run. It stands; the person is simply tried again.
+            if ((err as { code?: unknown } | null)?.code !== "P2025") logError("brain.people-intelligence", err, { fn: "runPeopleIntelligence.stampTried" });
+          });
       }
     }
 

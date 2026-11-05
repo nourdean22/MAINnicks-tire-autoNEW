@@ -3,8 +3,8 @@
  *
  * Task.personId was only set when the model passed a real profile id, so in
  * prod 0 tasks were linked and "open promises to X" always read empty, while
- * 15 promise tasks named someone in `promiseTo`. Exact or case-insensitive
- * name only: he never confirmed this link, so a fuzzy tier must not guess.
+ * 15 promise tasks named someone in `promiseTo`. Exact, case-insensitive or
+ * nickname only: he never confirmed this link, so a fuzzy tier must not guess.
  * Compare-and-set on personId so a deliberate link is never overwritten.
  */
 import { prisma } from "@/lib/prisma";
@@ -25,7 +25,7 @@ export async function linkPromiseToPerson(taskId: string): Promise<LinkPromiseOu
     if (!task || task.personId || !name || SELF.test(name)) return "skipped";
 
     const res = await resolvePersonByName(name, { createIfMissing: false });
-    if (!res.person || (res.matchTier !== "exact" && res.matchTier !== "case_insensitive")) return "no_match";
+    if (!res.person || (res.matchTier !== "exact" && res.matchTier !== "case_insensitive" && res.matchTier !== "nickname")) return "no_match";
 
     const out = await prisma.task.updateMany({ where: { id: task.id, personId: null }, data: { personId: res.person.id } });
     return out.count > 0 ? "linked" : "skipped";

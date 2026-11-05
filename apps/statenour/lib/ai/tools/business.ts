@@ -30,6 +30,7 @@ import { resolveTrustTier } from "@/lib/brain/memory-trust";
  * would amputate a customer_search page the model needs to read.
  */
 const BRIDGE_FENCE_MAX_CHARS = 20_000;
+const PERSON_LOOKUP = { name: true, role: true, relationship: true, trustScore: true, interactionCount: true, lastInteraction: true } as const;
 function fenceBridgeResult(toolName: string, res: unknown): unknown {
   if (!res || typeof res !== "object") return res;
   const r = res as Record<string, unknown>;
@@ -316,10 +317,22 @@ export const businessTools = {
         // Wave AM · 2026-05-28 · soft-delete safety
         prisma.personProfile.findFirst({
           where: {
-            name: { contains: nameOrPhone, mode: "insensitive" },
+            name: { equals: nameOrPhone, mode: "insensitive" },
             deletedAt: null,
           },
-          select: { name: true, role: true, relationship: true, trustScore: true, interactionCount: true, lastInteraction: true },
+          select: PERSON_LOOKUP,
+        }).then(async (hit) => {
+          if (hit) return hit;
+          const { resolvePersonForBusinessSearch } = await import("@/lib/services/people/nicknames");
+          const resolution = await resolvePersonForBusinessSearch(nameOrPhone);
+          if (resolution.person) {
+            return prisma.personProfile.findFirst({ where: { id: resolution.person.id, deletedAt: null }, select: PERSON_LOOKUP });
+          }
+          if (resolution.ambiguous) return null;
+          return prisma.personProfile.findFirst({
+            where: { name: { contains: nameOrPhone, mode: "insensitive" }, deletedAt: null },
+            select: PERSON_LOOKUP,
+          });
         }).catch((): null => null),
       ]);
 

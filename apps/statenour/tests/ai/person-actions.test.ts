@@ -21,6 +21,7 @@ const m = vi.hoisted(() => ({
   personUpdate: vi.fn(),
   resolve: vi.fn(),
   record: vi.fn(),
+  editNicknames: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -32,9 +33,10 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/brain/person-profile-fuzzy", () => ({ resolvePersonByName: m.resolve }));
 vi.mock("@/lib/brain/person-roles", () => ({ isPersonRole: (r: string) => ["friend", "mentor", "family"].includes(r) }));
 vi.mock("@/lib/services/people/record-interaction", () => ({ recordInteraction: m.record }));
+vi.mock("@/lib/services/people/nicknames", () => ({ editNicknames: m.editNicknames }));
 
 import { Prisma } from "@prisma/client";
-import { handlePersonLogInteraction, handlePersonUpdate } from "@/lib/ai/agent-actions/person-actions";
+import { handlePersonCreate, handlePersonLogInteraction, handlePersonUpdate } from "@/lib/ai/agent-actions/person-actions";
 
 const MATCHED = { person: { id: "p1", name: "Dania" }, matched: true, matchTier: "exact" as const };
 
@@ -182,6 +184,91 @@ describe("person.logInteraction — the contact path", () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/needs a note/);
     expect(m.resolve).not.toHaveBeenCalled();
+    expect(m.record).not.toHaveBeenCalled();
+  });
+});
+
+describe("person.* · nicknames", () => {
+  const SHARED = {
+    person: null,
+    matched: false,
+    matchTier: "shared_nickname" as const,
+    candidates: [
+      { id: "y", name: "Yummah" },
+      { id: "o", name: "Olivia" },
+    ],
+  };
+
+  it("person.update adds and removes through the one writer and reports what landed", async () => {
+    m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
+    m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
+    const res = await handlePersonUpdate({ name: "Yummah", nicknames: ["mom"], removeNicknames: ["ma"] }, "person.update");
+    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: ["ma"] }, { refuseTaken: true });
+    expect((res.result as { applied: { nicknames?: string[] } }).applied.nicknames).toEqual(["mom"]);
+    expect(res.success).toBe(true);
+  });
+
+  it("a bare string from the model counts as one nickname", async () => {
+    m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
+    m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
+    await handlePersonUpdate({ name: "Yummah", nicknames: "mom" }, "person.update");
+    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: [] }, { refuseTaken: true });
+  });
+
+  it.each(["levenshtein", "jaro_winkler"] as const)("a %s match writes no nickname and nothing else", async (matchTier) => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "d", name: "Dania" }, matched: true, matchTier });
+    const res = await handlePersonUpdate({ name: "Danai", nicknames: ["D"], relationship: "x" }, "person.update");
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Dania");
+    expect(m.editNicknames).not.toHaveBeenCalled();
+    expect(m.personUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(["exact", "case_insensitive", "nickname"] as const)("a %s match may write nicknames", async (matchTier) => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "y", name: "Yummah" }, matched: true, matchTier });
+    m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
+    expect((await handlePersonUpdate({ name: "yummah", nicknames: ["mom"] }, "person.update")).success).toBe(true);
+  });
+
+  it("a typo-close match with no nickname param still edits as before", async () => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "d", name: "Dania" }, matched: true, matchTier: "levenshtein" as const });
+    expect((await handlePersonUpdate({ name: "Danai", relationship: "x" }, "person.update")).success).toBe(true);
+    expect(m.personUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused nickname says why and leaves the rest of the update unwritten", async () => {
+    m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
+    m.editNicknames.mockRejectedValueOnce(new Error('"boss" already points at Olivia.'));
+    const res = await handlePersonUpdate({ name: "Yummah", nicknames: ["boss"], relationship: "x" }, "person.update");
+    expect(res).toMatchObject({ success: false, error: '"boss" already points at Olivia.' });
+    expect(m.personUpdate).not.toHaveBeenCalled();
+  });
+
+  it("no nickname params, no writer call", async () => {
+    m.resolve.mockResolvedValueOnce(MATCHED);
+    await handlePersonUpdate({ name: "Dania", relationship: "friend" }, "person.update");
+    expect(m.editNicknames).not.toHaveBeenCalled();
+  });
+
+  it("says when a saved nickname links nobody, so Nick does not claim it works", async () => {
+    m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
+    m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: ["mom"] });
+    const res = await handlePersonUpdate({ name: "Yummah", nicknames: ["mom"] }, "person.update");
+    expect((res.result as { nicknamesLinkingNobody?: string[] }).nicknamesLinkingNobody).toEqual(["mom"]);
+  });
+
+  it("a shared nickname asks which person, on all three actions, and writes nothing", async () => {
+    m.resolve.mockResolvedValue(SHARED);
+    for (const out of [
+      await handlePersonUpdate({ name: "mom", relationship: "x" }, "person.update"),
+      await handlePersonCreate({ name: "mom" }, "person.create"),
+      await handlePersonLogInteraction({ name: "mom", note: "called" }, "person.logInteraction"),
+    ]) {
+      expect(out.success).toBe(false);
+      expect(out.error).toContain("Yummah");
+      expect(out.error).toContain("Olivia");
+    }
+    expect(m.personUpdate).not.toHaveBeenCalled();
     expect(m.record).not.toHaveBeenCalled();
   });
 });

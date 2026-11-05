@@ -26,43 +26,8 @@ import { CommandGroup } from "@/components/ui/command";
 import { PALETTE_HINT, PaletteRow } from "@/components/command-palette/palette-row";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 import { parseLedgerQuery } from "@/lib/services/people/parse-ledger-query";
-
-interface PersonLite {
-  id: string;
-  name: string;
-  role: string;
-}
-
-/**
- * Fuzzy-rank PersonProfile rows by similarity to `rawName`. The match
- * scoring is simple and predictable so the operator's muscle memory
- * stays consistent:
- *   - exact (case-insensitive) match → 1.0
- *   - prefix match → 0.85
- *   - substring match → 0.7
- *   - none → filtered out
- *
- * If the top score is ≥0.85 AND second-best is <0.6, treat as
- * single-high-confidence match (auto-log eligible).
- */
-function rankCandidates(
-  rawName: string,
-  people: PersonLite[],
-): Array<PersonLite & { score: number }> {
-  const needle = rawName.toLowerCase();
-  return people
-    .map((p) => {
-      const hay = p.name.toLowerCase();
-      let score = 0;
-      if (hay === needle) score = 1;
-      else if (hay.startsWith(needle)) score = 0.85;
-      else if (hay.includes(needle)) score = 0.7;
-      return { ...p, score };
-    })
-    .filter((p) => p.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-}
+import { rankCandidates, type PersonLite } from "@/lib/services/people/rank-person-candidates";
+export { rankCandidates } from "@/lib/services/people/rank-person-candidates";
 
 interface Props {
   /** Current cmdk input value (query.trim()). */
@@ -79,8 +44,8 @@ export default function RelationshipLogAction({ query, onLogged }: Props) {
   const lastFetchedRef = useRef<string>("");
 
   // Lazy-fetch the people list when the parser matches. We pull from
-  // /api/people (already auth-guarded) · 100 cap matches the
-  // /relationships page. Re-fetch on each new parsed name so the list
+  // /api/people (already auth-guarded), at the endpoint's 200-row cap so
+  // nickname ownership checks see the widest available live roster. Re-fetch on each new parsed name so the list
   // stays fresh, but skip if same name as last fetch.
   useEffect(() => {
     if (!parsed) {
@@ -92,7 +57,7 @@ export default function RelationshipLogAction({ query, onLogged }: Props) {
 
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/people?sort=recent&limit=100`, {
+    fetch(`/api/people?sort=recent&limit=200`, {
       signal: controller.signal,
       credentials: "same-origin",
     })

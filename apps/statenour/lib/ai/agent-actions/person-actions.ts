@@ -31,6 +31,14 @@ const AGENT_AMOUNT_CAP = 25;
 /** A tool row this recent for the same person is the same report as the block (it runs after the reply). */
 const SAME_TURN_MS = 10 * 60_000;
 
+/** A nickname two people share links nobody: Nick asks which one, never guesses. */
+const sharedNicknameError = (name: string, candidates: ReadonlyArray<{ name: string }> = []) =>
+  `"${name}" is a nickname more than one person uses (${candidates.map((c) => c.name).join(", ")}). Ask Nour which one.`;
+
+/** The model may send one word or a list. */
+const wordList = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter((w): w is string => typeof w === "string");
+
 export async function handlePersonUpdate(params: ActionParams, type: string): Promise<ActionResult> {
   // person.update edits an EXISTING person · createIfMissing:false means a
   // never-seen name (or a pronoun) resolves to no row, and we ask instead of
@@ -50,7 +58,9 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
       action: type,
       success: false,
       error:
-        resolution.matchTier === "rejected_nonname"
+        resolution.matchTier === "shared_nickname"
+          ? sharedNicknameError(name, resolution.candidates)
+          : resolution.matchTier === "rejected_nonname"
           ? `"${name}" is not a real name — never log to a pronoun or descriptor. Use the person's actual name.`
           : `No existing person matches "${name}". Do not assume one. Ask Nour: "want me to add ${name} to your people?" — then use person.create only after a yes.`,
     };
@@ -62,6 +72,28 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   // pendingClassification (operator approves on /people) so Nick can NEVER
   // silently overwrite a role/trust.
   const personId = resolution.person.id;
+
+  // Nicknames first, so a refused one leaves the whole update unwritten. A nickname teaches every reader a name, so it
+  // needs a person he named exactly, and it can never take a word from someone else (model text reaches this path).
+  const addNicknames = wordList(params.nicknames);
+  const removeNicknames = wordList(params.removeNicknames);
+  let nicknames: { nicknames: string[]; dead: string[] } | null = null;
+  if (addNicknames.length > 0 || removeNicknames.length > 0) {
+    if (resolution.matchTier === "levenshtein" || resolution.matchTier === "jaro_winkler") {
+      return {
+        action: type,
+        success: false,
+        error: `"${String(params.name)}" only looks like ${resolution.person.name}. Nothing changed: a nickname needs the exact name. Ask Nour who he means.`,
+      };
+    }
+    const { editNicknames } = await import("@/lib/services/people/nicknames");
+    try {
+      nicknames = await editNicknames(personId, { add: addNicknames, remove: removeNicknames }, { refuseTaken: true });
+    } catch (err) {
+      return { action: type, success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   const current = await prisma.personProfile.findUnique({
     where: { id: personId },
     select: { role: true, trustScore: true, pendingClassification: true },
@@ -130,7 +162,9 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
       applied: {
         relationship: params.relationship ? String(params.relationship) : null,
         leverageNotes: params.leverageNotes ? String(params.leverageNotes) : null,
+        ...(nicknames ? { nicknames: nicknames.nicknames } : {}),
       },
+      ...(nicknames?.dead.length ? { nicknamesLinkingNobody: nicknames.dead } : {}),
       pendingProposal: pendingProposed
         ? { role: suggestedRole, trustAdjustment, awaitingApprovalOn: "/people" }
         : null,
@@ -159,7 +193,10 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
     return {
       action: type,
       success: false,
-      error: `"${name}" is not a usable name (looks like a pronoun or descriptor). Use the person's real name.`,
+      error:
+        resolution.matchTier === "shared_nickname"
+          ? sharedNicknameError(name, resolution.candidates)
+          : `"${name}" is not a usable name (looks like a pronoun or descriptor). Use the person's real name.`,
     };
   }
 
@@ -249,7 +286,9 @@ export async function handlePersonLogInteraction(params: ActionParams, type: str
       action: type,
       success: false,
       error:
-        resolution.matchTier === "rejected_nonname"
+        resolution.matchTier === "shared_nickname"
+          ? sharedNicknameError(name, resolution.candidates)
+          : resolution.matchTier === "rejected_nonname"
           ? `"${name}" is not a real name — never log to a pronoun or descriptor. Use the person's actual name.`
           : `No existing person matches "${name}". Do not assume one. Ask Nour: "want me to add ${name} to your people?" — then use person.create only after a yes, and log the interaction after that.`,
     };

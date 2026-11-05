@@ -229,6 +229,7 @@ async function buildCandidatePool(): Promise<{ candidates: Candidate[]; calendar
       role: true,
       lastInteraction: true,
       birthday: true,
+      metadata: true,
     },
     take: 200,
   });

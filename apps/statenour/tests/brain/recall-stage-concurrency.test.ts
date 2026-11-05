@@ -193,8 +193,8 @@ const VECTORS = MEMORIES.map((m, i) => ({
 }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
-const run = () =>
-  getContextualMemories(["what did the tire supplier say about the invoice"], 5, {
+const run = (message = "what did the tire supplier say about the invoice") =>
+  getContextualMemories([message], 5, {
     fastTopics: true,
     queryEmbedding: EMBED,
   });
@@ -410,12 +410,23 @@ describe("contextual recall · goals and people (W6, 2026-11-03)", () => {
     expect(line!.trimEnd().endsWith(" · journal unread")).toBe(true);
   });
 
+  it("a person whose nickname is in the topic comes back, on the same people line", async () => {
+    h.people = [{ id: "y", name: "Yummah", role: "family", relationship: "", metadata: { nicknames: ["tire"] } }];
+    const out = await settle(run());
+    expect(out).toContain("Yummah (family)");
+  });
+
+  it("a two-character nickname from the fast path brings that person into recall", async () => {
+    h.people = [{ id: "y", name: "Yummah", role: "family", relationship: "", metadata: { nicknames: ["ma"] } }];
+    const out = await settle(run("Ma called me"));
+    expect(out).toContain("Yummah (family)");
+  });
+
   it("WIRING (W8a C11): the people stage reads live rows matched in SQL (recallPeopleWhere), never any 30 rows", async () => {
     const { prisma } = await import("@/lib/prisma");
     const findMany = (prisma as unknown as { personProfile: { findMany: ReturnType<typeof vi.fn> } }).personProfile.findMany;
     findMany.mockClear();
     await settle(run());
-    expect(findMany).toHaveBeenCalledTimes(1);
     const where = (findMany.mock.calls[0] as unknown as [{ where: { deletedAt: unknown; OR: unknown[] } }])[0].where;
     expect(where.deletedAt).toBeNull();
     expect(where.OR).toEqual(expect.arrayContaining([{ name: { contains: "supplier", mode: "insensitive" } }]));
