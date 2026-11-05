@@ -136,18 +136,27 @@ export async function insertWithinWindow(
  * counts for runApply to refuse on, so the next run is not blocked by a half-made table.
  * CREATE TABLE still fails when a committed backup exists: a run never overwrites one.
  */
+/** The tables a backup may copy, as SQL. Both names are interpolated, so each is a closed set, never a free string. */
+export const BACKUP_SOURCES = ["relationship_ledger", '"Mission"'] as const;
+export type BackupSource = (typeof BACKUP_SOURCES)[number];
+const BACKUP_TABLE_NAME = /^_bak[a-z0-9_]*$/;
+
 export async function backupInOneSnapshot(
   io: {
     inTransaction<T>(fn: (q: { exec(sql: string): Promise<unknown>; count(table: string): Promise<number> }) => Promise<T>): Promise<T>;
   },
   table: string,
+  /** The table copied (W13's backfill also copies `"Mission"`). */
+  source: BackupSource = "relationship_ledger",
 ): Promise<{ source: number; backup: number }> {
+  if (!(BACKUP_SOURCES as readonly string[]).includes(source)) throw new Error(`backup source ${source} is not in BACKUP_SOURCES`);
+  if (!BACKUP_TABLE_NAME.test(table)) throw new Error(`backup table name ${table} must match ${BACKUP_TABLE_NAME}`);
   const REFUSED = "backup_refused";
   let seen = { source: 0, backup: 0 };
   try {
     return await io.inTransaction(async (q) => {
-      await q.exec(`CREATE TABLE "${table}" AS SELECT * FROM relationship_ledger`);
-      seen = { source: await q.count("relationship_ledger"), backup: await q.count(`"${table}"`) };
+      await q.exec(`CREATE TABLE "${table}" AS SELECT * FROM ${source}`);
+      seen = { source: await q.count(source), backup: await q.count(`"${table}"`) };
       if (seen.source === 0 || seen.source !== seen.backup) throw new Error(REFUSED);
       return seen;
     });
