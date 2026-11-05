@@ -28,7 +28,11 @@ export async function personIdByNickname(term: string): Promise<string | null> {
   return r.matchTier === "nickname" ? (r.person?.id ?? null) : null;
 }
 
-export async function editNicknames(personId: string, edit: NicknameEdit): Promise<NicknameResult> {
+/**
+ * `refuseTaken` is for a caller model text can reach: a nickname someone else uses or is named stops the whole edit, so
+ * words Nick read somewhere cannot mark a nickname shared and unlink its owner. The /people drawer may still share one.
+ */
+export async function editNicknames(personId: string, edit: NicknameEdit, opts: { refuseTaken?: boolean } = {}): Promise<NicknameResult> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const people = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true, metadata: true } });
     const person = people.find((p) => p.id === personId);
@@ -39,7 +43,13 @@ export async function editNicknames(personId: string, edit: NicknameEdit): Promi
     const nicknames = cleanNicknames([...kept, ...(edit.add ?? [])]).filter((n) => !SAME(n, person.name));
     const refused = (edit.add ?? []).find((w) => !SAME(w.trim(), person.name) && !nicknames.some((n) => SAME(n, w.trim().replace(/\s+/g, " "))));
     if (refused !== undefined) {
-      throw new Error(`Can't add "${refused.trim()}": nicknames run 2 to ${NICKNAME_MAX_CHARS} characters, ${NICKNAMES_PER_PERSON} per person.`);
+      throw new Error(`Can't add "${refused.trim()}": a nickname is a name for one person, 2 to ${NICKNAME_MAX_CHARS} characters, ${NICKNAMES_PER_PERSON} per person.`);
+    }
+    if (opts.refuseTaken) {
+      for (const n of nicknames.filter((w) => !current.some((c) => SAME(c, w)))) {
+        const owner = people.find((p) => p.id !== personId && (SAME(p.name.trim(), n) || readNicknames(p.metadata).some((o) => SAME(o, n))));
+        if (owner) throw new Error(`"${n}" already points at ${owner.name}. Nothing changed. Nour can share it from /people.`);
+      }
     }
     const after = { ...person, metadata: { nicknames } };
     const others = people.map((p) => (p.id === personId ? after : p));

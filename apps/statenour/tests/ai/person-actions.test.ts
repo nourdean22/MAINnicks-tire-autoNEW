@@ -203,7 +203,7 @@ describe("person.* · nicknames", () => {
     m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
     m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
     const res = await handlePersonUpdate({ name: "Yummah", nicknames: ["mom"], removeNicknames: ["ma"] }, "person.update");
-    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: ["ma"] });
+    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: ["ma"] }, { refuseTaken: true });
     expect((res.result as { applied: { nicknames?: string[] } }).applied.nicknames).toEqual(["mom"]);
     expect(res.success).toBe(true);
   });
@@ -212,7 +212,36 @@ describe("person.* · nicknames", () => {
     m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
     m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
     await handlePersonUpdate({ name: "Yummah", nicknames: "mom" }, "person.update");
-    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: [] });
+    expect(m.editNicknames).toHaveBeenCalledWith("y", { add: ["mom"], remove: [] }, { refuseTaken: true });
+  });
+
+  it.each(["levenshtein", "jaro_winkler"] as const)("a %s match writes no nickname and nothing else", async (matchTier) => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "d", name: "Dania" }, matched: true, matchTier });
+    const res = await handlePersonUpdate({ name: "Danai", nicknames: ["D"], relationship: "x" }, "person.update");
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Dania");
+    expect(m.editNicknames).not.toHaveBeenCalled();
+    expect(m.personUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(["exact", "case_insensitive", "nickname"] as const)("a %s match may write nicknames", async (matchTier) => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "y", name: "Yummah" }, matched: true, matchTier });
+    m.editNicknames.mockResolvedValueOnce({ nicknames: ["mom"], dead: [] });
+    expect((await handlePersonUpdate({ name: "yummah", nicknames: ["mom"] }, "person.update")).success).toBe(true);
+  });
+
+  it("a typo-close match with no nickname param still edits as before", async () => {
+    m.resolve.mockResolvedValueOnce({ person: { id: "d", name: "Dania" }, matched: true, matchTier: "levenshtein" as const });
+    expect((await handlePersonUpdate({ name: "Danai", relationship: "x" }, "person.update")).success).toBe(true);
+    expect(m.personUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused nickname says why and leaves the rest of the update unwritten", async () => {
+    m.resolve.mockResolvedValueOnce({ ...MATCHED, person: { id: "y", name: "Yummah" } });
+    m.editNicknames.mockRejectedValueOnce(new Error('"boss" already points at Olivia.'));
+    const res = await handlePersonUpdate({ name: "Yummah", nicknames: ["boss"], relationship: "x" }, "person.update");
+    expect(res).toMatchObject({ success: false, error: '"boss" already points at Olivia.' });
+    expect(m.personUpdate).not.toHaveBeenCalled();
   });
 
   it("no nickname params, no writer call", async () => {

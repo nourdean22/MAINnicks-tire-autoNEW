@@ -4,6 +4,8 @@
  * The one rule every matching path shares: a nickname points at a person only when exactly one live person uses it and
  * no live person is named it. A shared nickname links nobody; a nickname equal to a name loses to that name.
  */
+import { isNonName } from "./non-name";
+
 export const NICKNAME_MAX_CHARS = 40;
 export const NICKNAMES_PER_PERSON = 12;
 
@@ -13,13 +15,16 @@ export interface NicknamedPerson {
   metadata?: unknown;
 }
 
-/** Trimmed, single-spaced, 2 to 40 characters, one per spelling in any case, capped. */
+/**
+ * Trimmed, single-spaced, 2 to 40 characters, one per spelling in any case, capped. Never a pronoun or descriptor
+ * (isNonName): "her" as a nickname would link that person from every line that says her.
+ */
 export function cleanNicknames(raw: readonly string[]): string[] {
   const out = new Map<string, string>();
   for (const item of raw) {
     const nick = item.trim().replace(/\s+/g, " ");
     const key = nick.toLowerCase();
-    if (nick.length >= 2 && nick.length <= NICKNAME_MAX_CHARS && !out.has(key)) out.set(key, nick);
+    if (nick.length >= 2 && nick.length <= NICKNAME_MAX_CHARS && !isNonName(nick) && !out.has(key)) out.set(key, nick);
   }
   return [...out.values()].slice(0, NICKNAMES_PER_PERSON);
 }

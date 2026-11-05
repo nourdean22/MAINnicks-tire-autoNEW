@@ -14,3 +14,5 @@
 >   is a separate decision), co-mention counts in `network-analysis` and `social-proof-aggregator` (substring needles),
 >   `/api/people/search` (no caller).
 > - Nick's person.update takes `nicknames` and `removeNicknames`; the /people edit drawer saves each change at once.
+> - Guards: no pronoun or descriptor is ever a nickname (`isNonName`, now in `lib/people/non-name.ts`). Nick writes one
+>   only on an exact, case-insensitive or nickname match, and never a word someone else uses or is named; the drawer may.

@@ -18,6 +18,10 @@ describe("readNicknames", () => {
     for (const m of [null, undefined, [], "mom", {}, { nicknames: "mom" }]) expect(readNicknames(m)).toEqual([]);
   });
 
+  it("a pronoun stored by hand reads as no nickname", () => {
+    expect(readNicknames({ nicknames: ["her", "mom"] })).toEqual(["mom"]);
+  });
+
   it("drops non-strings a hand edit left behind", () => {
     expect(readNicknames({ nicknames: ["mom", 3, null] })).toEqual(["mom"]);
   });
@@ -30,6 +34,10 @@ describe("cleanNicknames", () => {
 
   it("drops one-letter and over-long entries", () => {
     expect(cleanNicknames(["m", "x".repeat(41), "ma"])).toEqual(["ma"]);
+  });
+
+  it("refuses pronouns and descriptors: every 'her' in every entry would link that person", () => {
+    expect(cleanNicknames(["her", "he", "me", "them", "the caller", "mom", "mashi"])).toEqual(["mom", "mashi"]);
   });
 
   it("caps the list", () => {

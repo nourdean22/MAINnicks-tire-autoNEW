@@ -30,6 +30,9 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import { nicknameOwners } from "@/lib/people/nicknames";
+import { isNonName } from "@/lib/people/non-name";
+
+export { isNonName };
 
 const log = rootLogger.withSurface("brain/person-profile-fuzzy");
 
@@ -105,32 +108,6 @@ function jaroWinkler(a: string, b: string): number {
   return jaro + prefix * 0.1 * (1 - jaro);
 }
 
-/**
- * 2026-06-06 · Reject pronouns / generic descriptors as person names.
- * The Nick agent sometimes emitted person.update { name: "her" } (or "the
- * caller"), creating ghost PersonProfile rows in the operator's Power Atlas.
- * A person must have a real name — never a pronoun or bare role-word.
- */
-const NON_NAME_TOKENS = new Set<string>([
-  "her", "him", "she", "he", "they", "them", "it", "i", "me", "we", "us",
-  "you", "his", "hers", "their", "theirs", "myself", "himself", "herself",
-  "someone", "somebody", "anyone", "anybody", "everyone", "nobody",
-  "this", "that", "person", "people", "guy", "girl", "woman", "man",
-  "lady", "dude", "customer", "caller", "client", "lead", "stranger",
-  "unknown", "n/a", "na", "tbd", "none", "null", "undefined", "the",
-]);
-
-export function isNonName(raw: string): boolean {
-  const name = raw.trim().toLowerCase();
-  if (!name) return true;
-  if (!/[a-z]/.test(name)) return true; // no letters at all
-  if (NON_NAME_TOKENS.has(name)) return true; // bare pronoun / descriptor
-  // "the caller", "a woman", "that guy", "this person", "some lady"
-  const art = name.match(/^(?:the|a|an|this|that|some|any)\s+([a-z]+)$/);
-  if (art && NON_NAME_TOKENS.has(art[1])) return true;
-  return false;
-}
-
 interface ResolveResult {
   /** The existing or newly-created profile row · null when no match and not created. */
   person: { id: string; name: string } | null;
@@ -181,9 +158,9 @@ export async function resolvePersonByName(
   const fuzzy = createDefaults.fuzzy ?? true;
   // 2026-06-06 · never resolve OR create from a pronoun / generic descriptor
   // ("her", "the caller") or a too-short token · those created ghost rows.
-  if (name.length < 2) return { person: null, matched: false, matchTier: "rejected_nonname" };
-  // Past the guard only as a nickname: a word he gave someone works for them and still creates no one.
-  const nonName = isNonName(name);
+  if (name.length < 2 || isNonName(name)) {
+    return { person: null, matched: false, matchTier: "rejected_nonname" };
+  }
 
   // ── Tier 1 · exact case-sensitive ──────────────────────────────
   // Wave AM · 2026-05-28 · soft-delete safety · don't merge new mentions
@@ -191,14 +168,14 @@ export async function resolvePersonByName(
   // brings Tiers 1+2 to parity. Otherwise operator deletes "John Smith" ·
   // a new mention of "John Smith" gets resolved INTO the deleted record ·
   // creates a phantom-revive scenario.
-  const exact = nonName ? null : await prisma.personProfile.findFirst({
+  const exact = await prisma.personProfile.findFirst({
     where: { name, deletedAt: null },
     select: { id: true, name: true },
   });
   if (exact) return { person: exact, matched: true, matchTier: "exact" };
 
   // ── Tier 2 · case-insensitive ──────────────────────────────────
-  const ci = nonName ? null : await prisma.personProfile.findFirst({
+  const ci = await prisma.personProfile.findFirst({
     where: {
       name: { equals: name, mode: "insensitive" },
       deletedAt: null,
@@ -222,7 +199,6 @@ export async function resolvePersonByName(
     ?.map((p) => ({ id: p.id, name: p.name }));
   if (owners?.length === 1) return { person: owners[0], matched: true, matchTier: "nickname" };
   if (owners) return { person: null, matched: false, matchTier: "shared_nickname", candidates: owners };
-  if (nonName) return { person: null, matched: false, matchTier: "rejected_nonname" };
 
   // ── Tier 4 + 5 · Levenshtein + Jaro-Winkler ────────────────────
   // Only worth the scan if input is long enough to typo into a similar

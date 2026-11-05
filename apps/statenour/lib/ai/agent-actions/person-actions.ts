@@ -72,6 +72,28 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   // pendingClassification (operator approves on /people) so Nick can NEVER
   // silently overwrite a role/trust.
   const personId = resolution.person.id;
+
+  // Nicknames first, so a refused one leaves the whole update unwritten. A nickname teaches every reader a name, so it
+  // needs a person he named exactly, and it can never take a word from someone else (model text reaches this path).
+  const addNicknames = wordList(params.nicknames);
+  const removeNicknames = wordList(params.removeNicknames);
+  let nicknames: { nicknames: string[]; dead: string[] } | null = null;
+  if (addNicknames.length > 0 || removeNicknames.length > 0) {
+    if (resolution.matchTier === "levenshtein" || resolution.matchTier === "jaro_winkler") {
+      return {
+        action: type,
+        success: false,
+        error: `"${String(params.name)}" only looks like ${resolution.person.name}. Nothing changed: a nickname needs the exact name. Ask Nour who he means.`,
+      };
+    }
+    const { editNicknames } = await import("@/lib/services/people/nicknames");
+    try {
+      nicknames = await editNicknames(personId, { add: addNicknames, remove: removeNicknames }, { refuseTaken: true });
+    } catch (err) {
+      return { action: type, success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   const current = await prisma.personProfile.findUnique({
     where: { id: personId },
     select: { role: true, trustScore: true, pendingClassification: true },
@@ -86,15 +108,6 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   if (params.leverageNotes) immediate.leverageNotes = String(params.leverageNotes);
   if (Object.keys(immediate).length > 0) {
     await prisma.personProfile.update({ where: { id: personId }, data: immediate });
-  }
-
-  // Nicknames are his own words for someone, so they apply at once, through the one writer.
-  const addNicknames = wordList(params.nicknames);
-  const removeNicknames = wordList(params.removeNicknames);
-  let nicknames: { nicknames: string[]; dead: string[] } | null = null;
-  if (addNicknames.length > 0 || removeNicknames.length > 0) {
-    const { editNicknames } = await import("@/lib/services/people/nicknames");
-    nicknames = await editNicknames(personId, { add: addNicknames, remove: removeNicknames });
   }
 
   // Build a role/trust PROPOSAL (never a live write).

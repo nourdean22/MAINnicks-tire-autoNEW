@@ -47,9 +47,8 @@ describe("resolvePersonByName · nickname tier", () => {
     }
   });
 
-  it("a word the non-name guard refuses still resolves for the person who owns it", async () => {
-    h.people = [{ id: "b", name: "Bahaa", metadata: { nicknames: ["guy"] } }];
-    expect(await resolvePersonByName("guy", { createIfMissing: false })).toMatchObject({ matchTier: "nickname" });
+  it("the non-name guard still wins: a pronoun stored as a nickname resolves to nobody", async () => {
+    h.people = [{ id: "b", name: "Bahaa", metadata: { nicknames: ["her"] } }];
     expect(await resolvePersonByName("her", { createIfMissing: false })).toEqual({
       person: null,
       matched: false,

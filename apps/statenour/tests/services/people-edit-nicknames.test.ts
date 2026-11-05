@@ -83,6 +83,46 @@ describe("editNicknames", () => {
     expect(h.update).not.toHaveBeenCalled();
   });
 
+  it("refuses a pronoun by name and still takes mom and mashi", async () => {
+    await expect(editNicknames("y", { add: ["her"] })).rejects.toThrow(/"her"/);
+    expect(h.update).not.toHaveBeenCalled();
+    expect((await editNicknames("y", { add: ["mom", "mashi"] })).nicknames).toEqual(["ma", "mom", "mashi"]);
+  });
+
+  describe("refuseTaken: the path model text can reach", () => {
+    beforeEach(() => {
+      h.people.push({ id: "o", name: "Olivia", metadata: { nicknames: ["boss"] } }, { id: "s", name: "Sam", metadata: null });
+    });
+
+    it("refuses a nickname another person uses, names them, changes nothing", async () => {
+      await expect(editNicknames("y", { add: ["Boss"] }, { refuseTaken: true })).rejects.toThrow(/"Boss".*Olivia/);
+      expect(h.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses another person's name", async () => {
+      await expect(editNicknames("y", { add: ["sam"] }, { refuseTaken: true })).rejects.toThrow(/Sam/);
+      expect(h.update).not.toHaveBeenCalled();
+    });
+
+    it("one taken word refuses the whole edit", async () => {
+      await expect(editNicknames("y", { add: ["mom", "boss"], remove: ["ma"] }, { refuseTaken: true })).rejects.toThrow(/Olivia/);
+      expect(h.update).not.toHaveBeenCalled();
+    });
+
+    it("a free word goes through", async () => {
+      expect((await editNicknames("y", { add: ["mom"] }, { refuseTaken: true })).nicknames).toEqual(["ma", "mom"]);
+    });
+
+    it("a word already theirs is no new claim", async () => {
+      h.people[0].metadata = { nicknames: ["boss"] };
+      await expect(editNicknames("y", { add: ["boss"] }, { refuseTaken: true })).resolves.toEqual({ nicknames: ["boss"], dead: ["boss"] });
+    });
+
+    it("the operator's path may still share it, and says it links nobody", async () => {
+      expect((await editNicknames("y", { add: ["boss"] })).dead).toEqual(["boss"]);
+    });
+  });
+
   it("says which nicknames link nobody: shared, or someone's name", async () => {
     h.people.push({ id: "o", name: "Olivia", metadata: { nicknames: ["mom"] } }, { id: "s", name: "Sam", metadata: null });
     const r = await editNicknames("y", { add: ["mom", "sam", "boss"] });
