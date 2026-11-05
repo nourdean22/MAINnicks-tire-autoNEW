@@ -34,6 +34,8 @@ const h = vi.hoisted(() => {
     files: new Map<string, string>(),
     /** When set, row writes go here (a stateful table) instead of the count-1 default. */
     writeImpl: null as null | ((model: string, method: string, args: any) => { count: number }),
+    /** When it returns true, a file write dies halfway: the target keeps a truncated prefix (disk full). */
+    failWrite: null as null | ((path: string, data: string) => boolean),
   };
   const WRITES = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);
   const RAW_WRITES = new Set(["$executeRaw", "$executeRawUnsafe"]);
@@ -121,8 +123,18 @@ vi.mock("node:fs", async (importOriginal) => {
       if (opts?.flag === "wx" && h.state.files.has(p)) {
         throw Object.assign(new Error(`EEXIST: ${p}`), { code: "EEXIST" });
       }
+      if (h.state.failWrite?.(p, String(data))) {
+        h.state.files.set(p, String(data).slice(0, 20));
+        throw Object.assign(new Error(`ENOSPC: no space left on device, write`), { code: "ENOSPC" });
+      }
       h.state.files.set(p, String(data));
       if (p.split("\\").join("/").includes("/.completion/")) h.state.log.push({ kind: "receipt", model: "fs", method: "writeFileSync", args: JSON.parse(String(data)).status });
+    },
+    renameSync: (from: unknown, to: unknown) => {
+      const f = String(from);
+      if (!h.state.files.has(f)) throw Object.assign(new Error(`ENOENT: ${f}`), { code: "ENOENT" });
+      h.state.files.set(String(to), h.state.files.get(f)!);
+      h.state.files.delete(f);
     },
     readFileSync: (path: unknown, ...rest: unknown[]) => {
       const p = String(path);
@@ -175,6 +187,7 @@ beforeEach(() => {
   h.state.zeroSource = false;
   h.state.files = new Map();
   h.state.writeImpl = null;
+  h.state.failWrite = null;
 });
 
 describe("loading the script", () => {
@@ -328,11 +341,14 @@ describe("PASS orphan (the 2026-11-02 Plan it mission)", () => {
   });
 });
 
+/** When the 2026-10-30 writer dated led_generic1 (its digest window's last message). */
+const LEDGER_AT = new Date("2026-10-30T18:00:00Z");
 function notesFixture() {
   set("relationshipLedger", "findMany", () => [
     {
       id: "led_generic1",
       note: "interaction reported in chat (call)",
+      createdAt: LEDGER_AT,
       metadata: { auto: true, via: "backfill:conversation_digest", conversationId: "conv_1" },
       person: { name: "Dania", deletedAt: null },
     },
@@ -388,7 +404,8 @@ describe("PASS notes (only the generic backfill notes)", () => {
         { id: "led_nosnip05", reason: "no_snippet" },
       ]),
     );
-    expect(snippets).toHaveBeenCalledWith("Dania", 3, "conv_1");
+    // Round 3 item 1: the row's own createdAt bounds the messages read.
+    expect(snippets).toHaveBeenCalledWith("Dania", 3, "conv_1", LEDGER_AT);
     expect(writes()).toHaveLength(0);
   });
 });
@@ -934,10 +951,20 @@ const goalsAndNoVectors = (...ids: string[]) => {
   set("vectorEmbedding", "findMany", () => []);
 };
 const EXEC = { BACKFILL_EXECUTE: "1" };
+/** goal_fit0001 has a vector, and every mission the ranker asks about scores 0.9 against it (round 3: the execute re-ranks). */
+const fitVectors = (a: any) => [
+  vrow("life_goal", "goal_fit0001", [1, 0]),
+  ...((a?.where?.OR?.[0]?.sourceId?.in ?? []) as string[]).map((id) => vrow("mission", id, at(0.9))),
+];
+/** One live goal, goal_fit0001, that wins every planned link's re-rank at execute. */
+const goalFitWins = () => {
+  set("lifeGoal", "findMany", () => [goal("goal_fit0001", "Get fit")]);
+  set("vectorEmbedding", "findMany", fitVectors);
+};
 
 describe("round 1 item 1: each link pass reverts only its own writes", () => {
   it("orphan links M, missions loses M; reverting the missions receipt leaves M linked, reverting the orphan receipt unlinks it", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     const table = missionTable([{ id: "mis_both0001" }]);
     const token = await handPlan({
       orphan: [link("mis_both0001", "goal_fit0001", { basis: "exact_title", score: null })],
@@ -965,7 +992,7 @@ describe("round 1 item 1: each link pass reverts only its own writes", () => {
 
 describe("round 1 item 2: the mission write swaps on what the plan read", () => {
   it("a mission edited after the plan (updatedAt moved) or KILLED since is lost, never linked; the other is written", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     const table = missionTable([
       { id: "mis_edit0001", updatedAt: new Date("2026-11-03T15:00:00Z") },
       { id: "mis_kill0002", status: "KILLED" },
@@ -1001,7 +1028,7 @@ describe("round 1 item 2: the mission write swaps on what the plan read", () => 
 
 describe("round 1 item 3: a Prisma failure prints its code and cause, never its arguments", () => {
   it("empty first line, the args in the middle, the cause last", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     const err = Object.assign(
       new Error(
         '\nInvalid `prisma.mission.updateMany()` invocation:\n\n{\n  where: { title: "Gym three times a week" }\n}\n\nTransaction already closed: the timeout for this transaction was 120000 ms.',
@@ -1022,7 +1049,7 @@ describe("round 1 item 3: a Prisma failure prints its code and cause, never its 
 
 describe("round 1 item 4: a crash mid-loop leaves an honest receipt", () => {
   it("a throw on row 2 of 3: receipt status aborted, written = row 1, its path printed before the first write", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     missionTable([{ id: "mis_row00001" }, { id: "mis_row00002" }, { id: "mis_row00003" }], { id: "mis_row00002", err: new Error("connection reset") });
     const token = await handPlan({ missions: ["mis_row00001", "mis_row00002", "mis_row00003"].map((id) => link(id, "goal_fit0001")) });
     const { main } = await load();
@@ -1080,7 +1107,7 @@ describe("round 1 item 7: the goal is re-checked at execute", () => {
   it("a goal paused after the plan: its row is lost as goal_not_active and never written; the other row is", async () => {
     const goalArgs: any[] = [];
     set("lifeGoal", "findMany", (a) => (goalArgs.push(a), [goal("goal_fit0001", "Get fit")]));
-    set("vectorEmbedding", "findMany", () => []);
+    set("vectorEmbedding", "findMany", fitVectors);
     const table = missionTable([{ id: "mis_fit00001" }, { id: "mis_cash0002" }]);
     const token = await handPlan({ missions: [link("mis_fit00001", "goal_fit0001"), link("mis_cash0002", "goal_cash0002")] });
     const { main } = await load();
@@ -1195,7 +1222,7 @@ const receiptsOf = (pass: string) =>
 
 describe("round 2: revert walks the rows its run wrote", () => {
   it("(a) two same-day missions runs: run 2 writes the row run 1 lost; reverting run 1 leaves run 2's row linked", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     // mis_lost0002 was edited after run 1's plan, so run 1 loses it; run 2 plans it fresh and links it.
     const table = missionTable([{ id: "mis_won00001" }, { id: "mis_lost0002", updatedAt: new Date("2026-11-03T15:00:00Z") }]);
     const { main } = await load();
@@ -1217,7 +1244,7 @@ describe("round 2: revert walks the rows its run wrote", () => {
   });
 
   it("(b) an aborted receipt names its in-flight row; when that write landed, the revert undoes it too", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     const table = missionTable([{ id: "mis_row00001" }, { id: "mis_row00002" }, { id: "mis_row00003" }], {
       id: "mis_row00002",
       err: new Error("connection reset"),
@@ -1261,7 +1288,7 @@ describe("round 2: revert walks the rows its run wrote", () => {
   });
 
   it("the planned receipt carries no written list, so a dead run is told apart from one that wrote nothing", async () => {
-    goalsAndNoVectors("goal_fit0001");
+    goalFitWins();
     missionTable([{ id: "mis_okay0003" }]);
     const token = await handPlan({ missions: [link("mis_okay0003", "goal_fit0001")] });
     const seen: any[] = [];
@@ -1296,5 +1323,135 @@ describe("round 2: no_note keeps the inner reason", () => {
     expect(await main(["--execute", "--pass", "notes", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
     q.restore();
     expect(receiptOf("notes")!.json).toMatchObject({ written: [], lost: [{ id: "led_generic1", reason: "no_note:already_noted" }] });
+  });
+});
+
+// ── round 3 (Codex on PR 3544, ruled FIX): each test was red on 13d30ccd76 ──────────────────────────────────
+
+describe("round 3 item 1: a note is built from messages at or before the ledger row", () => {
+  it("a later message naming the person in the same chat is not used; one at or before the row's createdAt is", async () => {
+    const ROW_AT = new Date("2026-10-30T18:00:00Z");
+    set("relationshipLedger", "findMany", () => [
+      {
+        id: "led_timed001",
+        note: "interaction reported in chat (call)",
+        createdAt: ROW_AT,
+        metadata: { via: "backfill:conversation_digest", conversationId: "conv_1" },
+        person: { name: "Dania", deletedAt: null },
+      },
+    ]);
+    const chat = [
+      { content: "Dania moved out last week", createdAt: new Date("2026-11-02T10:00:00Z") },
+      { content: "called Dania about the lease", createdAt: ROW_AT },
+    ];
+    // The stub honours the where like Postgres: same conversation, and createdAt <= before when asked.
+    set("chatMessage", "findMany", async (a: any) =>
+      chat.filter((m) => !a.where.createdAt?.lte || m.createdAt <= a.where.createdAt.lte).map((m) => ({ content: m.content })),
+    );
+    const { planPass } = await load();
+    const { fileToken } = await import("@/lib/services/people/backfill-apply");
+    const r = await planPass("notes", { prisma: h.prisma as never, now: NOW });
+    expect(r.rows).toEqual([{ ledgerId: "led_timed001", noteSha: fileToken("called Dania about the lease") }]);
+  });
+});
+
+describe("round 3 item 2: the execute re-ranks an embedding link", () => {
+  it("a goal vector that moves after the plan so another goal wins: lost as ranking_changed, nothing written", async () => {
+    allFixtures();
+    const token = await dryRunWithPlan();
+    // goal_cash0002 now sits where goal_fit0001 was: mis_link0001 (0.9 toward [1, 0]) ranks cash first.
+    set("vectorEmbedding", "findMany", () => [
+      vrow("life_goal", "goal_fit0001", [0, 1]),
+      vrow("life_goal", "goal_cash0002", [1, 0]),
+      vrow("mission", "mis_link0001", at(0.9)),
+    ]);
+    const { main } = await load();
+    const q = quiet();
+    expect(await main(["--execute", "--pass", "missions", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
+    q.restore();
+    expect(rowWrites()).toHaveLength(0);
+    expect(receiptOf("missions")!.json).toMatchObject({ written: [], lost: [{ id: "mis_link0001", reason: "ranking_changed" }] });
+    // CONTROL: the unchanged ranking writes (the CONTROL test above, same plan) and so does a fresh run here.
+  });
+
+  it("a missions-pass row is re-ranked whatever basis its plan row claims (fail closed)", async () => {
+    set("lifeGoal", "findMany", () => [goal("goal_fit0001", "Get fit"), goal("goal_cash0002", "Hit $15K revenue")]);
+    set("vectorEmbedding", "findMany", () => [
+      vrow("life_goal", "goal_fit0001", [0, 1]),
+      vrow("life_goal", "goal_cash0002", [1, 0]),
+      vrow("mission", "mis_okay0003", at(0.9)),
+    ]);
+    missionTable([{ id: "mis_okay0003" }]);
+    const token = await handPlan({ missions: [link("mis_okay0003", "goal_fit0001", { basis: "exact_title" })] });
+    const { main } = await load();
+    const q = quiet();
+    expect(await main(["--execute", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
+    q.restore();
+    expect(rowWrites()).toHaveLength(0);
+    expect(receiptOf("missions")!.json).toMatchObject({ lost: [{ id: "mis_okay0003", reason: "ranking_changed" }] });
+  });
+
+  it("CONTROL: an unchanged ranking still writes", async () => {
+    allFixtures();
+    const token = await dryRunWithPlan();
+    const { main } = await load();
+    const q = quiet();
+    expect(await main(["--execute", "--pass", "missions", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(0);
+    q.restore();
+    expect(rowWrites().map((w) => w.args.where.id)).toEqual(["mis_link0001"]);
+  });
+});
+
+describe("round 3 item 3: a receipt is rewritten through a temp file", () => {
+  it("a disk-full during the final write leaves the earlier receipt parseable", async () => {
+    goalFitWins();
+    missionTable([{ id: "mis_okay0003" }]);
+    const token = await handPlan({ missions: [link("mis_okay0003", "goal_fit0001")] });
+    h.state.failWrite = (p, data) => p.replace(/\\/g, "/").includes("/.completion/") && data.includes('"applied"');
+    const { main } = await load();
+    const q = quiet();
+    expect(await main(["--execute", "--plan-file", PLAN, "--token", token], EXEC, NOW)).toBe(1);
+    const printed = q.printed();
+    q.restore();
+    const receipt = [...h.state.files.entries()].find(([p]) => p.replace(/\\/g, "/").endsWith("/.completion/backfill-missions-2026-11-03.json"))!;
+    expect(() => JSON.parse(receipt[1])).not.toThrow();
+    expect(JSON.parse(receipt[1])).toMatchObject({ status: "planned" });
+    expect(printed).toContain("ENOSPC");
+  });
+});
+
+describe("round 3 item 4: an orphan needs Plan it provenance in every case", () => {
+  it("a zero-task mission with no planData is skipped as not_plan_it; one with a saved first phase still links", async () => {
+    set("lifeGoal", "findMany", () => [goal("goal_fit0001", "Get fit"), goal("goal_read0003", "Read more")]);
+    set("vectorEmbedding", "findMany", () => []);
+    set("mission", "findMany", () => [
+      mission("mis_bare0001", "Get fit", { createdAt: new Date("2026-11-02T22:00:00Z"), planData: null, tasks: [] }),
+      mission("mis_plan0002", "Read more", { createdAt: new Date("2026-11-02T22:00:00Z"), planData: { phases: [{ name: "Base" }] }, tasks: [] }),
+    ]);
+    const { planPass } = await load();
+    const r = await planPass("orphan", { prisma: h.prisma as never, now: NOW });
+    expect(r.skipped).toEqual([{ id: "mis_bare0001", reason: "not_plan_it" }]);
+    expect(r.rows).toEqual([expect.objectContaining({ missionId: "mis_plan0002", lifeGoalId: "goal_read0003", basis: "exact_title" })]);
+  });
+});
+
+describe("round 3 item 5: a task-carried goal is checked by id, not against the capped goal list", () => {
+  it("50 active goals newer than the referenced one: the orphan still links by its task goal", async () => {
+    const { SUGGEST_GOAL_MAX_GOALS } = await import("@/lib/missions/goal-embedding");
+    const newer = Array.from({ length: SUGGEST_GOAL_MAX_GOALS }, (_, i) => goal(`goal_new${String(i).padStart(4, "0")}`, `newer goal ${i}`));
+    const old = goal("goal_old0001", "An older goal");
+    // activeGoals() reads the newest 50; a read by id finds any live goal.
+    set("lifeGoal", "findMany", (a: any) => (a?.where?.id?.in ? [...newer, old].filter((g) => a.where.id.in.includes(g.id)) : newer));
+    set("vectorEmbedding", "findMany", () => []);
+    set("mission", "findMany", () => [
+      mission("mis_oldg0001", "Do the older thing", {
+        createdAt: new Date("2026-11-02T22:00:00Z"),
+        planData: { phases: [{ name: "Base" }] },
+        tasks: [{ phaseName: "Base", goalId: "goal_old0001" }],
+      }),
+    ]);
+    const { planPass } = await load();
+    const r = await planPass("orphan", { prisma: h.prisma as never, now: NOW });
+    expect(r.rows).toEqual([expect.objectContaining({ missionId: "mis_oldg0001", lifeGoalId: "goal_old0001", basis: "task_goal" })]);
   });
 });

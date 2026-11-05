@@ -33,7 +33,7 @@
  *   $env:BACKFILL_EXECUTE='1'; railway run -s statenour-web -- pnpm exec tsx scripts/backfill-interconnect.ts --execute --plan-file .completion/w13-plan.json --token <t>
  */
 import Module from "node:module";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PrismaClient } from "@prisma/client";
 
@@ -71,7 +71,7 @@ const BACKUP: Record<PassName, { source: BackupSource; table: string }> = {
 
 type Db = Pick<PrismaClient, "mission" | "lifeGoal" | "vectorEmbedding" | "relationshipLedger">;
 type FullDb = Db & Pick<PrismaClient, "$transaction" | "$disconnect">;
-export type Snippets = (name: string, max: number, conversationId?: string) => Promise<string[]>;
+export type Snippets = (name: string, max: number, conversationId?: string, before?: Date) => Promise<string[]>;
 
 export interface Skip {
   id: string;
@@ -342,7 +342,7 @@ async function planMissions(a: PlanArgs): Promise<PassPlan> {
 function firstPhaseName(planData: unknown): string | null {
   const phases = asObj(planData).phases;
   const name = Array.isArray(phases) ? asObj(phases[0]).name : null;
-  return typeof name === "string" ? name : null;
+  return typeof name === "string" && name.trim() !== "" ? name : null;
 }
 
 async function planOrphan(a: PlanArgs): Promise<PassPlan> {
@@ -371,6 +371,13 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
   });
   const goals = await activeGoals(db);
   const { rank, coverage } = await goalRanker(db, goals, missions.map((x) => x.id));
+  // A task-carried goal is checked by id: activeGoals() is capped for ranking, and a live goal past the cap is still live.
+  const taskGoalIds = [...new Set(missions.flatMap((m) => m.tasks.map((t) => t.goalId).filter((g): g is string => !!g)))];
+  const liveTaskGoals = new Set(
+    taskGoalIds.length
+      ? (await db.lifeGoal.findMany({ where: { id: { in: taskGoalIds }, status: "active", deletedAt: null }, select: { id: true } })).map((g) => g.id)
+      : [],
+  );
   const rows: LinkRow[] = [];
   const skipped: Skip[] = [];
   const lines: string[] = [...capWarning(goals), coverage];
@@ -388,6 +395,11 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
       continue;
     }
     const first = firstPhaseName(m.planData);
+    // Plan it provenance in every case: a saved plan with a first phase (a bare zero-task project is not a Plan it mission).
+    if (first === null) {
+      skip("not_plan_it");
+      continue;
+    }
     if (!(m.tasks.length === 0 || m.tasks.every((t) => t.phaseName !== null && t.phaseName === first))) {
       skip("not_plan_it_shape");
       continue;
@@ -400,7 +412,7 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
     }
     let pick: Pick<LinkRow, "lifeGoalId" | "basis" | "score"> | null = null;
     if (taskGoals.length === 1) {
-      if (!goals.some((g) => g.id === taskGoals[0])) {
+      if (!liveTaskGoals.has(taskGoals[0])) {
         skip("task_goal_not_active");
         continue;
       }
@@ -439,7 +451,7 @@ export function noteLine(snips: readonly string[]): string {
   );
 }
 
-type LedgerRead = { id: string; note: string; metadata: unknown; person: { name: string; deletedAt: Date | null } };
+type LedgerRead = { id: string; note: string; createdAt: Date; metadata: unknown; person: { name: string; deletedAt: Date | null } };
 
 /** The same filter for the plan and the execute: a reason to leave the row, or the line to write. */
 async function noteFor(r: LedgerRead, snippets: Snippets, genericNote: RegExp): Promise<{ reason: string } | { line: string }> {
@@ -450,14 +462,15 @@ async function noteFor(r: LedgerRead, snippets: Snippets, genericNote: RegExp): 
   if (!isContactRow({ metadata: r.metadata })) return { reason: "not_contact" };
   if (r.person.deletedAt) return { reason: "person_deleted" };
   if (typeof meta.conversationId !== "string" || meta.conversationId === "") return { reason: "no_conversation" };
-  const line = noteLine(await snippets(r.person.name, NOTE_SNIPPETS, meta.conversationId));
+  // At or before the row: the 2026-10-30 writer dated it at its digest window's last message (people-backfill.ts:172, :302).
+  const line = noteLine(await snippets(r.person.name, NOTE_SNIPPETS, meta.conversationId, r.createdAt));
   return line ? { line } : { reason: "no_snippet" };
 }
 
-const LEDGER_SELECT = { id: true, note: true, metadata: true, person: { select: { name: true, deletedAt: true } } } as const;
+const LEDGER_SELECT = { id: true, note: true, createdAt: true, metadata: true, person: { select: { name: true, deletedAt: true } } } as const;
 
-const defaultSnippets: Snippets = async (name, max, conversationId) =>
-  (await import("@/lib/brain/people-intelligence")).chatSnippets(name, max, conversationId);
+const defaultSnippets: Snippets = async (name, max, conversationId, before) =>
+  (await import("@/lib/brain/people-intelligence")).chatSnippets(name, max, conversationId, before);
 
 async function planNotes(a: PlanArgs): Promise<PassPlan> {
   const snippets = a.snippets ?? defaultSnippets;
@@ -492,13 +505,21 @@ export async function planPass(pass: PassName, a: PlanArgs): Promise<PassPlan> {
 
 // ── execute: the plan file's rows, each a compare-and-swap ───────────────────────────────────────
 
-type ApplyCtx = { snippets: Snippets; genericNote: RegExp; ledger: Map<string, LedgerRead>; liveGoals: Set<string> };
+type ApplyCtx = {
+  snippets: Snippets;
+  genericNote: RegExp;
+  ledger: Map<string, LedgerRead>;
+  liveGoals: Set<string>;
+  /** An embedding link's planned goal still wins on today's vectors and goals (task-goal and exact-title links keep their own rule). */
+  stillWins: (r: LinkRow) => boolean;
+};
 
 /** null when the row was written; otherwise the receipt's reason it was not (count !== 1 is a loss, never a retry). */
 async function applyRow(db: Db, pass: PassName, row: Row, ctx: ApplyCtx): Promise<string | null> {
   if (pass === "orphan" || pass === "missions") {
     const r = row as LinkRow;
     if (!ctx.liveGoals.has(r.lifeGoalId)) return "goal_not_active";
+    if (!ctx.stillWins(r)) return "ranking_changed";
     // Every field the plan's decision read: still unlinked, live, not KILLED, and unedited since (its vector is from that text).
     const res = await db.mission.updateMany({
       where: { id: r.missionId, lifeGoalId: null, deletedAt: null, status: { not: "KILLED" }, updatedAt: new Date(r.updatedAt) },
@@ -548,13 +569,18 @@ export function parsePlanFile(contents: string): PlanFile {
 
 export type ReceiptWriter = (payload: object) => string;
 
-/** Writes `.../backfill-<pass>-<ET date>.json`, or `-2`, `-3`... when one exists: an older receipt is never overwritten. */
+/**
+ * Writes `.../backfill-<pass>-<ET date>.json`, or `-2`, `-3`... when one exists: an older receipt is never overwritten.
+ * A rewrite goes to `<receipt>.tmp` and is renamed over it, so a crash or a full disk mid-write never truncates the
+ * receipt a revert needs.
+ */
 export function makeReceiptWriter(dir: string, pass: PassName, now: Date): ReceiptWriter {
   let path: string | null = null;
   return (payload) => {
     const data = `${JSON.stringify(payload, null, 2)}\n`;
     if (path) {
-      writeFileSync(path, data);
+      writeFileSync(`${path}.tmp`, data);
+      renameSync(`${path}.tmp`, path);
       return path;
     }
     mkdirSync(dir, { recursive: true });
@@ -612,7 +638,7 @@ async function executePass(
   let inFlight: string | null = null;
   let done = false;
   try {
-    const ctx: ApplyCtx = { snippets, genericNote: /$^/, ledger: new Map(), liveGoals: new Set() };
+    const ctx: ApplyCtx = { snippets, genericNote: /$^/, ledger: new Map(), liveGoals: new Set(), stillWins: () => true };
     if (pass === "notes") {
       ctx.genericNote = GENERIC_NOTE;
       const reads = await db.relationshipLedger.findMany({ where: { id: { in: rows.map((r) => (r as NoteRow).ledgerId) } }, select: LEDGER_SELECT });
@@ -625,7 +651,15 @@ async function executePass(
         select: { id: true },
       });
       ctx.liveGoals = new Set(live.map((g) => g.id));
-      console.log((await goalRanker(db, await activeGoals(db), links.map((r) => r.missionId))).coverage);
+      const { rank, coverage } = await goalRanker(db, await activeGoals(db), links.map((r) => r.missionId));
+      console.log(coverage);
+      ctx.stillWins = (r) => {
+        // Fail closed: every missions-pass row is re-ranked; only an orphan's task-goal or exact-title link keeps its own rule.
+        if (pass === "orphan" && (r.basis === "task_goal" || r.basis === "exact_title")) return true;
+        // Only the cosine branch can pass decide(); the words text is never decisive, so an empty one stands in.
+        const d = decide(rank({ id: r.missionId, title: "", successMetric: null, completionCriteria: null }));
+        return d.decision === "link" && d.goalId === r.lifeGoalId;
+      };
     }
     for (const r of rows) {
       inFlight = keyOf(pass, r);
