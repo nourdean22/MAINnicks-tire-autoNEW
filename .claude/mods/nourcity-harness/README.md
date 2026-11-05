@@ -11,6 +11,8 @@ harness (machine, PRs, main, worktrees) without running anything that changes it
 4. **Buttons:** Refresh (`r`) re-reads everything and refreshes the board from GitHub. Count worktrees (`w`) runs the read-only sweep preview (about 25 s). It never removes a worktree.
 5. **Home:** this folder, `.claude/mods/nourcity-harness/`, listed by the root `.claude-plugin/marketplace.json` (marketplace `nourcity`). It is required on every PC through `config/agent-os/required-plugins.json`, so the `[health] machine` line names a PC that lacks it.
 
+Benchmarked against: Claude Code's own plugin-marketplace pattern (plugin-authoring reference, build 2.1.309, `.claude-plugin/marketplace.json` + `claude plugin install <mod> --marketplace <owner>/<repo>`) · adopted: a repo-root marketplace with a relative source, so the repo that holds the harness scripts also ships the pane that reads them · rejected: a separate mod repository because Nour said "for my project" and updates should ride the same PRs as the scripts. No better-fitting pattern found: the relative `source` path is the documented way to keep a plugin in a monorepo subfolder.
+
 ## Install (once per PC, user scope)
 
 Shell, any PC:
