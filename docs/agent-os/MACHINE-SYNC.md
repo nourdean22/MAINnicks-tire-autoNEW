@@ -28,7 +28,7 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 |---|---|---|---|
 | Clone | primary `C:\Users\nourd\NattyNour\nicks-tire`, serves the graph (ledger 2026-10-19, FACT then) | sparse partial clone `C:\Users\nourd\NicksMax\repos\NOURCITY`; was 109 behind main at 09:40, **ff-synced to 9e456b645 at 09:51** on Nour's go, no camera-bridge file in the delta (FACT) | **was none** (0 `.git` directories on C: to depth 6; `C:\NOURCITY` holds hash-pinned downloads for the office lane and lot-vision f195f99a6). **Sparse clone made 09:50-09:58** on Nour's go in its session: `C:\Users\Nick's Tire\NOURCITY` at main 9e456b645, `--filter=blob:none`, sparse set `.claude config docs scripts` (FACT, its session) |
 | `.claude` on disk | yes | **was absent**: sparse list was `.github apps/... camera-bridge config docs scripts`; `git sparse-checkout add .claude` done 09:43, 88 skills, 6 agents, settings.json now present (FACT) | yes since the clone; before it `~/.claude/CLAUDE.md` was missing, `settings.json` 71 bytes with no hooks, `~/.claude/skills` empty (FACT) |
-| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before; 13 installed 09:50, prompt-sharpen hook added after the ff-sync; 2 MISSING: `find-skills`, `steal-like-an-artist` (no repo copy) (FACT) | **Node.js LTS v26.13.0 installed** (winget, machine scope, hash verified); bootstrap applied 14 items (both hook files, 7 skills, 4 settings.json hooks, CLAUDE.md block), backups in `~/.claude/bootstrap-backup`; same 2 MISSING (FACT, its session). Caveat: the Claude app there started before Node existed, so hooks in new sessions may not find `node` until the app restarts |
+| `bootstrap-machine.mjs --check` | ok per W9 | 15 MISSING before; 13 installed 09:50, prompt-sharpen hook added after the ff-sync; the last 2 (`find-skills`, `steal-like-an-artist`) installed 2026-11-05 07:46 after #3535 merged, with W9's graph hooks and the `mcpServers.graphify` entry from #3533: **`[bootstrap] clean`** (FACT) | **Node.js LTS v26.13.0 installed** (winget, machine scope, hash verified); bootstrap applied 14 items 2026-11-03, and on 2026-11-05 07:45 its session read every item ok including the two vendored skills, **`[bootstrap] clean`**, `[health] machine ok | bootstrap ok | plugins ok (7 required)` (FACT, its session) |
 | Required plugins not enabled | NOT CHECKED | hook line says agentic-council, receipts-check, desktop-commander, avoid-ai-writing, pr-review-toolkit, hookify; the first three are loaded in the session that ran it, so the detector misses account-synced plugins in the desktop app (INFERRED); the three marketplace ones are really absent | Claude Code CLI 2.1.317 installed (npm, user), marketplaces claude-plugins-official + claude-code-workflows added, pr-review-toolkit, hookify, avoid-ai-writing installed (user scope) on Nour's go, 10:00 (FACT, its session). The check still names agentic-council, receipts-check, desktop-commander as MISSING while all three load in its desktop-app session (FACT): follow-up 4. 30 known MCP connect failures as of 11/01 |
 | Graphify | server on loopback, graph current via merge-gate rebuild + daily task (W9) | none, by policy (`local-services.json`: "no heavy services"); `session-health` prints `local services: not expected on this host` (FACT) | none; client only, no serve, no build |
 | Tailnet | `nattynour-1` 100.127.185.69, online, DERP relay; ports 22, 2222, 3389, 8765 closed from NicksMax (FACT 09:38) | `nicksmax` 100.95.169.54, sshd on the tailnet interface | **Tailscale 1.104.5 installed and signed in as nourdean22, 100.98.25.123** (FACT, its session); `local-services.json` reach updated from "Chrome Remote Desktop" to Tailscale + Chrome Remote Desktop in this PR |
@@ -61,12 +61,13 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
 2. `bootstrap-machine.mjs --check` and `session-health.mjs` say nothing when the project half is missing: on a sparse
    clone without `.claude` they reported "ok" for the machine half and "not expected on this host", and the hooks did
    not exist. Add one line: `project: .claude MISSING from sparse checkout, fix: git sparse-checkout add .claude`.
-3. Vendor `find-skills` and `steal-like-an-artist` (step 4): Nour said yes on 2026-11-03 in the NicksMax and MECHANICS
-   sessions; briefed to the NATTYNOUR session (W9 or its manager), since only that machine holds the copies.
-4. `plugin-index.mjs` cannot see account-synced plugins in the desktop app: on both NicksMax and MECHANICS the
-   `--check --hook` line names agentic-council, receipts-check and desktop-commander as MISSING while their skills load
-   in the very session that ran it (FACT, two machines). Either read the desktop app's synced bucket too, or label those
-   three "NOT CHECKED (account-synced)" instead of MISSING, so the FIX FIRST line stops sending Nour to re-enable them.
+3. DONE in #3535 (2026-11-03): `find-skills` and `steal-like-an-artist` vendored into `.claude/skills` with SOURCE.md and
+   licence; NicksMax and MECHANICS both read `[bootstrap] clean` on 2026-11-05. The wider "personal layer into the
+   repo" job (manager W12, Nour's "yes, everything" 2026-11-03 10:04) is still queued on NATTYNOUR; no branch yet.
+4. DONE in #3543 (2026-11-04): `plugin-index.mjs` reads Claude Desktop's own account-plugin store, so the false
+   agentic-council / receipts-check / desktop-commander MISSING is gone on both machines (MECHANICS line 2026-11-05:
+   `plugins ok (7 required)`). Still truly per-machine: the three marketplace plugins and `nourcity-harness` (#3545),
+   installed on NicksMax at user scope 2026-11-05 07:47 on Nour's go.
 
 ## Receipts (NicksMax, 2026-11-03, this session)
 
