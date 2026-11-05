@@ -61,7 +61,7 @@ export async function chatSnippets(name: string, max: number, conversationId?: s
   const re = nameMatcher(name);
   // shortcut: a short name inside many longer words can fill the 20 rows with non-matches; widen take if a name that short appears.
   const rows = await prisma.chatMessage.findMany({
-    where: { role: "user", content: { contains: name.trim(), mode: "insensitive" }, ...(conversationId ? { conversationId } : {}) },
+    where: { role: "user", content: { contains: name.trim(), mode: "insensitive" }, ...(conversationId !== undefined ? { conversationId } : {}) },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: { content: true },

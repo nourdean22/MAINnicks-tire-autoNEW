@@ -24,8 +24,9 @@
  *              before the first write and again after the last; an older receipt is never overwritten.
  *   --revert <receipt> [--execute --token <t>]: undoes a receipt's rows that still hold what this backfill wrote.
  * Anything else (an unknown flag, --execute without BACKFILL_EXECUTE=1, its plan file or a matching token) exits 2
- * before any connection. Every write carries a marker: Mission.updatedBy = MARKER; the ledger note's metadata gets
- * noteVia + originalNote.
+ * before any connection. Every write carries a marker: Mission.updatedBy = markerFor(pass) (one per link pass, so a
+ * revert of one pass never touches the other's links); the ledger note's metadata gets noteVia + originalNote.
+ * A lost row (it changed since the plan) is never forced: it is listed in the receipt with its reason and the run exits 1.
  *
  *   cd apps/statenour
  *   railway run -s statenour-web -- pnpm exec tsx scripts/backfill-interconnect.ts --pass all --out .completion/w13-plan.json
@@ -44,6 +45,8 @@ import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 
 export const MARKER = "backfill:2026-11-03";
 export const NOTE_MARKER = "backfill-notes:2026-11-03";
+/** Each link pass stamps its own Mission.updatedBy, so reverting one pass never undoes the other's link (round 1 P1). Longest 28 chars; the column is VarChar(64) (prisma/schema.prisma:243). */
+export const markerFor = (pass: "orphan" | "missions") => `${MARKER}:${pass}`;
 /** A link is written only at this cosine or above: the linker's auto-link bar. W8c's drawer suggests from 0.45 because he says yes there; here nobody does. */
 export const MIN_SCORE = 0.55;
 /** ...and only when the best goal beats the runner-up by this much. */
@@ -80,6 +83,8 @@ export interface LinkRow {
   priorUpdatedBy: string | null;
   basis: "task_goal" | "exact_title" | "embedding";
   score: number | null;
+  /** Mission.updatedAt as the plan read it (ISO): the write swaps only while it is unchanged (claim-before-act). */
+  updatedAt: string;
 }
 export interface NoteRow {
   ledgerId: string;
@@ -112,7 +117,12 @@ export interface PlanArgs {
 }
 
 const sfx = (id: string) => `…${id.slice(-6)}`;
-const msg = (err: unknown) => (err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200);
+/** The error code and the LAST non-empty line: a Prisma message opens with an empty line and carries the call's arguments (row text) in the middle. */
+const msg = (err: unknown) => {
+  const code = (err as { code?: unknown } | null)?.code;
+  const last = (err instanceof Error ? err.message : String(err)).split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
+  return `${typeof code === "string" ? `${code} ` : ""}${last}`.slice(0, 200);
+};
 const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const countBy = (xs: string[]) => xs.reduce<Record<string, number>>((m, x) => ((m[x] = (m[x] ?? 0) + 1), m), {});
 const keyOf = (pass: PassName, r: Row) => (pass === "notes" ? (r as NoteRow).ledgerId : (r as LinkRow).missionId);
@@ -184,11 +194,13 @@ type Goal = { id: string; title: string; why: string | null };
 interface Rank {
   basis: "embedding" | "words";
   ranked: Array<{ goalId: string; score: number }>;
+  /** Why a words rank had no cosine: unparsable_vector, wrong_model, or no_comparable_embedding (no vector: the linker has not run). */
+  why?: string;
 }
 
 /** Link only on an embedding score over MIN_SCORE that beats the runner-up by MARGIN. */
 export function decide(r: Rank): { decision: "link"; goalId: string } | { decision: "list"; reason: string } {
-  if (r.basis !== "embedding") return { decision: "list", reason: "no_comparable_embedding" };
+  if (r.basis !== "embedding") return { decision: "list", reason: r.why ?? "no_comparable_embedding" };
   const [best, second] = r.ranked;
   if (!best) return { decision: "list", reason: "no_active_goals" };
   if (!(best.score >= MIN_SCORE)) return { decision: "list", reason: "below_threshold" };
@@ -196,12 +208,14 @@ export function decide(r: Rank): { decision: "link"; goalId: string } | { decisi
   return { decision: "link", goalId: best.goalId };
 }
 
-function parseVector(raw: string): number[] {
+/** null when the stored text is not a JSON array holding numbers: unparsable, counted and reasoned apart from "no vector". */
+function parseVector(raw: string): number[] | null {
   try {
     const v: unknown = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+    const nums = Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+    return nums.length > 0 ? nums : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -225,25 +239,45 @@ async function goalRanker(db: Db, goals: Goal[], missionIds: string[]) {
     orderBy: { createdAt: "desc" },
     select: { sourceType: true, sourceId: true, embedding: true, model: true },
   });
-  return (m: MissionForRank): Rank => {
-    const own = rows.find((r) => r.sourceType === "mission" && r.sourceId === m.id);
-    const vec = own ? parseVector(own.embedding) : [];
-    const space = own?.model ?? null;
-    const goalVecs = new Map<string, number[]>();
-    for (const r of rows) {
-      if (r.sourceType !== GOAL_EMBED_SOURCE_TYPE || !space || r.model !== space || goalVecs.has(r.sourceId)) continue;
-      const gv = parseVector(r.embedding);
-      if (gv.length > 0) goalVecs.set(r.sourceId, gv);
-    }
+  const read = rows.map((r) => ({ ...r, vec: parseVector(r.embedding) }));
+  const unparsable = read.filter((r) => !r.vec).length;
+  // The newest usable vector per goal per model, and every model a goal has any row in. A row with no model has no space.
+  const goalVec = new Map<string, number[]>();
+  const goalModels = new Map<string, Set<string>>();
+  for (const r of read) {
+    if (r.sourceType !== GOAL_EMBED_SOURCE_TYPE || r.model === null) continue;
+    if (!goalModels.has(r.sourceId)) goalModels.set(r.sourceId, new Set());
+    goalModels.get(r.sourceId)!.add(r.model);
+    const k = `${r.model}\n${r.sourceId}`;
+    if (r.vec && !goalVec.has(k)) goalVec.set(k, r.vec);
+  }
+  const ownOf = (id: string) => read.find((r) => r.sourceType === "mission" && r.sourceId === id);
+  const mine = missionIds.map(ownOf).filter((r) => r !== undefined);
+  const space = Object.entries(countBy(mine.flatMap((r) => (r.model ? [r.model] : [])))).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const goalsInSpace = space ? goals.filter((g) => goalVec.has(`${space}\n${g.id}`)).length : 0;
+  const coverage = `  vectors · mission vectors ${mine.filter((r) => r.vec).length}/${missionIds.length} · goals with a vector in ${space ?? "no model"} ${goalsInSpace}/${goals.length} · unparsable ${unparsable}`;
+  const rank = (m: MissionForRank): Rank => {
+    const own = ownOf(m.id);
+    const ownSpace = own?.model ?? null;
     const byScore = (xs: Array<{ goalId: string; score: number }>) =>
       xs.map((x) => ({ ...x, score: Number.isFinite(x.score) ? x.score : 0 })).sort((a, b) => b.score - a.score);
-    if (vec.length > 0 && goals.length > 0 && goals.every((g) => goalVecs.has(g.id))) {
-      return { basis: "embedding", ranked: byScore(goals.map((g) => ({ goalId: g.id, score: cosineSimilarity(vec, goalVecs.get(g.id)!) }))) };
+    const missing = own?.vec && ownSpace ? goals.filter((g) => !goalVec.has(`${ownSpace}\n${g.id}`)) : goals;
+    if (own?.vec && ownSpace && goals.length > 0 && missing.length === 0) {
+      const vec = own.vec;
+      return { basis: "embedding", ranked: byScore(goals.map((g) => ({ goalId: g.id, score: cosineSimilarity(vec, goalVec.get(`${ownSpace}\n${g.id}`)!) }))) };
     }
+    const why = !own
+      ? "no_comparable_embedding"
+      : !own.vec || (ownSpace !== null && missing.some((g) => goalModels.get(g.id)?.has(ownSpace)))
+        ? "unparsable_vector"
+        : ownSpace === null || missing.some((g) => (goalModels.get(g.id)?.size ?? 0) > 0)
+          ? "wrong_model"
+          : "no_comparable_embedding";
     const criteria = typeof m.completionCriteria === "string" ? m.completionCriteria : "";
     const text = [m.title, m.successMetric ?? "", criteria].join("\n");
-    return { basis: "words", ranked: byScore(goals.map((g) => ({ goalId: g.id, score: wordOverlapScore(text, goalEmbedText(g)) }))) };
+    return { basis: "words", why, ranked: byScore(goals.map((g) => ({ goalId: g.id, score: wordOverlapScore(text, goalEmbedText(g)) }))) };
   };
+  return { rank, coverage };
 }
 
 const activeGoals = (db: Db): Promise<Goal[]> =>
@@ -254,6 +288,10 @@ const activeGoals = (db: Db): Promise<Goal[]> =>
     select: { id: true, title: true, why: true },
   });
 
+/** The goal read is capped; at the cap, goals past it are never ranked, so say so. */
+const capWarning = (goals: Goal[]) =>
+  goals.length >= SUGGEST_GOAL_MAX_GOALS ? [`  warning: read ${goals.length} active goals = the cap ${SUGGEST_GOAL_MAX_GOALS}; any past it are not ranked`] : [];
+
 const fmtTop = (top: Array<{ goalId: string; score: number }>) => top.map((t) => `${sfx(t.goalId)} ${t.score.toFixed(3)}`).join(" / ") || "-";
 
 async function planMissions(a: PlanArgs): Promise<PassPlan> {
@@ -261,14 +299,19 @@ async function planMissions(a: PlanArgs): Promise<PassPlan> {
   const missions = await db.mission.findMany({
     where: { deletedAt: null, lifeGoalId: null, status: { not: "KILLED" } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, successMetric: true, completionCriteria: true, systemKind: true, updatedBy: true },
+    select: { id: true, title: true, successMetric: true, completionCriteria: true, systemKind: true, updatedBy: true, updatedAt: true },
   });
   const goals = await activeGoals(db);
-  const rank = await goalRanker(db, goals, missions.map((m) => m.id));
+  const { rank, coverage } = await goalRanker(db, goals, missions.map((m) => m.id));
   const rows: LinkRow[] = [];
   const skipped: Skip[] = [];
   const decisions: Decision[] = [];
-  const lines = [`  active goals ${goals.length} · min ${MIN_SCORE} · margin ${MARGIN}`, "  mission   goal      score  basis      decision"];
+  const lines = [
+    `  active goals ${goals.length} · min ${MIN_SCORE} · margin ${MARGIN}`,
+    ...capWarning(goals),
+    coverage,
+    "  mission   goal      score  basis      decision",
+  ];
   for (const m of missions) {
     if (!isUserProject(m)) {
       skipped.push({ id: m.id, reason: "inbox_or_anchor" });
@@ -279,7 +322,7 @@ async function planMissions(a: PlanArgs): Promise<PassPlan> {
     const top = r.ranked.slice(0, 2);
     decisions.push({ missionId: m.id, basis: r.basis, ...d, top });
     if (d.decision === "link") {
-      rows.push({ missionId: m.id, lifeGoalId: d.goalId, priorUpdatedBy: m.updatedBy, basis: "embedding", score: top[0].score });
+      rows.push({ missionId: m.id, lifeGoalId: d.goalId, priorUpdatedBy: m.updatedBy, basis: "embedding", score: top[0].score, updatedAt: m.updatedAt.toISOString() });
     } else {
       skipped.push({ id: m.id, reason: d.reason });
     }
@@ -306,7 +349,12 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
   const db = a.prisma;
   const missions = await db.mission.findMany({
     // A wide UTC window, then the exact ET day below (2026-11-02 is EST, UTC-5).
-    where: { deletedAt: null, lifeGoalId: null, createdAt: { gte: new Date(`${ORPHAN_DAY}T00:00:00Z`), lt: new Date("2026-11-04T00:00:00Z") } },
+    where: {
+      deletedAt: null,
+      lifeGoalId: null,
+      status: { not: "KILLED" },
+      createdAt: { gte: new Date(`${ORPHAN_DAY}T00:00:00Z`), lt: new Date("2026-11-04T00:00:00Z") },
+    },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -315,16 +363,17 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
       completionCriteria: true,
       systemKind: true,
       updatedBy: true,
+      updatedAt: true,
       createdAt: true,
       planData: true,
       tasks: { where: { deletedAt: null }, select: { phaseName: true, goalId: true } },
     },
   });
   const goals = await activeGoals(db);
-  let rank: ((m: MissionForRank) => Rank) | null = null;
+  const { rank, coverage } = await goalRanker(db, goals, missions.map((x) => x.id));
   const rows: LinkRow[] = [];
   const skipped: Skip[] = [];
-  const lines: string[] = [];
+  const lines: string[] = [...capWarning(goals), coverage];
   for (const m of missions) {
     const skip = (reason: string) => {
       skipped.push({ id: m.id, reason });
@@ -362,7 +411,6 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
       skip("ambiguous_title");
       continue;
     } else {
-      rank ??= await goalRanker(db, goals, missions.map((x) => x.id));
       const r = rank(m);
       const d = decide(r);
       if (d.decision === "list") {
@@ -372,7 +420,7 @@ async function planOrphan(a: PlanArgs): Promise<PassPlan> {
       }
       pick = { lifeGoalId: d.goalId, basis: "embedding", score: r.ranked[0].score };
     }
-    rows.push({ missionId: m.id, priorUpdatedBy: m.updatedBy, ...pick });
+    rows.push({ missionId: m.id, priorUpdatedBy: m.updatedBy, updatedAt: m.updatedAt.toISOString(), ...pick });
     lines.push(`  ${sfx(m.id)} -> ${sfx(pick.lifeGoalId)} (${pick.basis}, ${m.tasks.length} tasks)`);
   }
   return { pass: "orphan", candidates: missions.length, rows, skipped, lines };
@@ -401,7 +449,7 @@ async function noteFor(r: LedgerRead, snippets: Snippets, genericNote: RegExp): 
   if (meta.noteVia) return { reason: "already_noted" };
   if (!isContactRow({ metadata: r.metadata })) return { reason: "not_contact" };
   if (r.person.deletedAt) return { reason: "person_deleted" };
-  if (typeof meta.conversationId !== "string") return { reason: "no_conversation" };
+  if (typeof meta.conversationId !== "string" || meta.conversationId === "") return { reason: "no_conversation" };
   const line = noteLine(await snippets(r.person.name, NOTE_SNIPPETS, meta.conversationId));
   return line ? { line } : { reason: "no_snippet" };
 }
@@ -444,26 +492,31 @@ export async function planPass(pass: PassName, a: PlanArgs): Promise<PassPlan> {
 
 // ── execute: the plan file's rows, each a compare-and-swap ───────────────────────────────────────
 
-/** True when the row was written; false when it changed since the plan (lost the swap). */
-async function applyRow(db: Db, pass: PassName, row: Row, ctx: { snippets: Snippets; genericNote: RegExp; ledger: Map<string, LedgerRead> }): Promise<boolean> {
+type ApplyCtx = { snippets: Snippets; genericNote: RegExp; ledger: Map<string, LedgerRead>; liveGoals: Set<string> };
+
+/** null when the row was written; otherwise the receipt's reason it was not (count !== 1 is a loss, never a retry). */
+async function applyRow(db: Db, pass: PassName, row: Row, ctx: ApplyCtx): Promise<string | null> {
   if (pass === "orphan" || pass === "missions") {
     const r = row as LinkRow;
+    if (!ctx.liveGoals.has(r.lifeGoalId)) return "goal_not_active";
+    // Every field the plan's decision read: still unlinked, live, not KILLED, and unedited since (its vector is from that text).
     const res = await db.mission.updateMany({
-      where: { id: r.missionId, lifeGoalId: null, deletedAt: null },
-      data: { lifeGoalId: r.lifeGoalId, updatedBy: MARKER },
+      where: { id: r.missionId, lifeGoalId: null, deletedAt: null, status: { not: "KILLED" }, updatedAt: new Date(r.updatedAt) },
+      data: { lifeGoalId: r.lifeGoalId, updatedBy: markerFor(pass) },
     });
-    return res.count === 1;
+    return res.count === 1 ? null : "swap_lost";
   }
   const r = row as NoteRow;
   const read = ctx.ledger.get(r.ledgerId);
-  if (!read) return false;
+  if (!read) return "ledger_row_gone";
   const n = await noteFor(read, ctx.snippets, ctx.genericNote);
-  if ("reason" in n || fileToken(n.line) !== r.noteSha) return false;
+  if ("reason" in n) return "no_note";
+  if (fileToken(n.line) !== r.noteSha) return "snippet_changed";
   const res = await db.relationshipLedger.updateMany({
     where: { id: read.id, note: read.note },
     data: { note: n.line, metadata: { ...asObj(read.metadata), noteVia: NOTE_MARKER, originalNote: read.note } },
   });
-  return res.count === 1;
+  return res.count === 1 ? null : "swap_lost";
 }
 
 export interface PlanFile {
@@ -483,7 +536,10 @@ export function parsePlanFile(contents: string): PlanFile {
       const ok =
         k === "notes"
           ? typeof o.ledgerId === "string" && typeof o.noteSha === "string"
-          : typeof o.missionId === "string" && typeof o.lifeGoalId === "string";
+          : typeof o.missionId === "string" &&
+            typeof o.lifeGoalId === "string" &&
+            typeof o.updatedAt === "string" &&
+            Number.isFinite(Date.parse(o.updatedAt));
       if (!ok) throw new Error(`plan file ${k} row ${i} is malformed`);
     }
   }
@@ -517,7 +573,15 @@ export function makeReceiptWriter(dir: string, pass: PassName, now: Date): Recei
 
 const receiptRow = (pass: PassName, r: Row) => (pass === "notes" ? { ledgerId: (r as NoteRow).ledgerId } : r);
 
-async function executePass(db: FullDb, pass: PassName, rows: Row[], now: Date, writeReceipt: ReceiptWriter, snippets: Snippets): Promise<boolean> {
+/** ok false: the backup was refused and nothing was written. lost: rows the pass could not write (each with a reason in the receipt). */
+async function executePass(
+  db: FullDb,
+  pass: PassName,
+  rows: Row[],
+  now: Date,
+  writeReceipt: ReceiptWriter,
+  snippets: Snippets,
+): Promise<{ ok: boolean; lost: number }> {
   const { source, table } = BACKUP[pass];
   const backup = await backupInOneSnapshot(
     {
@@ -536,26 +600,45 @@ async function executePass(db: FullDb, pass: PassName, rows: Row[], now: Date, w
   );
   if (backup.source === 0 || backup.source !== backup.backup) {
     console.log(`[${pass}] backup refused (source ${backup.source}, copy ${backup.backup}): nothing written`);
-    return false;
+    return { ok: false, lost: 0 };
   }
-  const base = { pass, marker: pass === "notes" ? NOTE_MARKER : MARKER, backupTable: table, generatedAt: now.toISOString() };
+  const base = { pass, marker: pass === "notes" ? NOTE_MARKER : markerFor(pass), backupTable: table, generatedAt: now.toISOString() };
   const planned = rows.map((r) => receiptRow(pass, r));
   const path = writeReceipt({ ...base, status: "planned", rows: planned, written: [], lost: [] });
-  const ctx = { snippets, genericNote: /$^/, ledger: new Map<string, LedgerRead>() };
-  if (pass === "notes") {
-    ctx.genericNote = GENERIC_NOTE;
-    const reads = await db.relationshipLedger.findMany({ where: { id: { in: rows.map((r) => (r as NoteRow).ledgerId) } }, select: LEDGER_SELECT });
-    for (const r of reads) ctx.ledger.set(r.id, r);
-  }
+  console.log(`[${pass}] receipt ${path} (planned ${rows.length})`);
   const written: string[] = [];
   const lost: Skip[] = [];
-  for (const r of rows) {
-    if (await applyRow(db, pass, r, ctx)) written.push(keyOf(pass, r));
-    else lost.push({ id: keyOf(pass, r), reason: "changed_since_read" });
+  let done = false;
+  try {
+    const ctx: ApplyCtx = { snippets, genericNote: /$^/, ledger: new Map(), liveGoals: new Set() };
+    if (pass === "notes") {
+      ctx.genericNote = GENERIC_NOTE;
+      const reads = await db.relationshipLedger.findMany({ where: { id: { in: rows.map((r) => (r as NoteRow).ledgerId) } }, select: LEDGER_SELECT });
+      for (const r of reads) ctx.ledger.set(r.id, r);
+    } else {
+      // The plan required an active, undeleted goal; a goal paused or deleted since loses its rows.
+      const links = rows as LinkRow[];
+      const live = await db.lifeGoal.findMany({
+        where: { id: { in: [...new Set(links.map((r) => r.lifeGoalId))] }, status: "active", deletedAt: null },
+        select: { id: true },
+      });
+      ctx.liveGoals = new Set(live.map((g) => g.id));
+      console.log((await goalRanker(db, await activeGoals(db), links.map((r) => r.missionId))).coverage);
+    }
+    for (const r of rows) {
+      const why = await applyRow(db, pass, r, ctx);
+      if (why === null) written.push(keyOf(pass, r));
+      else lost.push({ id: keyOf(pass, r), reason: why });
+    }
+    done = true;
+  } finally {
+    // A throw mid-loop still leaves the receipt naming what was written, so a revert finds it.
+    writeReceipt({ ...base, status: done ? "applied" : "aborted", rows: planned, written, lost });
   }
-  writeReceipt({ ...base, status: "applied", rows: planned, written, lost });
-  console.log(`[${pass}] backup ${table} (${backup.backup} rows) · written ${written.length} · lost ${lost.length} · receipt ${path}`);
-  return true;
+  console.log(
+    `[${pass}] backup ${table} (${backup.backup} rows) · written ${written.length} · lost ${lost.length} ${JSON.stringify(countBy(lost.map((l) => l.reason)))} · receipt ${path}`,
+  );
+  return { ok: true, lost: lost.length };
 }
 
 // ── revert ────────────────────────────────────────────────────────────────────────────────────────
@@ -567,7 +650,7 @@ async function revertReceipt(db: Db, receipt: { pass: PassName; rows: Array<Reco
     for (const r of receipt.rows) {
       done(
         await db.mission.updateMany({
-          where: { id: String(r.missionId), lifeGoalId: String(r.lifeGoalId), updatedBy: MARKER },
+          where: { id: String(r.missionId), lifeGoalId: String(r.lifeGoalId), updatedBy: markerFor(receipt.pass) },
           data: { lifeGoalId: null, updatedBy: typeof r.priorUpdatedBy === "string" ? r.priorUpdatedBy : null },
         }),
       );
@@ -596,7 +679,7 @@ function printPlan(p: PassPlan) {
   for (const l of p.lines) console.log(l);
 }
 
-/** Exit code: 0 done, 1 a refused backup or a failure, 2 a refused command (nothing ran). */
+/** Exit code: 0 done, 1 a refused backup, a lost row or a failure, 2 a refused command (nothing written). */
 export async function main(argv: readonly string[], env: NodeJS.ProcessEnv, now: Date = new Date()): Promise<number> {
   // Everything that can refuse runs BEFORE the Prisma import: a refused command never opens a connection.
   let args: Args;
@@ -649,7 +732,13 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv, now:
       }
       if (args.out) {
         const contents = JSON.stringify(plan);
-        writeFileSync(args.out, contents);
+        try {
+          writeFileSync(args.out, contents, { flag: "wx" });
+        } catch (err) {
+          if ((err as { code?: unknown } | null)?.code !== "EEXIST") throw err;
+          console.error(`refused: ${args.out} already exists; a plan file is never overwritten, pass a new --out path`);
+          return 2;
+        }
         console.log(`\nplan file ${args.out} · token ${fileToken(contents)}`);
       }
       return 0;
@@ -658,11 +747,14 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv, now:
     const passes = (args.passes ?? [...PASS_ORDER]).filter((p) => (plan.passes[p]?.length ?? 0) > 0);
     console.log(`backfill-interconnect · EXECUTE · plan ${args.planFile} · passes ${passes.join(", ") || "none with rows"}`);
     const dir = join(process.cwd(), ".completion");
+    let lost = 0;
     for (const pass of passes) {
-      const ok = await executePass(db, pass, plan.passes[pass]!, now, makeReceiptWriter(dir, pass, now), defaultSnippets);
-      if (!ok) return 1;
+      const res = await executePass(db, pass, plan.passes[pass]!, now, makeReceiptWriter(dir, pass, now), defaultSnippets);
+      if (!res.ok) return 1;
+      lost += res.lost;
     }
-    return 0;
+    if (lost > 0) console.log(`\nlost ${lost} row(s): exit 1 (each receipt's lost list has the reason)`);
+    return lost > 0 ? 1 : 0;
   } catch (err) {
     console.error(`failed: ${msg(err)}`);
     return 1;
