@@ -103,7 +103,7 @@ them. Bootstrap adds all 16 to its install list. An existing machine `descriptio
 | ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review | portable | generate (install) | Differ only by the repo's `triggers:` line. |
 | brainstorming, systematic-debugging, test-driven-development | portable | generate (install) | Differ by the `triggers:` line and, for brainstorming, two script files. |
 | reverse-engineer-anything | portable | generate (install) | Differs only in SOURCE.md. |
-| antislop-human, differential-review, supply-chain-risk-auditor | portable | generate (install, Nour, 2026-11-05) | Each grants itself Bash in `allowed-tools`. His words: "yes i want it too those are good skills needed". `BASH_GRANTS` in `bootstrap-machine.mjs` names exactly these three folders and exactly these grants; any other Bash grant still refuses. |
+| antislop-human, differential-review, supply-chain-risk-auditor | portable | generate (install, Nour, 2026-11-05) | Each grants itself Bash in `allowed-tools`. His words: "yes i want it too those are good skills needed". `BASH_GRANTS` in `bootstrap-machine.mjs` names exactly these three folders and exactly these grants; any other shell grant still refuses. |
 
 #### Not in the repo (22)
 
@@ -120,7 +120,7 @@ them. Bootstrap adds all 16 to its install list. An existing machine `descriptio
 | using-git-worktrees | portable | obra/superpowers, MIT | **critical** | skip (Nour, 2026-11-05) | Same. |
 | writing-plans | portable | obra/superpowers, MIT | **critical** | skip (Nour, 2026-11-05) | Same. |
 | anti-slop-writing | portable | adenaufal/anti-slop-writing, MIT (LICENSE in the folder and the local clone at 104fae8c) | not listed | vendor | Upstream reads 404 today (FACT, 2026-11-05): the clone and the kept LICENSE are the provenance. The MIT grant does not lapse. |
-| ad-creative, ads, social, video | portable | coreyhaines31/marketingskills, MIT | unknown or not listed | vendor | Junctions into `~/.agents/skills`. The always-on hook tells every PC to use them for ad and reel work, so a PC without them is told to invoke a skill it lacks (FACT). |
+| ad-creative, ads, social, video | portable | coreyhaines31/marketingskills, MIT | unknown or not listed | vendor | Junctions into `~/.agents/skills` on NATTYNOUR; bootstrap replaces a junction with a real folder and leaves its target alone. The always-on hook tells every PC to use them for ad and reel work, so a PC without them is told to invoke a skill it lacks (FACT). |
 | ads-creative, ads-meta, ads-tiktok | portable | agricidaniel/claude-ads, MIT | not listed | vendor | Same reason. |
 | humanizer | portable | blader/humanizer, MIT | not listed | vendor | Junction into `~/.agents/skills`; the upstream `.github/` folder stays out. |
 | graphify | machine | Graphify-Labs/graphify, Apache-2.0 | no risk field | skip | Installed by its own tool and needs the Python package; other PCs are graph clients by policy (`local-services.json`). The repo profile already says what to do when it is absent. |
@@ -149,8 +149,8 @@ them. Bootstrap adds all 16 to its install list. An existing machine `descriptio
 | graphify pointer | machine | skip | The profile already carries it. |
 | The `nourcity-always-on` block | portable | keep | Installed today; this job adds to its source file. One fenced block, no `@import`: the import would point at a path that differs per PC. |
 
-NATTYNOUR keeps its own copy of these lines above the block, so it reads them twice until Nour trims them. Bootstrap never
-edits text outside its markers.
+NATTYNOUR keeps its own copy of the output rules and the import above the block. Bootstrap never edits text outside its markers,
+so it drops from the block any `## ` section or `@RTK.md` line already present outside them. Nothing reads twice.
 
 ### `~/.claude/settings.json` keys
 
@@ -170,7 +170,7 @@ edits text outside its markers.
 | `~/.claude/settings.json` `permissions` | n/a | nothing to copy | The key is absent: 0 allow, 0 deny, 0 ask (FACT). |
 | `~/.claude/settings.local.json` | n/a | nothing to copy | Absent (FACT). |
 | `~/.claude.json` per-project `allowedTools` | n/a | nothing to copy | 84 projects, 0 entries (FACT). |
-| `allowed-tools: Read Write Edit Glob Grep` in antislop, antislop-code, antislop-copywriting, antislop-layoutmobile, antislop-ui | portable | install | File tools only, active only while the skill runs. `antislop` installs this way today. Bash outside `BASH_GRANTS` refuses. |
+| `allowed-tools: Read Write Edit Glob Grep` in antislop, antislop-code, antislop-copywriting, antislop-layoutmobile, antislop-ui | portable | install | File tools only, active only while the skill runs. `antislop` installs this way today. Anything else in `allowed-tools` refuses: only Read, Write, Edit, MultiEdit, Glob and Grep pass, plus the three exact `BASH_GRANTS`. |
 | Primary checkout `.claude/settings.local.json`, entry: one skill by name | machine | skip (Nour, 2026-11-05) | Untracked, per machine. Bootstrap installs no permission entry. |
 | Same file, entry: one scheduled-tasks read tool | machine | skip (Nour, 2026-11-05) | Same. |
 | Same file, entries: two connector read tools (connector ids stay out of this page) | machine | skip (Nour, 2026-11-05) | Same; the ids are per account. |

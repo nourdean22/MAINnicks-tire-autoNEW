@@ -101,7 +101,7 @@
     },
     {
       "id": 8,
-      "prompt": "Record a feature demo video of our team-invite flow. The app runs locally at http://127.0.0.1:3000 and I want a voiceover. Here's my ElevenLabs key: sk_live_123abc",
+      "prompt": "Record a feature demo video of our team-invite flow. The app runs locally at http://127.0.0.1:3000 and I want a voiceover. Here's my ElevenLabs key: <your-key>",
       "expected_output": "Should apply references/product-demo-recording.md (scripted Playwright recording). Should refuse to use the key pasted into chat: tell the user to rotate it, set it as an environment variable (e.g. ELEVENLABS_API_KEY) or in a secret manager, and never commit it to the repo; the script reads it from the environment at runtime. Should ask for or confirm the scene list (captions), auth state, and brand basics before scripting. Should flag local-app gotchas for an HTTP localhost recording: Secure; SameSite=None session cookies are rejected over plain HTTP (switch to SameSite=Lax or serve HTTPS), keep bypassCSP on so the overlay isn't blocked, and confirm the page renders in a real browser to avoid a blank SPA boot. Should assign step modes per scene: 'before' for navigating clicks (opening the invite page, submitting the invite), 'during' for in-place actions (typing the teammate's email, choosing a role). Should use a visible fake cursor for clicks and fills, write subtitles per scene, and use measured TTS clip durations to time steps. May link the contributor's reference scripts at the pinned commit.",
       "assertions": [
         "Applies the scripted Playwright recording workflow from references/product-demo-recording.md",

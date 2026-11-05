@@ -33,12 +33,13 @@
  * set, the settings keys and marketplaces, the hook list above, the extra MCP entries and RTK.md. Audit and reasons:
  * docs/agent-os/MACHINE-SYNC.md, section Personal layer. An item that needs a tool (`requires`) reads n/a where it is not on
  * PATH. Before anything is written, every source file passes the public-repo gate: a secret, a machine path, a private
- * address, a key file, a skill that registers hooks, a Bash grant outside BASH_GRANTS, or a layer key outside the allowlists reads REFUSE,
+ * address, a key file, a skill that registers hooks, a tool grant beyond the file tools (BASH_GRANTS names three exceptions), a link
+ * on a write path, or a layer key outside the allowlists reads REFUSE,
  * and an install writes nothing. A permission entry can only arrive by editing SETTINGS_KEYS in a PR, after Nour's yes.
  * Canary: bootstrapMachine.test.mjs.
  */
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,9 +78,16 @@ const LAYER_KEYS = new Set(["_doc", "skills", "settings", "hooks", "files", "mcp
 // hooks (those come through the hook list) and, until Nour says yes, enabledPlugins and cleanupPeriodDays.
 const SETTINGS_KEYS = new Set(["skillListingBudgetFraction", "outputStyle", "theme", "skipWorkflowUsageWarning", "precomputeCompactionEnabled", "switchModelsOnFlag", "inputNeededNotifEnabled", "agentPushNotifEnabled", "extraKnownMarketplaces"]);
 const HOOK_KEYS = new Set(["event", "matcher", "sources", "key", "command", "timeout", "requires"]);
+// Where files[] may write. Without this a dest of settings.json or CLAUDE.md would replace the whole file and sidestep the gate.
+const FILE_DESTS = new Set(["RTK.md"]);
+const isMap = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /** Why this user-layer.json may not install; empty when it may. */
 export function layerProblems(layer) {
+  if (!isMap(layer)) return ["the layer must be an object"];
+  const shape = [["settings", isMap], ["mcpServers", isMap], ["hooks", Array.isArray], ["files", Array.isArray]].filter(([k, ok]) => layer[k] !== undefined && !ok(layer[k])).map(([k]) => `"${k}" has the wrong shape`);
+  if (shape.length) return shape;
+  if ([...(layer.hooks ?? []), ...(layer.files ?? []), ...Object.values(layer.mcpServers ?? {})].some((x) => !isMap(x))) return ["every hook, file and MCP entry must be an object"];
   const out = [];
   for (const k of Object.keys(layer)) if (!LAYER_KEYS.has(k)) out.push(`key "${k}" is not allowed`);
   for (const k of Object.keys(layer.settings ?? {})) if (!SETTINGS_KEYS.has(k)) out.push(`settings key "${k}" is not allowed`);
@@ -91,7 +99,7 @@ export function layerProblems(layer) {
     if (Object.keys(h).some((k) => !HOOK_KEYS.has(k)) || !h.event || !h.key || !String(h.command ?? "").includes(h.key)) out.push(`hook "${h.key ?? h.event}" must have an event, a key and a command naming that key, and no other field`);
   }
   for (const x of layer.files ?? []) {
-    if (!/^[\w-][\w.-]*$/.test(x.dest ?? "") || !/^config\/agent-os\/[\w.-]+$/.test(x.src ?? "")) out.push(`file "${x.dest}" must be a plain name copied from config/agent-os`);
+    if (!FILE_DESTS.has(x.dest) || !/^config\/agent-os\/[\w.-]+$/.test(x.src ?? "")) out.push(`file "${x.dest}" must be a named destination copied from config/agent-os`);
   }
   return out;
 }
@@ -107,6 +115,9 @@ const UNSAFE = [
   ["JWT", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
   ["Telegram token", /\b\d{8,10}:[A-Za-z0-9_-]{35,}/],
   ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["Stripe key", /\b[sr]k_live_[A-Za-z0-9]{10,}/],
+  ["database URL", /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s:@/]+:[^\s@/<>{}$%]+@/],
+  ["bearer token", /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/],
   ["credential value", /\b(?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*["'][^"'\s]{12,}["']/i],
   ["user folder", new RegExp(/\b[A-Za-z]:[\\/]+Users[\\/]+/.source + NOT_A_NAME + /[^\\/\s"'<>]+/.source, "i")],
   ["user folder", new RegExp(/(?:^|[\s"'(])\/(?:home|Users)\//.source + NOT_A_NAME + /[A-Za-z][\w-]*\//.source, "i")],
@@ -115,8 +126,11 @@ const UNSAFE = [
 ];
 const KEY_FILE = /^(?:\.env(?:\..*)?|\.credentials\.json|id_(?:rsa|dsa|ecdsa|ed25519)|.*\.(?:pem|key|p12|pfx))$/i;
 
+// The tools a skill may grant itself. A grant is a permission entry, so this is an allowlist: PowerShell, an MCP runner, Agent or
+// anything new refuses without being named here.
+const SAFE_TOOLS = new Set(["Read", "Write", "Edit", "MultiEdit", "Glob", "Grep"]);
 // Nour, 2026-11-05 10:45 EST, on these three: "yes i want it too those are good skills needed". Exactly these folders, exactly
-// these grants: any other skill granting Bash, and any change to one of these lines, refuses.
+// these grants: any other shell grant, and any change to one of these lines, refuses.
 const BASH_GRANTS = new Map([
   ["antislop-human", "Bash(python *) Bash(python3 *) Read Write Edit Glob Grep"],
   ["differential-review", "Read Write Grep Glob Bash"],
@@ -133,11 +147,14 @@ export function fileProblems(name, buf, skill = null) {
     text.split("\n").forEach((line, i) => { if (re.test(line)) out.push(`${i + 1} ${kind}`); });
   }
   if (name === "SKILL.md") {
-    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
+    // trimStart: a BOM or a blank line before the opening fence must not hide the frontmatter from this check.
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text.trimStart())?.[1] ?? "";
     if (FRONT_KEY("hooks").test(fm)) out.push("a hooks key in the frontmatter");
     const grants = [...fm.matchAll(FRONT_KEY("allowed[-_]?tools"))].map((m) => m[0]);
-    const named = grants.length === 1 && grants[0].slice(grants[0].indexOf(":") + 1).trim() === BASH_GRANTS.get(skill);
-    if (grants.some((g) => /\bBash\b/i.test(g)) && !named) out.push("a Bash grant in allowed-tools");
+    const value = (g) => g.slice(g.indexOf(":") + 1).trim();
+    const named = grants.length === 1 && value(grants[0]) === BASH_GRANTS.get(skill);
+    const safe = (g) => value(g).replace(/[[\]"']/g, " ").split(/[\s,]+/).filter((t) => t && t !== "-").every((t) => SAFE_TOOLS.has(t));
+    if (!named && !grants.every(safe)) out.push("a tool grant beyond the file tools in allowed-tools");
   }
   return out;
 }
@@ -158,14 +175,22 @@ export function keepDescription(repoBuf, machineBuf) {
 export function plan(home) {
   const claude = configDir(home); // CLAUDE_CONFIG_DIR when set and no --home (Codex 4380254412)
   const items = [];
-  const layer = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "user-layer.json"), "utf8"));
-  const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop", ...(Array.isArray(layer.skills) ? layer.skills : [])])];
+  const refuse = (what) => items.push({ label: what, state: "REFUSE", apply() { throw new Error(what); } });
+  let layer;
+  try {
+    layer = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "user-layer.json"), "utf8"));
+  } catch (err) {
+    refuse(`config/agent-os/user-layer.json: unreadable (${String(err?.message || err).split(/\r?\n/)[0]})`);
+    return items;
+  }
+  const problems = layerProblems(layer);
+  for (const p of problems) refuse(`config/agent-os/user-layer.json: ${p}`);
+  if (problems.length) return items;
+  const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop", ...layer.skills])];
 
   // The gate: all of it runs before any item exists, so a refusal cannot leave a half-made install.
   const sources = [...["always-on-skills.mjs", "find-skills-turn.mjs"].map((n) => join(HERE, n)), ...["user-layer.json", "global-claude-md-block.md"].map((n) => join(REPO, "config", "agent-os", n)),
     ...(layer.files ?? []).map((x) => join(REPO, x.src ?? "")), ...skillNames.flatMap((n) => { const d = join(REPO, ".claude", "skills", n); return existsSync(d) ? filesUnder(d) : []; })];
-  const refuse = (what) => items.push({ label: what, state: "REFUSE", apply() { throw new Error(what); } });
-  for (const p of layerProblems(layer)) refuse(`config/agent-os/user-layer.json: ${p}`);
   for (const f of sources) {
     const buf = read(f);
     // Only a skill's own top-level SKILL.md can match BASH_GRANTS: the name comes from the folder, never from the file.
@@ -173,6 +198,12 @@ export function plan(home) {
     if (buf) for (const p of fileProblems(basename(f), buf, parts.length === 2 ? parts[0] : null)) refuse(`${fwd(relative(REPO, f))}:${p}`);
   }
   if (items.length) return items;
+
+  // writeFileSync follows a link, so a link on a write path would change files outside the config dir.
+  const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };
+  const linkRefused = (p, label) => { if (isLink(p)) refuse(`${label} is a link: replace it by hand, bootstrap never writes through one`); return isLink(p); };
+  linkRefused(join(claude, "hooks"), "~/.claude/hooks");
+  linkRefused(join(claude, "skills"), "~/.claude/skills");
 
   const tools = new Map();
   const has = (tool) => { if (!tools.has(tool)) tools.set(tool, onPath(tool).state === "ok"); return tools.get(tool); };
@@ -189,6 +220,7 @@ export function plan(home) {
     copyFileSync(file, to);
   };
   const fileItem = (label, src, dest) => {
+    if (linkRefused(dest, label)) return;
     const have = read(dest);
     const state = have === null ? "MISSING" : have.equals(readFileSync(src)) ? "ok" : "DRIFT";
     items.push({ label, state, apply() { backup(dest); mkdirSync(dirname(dest), { recursive: true }); copyFileSync(src, dest); } });
@@ -211,15 +243,19 @@ export function plan(home) {
       items.push({ label: `~/.claude/skills/${name} (no repo copy: install it on this machine or vendor it into .claude/skills)`, state: have ? "ok" : "MISSING", manual: true, apply() {} });
       continue;
     }
+    // A skill folder that is a link (`npx skills` junctions) is replaced by a real one: only the link goes, its target stays.
+    const linked = isLink(join(claude, "skills", name));
     const pairs = filesUnder(src).map((f) => {
       const d = join(claude, "skills", name, relative(src, f));
       const want = /SKILL\.md$/.test(f) ? keepDescription(readFileSync(f), read(d)) : readFileSync(f);
       return [want, d, f];
     });
     const states = pairs.map(([want, d]) => { const h = read(d); return h === null ? "MISSING" : h.equals(want) ? "ok" : "DRIFT"; });
-    const state = states.every((s) => s === "ok") ? "ok" : !existsSync(join(claude, "skills", name, "SKILL.md")) ? "MISSING" : "DRIFT";
-    items.push({ label: `~/.claude/skills/${name}`, state, apply() {
-      pairs.forEach(([want, d, f], i) => { if (states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); writeFileSync(d, want); chmodSync(d, statSync(f).mode); } });
+    if (!linked && pairs.some(([, d]) => linkRefused(d, `~/.claude/skills/${name}/${basename(d)}`))) continue;
+    const state = linked ? "DRIFT" : states.every((s) => s === "ok") ? "ok" : !existsSync(join(claude, "skills", name, "SKILL.md")) ? "MISSING" : "DRIFT";
+    items.push({ label: `~/.claude/skills/${name}${linked ? " (a link: bootstrap replaces it with a real folder)" : ""}`, state, apply() {
+      if (linked) unlinkSync(join(claude, "skills", name));
+      pairs.forEach(([want, d, f], i) => { if (linked || states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); writeFileSync(d, want); chmodSync(d, statSync(f).mode); } });
     } });
   }
 
@@ -243,6 +279,7 @@ export function plan(home) {
   for (const w of wanted) {
     const label = `~/.claude/settings.json ${w.event} ${w.key}`;
     if (w.requires && !has(w.requires)) { absent(label, w.requires); continue; }
+    if (linkRefused(settingsFile, label)) continue;
     if (settingsErr) { items.push({ label: `${label} (${settingsErr})`, state: "DRIFT", apply() { throw new Error(settingsErr); } }); continue; }
     const isOurs = (h) => String(h.command || "").includes(w.key) && !String(h.command).includes("--repo");
     const locate = (s) => { for (const g of s.hooks?.[w.event] ?? []) { const h = (g.hooks ?? []).find(isOurs); if (h) return { g, h }; } return null; };
@@ -276,6 +313,7 @@ export function plan(home) {
   ];
   for (const x of settingItems) {
     const label = `~/.claude/settings.json ${x.label}`;
+    if (linkRefused(settingsFile, label)) continue;
     if (settingsErr) { items.push({ label: `${label} (${settingsErr})`, state: "DRIFT", apply() { throw new Error(settingsErr); } }); continue; }
     const cur = x.get(settings);
     items.push({ label, state: cur === undefined ? "MISSING" : JSON.stringify(cur) === JSON.stringify(x.want) ? "ok" : "DRIFT", apply() { const s = readSettings(); x.set(s); saveSettings(s); } });
@@ -312,11 +350,15 @@ export function plan(home) {
 
   // Global CLAUDE.md pointer block.
   const mdFile = join(claude, "CLAUDE.md");
-  const blockSource = readFileSync(join(REPO, "config", "agent-os", "global-claude-md-block.md"), "utf8");
-  const block = `${BEGIN}\n${(has("rtk") ? blockSource : blockSource.replace(/^@RTK\.md\r?\n?/m, "")).trim()}\n${END}`;
   const md = read(mdFile)?.toString("utf8") ?? null;
   const at = md?.indexOf(BEGIN) ?? -1;
   const endAt = at >= 0 ? md.indexOf(END, at) : -1;
+  // A rule the machine already carries outside the markers stays out of the block: bootstrap never edits that text.
+  const outside = new Set(((at >= 0 && endAt >= 0 ? md.slice(0, at) + md.slice(endAt + END.length) : md) ?? "").split(/\r?\n/));
+  const blockBody = readFileSync(join(REPO, "config", "agent-os", "global-claude-md-block.md"), "utf8").split(/^(?=## )/m)
+    .filter((section) => !outside.has(section.split(/\r?\n/)[0])).join("").replace(/^@RTK\.md\r?\n?/m, (line) => (has("rtk") && !outside.has("@RTK.md") ? line : ""));
+  const block = `${BEGIN}\n${blockBody.trim()}\n${END}`;
+  linkRefused(mdFile, "~/.claude/CLAUDE.md");
   const mdState = at < 0 || endAt < 0 ? "MISSING" : md.slice(at, endAt + END.length) === block ? "ok" : "DRIFT";
   items.push({ label: "~/.claude/CLAUDE.md always-on block", state: mdState, apply() {
     const cur = read(mdFile)?.toString("utf8") ?? "";

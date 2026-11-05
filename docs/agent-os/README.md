@@ -475,7 +475,7 @@ Job 2026-10-26-always-on-hardening. Four pieces:
    Since 2026-11-05 the rest of the personal layer comes from `config/agent-os/user-layer.json`: skills beyond the always-on
    set, settings keys, marketplaces, the hook list, MCP entries and `RTK.md`. An item that needs a tool reads n/a where it is
    not on PATH. Before anything is written every source passes a gate; a secret, a machine path, a private address, a key
-   file, a skill that registers hooks, a Bash grant outside the three named in `BASH_GRANTS`, or a layer key outside the allowlists reads REFUSE and the install
+   file, a skill that registers hooks, a tool grant beyond the file tools (three exact exceptions in `BASH_GRANTS`), a link on a write path, or a layer key outside the allowlists reads REFUSE and the install
    writes nothing. Allowlists, not a deny list: a permission entry arrives only by editing `SETTINGS_KEYS` in a PR. Limits: a
    secret split across lines or encoded passes, and a person's name is not detectable. Audit: `MACHINE-SYNC.md`, "Personal layer".
 4. **Health.** SessionStart startup runs `bootstrap-machine.mjs --check --hook`: one `[health] machine` line, on every

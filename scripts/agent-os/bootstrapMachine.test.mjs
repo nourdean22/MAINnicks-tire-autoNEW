@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -672,7 +672,7 @@ test("bash list: a fourth skill with a grant copied from the list is refused, an
     write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `---\n${front}\n---\nbody\n`);
     const home = makeHome(`bash-fourth-${label}-home`);
     const before = mtimes(home);
-    assertRefused(runOn(home, { script }), home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md:a Bash grant/);
+    assertRefused(runOn(home, { script }), home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md:a tool grant/);
   }
 });
 
@@ -683,7 +683,7 @@ test("bash list: a nested SKILL.md under a listed skill gets no pass", () => {
   write(join(skillDir(repo, "differential-review"), "x", "SKILL.md"), `---\nname: x\ndescription: clean\nallowed-tools: ${BASH_SKILLS["differential-review"]}\n---\nbody\n`);
   const home = makeHome("bash-nested-home");
   const before = mtimes(home);
-  assertRefused(runOn(home, { script }), home, before, /REFUSE.*differential-review\/x\/SKILL\.md:a Bash grant/);
+  assertRefused(runOn(home, { script }), home, before, /REFUSE.*differential-review\/x\/SKILL\.md:a tool grant/);
 });
 
 test("bash list: a listed skill passes only with its exact grant: a wider one, a second key or hooks refuse, CRLF does not", () => {
@@ -726,4 +726,160 @@ test("mention is not a grant: a description naming Bash, hooks or allowed-tools 
   write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `---\nname: karpathy-guidelines\ndescription: "Use when a hook or Bash call fails; hooks and allowed-tools are not touched here"\n---\nThe allowed-tools: Bash line goes in the frontmatter.\n`);
   const r = runOn(makeHome("front-mention-home"), { script });
   assert.equal(r.code, 0, r.out);
+});
+
+// ---- Reader findings on PR 3548 (silent-failure reader, 2026-11-05). ----
+const frontTest = (label, front, { refused = true, prefix = "" } = {}) => {
+  const { repo, script } = fixtureRepo(`r-${label}`);
+  write(join(skillDir(repo, "karpathy-guidelines"), "SKILL.md"), `${prefix}---\nname: karpathy-guidelines\ndescription: clean\n${front}\n---\nbody\n`);
+  const home = makeHome(`r-${label}-home`);
+  const before = mtimes(home);
+  const r = runOn(home, { script });
+  if (refused) assertRefused(r, home, before, /REFUSE.*karpathy-guidelines\/SKILL\.md/);
+  else assert.equal(r.code, 0, `${label}: ${r.out}`);
+};
+
+test("finding 1: any shell or unknown tool in allowed-tools refuses; only the file tools pass", () => {
+  for (const [label, tools] of [["powershell", "Read PowerShell(*)"], ["mcp", "mcp__terminal__run_in_terminal"], ["star", "*"], ["agent", "Read Agent"], ["task", "Task"], ["webfetch", "WebFetch"], ["comma", "Read, PowerShell"]]) frontTest(`tool-${label}`, `allowed-tools: ${tools}`);
+  frontTest("tool-list", "allowed-tools:\n  - Read\n  - PowerShell");
+  frontTest("tool-bracket", `allowed-tools: ["Read", "PowerShell"]`);
+  for (const [label, tools] of [["files", "Read Write Edit Glob Grep"], ["comma-ok", "Read, Grep"], ["empty", ""]]) frontTest(`safe-${label}`, `allowed-tools: ${tools}`, { refused: false });
+  frontTest("safe-bracket", `allowed-tools: ["Read", "Grep"]`, { refused: false });
+});
+
+test("finding 2: files[] may write only named destinations: settings.json and CLAUDE.md refuse", () => {
+  for (const dest of ["settings.json", "CLAUDE.md", ".credentials.json", "settings.local.json"]) {
+    const { repo, script } = fixtureRepo(`dest-${dest.replace(/\W/g, "")}`);
+    const f = join(repo, "config", "agent-os", "user-layer.json");
+    write(f, JSON.stringify({ ...json(f), files: [{ src: "config/agent-os/RTK.md", dest }] }, null, 2));
+    const home = makeHome(`dest-${dest.replace(/\W/g, "")}-home`);
+    const before = mtimes(home);
+    assertRefused(runOn(home, { script }), home, before, /REFUSE.*user-layer\.json.*file/);
+  }
+});
+
+test("finding 3: the live key shapes refuse: Stripe, Postgres, MySQL, Bearer; placeholders pass", () => {
+  const planted = [
+    ["Stripe key", `s${"k"}_live_${"a1B2".repeat(6)}`],
+    ["database URL", `postgresql://admin:${"hunter2"}pw@db.test/x`],
+    ["database URL", `postgres://admin:${"hunter2"}pw@db.test/x`],
+    ["database URL", `mysql://root:${"hunter2"}pw@db.test/x`],
+    ["bearer token", `Authorization: Bearer ${"a1B2c3D4".repeat(4)}`],
+  ];
+  planted.forEach(([kind, secret], i) => {
+    const { repo, script } = fixtureRepo(`live-${i}`);
+    write(join(skillDir(repo, "karpathy-guidelines"), "note.md"), `first\n${secret}\n`);
+    const home = makeHome(`live-${i}-home`);
+    const before = mtimes(home);
+    assertRefused(runOn(home, { script }), home, before, new RegExp(`REFUSE.*note\\.md:2.*${kind}`), secret);
+  });
+  const { repo, script } = fixtureRepo("live-allow");
+  write(join(skillDir(repo, "karpathy-guidelines"), "note.md"), "postgres://user:<password>@host/db\nmysql://root:${DB_PASSWORD}@host/db\nBearer <token>\nBearer $TOKEN\nthe sk_live_ prefix\n");
+  const r = runOn(makeHome("live-allow-home"), { script });
+  assert.equal(r.code, 0, r.out);
+});
+
+test("finding 3: the vendored eval prompt holds no key-shaped value, and SOURCE.md records the edit", () => {
+  const evals = readFileSync(join(ROOT, ".claude", "skills", "video", "evals", "evals.json"), "utf8");
+  assert.doesNotMatch(evals, /sk_live_/);
+  assert.match(readFileSync(join(ROOT, ".claude", "skills", "video", "SOURCE.md"), "utf8"), /Local edit/);
+});
+
+test("finding 4: a junctioned skill is replaced by a real folder, stated in the output, and its target stays untouched", () => {
+  const home = makeHome("junction");
+  const target = join(SCRATCH, "junction-target", "humanizer");
+  write(join(target, "SKILL.md"), "---\nname: humanizer\ndescription: my words\n---\nold\n");
+  write(join(target, "README.md"), "kept\n");
+  symlinkSync(target, join(home, ".claude", "skills", "humanizer"), "junction");
+  const c = runOn(home, { args: ["--check"] });
+  assert.match(c.out, /DRIFT\s+~\/\.claude\/skills\/humanizer \(a link: bootstrap replaces it with a real folder\)/, c.out);
+  const before = readFileSync(join(target, "SKILL.md"), "utf8");
+  const r = runOn(home);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /updated\s+~\/\.claude\/skills\/humanizer \(a link/, r.out);
+  assert.equal(readFileSync(join(target, "SKILL.md"), "utf8"), before, "the install wrote through the junction");
+  assert.ok(existsSync(join(target, "README.md")), "the junction target lost a file");
+  assert.ok(!lstatSync(join(home, ".claude", "skills", "humanizer")).isSymbolicLink(), "the junction is still there");
+  assert.equal(readFileSync(join(home, ".claude", "skills", "humanizer", "LICENSE"), "utf8"), readFileSync(join(ROOT, ".claude", "skills", "humanizer", "LICENSE"), "utf8"));
+  assert.match(readFileSync(join(home, ".claude", "skills", "humanizer", "SKILL.md"), "utf8"), /^description: my words$/m);
+  assert.equal(runOn(home, { args: ["--check"] }).code, 0);
+});
+
+test("finding 4: a link at the hooks or skills folder refuses: nothing is written through it", () => {
+  for (const dir of ["hooks", "skills"]) {
+    const home = makeHome(`link-${dir}`);
+    const target = join(SCRATCH, `link-target-${dir}`);
+    mkdirSync(target, { recursive: true });
+    rmSync(join(home, ".claude", dir), { recursive: true, force: true });
+    symlinkSync(target, join(home, ".claude", dir), "junction");
+    const before = mtimes(home);
+    assertRefused(runOn(home), home, before, new RegExp(`REFUSE.*~/\\.claude/${dir} is a link`));
+    assert.deepEqual(readdirSync(target), [], "the install wrote through the link");
+  }
+});
+
+test("finding 5: rules already outside the block are dropped from it; the standing-orders block and his text stay byte for byte", () => {
+  const home = makeHome("dupes");
+  const orders = "<!-- nourcity-standing-orders:begin -->\n## Standing orders\n\nkeep\n<!-- nourcity-standing-orders:end -->\n";
+  const mine = `# my rules\n\n## Output style\n\nmy wording\n\n@RTK.md\n\n${orders}`;
+  write(join(home, ".claude", "CLAUDE.md"), mine);
+  const pathEnv = pathDir("dupes-rtk", true);
+  const r = runOn(home, { pathEnv });
+  assert.equal(r.code, 0, r.out);
+  const md = readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8");
+  assert.ok(md.startsWith(mine), "text outside the markers changed");
+  assert.equal(md.match(/^## Output style$/gm).length, 1, "the rules appear twice");
+  assert.equal(md.match(/^@RTK\.md$/gm).length, 1, "the import appears twice");
+  assert.match(md, /^## Process skills$/m, "a rule that is not outside must still install");
+  assert.equal(runOn(home, { pathEnv, args: ["--check"] }).code, 0);
+  const snap = mtimes(home);
+  runOn(home, { pathEnv });
+  assert.deepEqual(mtimes(home), snap, "a second run changed something");
+});
+
+test("finding 5: a home without those rules gets them in the block", () => {
+  const home = makeHome("no-dupes");
+  const pathEnv = pathDir("no-dupes-rtk", true);
+  runOn(home, { pathEnv });
+  const md = readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8");
+  assert.equal(md.match(/^## Output style$/gm).length, 1);
+  assert.equal(md.match(/^@RTK\.md$/gm).length, 1);
+});
+
+test("finding 6: a BOM or blank lines before the frontmatter cannot hide a grant or a hook", () => {
+  const bom = String.fromCharCode(0xfeff);
+  for (const [label, prefix] of [["bom", bom], ["blank", "\n\n"], ["crlf", "\r\n"], ["space", "  \n"], ["bom-blank", `${bom}\n`]]) {
+    frontTest(`lead-${label}`, "allowed-tools: Bash", { prefix });
+    frontTest(`lead-hooks-${label}`, "hooks:\n  Stop: []", { prefix });
+  }
+});
+
+test("finding 7: a malformed layer is a REFUSE on every path, never a crash or a silent off", () => {
+  const cases = {
+    "hooks object": (l) => ({ ...l, hooks: { a: 1 } }),
+    "files string": (l) => ({ ...l, files: "x" }),
+    "settings list": (l) => ({ ...l, settings: ["a"] }),
+    "mcp string": (l) => ({ ...l, mcpServers: "x" }),
+    "null hook": (l) => ({ ...l, hooks: [null] }),
+    "null file": (l) => ({ ...l, files: [null] }),
+    "null mcp": (l) => ({ ...l, mcpServers: { x: null } }),
+    "the layer is a list": () => [],
+  };
+  for (const [label, mutate] of Object.entries(cases)) {
+    const { repo, script } = fixtureRepo(`shape-${label.replace(/\W/g, "")}`);
+    const f = join(repo, "config", "agent-os", "user-layer.json");
+    write(f, JSON.stringify(mutate(json(f))));
+    const home = makeHome(`shape-${label.replace(/\W/g, "")}-home`);
+    const before = mtimes(home);
+    assertRefused(runOn(home, { script }), home, before, /REFUSE.*user-layer\.json/);
+    const h = runOn(home, { script, args: ["--check", "--hook"] });
+    assert.equal(h.code, 0, "the hook line always exits 0");
+    assert.match(h.out, /\[health\] machine .*REFUSE/, `${label}: ${h.out}`);
+    assert.doesNotMatch(h.out, /machine off/, label);
+  }
+  const { repo, script } = fixtureRepo("shape-json");
+  write(join(repo, "config", "agent-os", "user-layer.json"), "{ broken");
+  const home = makeHome("shape-json-home");
+  const before = mtimes(home);
+  assertRefused(runOn(home, { script }), home, before, /REFUSE.*user-layer\.json/);
 });
