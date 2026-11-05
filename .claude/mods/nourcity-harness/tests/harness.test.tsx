@@ -122,6 +122,90 @@ test('a tick while a refresh is still running starts no second refresh', async (
   expect(heavyRuns).toBe(2)
 })
 
+test('a session started below the checkout root still finds the checkout', async ($, on) => {
+  const roots: string[] = []
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.stat', (_, e) => {
+    if (e.path.replace(/\\/g, '/') !== 'C:/repo/scripts/agent-os/board.mjs') throw new Error('ENOENT')
+    return { value: { kind: 'file', size: 1, mtimeMs: NOW, isLink: false } }
+  })
+  on('command.register', () => ({ value: { command: 'harness' } }))
+  on('clock.after', () => ({ value: undefined }))
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: NOW }))
+  on('ui.status', () => ({ value: undefined }))
+  on('process.run', (_, e) => {
+    roots.push((e.init?.cwd ?? '').replace(/\\/g, '/'))
+    return e.argv[1] === '-e' ? ok(BOARD) : ok(HEAVY)
+  })
+  await $.session.start({ cwd: 'C:\\repo\\apps\\statenour', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect(await ui.find({ type: 'Text', text: /Not a NOURCITY checkout/ })).toBeUndefined()
+  await ui.press({ key: 'refresh' })
+  expect(roots.length).toBeGreaterThan(0)
+  expect(roots.every(r => r === 'C:/repo')).toBe(true)
+  await ui.unmount()
+})
+
+test('a board whose GitHub refresh failed shows the PR list as unknown, not the cached list', async ($, on) => {
+  const stale = JSON.stringify({ updatedMs: NOW, prs: [], prsError: 'gh: not logged in', main: [{ subject: 'x' }] })
+  engine(on, ok(stale))
+  await $.session.start({ cwd: 'C:\\repo', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'refresh' })
+
+  expect(await ui.find({ type: 'Text', text: /Couldn't read the PR list/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /No open PRs/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /board PRs: gh: not logged in/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a sweep that outlasts its time shows the count as unknown and says why', async ($, on) => {
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: NOW, isLink: false } }))
+  on('command.register', () => ({ value: { command: 'harness' } }))
+  on('clock.after', () => ({ value: undefined }))
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: NOW }))
+  on('ui.status', () => ({ value: undefined }))
+  on('process.run', (_, e) => {
+    if (e.argv[1] === 'scripts/agent-os/repo-status.mjs') throw new Error('timed out')
+    return e.argv[1] === '-e' ? ok(BOARD) : ok(HEAVY)
+  })
+  await $.session.start({ cwd: 'C:\\repo', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'recount' })
+
+  expect((await ui.find({ type: 'Text', text: /Couldn't count/ }))?.text).toMatch(/^Couldn't count: did not finish in 300 s/)
+  await ui.unmount()
+})
+
+test('a /harness name collision does not stop the status timer', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  let heavyRuns = 0
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: NOW, isLink: false } }))
+  on('command.register', () => {
+    throw new Error('command harness is taken')
+  })
+  const logs: string[] = []
+  on('ui.log', (_, e) => {
+    logs.push(String(e.text))
+    return { value: undefined }
+  })
+  on('ui.status', () => ({ value: undefined }))
+  on('process.run', (_, e) => {
+    if (e.argv[1] === 'scripts/agent-os/heavy.mjs') heavyRuns++
+    return e.argv[1] === '-e' ? ok(BOARD) : ok(HEAVY)
+  })
+  await $.session.start({ cwd: 'C:\\repo', surface: 'desktop', isInteractive: true })
+  await clock.advance(1_000)
+
+  expect(heavyRuns).toBe(1)
+  expect(logs.join('\n')).toMatch(/\/harness not registered \(.+\); the status line still runs/)
+})
+
 test('outside a NOURCITY checkout the pane says so', async ($, on) => {
   engine(on, ok(BOARD), false)
   await $.session.start({ cwd: 'C:\\elsewhere', surface: 'desktop', isInteractive: true })

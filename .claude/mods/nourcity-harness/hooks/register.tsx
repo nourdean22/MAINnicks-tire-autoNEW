@@ -11,6 +11,7 @@ const PANE = 'harness'
 const TITLE = 'Harness'
 // Every session runs its own tick, so keep it slow: 5 minutes, and never a second refresh while one is still running.
 const TICK_MS = 300_000
+const SWEEP_TIMEOUT_MS = 300_000
 // Change a tag when that value's fields change: it declines what an earlier version stored.
 const snap = atom({ plugin: 'nourcity-harness', key: 'snap' } as const, null, { shape: 'snap-1' })
 const trees = atom({ plugin: 'nourcity-harness', key: 'trees' } as const, null, { shape: 'trees-1' })
@@ -28,6 +29,22 @@ export function repoRootOf(cwd: string): string {
   const at = path.indexOf('/.claude/worktrees/')
 
   return at >= 0 ? path.slice(0, at) : path
+}
+
+/** The NOURCITY checkout holding `cwd`: the nearest ancestor (worktree paths first resolved to their primary) with scripts/agent-os/board.mjs, or null. */
+async function findRoot($: EngineInterface, cwd: string): Promise<string | null> {
+  let dir = repoRootOf(cwd)
+  for (;;) {
+    try {
+      await $.fs.stat(`${dir}/scripts/agent-os/board.mjs`)
+
+      return dir
+    } catch {
+      const parent = dir.replace(/\/[^/]*$/, '')
+      if (parent === dir || parent === '') return null
+      dir = parent
+    }
+  }
 }
 
 export function parseHeavy(stdout: string): { ramMb: number | null; heavy: string | null; chrome: string | null } {
@@ -129,10 +146,11 @@ async function refreshOnce($: EngineInterface, withGh: boolean): Promise<void> {
       prsError?: string | null
       main?: Array<{ subject?: string }>
     }
-    if (Array.isArray(board.prs)) {
+    // board.mjs keeps the last good list (or []) when the GitHub read fails; that list is not a reading, so the PRs stay unknown.
+    if (board.prsError) errors.push(`board PRs: ${board.prsError}`)
+    else if (Array.isArray(board.prs)) {
       prs = board.prs.map(pr => ({ number: pr.number, title: pr.title, checks: pr.checks ?? null }))
     }
-    if (board.prsError) errors.push(`board PRs: ${board.prsError}`)
     main = board.main?.[0]?.subject ?? null
     if (typeof board.updatedMs === 'number') boardAgeMin = Math.round(((await $.clock.now()) - board.updatedMs) / 60_000)
   } catch (err) {
@@ -150,7 +168,7 @@ async function recount($: EngineInterface): Promise<void> {
   let next: Trees
   try {
     // Read-only preview: no --execute, so nothing is removed.
-    const ran = await $.process.run(['node', 'scripts/agent-os/repo-status.mjs', '--sweep'], { cwd: root, timeoutMs: 120_000 })
+    const ran = await $.process.run(['node', 'scripts/agent-os/repo-status.mjs', '--sweep'], { cwd: root, timeoutMs: SWEEP_TIMEOUT_MS })
     const counts = parseSweep(ran.stdout)
     next = {
       at: await $.clock.now(),
@@ -158,7 +176,12 @@ async function recount($: EngineInterface): Promise<void> {
       error: counts ? null : `no summary line (exit ${ran.exitCode}) ${lastLine(ran.stderr)}`.trim(),
     }
   } catch (err) {
-    next = { at: await $.clock.now(), counts: null, error: err instanceof Error ? err.message : String(err) }
+    // repo-status.mjs --sweep has no whole-run budget of its own (slow GitHub reads add up), so a timeout is "unknown", said plainly.
+    next = {
+      at: await $.clock.now(),
+      counts: null,
+      error: `did not finish in ${SWEEP_TIMEOUT_MS / 1000} s: ${err instanceof Error ? err.message : String(err)}`,
+    }
   }
   await update($, trees, () => next)
   await update($, busy, () => false)
@@ -167,17 +190,16 @@ async function recount($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const ran = await next(e)
-    const candidate = repoRootOf(e.cwd)
-    try {
-      await $.fs.stat(`${candidate}/scripts/agent-os/board.mjs`)
-      root = candidate
-    } catch {
-      root = null
-    }
-    await $.command.register({ name: 'harness', description: 'Open the NOURCITY harness pane and refresh it' })
+    root = await findRoot($, e.cwd)
+    // Timers first: the status line must not depend on the optional /harness command registering.
     if (root !== null) {
       $.clock.after(1_000, () => tick($))
       $.clock.every(TICK_MS, () => tick($))
+    }
+    try {
+      await $.command.register({ name: 'harness', description: 'Open the NOURCITY harness pane and refresh it' })
+    } catch (err) {
+      $.ui.log(`nourcity-harness: /harness not registered (${err instanceof Error ? err.message : String(err)}); the status line still runs`)
     }
 
     return ran

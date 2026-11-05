@@ -18,8 +18,11 @@ Benchmarked against: Claude Code's own plugin-marketplace pattern (plugin-author
 Shell, any PC:
 
 ```
-claude plugin install nourcity-harness --marketplace nourdean22/MAINnicks-tire-autoNEW --scope user
+claude plugin marketplace add nourdean22/MAINnicks-tire-autoNEW
+claude plugin install nourcity-harness@nourcity --scope user
 ```
+
+(Two steps work on every mod-capable CLI, 2.1.287 and later. The one-step form `claude plugin install nourcity-harness --marketplace nourdean22/MAINnicks-tire-autoNEW` needs 2.1.292 or later.)
 
 Desktop app: the + next to the prompt, Plugins, Add marketplace (`nourdean22/MAINnicks-tire-autoNEW`), then Add plugin `nourcity-harness`.
 
