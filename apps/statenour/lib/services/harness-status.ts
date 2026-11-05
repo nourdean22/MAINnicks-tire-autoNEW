@@ -228,7 +228,7 @@ async function readVaultDb(): Promise<HarnessVaultDb> {
     out.unread.exportedCount = "The export status could not be read";
   }
   try {
-    out.liveCount = await prisma.brainMemory.count();
+    out.liveCount = await prisma.brainMemory.count({ where: { deletedAt: null } });
   } catch {
     out.unread.liveCount = "The memory count could not be read";
   }

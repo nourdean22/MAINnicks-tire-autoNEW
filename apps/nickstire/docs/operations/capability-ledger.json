@@ -5920,6 +5920,34 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "harness-in-both-apps",
+      "name": "Harness in both apps: PCs push a read-only snapshot to bdnick; Nick's tool and the /system and Settings cards read it",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "2026-11-05 branch statenour/harness-apps-connect: scripts/agent-os/harness-snapshot.mjs posts to POST /api/devices/harness (device door, RunnerNode rows, no table). lib/services/harness-status.ts ages the rows: over 15 min reads UNKNOWN and drops the numbers. Readers: getHarnessStatus, trpc.system.harnessStatus, /api/nour-os/query harness_status, nickstire nourOsBridge.harnessStatus and settings/HarnessCard.tsx.",
+        "tests": [
+          "statenour tests/services/harness-status.test.ts, tests/api/devices-harness-route.test.ts, tests/services/runner-state-harness-rows.test.ts, tests/components/harness-panel.test.tsx, tests/ai/harness-tool-reachability.test.ts",
+          "nickstire server/services/harnessStatus.test.ts, client/src/__tests__/harness-card.test.tsx",
+          "scripts/agent-os/harnessSnapshot.test.mjs"
+        ],
+        "verifiedAgainst": "Local next dev on a dead database: no key 401, wrong key 401, a path in the body 400, clean body past the door to the store. A real --print on NattyNour read every source. No production row written.",
+        "limits": "Nothing reports until a PC has the config and the scheduled task. The exported memory count reads unknown until the export writes lastExportCount. Vault graph location is an assumption (graphify-out under the vault)."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Needs the machine install on each PC after merge: nourcity/harness-snapshot.json plus scripts/register-harness-snapshot-task.ps1."
+        }
+      ],
+      "deferredScope": [
+        "exported memory count, from the paged export"
+      ],
+      "lastVerifiedAt": "2026-11-05",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

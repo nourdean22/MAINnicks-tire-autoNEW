@@ -1011,7 +1011,11 @@ export const systemTools = {
     execute: async () => {
       try {
         const { readHarnessStatus } = await import("@/lib/services/harness-status");
-        return { ok: true, ...(await readHarnessStatus()) };
+        const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+        const { prs, merged, ...rest } = await readHarnessStatus();
+        // The repo is public, so a PR title can be written by a stranger: it reaches the model fenced.
+        const pullRequests = fenceContent("getHarnessStatus", "external_web", JSON.stringify({ open: prs, merged }), { maxChars: 8000 });
+        return { ok: true, ...rest, pullRequests };
       } catch (err) {
         const { sanitizeError } = await import("@/lib/utils/sanitize-error");
         return { ok: false, error: sanitizeError(err) };

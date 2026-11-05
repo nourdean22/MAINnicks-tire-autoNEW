@@ -13,6 +13,13 @@ harness (machine, PRs, main, worktrees) without running anything that changes it
 
 Benchmarked against: Claude Code's own plugin-marketplace pattern (plugin-authoring reference, build 2.1.309, `.claude-plugin/marketplace.json` + `claude plugin install <mod> --marketplace <owner>/<repo>`) · adopted: a repo-root marketplace with a relative source, so the repo that holds the harness scripts also ships the pane that reads them · rejected: a separate mod repository because Nour said "for my project" and updates should ride the same PRs as the scripts. No better-fitting pattern found: the relative `source` path is the documented way to keep a plugin in a monorepo subfolder.
 
+## The same picture in both apps
+
+The pane is local. `scripts/agent-os/harness-snapshot.mjs` sends the same facts to bdnick every 5 minutes, from any PC that has
+`%LOCALAPPDATA%\nourcity\harness-snapshot.json` and the task from `scripts/register-harness-snapshot-task.ps1`. Nick reads them
+with `getHarnessStatus`; the Harness card is on bdnick `/system` and nickstire Settings > Status. Push only: neither site can
+reach a PC. A PC silent for 15 minutes reads UNKNOWN. `--print` shows the exact body and sends nothing.
+
 ## Install (once per PC, user scope)
 
 Shell, any PC:

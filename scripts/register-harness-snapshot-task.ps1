@@ -16,13 +16,18 @@ if (-not (Test-Path $script)) { throw "snapshot script not found: $script" }
 if ($RepoRoot -match '\\\.claude\\worktrees\\') {
     throw "RepoRoot is a worktree: $RepoRoot. Re-run with -RepoRoot pointing at the primary checkout."
 }
-$node = (Get-Command node -ErrorAction Stop).Source
 $config = Join-Path $env:LOCALAPPDATA 'nourcity\harness-snapshot.json'
 if (-not (Test-Path $config)) { throw "config not found: $config. Write it first; the script's header has the shape." }
 
-$action = New-ScheduledTaskAction -Execute $node -Argument "`"$script`"" -WorkingDirectory $RepoRoot
+# Through hidden PowerShell, as the repo's other tasks run: node.exe directly opens a console window
+# on the desktop every tick, and one of these PCs is the shop's front desk.
+# Quotes doubled: the shop PC's checkout sits under a user folder with an apostrophe in its name.
+$node = (Get-Command node -ErrorAction Stop).Source -replace "'", "''"
+$quoted = $script -replace "'", "''"
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $RepoRoot `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"& '$node' '$quoted'`""
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Minutes 5)
+    -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
 
 # IgnoreNew: a slow gh or health read must not stack up a second copy. StartWhenAvailable covers a
 # sleeping laptop, and a short limit keeps a hung run from holding the slot.
