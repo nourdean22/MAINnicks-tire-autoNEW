@@ -6,7 +6,8 @@
     { "name": "desktop-commander", "source": "synced", "reason": "the sanctioned runner for installs outside a junctioned worktree (harness-worktree-setup section 3)", "enable": "claude.ai > Settings > Plugins (Anthropic Directory): enable desktop-commander on this account" },
     { "name": "avoid-ai-writing", "source": "installed", "key": "avoid-ai-writing@claude-code-workflows", "reason": "manager step 16: second pass on PR bodies and customer copy", "enable": "in Claude Code: /plugin marketplace add wshobson/agents, then /plugin install avoid-ai-writing@claude-code-workflows" },
     { "name": "pr-review-toolkit", "source": "installed", "key": "pr-review-toolkit@claude-plugins-official", "reason": "manager step 12: silent-failure-hunter and pr-test-analyzer beside adversarial-review", "enable": "in Claude Code: /plugin install pr-review-toolkit@claude-plugins-official" },
-    { "name": "hookify", "source": "installed", "key": "hookify@claude-plugins-official", "reason": "turn a repeated mistake into a hook rule (draft only; guard-red-team canaries before it ships)", "enable": "in Claude Code: /plugin install hookify@claude-plugins-official" }
+    { "name": "hookify", "source": "installed", "key": "hookify@claude-plugins-official", "reason": "turn a repeated mistake into a hook rule (draft only; guard-red-team canaries before it ships)", "enable": "in Claude Code: /plugin install hookify@claude-plugins-official" },
+    { "name": "nourcity-harness", "source": "installed", "key": "nourcity-harness@nourcity", "reason": "the /harness pane and status line: RAM, heavy lease, open PRs, main, worktrees (source in .claude/mods/nourcity-harness)", "enable": "in a shell: claude plugin marketplace add nourdean22/MAINnicks-tire-autoNEW, then claude plugin install nourcity-harness@nourcity" }
   ],
   "triggers": {
     "agentic-council:brainstorm": "design tradeoff tradeoffs approach approaches options architecture gut check decide weigh alternatives",
