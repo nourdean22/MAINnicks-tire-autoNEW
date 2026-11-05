@@ -4,6 +4,13 @@
  * Queries active life goals, missions, reflections, and memories from the
  * Statenour database and writes them as structured markdown files in the Obsidian Vault.
  *
+ * Memory rollups: every live memory is written, in pages of ROLLUP_PAGE_SIZE per
+ * category (lib/obsidian/memory-rollup.ts). Excluded: keys starting `obsidian_`
+ * (they came from the vault) and the morning_brief_audio / suggestion_hypothesis
+ * categories. archive_document and gmail_* are included since 2026-11-05; they
+ * cannot loop back (the vault ingest skips Statenour/ and sync_direction none).
+ * A run that exports fewer memories than it counted fails (exit code 1).
+ *
  * Run: pnpm tsx scripts/export-brain-to-obsidian.ts [--memory-mode=rollup|individual]
  */
 
@@ -15,6 +22,7 @@ import { ObsidianEngineStatus, EngineIssue } from "../lib/obsidian/types";
 import {
   createNotePathClaimer,
   hasIdenticalNewestConflict,
+  isNoteHandEdited,
   parseFrontmatter,
   planNoteWrite,
   pruneConflictDir,
@@ -318,12 +326,6 @@ async function main() {
           { key: { startsWith: "obsidian_" } },
           { category: "morning_brief_audio" },
           { category: "suggestion_hypothesis" },
-          { category: "ARCHIVE_DOCUMENT" },
-          { category: "GMAIL_THREAD" },
-          { category: "GMAIL_OUTGOING" },
-          { category: "archive_document" },
-          { category: "gmail_thread" },
-          { category: "gmail_outgoing" },
         ],
       },
     };
@@ -331,6 +333,11 @@ async function main() {
     // Live memories the filter above selects. Every one of them must reach a
     // note (checked after the write loop); a shortfall fails the run.
     const liveCount = await prisma.brainMemory.count({ where: memoryWhere });
+    // Rows the id scan saw: the same snapshot the pages are cut from. Rows that
+    // arrive between the count and the scan must not forgive a failed page, so
+    // the bar is the larger of the two.
+    let scannedCount = 0;
+    const expectedCount = () => Math.max(liveCount, scannedCount);
 
     if (memoryMode === "rollup") {
       // Rollup is a READING surface; export-brain-archive.ts owns the backup.
@@ -344,6 +351,7 @@ async function main() {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, category: true },
       });
+      scannedCount = candidates.length;
       const pagesByCategory = pageIdsByCategory(candidates);
       const intendedFiles = new Set<string>();
       let pageCount = 0;
@@ -397,16 +405,24 @@ async function main() {
 
       // Pages the data no longer fills (a category shrank). Only on a clean run,
       // and only files named like our pages AND carrying our rollup frontmatter.
-      if (exportShortfall(liveCount, exportedMemories) === 0 && exportFailed === 0) {
+      if (exportShortfall(expectedCount(), exportedMemories) === 0 && exportFailed === 0) {
         let removed = 0;
         for (const stale of findStalePageFiles(fs.readdirSync(memoriesDir), intendedFiles)) {
           const full = path.join(memoriesDir, stale);
           try {
-            if (parseFrontmatter(fs.readFileSync(full, "utf-8")).metadata.type !== "memory_rollup") continue;
+            const raw = fs.readFileSync(full, "utf-8");
+            const meta = parseFrontmatter(raw).metadata;
+            // Only our own pages, with a stored hash, that nobody edited in Obsidian.
+            if (meta.type !== "memory_rollup" || !meta.hash) continue;
+            if (isNoteHandEdited(raw)) {
+              console.warn(`    └─ ⚠️ Stale rollup page ${stale} was edited by hand; kept, not removed.`);
+              continue;
+            }
             fs.unlinkSync(full);
             removed++;
-          } catch {
+          } catch (err) {
             // locked or raced: it stays for the next run
+            console.warn(`    └─ ⚠️ Could not remove stale rollup page ${stale}:`, err);
           }
         }
         if (removed > 0) console.log(`    └─ 🧹 removed ${removed} stale rollup page(s)`);
@@ -465,12 +481,15 @@ async function main() {
     }
 
     // Exported-vs-live: a shortfall is a failure, never a pass. Counts only.
-    const shortfall = exportShortfall(liveCount, exportedMemories);
+    const expected = expectedCount();
+    const shortfall = exportShortfall(expected, exportedMemories);
     if (shortfall > 0) {
-      console.error(`    └─ ❌ Memory shortfall: ${exportedMemories} exported of ${liveCount} live (${shortfall} missing)`);
+      console.error(`    └─ ❌ Memory shortfall: ${exportedMemories} exported of ${expected} expected (${liveCount} live, ${scannedCount} scanned; ${shortfall} missing)`);
       exportFailed++;
+      // Independent of the status file: a failed status write or a direct tsx run must not look like success.
+      process.exitCode = 1;
     } else {
-      console.log(`    └─ ✅ Memory coverage: ${exportedMemories} exported of ${liveCount} live`);
+      console.log(`    └─ ✅ Memory coverage: ${exportedMemories} exported of ${expected} expected (${liveCount} live)`);
     }
   } catch (err) {
     console.error("    └─ ❌ Failed to export Brain Memories:", err);
@@ -507,7 +526,13 @@ async function main() {
       }
     }
 
-    const hasFailures = exportFailed > 0 || (existingStatus ? existingStatus.health === "error" : false);
+    // An older "error" survives only when a doctor/ingest FAIL issue backs it. A
+    // bare "error" with no FAIL issue is a past export failure, which this run's
+    // own result replaces (it stuck forever and failed every run after 2026-11-03).
+    const inheritedError = existingStatus
+      ? existingStatus.health === "error" && existingStatus.issues.some(issue => issue.type === "FAIL")
+      : false;
+    const hasFailures = exportFailed > 0 || inheritedError;
     const health = hasFailures ? "error" : (exportConflicts.length > 0 || (existingStatus ? existingStatus.health === "degraded" : false) ? "degraded" : "healthy");
 
     const statusPayload: ObsidianEngineStatus = {
@@ -516,6 +541,7 @@ async function main() {
       lastDoctorRunAt: existingStatus ? existingStatus.lastDoctorRunAt : null,
       lastIngestRunAt: existingStatus ? existingStatus.lastIngestRunAt : null,
       lastExportRunAt: new Date().toISOString(),
+      lastExportCount: exportedMemories,
       stats: {
         totalNotes: existingStatus ? existingStatus.stats.totalNotes : (exportedGoals + exportedMissions + exportedReflections + exportedMemories),
         processed: exportedGoals + exportedMissions + exportedReflections + exportedMemories,

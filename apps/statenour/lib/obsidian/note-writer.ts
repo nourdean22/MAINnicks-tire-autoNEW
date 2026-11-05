@@ -134,6 +134,23 @@ function stripVolatile(content: string): string {
   return `---\n${cleaned}\n---\n` + content.slice(m[0].length);
 }
 
+/**
+ * True when a note carries a stored hash that its body no longer matches, i.e.
+ * a person edited it after the export wrote it. A note with no stored hash is
+ * not reported as edited here.
+ */
+export function isNoteHandEdited(existingRaw: string): boolean {
+  const local = parseFrontmatter(existingRaw);
+  const storedHash = local.metadata.hash;
+  // parseFrontmatter already EOL-normalizes, matching how hashes are now built
+  const normalizedLocalHash = calculateHash(local.content.trim());
+  // Legacy exports hashed the body before EOL normalization — accept that too
+  const legacyRawHash = calculateHash(extractRawBody(existingRaw).trim());
+  return Boolean(storedHash)
+    && storedHash !== normalizedLocalHash
+    && storedHash !== legacyRawHash;
+}
+
 export type NoteWritePlan =
   | { kind: "write"; content: string; hash: string }
   | { kind: "skip"; hash: string }
@@ -163,14 +180,7 @@ export function planNoteWrite(
     finalMetadata.review_due = localParsed.metadata.review_due;
   }
 
-  const storedHash = localParsed.metadata.hash;
-  // parseFrontmatter already EOL-normalizes, matching how hashes are now built
-  const normalizedLocalHash = calculateHash(localParsed.content.trim());
-  // Legacy exports hashed the body before EOL normalization — accept that too
-  const legacyRawHash = calculateHash(extractRawBody(existingRaw).trim());
-  const isModified = Boolean(storedHash)
-    && storedHash !== normalizedLocalHash
-    && storedHash !== legacyRawHash;
+  const isModified = isNoteHandEdited(existingRaw);
 
   const next = buildNoteContent(finalMetadata, body, now);
 
