@@ -2,7 +2,7 @@
  * The admin assistant sheet (docs/ADMIN-ASSISTANT.md): page context, record chips, the phone Ask slot, and the
  * rule that a drafted text goes out only when the operator taps Send, through the existing customers.quickSms.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
@@ -28,9 +28,13 @@ import { AdminAssistant, openAdminAssistant } from "@/components/admin/AdminAssi
 import { AdminTabBar } from "@/components/admin/AdminTabBar";
 import { UNBATCHED_SLOW_PROCEDURES } from "@/lib/unbatchedProcedures";
 
+// Cleared before mount, not after: a reply that settles once a test has ended writes the thread back past an afterEach clear.
+beforeEach(() => {
+  localStorage.clear();
+});
+
 afterEach(() => {
   vi.clearAllMocks();
-  localStorage.clear();
 });
 
 describe("request routing", () => {
