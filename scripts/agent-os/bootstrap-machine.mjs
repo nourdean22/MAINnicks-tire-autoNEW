@@ -29,15 +29,22 @@
  * The hook line also names each plugin in config/agent-os/required-plugins.json that this account or machine has not
  * enabled (read through plugin-index.mjs from installed_plugins.json, settings.json enabledPlugins and the synced
  * account bucket), with its enable line. Plugins are enabled per account by Nour: the check detects and instructs only.
+ * The personal layer (2026-11-05) comes from config/agent-os/user-layer.json, the one source: the skills beyond the always-on
+ * set, the settings keys and marketplaces, the hook list above, the extra MCP entries and RTK.md. Audit and reasons:
+ * docs/agent-os/MACHINE-SYNC.md, section Personal layer. An item that needs a tool (`requires`) reads n/a where it is not on
+ * PATH. Before anything is written, every source file passes the public-repo gate: a secret, a machine path, a private
+ * address, a key file, a skill that registers hooks or grants itself Bash, or a layer key outside the allowlists reads REFUSE,
+ * and an install writes nothing. A permission entry can only arrive by editing SETTINGS_KEYS in a PR, after Nour's yes.
  * Canary: bootstrapMachine.test.mjs.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { matcherCovers, SKILLS } from "./always-on-skills.mjs";
 import { configDir, enabledPlugins, globalConfigFile, readRouting } from "./plugin-index.mjs";
+import { onPath } from "./session-surface.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -65,13 +72,72 @@ function filesUnder(dir) {
 
 const read = (f) => { try { return readFileSync(f); } catch { return null; } };
 
+const LAYER_KEYS = new Set(["_doc", "skills", "settings", "hooks", "files", "mcpServers"]);
+// The settings this script may write. Everything else refuses the install: permissions, defaultMode, env, apiKeyHelper,
+// hooks (those come through the hook list) and, until Nour says yes, enabledPlugins and cleanupPeriodDays.
+const SETTINGS_KEYS = new Set(["skillListingBudgetFraction", "outputStyle", "theme", "skipWorkflowUsageWarning", "precomputeCompactionEnabled", "switchModelsOnFlag", "inputNeededNotifEnabled", "agentPushNotifEnabled", "extraKnownMarketplaces"]);
+const HOOK_KEYS = new Set(["event", "matcher", "sources", "key", "command", "timeout", "requires"]);
+
+/** Why this user-layer.json may not install; empty when it may. */
+export function layerProblems(layer) {
+  const out = [];
+  for (const k of Object.keys(layer)) if (!LAYER_KEYS.has(k)) out.push(`key "${k}" is not allowed`);
+  for (const k of Object.keys(layer.settings ?? {})) if (!SETTINGS_KEYS.has(k)) out.push(`settings key "${k}" is not allowed`);
+  if (!Array.isArray(layer.skills) || layer.skills.some((n) => !/^[a-z0-9][a-z0-9-]*$/.test(n))) out.push("skills must be a list of folder names");
+  for (const [name, m] of Object.entries(layer.mcpServers ?? {})) {
+    if (Object.keys(m).sort().join() !== "type,url" || m.type !== "http" || !/^https:\/\//.test(m.url)) out.push(`mcpServers "${name}" must be only type http and an https url`);
+  }
+  for (const h of layer.hooks ?? []) {
+    if (Object.keys(h).some((k) => !HOOK_KEYS.has(k)) || !h.event || !h.key || !String(h.command ?? "").includes(h.key)) out.push(`hook "${h.key ?? h.event}" must have an event, a key and a command naming that key, and no other field`);
+  }
+  for (const x of layer.files ?? []) {
+    if (!/^[\w-][\w.-]*$/.test(x.dest ?? "") || !/^config\/agent-os\/[\w.-]+$/.test(x.src ?? "")) out.push(`file "${x.dest}" must be a plain name copied from config/agent-os`);
+  }
+  return out;
+}
+
+// What a public repo must not hand to a machine. Placeholders (<you>, %USERNAME%, $USER) pass.
+const NOT_A_NAME = /(?![<{$%]|(?:you|your|user|username|name|me|example|public|default)(?:[\\/]|$))/.source;
+const UNSAFE = [
+  ["api key", /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}/],
+  ["AWS key", /\bAKIA[0-9A-Z]{16}\b/],
+  ["GitHub token", /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,})/],
+  ["Slack token", /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
+  ["Neon password", /\bnpg_[A-Za-z0-9]{10,}/],
+  ["JWT", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
+  ["Telegram token", /\b\d{8,10}:[A-Za-z0-9_-]{35,}/],
+  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["credential value", /\b(?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*["'][^"'\s]{12,}["']/i],
+  ["user folder", new RegExp(/\b[A-Za-z]:[\\/]+Users[\\/]+/.source + NOT_A_NAME + /[^\\/\s"'<>]+/.source, "i")],
+  ["user folder", new RegExp(/(?:^|[\s"'(])\/(?:home|Users)\//.source + NOT_A_NAME + /[A-Za-z][\w-]*\//.source, "i")],
+  ["private address", /\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b(?!\/\d)/],
+  ["tailnet address", /\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}\b(?!\/\d)/],
+];
+const KEY_FILE = /^(?:\.env(?:\..*)?|\.credentials\.json|id_(?:rsa|dsa|ecdsa|ed25519)|.*\.(?:pem|key|p12|pfx))$/i;
+
+/** Why one source file may not install, as "<kind>" or "<line> <kind>" strings. Never the matched text. */
+export function fileProblems(name, buf) {
+  const out = KEY_FILE.test(name) ? ["a key or env file by its name"] : [];
+  const text = buf.toString("utf8");
+  for (const [kind, re] of UNSAFE) {
+    if (!re.test(text)) continue;
+    text.split("\n").forEach((line, i) => { if (re.test(line)) out.push(`${i + 1} ${kind}`); });
+  }
+  if (name === "SKILL.md") {
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
+    if (/^hooks\s*:/im.test(fm)) out.push("a hooks key in the frontmatter");
+    if (/\bBash\b/i.test(/^allowed[-_]?tools\s*:.*(?:\r?\n[ \t]+.*)*/im.exec(fm)?.[0] ?? "")) out.push("a Bash grant in allowed-tools");
+  }
+  return out;
+}
+
 // The frontmatter `description:` entry, with any indented continuation lines.
 const DESC = /^description:.*(?:\r?\n[ \t]+\S.*)*/m;
 /** The repo SKILL.md with the machine copy's description put back, when the machine copy has one. */
 export function keepDescription(repoBuf, machineBuf) {
   const repo = repoBuf.toString("utf8");
   const fm = (t) => /^---\r?\n[\s\S]*?\r?\n---/.exec(t)?.[0] ?? "";
-  const mine = machineBuf ? DESC.exec(fm(machineBuf.toString("utf8")))?.[0] : null;
+  const mine = machineBuf ? DESC.exec(fm(machineBuf.toString("utf8")))?.[0]?.replaceAll("\r", "") : null;
   const head = fm(repo);
   if (!mine || !DESC.test(head)) return repoBuf;
   return Buffer.from(head.replace(DESC, () => mine) + repo.slice(head.length), "utf8");
@@ -81,11 +147,31 @@ export function keepDescription(repoBuf, machineBuf) {
 export function plan(home) {
   const claude = configDir(home); // CLAUDE_CONFIG_DIR when set and no --home (Codex 4380254412)
   const items = [];
+  const layer = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "user-layer.json"), "utf8"));
+  const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop", ...(Array.isArray(layer.skills) ? layer.skills : [])])];
+
+  // The gate: all of it runs before any item exists, so a refusal cannot leave a half-made install.
+  const sources = [...["always-on-skills.mjs", "find-skills-turn.mjs"].map((n) => join(HERE, n)), ...["user-layer.json", "global-claude-md-block.md"].map((n) => join(REPO, "config", "agent-os", n)),
+    ...(layer.files ?? []).map((x) => join(REPO, x.src ?? "")), ...skillNames.flatMap((n) => { const d = join(REPO, ".claude", "skills", n); return existsSync(d) ? filesUnder(d) : []; })];
+  const refuse = (what) => items.push({ label: what, state: "REFUSE", apply() { throw new Error(what); } });
+  for (const p of layerProblems(layer)) refuse(`config/agent-os/user-layer.json: ${p}`);
+  for (const f of sources) {
+    const buf = read(f);
+    if (buf) for (const p of fileProblems(basename(f), buf)) refuse(`${fwd(relative(REPO, f))}:${p}`);
+  }
+  if (items.length) return items;
+
+  const tools = new Map();
+  const has = (tool) => { if (!tools.has(tool)) tools.set(tool, onPath(tool).state === "ok"); return tools.get(tool); };
+  const absent = (label, tool) => items.push({ label: `${label} (${tool} not on PATH)`, state: "n/a", apply() {} });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backedUp = new Set();
   const backup = (file) => {
-    if (!existsSync(file)) return;
+    if (!existsSync(file) || backedUp.has(file)) return;
+    backedUp.add(file);
     // ~/.claude.json sits beside the config dir, not inside it: keep its backup inside bootstrap-backup/ by base name.
     const rel = relative(claude, file);
-    const to = join(claude, "bootstrap-backup", `${new Date().toISOString().replace(/[:.]/g, "-")}`, rel.startsWith("..") ? basename(file) : rel);
+    const to = join(claude, "bootstrap-backup", stamp, rel.startsWith("..") ? basename(file) : rel);
     mkdirSync(dirname(to), { recursive: true });
     copyFileSync(file, to);
   };
@@ -96,11 +182,14 @@ export function plan(home) {
   };
 
   for (const name of ["always-on-skills.mjs", "find-skills-turn.mjs"]) fileItem(`~/.claude/hooks/${name}`, join(HERE, name), join(claude, "hooks", name));
+  for (const x of layer.files ?? []) {
+    if (x.requires && !has(x.requires)) absent(`~/.claude/${x.dest}`, x.requires);
+    else fileItem(`~/.claude/${x.dest}`, join(REPO, x.src), join(claude, x.dest));
+  }
 
   // Skills: whole folder from the repo, except that an existing machine SKILL.md keeps its own `description:` (the
   // operator's wording on this machine wins: prompt-gallery's machine copy says "every request", ruling 2026-10-26).
   // A machine-only extra file is left alone.
-  const skillNames = [...new Set([...SKILLS.map((s) => s.split(" ")[0]), "antislop"])];
   for (const name of skillNames) {
     const src = join(REPO, ".claude", "skills", name);
     if (!existsSync(join(src, "SKILL.md"))) {
@@ -112,25 +201,19 @@ export function plan(home) {
     const pairs = filesUnder(src).map((f) => {
       const d = join(claude, "skills", name, relative(src, f));
       const want = /SKILL\.md$/.test(f) ? keepDescription(readFileSync(f), read(d)) : readFileSync(f);
-      return [want, d];
+      return [want, d, f];
     });
     const states = pairs.map(([want, d]) => { const h = read(d); return h === null ? "MISSING" : h.equals(want) ? "ok" : "DRIFT"; });
     const state = states.every((s) => s === "ok") ? "ok" : !existsSync(join(claude, "skills", name, "SKILL.md")) ? "MISSING" : "DRIFT";
     items.push({ label: `~/.claude/skills/${name}`, state, apply() {
-      pairs.forEach(([want, d], i) => { if (states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); writeFileSync(d, want); } });
+      pairs.forEach(([want, d, f], i) => { if (states[i] !== "ok") { backup(d); mkdirSync(dirname(d), { recursive: true }); writeFileSync(d, want); chmodSync(d, statSync(f).mode); } });
     } });
   }
 
   // settings.json hook registrations.
   const settingsFile = join(claude, "settings.json");
-  const wanted = [
-    { event: "SessionStart", matcher: "startup|resume|clear|compact", sources: ["startup", "resume", "clear", "compact"], key: "always-on-skills.mjs", command: `node "${fwd(join(claude, "hooks", "always-on-skills.mjs"))}"` },
-    { event: "UserPromptSubmit", matcher: "", key: "find-skills-turn.mjs", command: `node "${fwd(join(claude, "hooks", "find-skills-turn.mjs"))}"`, timeout: 5 },
-    { event: "UserPromptSubmit", matcher: "", key: "skill-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "skill-recall.mjs"))}" --scope global` },
-    { event: "UserPromptSubmit", matcher: "", key: "prompt-sharpen.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "prompt-sharpen.mjs"))}" --scope global`, timeout: 5 },
-    { event: "SessionStart", matcher: "", key: "graph-ensure-mcp.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-ensure-mcp.mjs"))}" --scope global`, timeout: 15 },
-    { event: "UserPromptSubmit", matcher: "", key: "graph-recall.mjs", command: `node "${fwd(join(primaryRepo(), "scripts", "agent-os", "graph-recall.mjs"))}" --scope global`, timeout: 5 },
-  ];
+  const primary = fwd(primaryRepo());
+  const wanted = (layer.hooks ?? []).map((h) => ({ ...h, command: h.command.replaceAll("{claude}", fwd(claude)).replaceAll("{repo}", primary) }));
   let settings;
   let settingsErr = null;
   try {
@@ -138,8 +221,15 @@ export function plan(home) {
   } catch {
     settingsErr = "settings.json is not valid JSON: fix it by hand first";
   }
+  const saveSettings = (s) => {
+    backup(settingsFile);
+    mkdirSync(claude, { recursive: true });
+    writeFileSync(settingsFile, `${JSON.stringify(s, null, 2)}\n`);
+  };
+  const readSettings = () => (existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : {});
   for (const w of wanted) {
     const label = `~/.claude/settings.json ${w.event} ${w.key}`;
+    if (w.requires && !has(w.requires)) { absent(label, w.requires); continue; }
     if (settingsErr) { items.push({ label: `${label} (${settingsErr})`, state: "DRIFT", apply() { throw new Error(settingsErr); } }); continue; }
     const isOurs = (h) => String(h.command || "").includes(w.key) && !String(h.command).includes("--repo");
     const locate = (s) => { for (const g of s.hooks?.[w.event] ?? []) { const h = (g.hooks ?? []).find(isOurs); if (h) return { g, h }; } return null; };
@@ -149,7 +239,7 @@ export function plan(home) {
     const found = locate(settings);
     const state = !found ? "MISSING" : found.h.command === w.command && covers(found.g) ? "ok" : "DRIFT";
     items.push({ label: found && !covers(found.g) ? `${label} (matcher "${found.g.matcher}" is partial)` : label, state, apply() {
-      const s = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : {};
+      const s = readSettings();
       s.hooks ??= {};
       s.hooks[w.event] ??= [];
       const hit = locate(s);
@@ -161,10 +251,21 @@ export function plan(home) {
         }
         s.hooks[w.event].push({ matcher: w.matcher, hooks: [{ type: "command", command: w.command, timeout: w.timeout ?? 10 }] });
       }
-      backup(settingsFile);
-      mkdirSync(claude, { recursive: true });
-      writeFileSync(settingsFile, `${JSON.stringify(s, null, 2)}\n`);
+      saveSettings(s);
     } });
+  }
+
+  // Settings keys and marketplaces: one item each, and a marketplace of the machine's own stays.
+  const { extraKnownMarketplaces: markets = {}, ...plainSettings } = layer.settings ?? {};
+  const settingItems = [
+    ...Object.entries(plainSettings).map(([k, want]) => ({ label: k, want, get: (s) => s[k], set: (s) => { s[k] = want; } })),
+    ...Object.entries(markets).map(([m, want]) => ({ label: `extraKnownMarketplaces ${m}`, want, get: (s) => s.extraKnownMarketplaces?.[m], set: (s) => { (s.extraKnownMarketplaces ??= {})[m] = want; } })),
+  ];
+  for (const x of settingItems) {
+    const label = `~/.claude/settings.json ${x.label}`;
+    if (settingsErr) { items.push({ label: `${label} (${settingsErr})`, state: "DRIFT", apply() { throw new Error(settingsErr); } }); continue; }
+    const cur = x.get(settings);
+    items.push({ label, state: cur === undefined ? "MISSING" : JSON.stringify(cur) === JSON.stringify(x.want) ? "ok" : "DRIFT", apply() { const s = readSettings(); x.set(s); saveSettings(s); } });
   }
 
   // User-scope MCP entry in the global config file, where plugin-index.mjs (the repo's own reader) looks: inside
@@ -172,7 +273,6 @@ export function plan(home) {
   const claudeJson = globalConfigFile(home);
   const graph = JSON.parse(readFileSync(join(REPO, "config", "agent-os", "local-services.json"), "utf8")).servers.find((s) => s.kind === "graphify");
   const wantMcp = { type: "http", url: `http://127.0.0.1:${graph.port}${graph.path}` };
-  const mcpLabel = "~/.claude.json mcpServers graphify";
   let cj = null;
   let cjErr = null;
   try {
@@ -180,23 +280,27 @@ export function plan(home) {
   } catch {
     cjErr = ".claude.json is not valid JSON: fix it by hand first";
   }
-  const have = cj?.mcpServers?.graphify;
-  const mcpState = cjErr ? "DRIFT" : !have ? "MISSING" : have.type === wantMcp.type && have.url === wantMcp.url ? "ok" : "DRIFT";
-  items.push({ label: cjErr ? `${mcpLabel} (${cjErr})` : mcpLabel, state: mcpState, apply() {
-    if (cjErr) throw new Error(cjErr);
-    const s = existsSync(claudeJson) ? JSON.parse(readFileSync(claudeJson, "utf8")) : {};
-    s.mcpServers = { ...(s.mcpServers ?? {}), graphify: wantMcp };
-    backup(claudeJson);
-    mkdirSync(dirname(claudeJson), { recursive: true });
-    // Atomic: the harness rewrites this 160 KB file itself while sessions run; a truncating write would race it.
-    const tmp = `${claudeJson}.${process.pid}.tmp`;
-    writeFileSync(tmp, `${JSON.stringify(s, null, 2)}\n`);
-    renameSync(tmp, claudeJson);
-  } });
+  for (const [name, want] of Object.entries({ graphify: wantMcp, ...layer.mcpServers })) {
+    const mcpLabel = `~/.claude.json mcpServers ${name}`;
+    const have = cj?.mcpServers?.[name];
+    const mcpState = cjErr ? "DRIFT" : !have ? "MISSING" : have.type === want.type && have.url === want.url ? "ok" : "DRIFT";
+    items.push({ label: cjErr ? `${mcpLabel} (${cjErr})` : mcpLabel, state: mcpState, apply() {
+      if (cjErr) throw new Error(cjErr);
+      const s = existsSync(claudeJson) ? JSON.parse(readFileSync(claudeJson, "utf8")) : {};
+      s.mcpServers = { ...(s.mcpServers ?? {}), [name]: want };
+      backup(claudeJson);
+      mkdirSync(dirname(claudeJson), { recursive: true });
+      // Atomic: the harness rewrites this 160 KB file itself while sessions run; a truncating write would race it.
+      const tmp = `${claudeJson}.${process.pid}.tmp`;
+      writeFileSync(tmp, `${JSON.stringify(s, null, 2)}\n`);
+      renameSync(tmp, claudeJson);
+    } });
+  }
 
   // Global CLAUDE.md pointer block.
   const mdFile = join(claude, "CLAUDE.md");
-  const block = `${BEGIN}\n${readFileSync(join(REPO, "config", "agent-os", "global-claude-md-block.md"), "utf8").trim()}\n${END}`;
+  const blockSource = readFileSync(join(REPO, "config", "agent-os", "global-claude-md-block.md"), "utf8");
+  const block = `${BEGIN}\n${(has("rtk") ? blockSource : blockSource.replace(/^@RTK\.md\r?\n?/m, "")).trim()}\n${END}`;
   const md = read(mdFile)?.toString("utf8") ?? null;
   const at = md?.indexOf(BEGIN) ?? -1;
   const endAt = at >= 0 ? md.indexOf(END, at) : -1;
@@ -230,7 +334,7 @@ function main() {
   const home = explicitHome ? resolve(argv[i + 1]) : process.env.USERPROFILE || process.env.HOME || homedir();
   const check = argv.includes("--check");
   const items = plan(home);
-  const bad = items.filter((x) => x.state !== "ok");
+  const bad = items.filter((x) => x.state !== "ok" && x.state !== "n/a");
 
   if (argv.includes("--hook")) {
     const routing = readRouting(REPO);
@@ -252,8 +356,14 @@ function main() {
     process.stdout.write(`[bootstrap] ${bad.length ? `${bad.length} item(s) to fix: run without --check` : "clean"}\n`);
     return bad.length ? 1 : 0;
   }
+  const refused = items.filter((x) => x.state === "REFUSE");
+  if (refused.length) {
+    for (const x of refused) process.stdout.write(`[bootstrap] REFUSE    ${x.label}\n`);
+    process.stdout.write("[bootstrap] refused: nothing written. Fix the source file in the repo, then run again.\n");
+    return 1;
+  }
   for (const x of items) {
-    if (x.state === "ok") { process.stdout.write(`[bootstrap] ok        ${x.label}\n`); continue; }
+    if (x.state === "ok" || x.state === "n/a") { process.stdout.write(`[bootstrap] ${x.state.padEnd(9)} ${x.label}\n`); continue; }
     if (x.manual) { process.stdout.write(`[bootstrap] MISSING   ${x.label}\n`); continue; }
     x.apply();
     process.stdout.write(`[bootstrap] ${x.state === "MISSING" ? "installed" : "updated  "} ${x.label}\n`);

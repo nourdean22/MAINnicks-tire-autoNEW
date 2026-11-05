@@ -87,7 +87,7 @@ export function classifyLookup(r) {
   return { state: "UNKNOWN", reason: `lookup exit ${r.status}` };
 }
 
-function onPath(tool) {
+export function onPath(tool) {
   const r = WIN
     ? spawnSync(join(process.env.SystemRoot || "C:\\Windows", "System32", "where.exe"), ["/q", tool], { stdio: "ignore", timeout: 3000 })
     : spawnSync("/bin/sh", ["-c", 'command -v "$1"', "sh", tool], { stdio: "ignore", timeout: 3000 });
