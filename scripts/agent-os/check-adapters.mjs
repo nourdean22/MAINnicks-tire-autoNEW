@@ -183,7 +183,7 @@ if (requireFile(".agents/core/CORE.md", "agent core index (imports soul, identit
   requireMatch("CLAUDE.md", /^@\.agents\/core\/CORE\.md$/m, "must IMPORT the agent core on its own @ line");
   requireMatch("GEMINI.md", /^@\.agents\/core\/CORE\.md$/m, "must import the agent core via memport");
   requireThin(".agents/core/CORE.md", 30);
-  for (const [f, cap] of [["SOUL.md", 50], ["IDENTITY.md", 35], ["USER.md", 70], ["CONSTITUTION.md", 35]]) {
+  for (const [f, cap] of [["SOUL.md", 50], ["IDENTITY.md", 35], ["USER.md", 70], ["CONSTITUTION.md", 35], ["STANDING-ORDERS.md", 60]]) {
     // Not named p: the capped-file invariant in adapters.test.mjs resolves an identifier passed to
     // requireThin through the FIRST same-named template binding in this file, so reusing p would hijack it.
     const corePath = `.agents/core/${f}`;

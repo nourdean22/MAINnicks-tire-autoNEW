@@ -73,6 +73,7 @@ const FIXTURE_FILES = [
   ".agents/core/IDENTITY.md",
   ".agents/core/USER.md",
   ".agents/core/CONSTITUTION.md",
+  ".agents/core/STANDING-ORDERS.md",
   "config/agent-os/required-plugins.json",
 ];
 

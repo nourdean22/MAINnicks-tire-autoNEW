@@ -194,7 +194,7 @@ loads nothing while still passing a substring check. Registry + design notes:
 <!-- Do NOT delete this section without checking who points at it (deleted once 2026-08-21; docs/agent-audit/AUDIT-2026-08-21.md). -->
 ## Operating frameworks
 
-- [`.agents/core/CORE.md`](.agents/core/CORE.md) — voice, identity, Nour, playbooks, manager. Persona + §11: `AGENT-OPERATING-PROFILE.md`.
+- [`.agents/core/CORE.md`](.agents/core/CORE.md) — voice, identity, Nour, standing orders, manager; §11: `AGENT-OPERATING-PROFILE.md`.
 - [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, define proof, run to empty, falsify.
 - [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: Blind Spot Check + Forgotten Factor Protocol.
 - [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts; check before proposing a new platform, library, or MCP.
