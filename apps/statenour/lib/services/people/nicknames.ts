@@ -28,6 +28,19 @@ export async function personIdByNickname(term: string): Promise<string | null> {
   return r.matchTier === "nickname" ? (r.person?.id ?? null) : null;
 }
 
+/** Resolve an exact name or unique exact nickname before a caller tries partial-name search. */
+export async function resolvePersonForBusinessSearch(term: string): Promise<{
+  person: { id: string; name: string } | null;
+  ambiguous: boolean;
+}> {
+  const { resolvePersonByName } = await import("@/lib/brain/person-profile-fuzzy");
+  const result = await resolvePersonByName(term, { createIfMissing: false, fuzzy: false });
+  return {
+    person: result.person,
+    ambiguous: result.matchTier === "shared_nickname",
+  };
+}
+
 /**
  * `refuseTaken` is for a caller model text can reach: a nickname someone else uses or is named stops the whole edit, so
  * words Nick read somewhere cannot mark a nickname shared and unlink its owner. The /people drawer may still share one.

@@ -13,8 +13,9 @@ import { z } from "zod";
 import { operatorProcedure } from "../../trpc";
 import { TaskStatus } from "@prisma/client";
 import { PERSON_ROLES } from "@/lib/brain/person-roles";
-import { NICKNAME_MAX_CHARS, NICKNAMES_PER_PERSON, readNicknames, workingNicknames } from "@/lib/people/nicknames";
+import { NICKNAME_MAX_CHARS, NICKNAMES_PER_PERSON, readNicknames } from "@/lib/people/nicknames";
 import { prisma } from "@/lib/prisma";
+import { legacyPromisePersonMatchWhere } from "@/lib/services/people/open-promise-person-match";
 import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
 import { LedgerRowNotFoundError, deleteLedgerRow } from "@/lib/services/people/delete-ledger-row";
@@ -64,26 +65,14 @@ export const powerAtlasProcedures = {
       // free-text promiseTo that matches the name but predates the link.
       // This is what makes /people actually READ the task list.
       const livePeople = await prisma.personProfile.findMany({ where: { deletedAt: null }, select: { id: true, name: true, metadata: true } });
+      const legacyMatch = legacyPromisePersonMatchWhere(person, livePeople);
       const openTasks = await prisma.task.findMany({
         where: {
           deletedAt: null,
           status: { notIn: [TaskStatus.DONE, TaskStatus.ARCHIVED] },
           OR: [
             { personId: input.personId },
-            // Transitional name-match for tasks created before the FK link.
-            // Guarded against a blank/too-short profile name so it can't
-            // vacuum up unrelated promiseTo="" rows across all people.
-            ...(person.name.trim().length >= 2
-              ? [
-                  {
-                    promiseTo: {
-                      equals: person.name,
-                      mode: "insensitive" as const,
-                    },
-                  },
-                ]
-              : []),
-            ...workingNicknames(person, livePeople).map((n) => ({ promiseTo: { equals: n, mode: "insensitive" as const } })),
+            ...(legacyMatch ? [legacyMatch] : []),
           ],
         },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],

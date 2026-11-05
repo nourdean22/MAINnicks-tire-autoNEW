@@ -317,15 +317,22 @@ export const businessTools = {
         // Wave AM · 2026-05-28 · soft-delete safety
         prisma.personProfile.findFirst({
           where: {
-            name: { contains: nameOrPhone, mode: "insensitive" },
+            name: { equals: nameOrPhone, mode: "insensitive" },
             deletedAt: null,
           },
           select: PERSON_LOOKUP,
         }).then(async (hit) => {
           if (hit) return hit;
-          const { personIdByNickname } = await import("@/lib/services/people/nicknames");
-          const id = await personIdByNickname(nameOrPhone);
-          return id ? prisma.personProfile.findFirst({ where: { id, deletedAt: null }, select: PERSON_LOOKUP }) : null;
+          const { resolvePersonForBusinessSearch } = await import("@/lib/services/people/nicknames");
+          const resolution = await resolvePersonForBusinessSearch(nameOrPhone);
+          if (resolution.person) {
+            return prisma.personProfile.findFirst({ where: { id: resolution.person.id, deletedAt: null }, select: PERSON_LOOKUP });
+          }
+          if (resolution.ambiguous) return null;
+          return prisma.personProfile.findFirst({
+            where: { name: { contains: nameOrPhone, mode: "insensitive" }, deletedAt: null },
+            select: PERSON_LOOKUP,
+          });
         }).catch((): null => null),
       ]);
 

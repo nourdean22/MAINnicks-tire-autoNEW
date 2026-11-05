@@ -1469,7 +1469,7 @@ export async function getContextualMemories(
   const relatedP = settle(
     timed("related", async () => {
       const out: string[] = [];
-      await appendRelatedContext(out, topicLower);
+      await appendRelatedContext(out, topicLower, recentMessages);
       return out;
     }),
   );
@@ -2358,7 +2358,12 @@ export function recallPeopleWhere(topicLower: string[]): { deletedAt: null; OR: 
   return { deletedAt: null, OR };
 }
 
-async function appendRelatedContext(lines: string[], topicLower: string[]): Promise<void> {
+function shortNicknameTopics(messages: string[]): string[] {
+  const text = messages.slice(-3).join("\n").slice(0, 1000).toLowerCase();
+  return [...new Set((text.match(/(?<![\p{L}\p{N}_])[a-z]{2}(?![\p{L}\p{N}_])/gu) ?? []).filter((word) => !FAST_TOPIC_STOPWORDS.has(word)))];
+}
+
+async function appendRelatedContext(lines: string[], topicLower: string[], recentMessages: string[]): Promise<void> {
   const matchesTopic = (text: string) =>
     topicLower.some(
       (t) =>
@@ -2405,21 +2410,25 @@ async function appendRelatedContext(lines: string[], topicLower: string[]): Prom
   // W6 · a failed people read says so once, instead of dropping the block as if no one matched (empty-vs-error).
   // W8a (C11) · live rows, matched in SQL; no term means no read.
   const peopleWhere = recallPeopleWhere(topicLower);
-  if (!peopleWhere) return;
+  const nicknameTopics = [...topicLower, ...shortNicknameTopics(recentMessages)];
+  const hasNicknameCandidate = nicknameTopics.some((topic) => topic.trim().length >= 2);
+  if (!peopleWhere && !hasNicknameCandidate) return;
   const nicknamed = new Set<string>();
-  const allPeople = await prisma.personProfile
-    .findMany({
-      where: peopleWhere,
-      take: 30,
-      select: { id: true, name: true, role: true, relationship: true },
-    })
+  const matchingPeople = peopleWhere
+    ? prisma.personProfile.findMany({
+        where: peopleWhere,
+        take: 30,
+        select: { id: true, name: true, role: true, relationship: true },
+      })
+    : Promise.resolve([]);
+  const allPeople = await matchingPeople
     .then(async (rows) => {
       // A topic "mom" names someone only through their metadata, which the SQL above cannot match in any case.
       const live = await prisma.personProfile.findMany({
         where: { deletedAt: null },
         select: { id: true, name: true, role: true, relationship: true, metadata: true },
       });
-      const said = nicknameMatchers(live).filter((n) => topicLower.some((t) => n.re.test(t)));
+      const said = nicknameMatchers(live).filter((n) => nicknameTopics.some((t) => n.re.test(t)));
       for (const n of said) nicknamed.add(n.person.id);
       return [...said.map((n) => n.person).filter((p) => !rows.some((r) => r.id === p.id)), ...rows];
     })

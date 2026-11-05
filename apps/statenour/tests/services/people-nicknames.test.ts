@@ -41,7 +41,7 @@ import { journalExcerpt, linkJournalPeople, linkNamedPeople } from "@/lib/servic
 import { linkPromiseToPerson } from "@/lib/services/people/link-promise";
 import { resolveLedgerPerson } from "@/lib/services/people/log-from-text";
 import { nextEventByPerson } from "@/lib/services/people/calendar-mentions";
-import { personIdByNickname } from "@/lib/services/people/nicknames";
+import { personIdByNickname, resolvePersonForBusinessSearch } from "@/lib/services/people/nicknames";
 
 const yummah: P = { id: "y", name: "Yummah", metadata: { nicknames: ["mom"] } };
 const mash: P = { id: "m", name: "Mash", metadata: { nicknames: ["mashi"] } };
@@ -182,6 +182,28 @@ describe("personIdByNickname", () => {
     expect(await personIdByNickname("mom")).toBe("y");
     expect(await personIdByNickname("Yummah")).toBeNull();
     expect(await personIdByNickname("nobody")).toBeNull();
+  });
+});
+
+describe("resolvePersonForBusinessSearch", () => {
+  it("resolves an exact nickname before a partial formal-name hit", async () => {
+    h.people = [
+      { id: "m", name: "Mash", metadata: null },
+      { id: "a", name: "Ashley", metadata: { nicknames: ["ash"] } },
+    ];
+    expect(await resolvePersonForBusinessSearch("ash")).toMatchObject({
+      person: { id: "a", name: "Ashley" },
+      ambiguous: false,
+    });
+  });
+
+  it("stops on a shared nickname instead of falling through to a partial name", async () => {
+    h.people = [
+      { id: "m", name: "Mash", metadata: null },
+      { id: "a", name: "Ashley", metadata: { nicknames: ["ash"] } },
+      { id: "b", name: "Bashir", metadata: { nicknames: ["ash"] } },
+    ];
+    expect(await resolvePersonForBusinessSearch("ash")).toMatchObject({ person: null, ambiguous: true });
   });
 });
 
