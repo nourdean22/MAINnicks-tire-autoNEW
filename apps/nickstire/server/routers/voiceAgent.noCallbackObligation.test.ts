@@ -1,16 +1,13 @@
 /**
- * escalate writes ONE callback_requests row per call (claim-before-act, 2026-10-31).
+ * The receptionist makes NO callback obligations (Nour, 2026-11-06: "the receptionist
+ * doesnt need to do bookings or give me a callback text"). PR 3340 stopped it drafting
+ * bookings; this stops escalate and scheduleCallback writing a callback_requests row
+ * (the Today "Urgent callback" row), a Front Counter promise (the "Promise overdue" row)
+ * and the on-duty manager text. The call's reason stays on the call trail only.
  *
- * The fallback of an unanswered transfer hands the caller back to the assistant,
- * which runs CALLBACK CAPTURE -> escalate. The alert was already once per call
- * (sendOncePerState voice-callback:<callId>), but the ROW insert had no guard: a
- * Vapi tool retry or a second model call wrote a second row, so the crew saw two
- * callbacks for one caller. Now a persisted per-call claim (INSERT IGNORE on
- * cron_alerts_fired, the same compare-and-swap the alert uses) gates the insert;
- * the loser re-reads the winner's row and never writes or alerts. escalate also
- * carries the caller's best time.
- *
- * DB-free: db-helper, the claim table and the event bus are fakes.
+ * Replaces voiceAgent.escalateOncePerCall.test.ts, whose one-row-per-call guard
+ * guarded a row that no longer exists. DB-free: db-helper, the claim table and the
+ * event bus are fakes (same fixture as that file).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTableName } from "drizzle-orm";
@@ -132,81 +129,41 @@ afterEach(() => {
   h.callbackRequested.mockReset();
 });
 
-describe("(2) one row and one alert per call", () => {
-  it("two escalates with the same callId give 1 row and 1 alert; the second reports the first's row", async () => {
+describe("escalate makes no callback obligation", () => {
+  it("writes no callback row, no promise and sends no manager text", async () => {
     const c = await caller();
-    const first = await c.escalate({ reason: "wants the counter", callerNumber: CALLER, callId: "call_x1" });
-    const second = await c.escalate({ reason: "wants the counter", callerNumber: CALLER, callId: "call_x1" });
-    expect(first).toMatchObject({ success: true });
-    expect(second).toMatchObject({ success: true, duplicate: true });
-    expect(h.rows).toHaveLength(1);
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    await new Promise((r) => setTimeout(r, 30));
-    expect(h.callbackRequested).toHaveBeenCalledTimes(1);
-  });
-
-  it("two escalates racing on one call still give 1 row", async () => {
-    const c = await caller();
-    await Promise.all([
-      c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x2" }),
-      c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x2" }),
-    ]);
-    expect(h.rows).toHaveLength(1);
-  });
-
-  it("POSITIVE CONTROL: different calls each get their row", async () => {
-    const c = await caller();
-    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x3" });
-    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x4" });
-    expect(h.rows).toHaveLength(2);
-  });
-
-  it("a failed insert hands the claim back, so the retry writes the row", async () => {
-    h.insertFailsOnce = true;
-    const c = await caller();
-    const failed = await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x5" });
-    expect(failed.success).toBe(false);
+    const res = await c.escalate({ reason: "rack check: 225/65R17", urgency: "high", callerNumber: CALLER, callId: "call_n1", bestTime: "after 3" });
+    expect(res.success).toBe(true);
+    await new Promise((r) => setTimeout(r, 50)); // the old alert was fire-and-forget
     expect(h.rows).toHaveLength(0);
-    const retry = await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x5" });
-    expect(retry).toMatchObject({ success: true });
-    expect(h.rows).toHaveLength(1);
+    expect(h.promises).toHaveLength(0);
+    expect(h.callbackRequested).not.toHaveBeenCalled();
   });
 
-  it("a failed first alert is retried by the second escalate, still with one row", async () => {
-    h.callbackRequested.mockRejectedValueOnce(new Error("bus down"));
+  it("tells the assistant no callback is coming, so it never promises one", async () => {
     const c = await caller();
-    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x7" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    await until(() => expect([...h.claims].some((k) => k.startsWith("voice-callback:call_x7|"))).toBe(false));
-    await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x7" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
-    expect(h.rows).toHaveLength(1);
+    const res = await c.escalate({ reason: "wants the counter", callerNumber: CALLER, callId: "call_n2" });
+    expect(res.message).toMatch(/no callback/i);
+    expect(res.message).toMatch(/never say anyone will call them back/i);
+    expect(res.message).not.toMatch(/callback list|the shop will call/i);
   });
 
-  it("a claim held with no row yet (the winner is mid-write) is not a promise", async () => {
+  it("does not ask for a number when caller ID is missing (nothing to call back on)", async () => {
     const c = await caller();
-    // Plant the winner's claim without its row.
-    const { getBusinessDateKey } = await import("../lib/timezoneAssert");
-    h.claims.add(`voice-callback-row:call_x6|${getBusinessDateKey(new Date())}`);
-    const res = await c.escalate({ reason: "a", callerNumber: CALLER, callId: "call_x6" });
-    expect(res.success).toBe(false);
+    const res = await c.escalate({ reason: "after hours", callId: "call_n3" });
+    expect(res).toMatchObject({ success: true });
+    expect(res).not.toHaveProperty("needs_number");
     expect(h.rows).toHaveLength(0);
   });
 });
 
-describe("escalate carries the caller's best time", () => {
-  it("lands in the row, the crew alert and the line the assistant reads back", async () => {
+describe("scheduleCallback makes no callback obligation", () => {
+  it("writes no callback row and no promise", async () => {
     const c = await caller();
-    const res = await c.escalate({ reason: "rack check: 225/65R17", callerNumber: CALLER, callId: "call_bt1", bestTime: "after 3" });
-    expect(h.rows[0].context).toContain("after 3");
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    expect(String((h.callbackRequested.mock.calls[0][0] as { reason: string }).reason)).toContain("after 3");
-    expect(res.message).toContain("after 3");
-  });
-
-  it("is optional: no best time, no 'best time' text", async () => {
-    const c = await caller();
-    await c.escalate({ reason: "status check", callerNumber: CALLER, callId: "call_bt2" });
-    expect(h.rows[0].context).not.toMatch(/best time/i);
+    const res = await c.scheduleCallback({ name: "Sam", phone: "2165550123", reason: "alignment", preferredTime: "morning", callId: "call_s1" });
+    expect(res.success).toBe(true);
+    expect(h.rows).toHaveLength(0);
+    expect(h.promises).toHaveLength(0);
+    expect(h.callbackRequested).not.toHaveBeenCalled();
   });
 });

@@ -288,6 +288,23 @@ export function spokenShopDirections(): string {
   return `17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served ${spokenWeeklyHours()}.`;
 }
 
+/** What the assistant says when a caller wanted a person: no callback is promised, ever. */
+export function noCallbackGuidance(): string {
+  return "Noted on this call. No callback is scheduled and nobody was texted, so never say anyone will call them back. "
+    + "Tell them they can come in or call the shop once it's open: " + spokenShopDirections();
+}
+
+/** Best-effort: the reason rides on the call trail, never as a task for the shop. */
+async function noteOnCallTrail(callId: string | undefined, tool: string, metadata: Record<string, unknown>): Promise<void> {
+  if (!callId) return;
+  try {
+    const { recordCallState } = await import("../services/voice-call-state");
+    await recordCallState({ callId, state: "tool_called", metadata: { tool, ...metadata } });
+  } catch (err) {
+    log.warn("Failed to note the tool on the call-state trail", { callId, tool, err: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 const DAYS_FROM_SUNDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 /**
@@ -650,10 +667,14 @@ export const voiceAgentRouter = router({
     }),
 
   /**
-   * Escalate — caller wants a human, AI is confused, or sentiment
-   * went bad. Writes to callback_requests + alerts Nick via Telegram.
+   * Escalate: the caller wanted a person the shop could not give them on this
+   * call (closed, the transfer rang out, they won't hold). The receptionist makes
+   * NO callback obligation (Nour, 2026-11-06: "the receptionist doesnt need to do
+   * bookings or give me a callback text"), so this writes no callback_requests row,
+   * no customer_promises row and texts nobody, as PR 3340 did for bookings. It notes
+   * the reason on the call trail and tells the assistant what to say instead. The
+   * input shape stays what the live Vapi tool sends.
    */
-  // wave-148 — write mutation: callback_requests row + Telegram alert.
   escalate: voiceAgentInternalProcedure
     .input(z.object({
       // Caller ID supplies both (Nour, 2026-10-21): the assistant never asks.
@@ -668,170 +689,9 @@ export const voiceAgentRouter = router({
       bestTime: z.string().max(120).optional(),
     }))
     .mutation(async ({ input }) => {
-      const phone = pickArrivalPhone(input.phone, input.callerNumber).replace(/\D/g, "").slice(-10);
-      if (phone.length < 10) {
-        return {
-          success: false,
-          needs_number: true,
-          message: "No caller ID on this call. Ask once for the best number for the callback, then call escalate again with phone.",
-        };
-      }
-      const bestTime = input.bestTime?.trim() || undefined;
-      const reasonWithTime = bestTime ? `${input.reason} · best time: ${bestTime}` : input.reason;
-      // ONE callback row per call (claim-before-act, 2026-10-31). A Vapi tool retry
-      // or a second model call used to write a second row. The persisted claim
-      // (INSERT IGNORE, the same compare-and-swap as the alert below) decides who
-      // writes; the loser never writes a row, it re-reads the winner's (its alert
-      // stays behind the per-call alert claim, so it cannot double-alert).
-      const rowClaimKey = input.callId ? `voice-callback-row:${input.callId}` : null;
-      let releaseRowClaimOnFailure = false;
-      try {
-        const name = (await resolveCallerName(input.name, input.callerNumber)) ?? "Caller";
-        const { db } = await import("../lib/db-helper");
-        const { callbackRequests } = await import("../../drizzle/schema");
-        const d = await db();
-        if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-        // Same bus dispatch as the website's callback form (routers/callback.ts):
-        // texts the on-duty manager, Telegram, NOUR OS. Never blocks the tool.
-        // The bus is the one Telegram sender for this callback; urgency rides in the reason.
-        const busReason = input.urgency === "high" ? `HIGH URGENCY: ${reasonWithTime}` : reasonWithTime;
-        const dispatchAlert = (callbackId: number | null) => {
-          const emitCallback = async (): Promise<TelegramSendResult> => {
-            const { emit } = await import("../services/eventBus");
-            await emit.callbackRequested({ id: callbackId, name, phone, reason: busReason });
-            return { status: "delivered" };
-          };
-          // A replayed or retried escalate in the same call must not text and alert twice:
-          // the same persisted per-call claim as the arrival heads-up (a throw hands it back).
-          (input.callId
-            ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-callback:${input.callId}`, emitCallback))
-            : emitCallback()
-          ).catch((e) => log.warn("escalate → event bus dispatch failed", { err: e instanceof Error ? e.message : String(e) }));
-        };
-
-        if (rowClaimKey) {
-          const { claimAlertOnce } = await import("../services/alertClaim");
-          releaseRowClaimOnFailure = await claimAlertOnce(rowClaimKey);
-          if (!releaseRowClaimOnFailure) {
-            const { desc, like } = await import("drizzle-orm");
-            const [winner] = await d.select({ id: callbackRequests.id }).from(callbackRequests)
-              .where(like(callbackRequests.context, `%callId=${input.callId} %`))
-              .orderBy(desc(callbackRequests.createdAt), desc(callbackRequests.id)).limit(1);
-            log.info("escalate → callback already claimed for this call", { callId: input.callId, rowFound: Boolean(winner) });
-            if (!winner) {
-              return { success: false, pending: true, message: "This callback is still being saved. Call escalate once more; do not promise a callback until it returns success:true." };
-            }
-            // No second row. The alert stays claim-guarded: a no-op if the first one
-            // was delivered, a retry if the first one failed and handed its claim back.
-            dispatchAlert(winner.id);
-            return { success: true, duplicate: true, message: "Already on the shop's callback list from earlier in this call. Do not call escalate again." };
-          }
-        }
-        const [insertedCallback] = await d.insert(callbackRequests).values({
-          name,
-          phone,
-          context: `[VOICE-AGENT · ${input.urgency.toUpperCase()}]${input.callId ? ` callId=${input.callId}` : ""} — ${reasonWithTime}`,
-          status: "new",
-          utmSource: "voice-agent",
-          utmMedium: "phone",
-          utmCampaign: "vapi-receptionist",
-        });
-        // The row exists: keep the claim from here on, so a later throw never
-        // hands it back and lets a retry write a second row.
-        releaseRowClaimOnFailure = false;
-        dispatchAlert(insertedCallback?.insertId ? Number(insertedCallback.insertId) : null);
-
-        // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
-        // leadId, because this had the identical hole and a worse version of it:
-        // `callbackId` appeared NOWHERE in this file. tireInquiry at least had a
-        // (broken) writer; escalate never attempted the link at all.
-        //
-        // Measured: 24 callback_requests rows exist, 23 in the last 90 days, and
-        // `vapi_call_logs.callbackId` is NOT NULL on 0 of 2,136 rows.
-        //
-        // The cost is not cosmetic. `hasVerifiedDemandCapture` is
-        // `leadCreated || callbackCreated || bookingCreated`, and all three were
-        // structurally false — so across 482 measured calls (209 of which
-        // engaged a tool) the metric has never once been true, and the daily
-        // digest has reported "Verified lead/callback capture: 0" every day.
-        if (input.callId && insertedCallback?.insertId) {
-          try {
-            const { recordCallState } = await import("../services/voice-call-state");
-            await recordCallState({
-              callId: input.callId,
-              state: "tool_called",
-              metadata: { tool: "escalate", callbackId: Number(insertedCallback.insertId) },
-            });
-          } catch (err) {
-            log.warn("Failed to record callbackId on the call-state trail", {
-              callId: input.callId,
-              err: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-        // THE SHOP NOW OWES THIS CALL — record it as a promise, not just a
-        // request. The prompt sends a caller here when the shop is CLOSED, or in
-        // CALLBACK CAPTURE (a transfer that didn't connect, a caller who won't
-        // hold), and every callback the prompt lets the assistant promise runs
-        // through this tool. The caller accepted and gave their number, so this
-        // is a commitment, which is the fact `callbackRequests` does not carry:
-        // that table is an intake queue with no due time and no kept/missed outcome.
-        //
-        // Due time is DERIVED from the shop's own configured hours: the end of
-        // the next open period (nextCloseAt — today's close while open, the next
-        // business day's close after hours), matching the spoken "when we're
-        // open", never invented. If hours cannot yield an instant, no promise is
-        // created and the callbackRequests row above remains the untimed
-        // obligation — see createVoicePromise for why a fabricated deadline is
-        // worse than none.
-        //
-        // Best-effort: a ledger failure must never break the capture that
-        // already succeeded.
-        if (input.callId) {
-          try {
-            const { createVoicePromise } = await import("../services/promiseLedger");
-            const { nextCloseAt } = await import("@shared/shopState");
-            const { BUSINESS } = await import("@shared/business");
-            const res = await createVoicePromise({
-              promiseType: "callback",
-              promisedAction: `Call ${name} back about: ${reasonWithTime}`.slice(0, 500),
-              vapiCallId: input.callId,
-              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
-              customerName: name,
-              customerPhone: phone,
-              owner: "Front Counter",
-            });
-            if ("skipped" in res) {
-              log.info("escalate → no promise recorded", { reason: res.reason, callId: input.callId });
-            }
-          } catch (err) {
-            log.warn("escalate → promise ledger write failed", {
-              callId: input.callId,
-              err: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-
-        // Ping Nick via Telegram immediately on high-urgency
-        log.info("Voice agent escalated", { nameGiven: Boolean(input.name), urgency: input.urgency });
-        return {
-          success: true,
-          message: `On the shop's callback list — the shop will call ${name === "Caller" ? "them" : name} back.${bestTime ? ` The caller asked for: ${bestTime}.` : ""}`,
-        };
-      } catch (err) {
-        // Hand the row claim back so a retry in this call can write the row.
-        if (releaseRowClaimOnFailure && rowClaimKey) {
-          await import("../services/alertClaim").then(({ releaseAlertClaim }) => releaseAlertClaim(rowClaimKey)).catch(() => { /* release logs its own failure */ });
-        }
-        // Returned, not thrown: a throw reaches the model as "Tool execution
-        // failed" and it may still tell the caller a callback is coming.
-        log.error("Voice agent escalate failed", { err: err instanceof Error ? err.message : String(err) });
-        return {
-          success: false,
-          message: "The callback was NOT saved. Do not tell the caller they're on the callback list. Read them the shop's number and hours instead: " + spokenShopDirections(),
-        };
-      }
+      await noteOnCallTrail(input.callId, "escalate", { urgency: input.urgency, reason: input.reason.slice(0, 200) });
+      log.info("Voice agent escalate noted, no callback made", { urgency: input.urgency });
+      return { success: true, callback: false, message: noCallbackGuidance() };
     }),
 
   /**
@@ -1463,12 +1323,8 @@ export const voiceAgentRouter = router({
     }),
 
   /**
-   * wave-179: scheduleCallback
-   *
-   * After-hours capture. Caller dials outside business hours, AI offers
-   * a callback. Creates a callbackRequests record so the front desk
-   * sees it first thing in the morning. Same table the website's
-   * CallbackModal writes to — single source of truth.
+   * wave-179 scheduleCallback, kept for the tool name only: like escalate it makes
+   * no callback obligation (no callback_requests row, no promise), 2026-11-06.
    */
   scheduleCallback: voiceAgentInternalProcedure
     .input(z.object({
@@ -1479,78 +1335,7 @@ export const voiceAgentRouter = router({
       callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
-      try {
-        const { db } = await import("../lib/db-helper");
-        const { callbackRequests } = await import("../../drizzle/schema");
-        const d = await db();
-        if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const [insertedCallback] = await d.insert(callbackRequests).values({
-          name: input.name,
-          phone: input.phone.replace(/\D/g, ""),
-          context: `[VOICE-AGENT CALLBACK]${input.callId ? ` callId=${input.callId}` : ""}${input.preferredTime ? ` · prefers: ${input.preferredTime}` : ""}${input.reason ? ` — ${input.reason}` : ""}`,
-          sourcePage: "vapi-voice-agent",
-          status: "new",
-        });
-        log.info("Voice agent scheduleCallback captured", { nameGiven: Boolean(input.name) });
-
-        // LINK THE CALLBACK TO THE CALL — exactly as `escalate` does. Without
-        // this the end-of-call webhook never saw a callbackId for the commonest
-        // callback path (prod: ~101 converted calls/week, 1 linked callbackId),
-        // and the draft-proposal gate could not tell this call was captured.
-        if (input.callId && insertedCallback?.insertId) {
-          try {
-            const { recordCallState } = await import("../services/voice-call-state");
-            await recordCallState({
-              callId: input.callId,
-              state: "tool_called",
-              metadata: { tool: "scheduleCallback", callbackId: Number(insertedCallback.insertId) },
-            });
-          } catch (err) {
-            log.warn("Failed to record callbackId on the call-state trail", {
-              callId: input.callId,
-              err: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-
-        // Same commitment as `escalate`, different entry point: the assistant
-        // OFFERED the callback and the caller accepted by giving their details.
-        // The shop owes the call, so it belongs in the ledger with a due time —
-        // `callbackRequests` records only that it was asked for.
-        //
-        // `preferredTime` is deliberately NOT used as the deadline: it is the
-        // CUSTOMER's preference, not the shop's commitment, and promising
-        // against it would score the shop on a time it never agreed to.
-        if (input.callId) {
-          try {
-            const { createVoicePromise } = await import("../services/promiseLedger");
-            const { nextCloseAt } = await import("@shared/shopState");
-            const { BUSINESS } = await import("@shared/business");
-            const res = await createVoicePromise({
-              promiseType: "callback",
-              promisedAction: `Call ${input.name} back${input.reason ? ` about: ${input.reason}` : ""}${input.preferredTime ? ` (caller prefers ${input.preferredTime})` : ""}`.slice(0, 500),
-              vapiCallId: input.callId,
-              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
-              customerName: input.name,
-              customerPhone: input.phone.replace(/\D/g, ""),
-              owner: "Front Counter",
-            });
-            if ("skipped" in res) {
-              log.info("scheduleCallback → no promise recorded", { reason: res.reason, callId: input.callId });
-            }
-          } catch (err) {
-            log.warn("scheduleCallback → promise ledger write failed", {
-              callId: input.callId,
-              err: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-
-        // PII projection — AI constructs the spoken confirmation from its own context.
-        return { success: true };
-      } catch (err) {
-        log.error("Voice agent scheduleCallback failed", { err: err instanceof Error ? err.message : String(err) });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Callback scheduling failed" });
-      }
+      await noteOnCallTrail(input.callId, "scheduleCallback", { reason: input.reason?.slice(0, 200) ?? null });
+      return { success: true, callback: false, message: noCallbackGuidance() };
     }),
 });
