@@ -35,6 +35,13 @@ describe("device sentinel · Nick's harness heartbeat", () => {
     expect(Object.keys(out).length).toBeGreaterThan(1);
   });
 
+  it("a sentinel that throws still stamps Nick, and the tick still fails with the sentinel's error", async () => {
+    db.smartDevice.findMany.mockRejectedValueOnce(new Error("device query failed"));
+    heartbeatNick.mockResolvedValueOnce("stamped");
+    await expect(tick()).rejects.toThrow("device query failed");
+    expect(heartbeatNick).toHaveBeenCalledTimes(1);
+  });
+
   it("a heartbeat that throws anyway never fails the tick", async () => {
     heartbeatNick.mockRejectedValueOnce(new Error("boom"));
     expect(await tick()).toMatchObject({ nickHarness: "failed: boom" });

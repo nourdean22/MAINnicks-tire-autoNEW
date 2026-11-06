@@ -16,7 +16,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-# Resolved here, not in the param default: Windows PowerShell 5.1 left $PSScriptRoot empty there (seen 2026-11-06).
+# Resolved here, not in the param default: with [CmdletBinding()] Windows PowerShell 5.1 left $PSScriptRoot empty there (seen 2026-11-06).
 if (-not $RepoRoot) { $RepoRoot = Split-Path (Split-Path $MyInvocation.MyCommand.Path -Parent) -Parent }
 
 $script = Join-Path $RepoRoot 'scripts\agent-os\harness-poll.mjs'

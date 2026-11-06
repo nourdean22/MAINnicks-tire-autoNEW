@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -228,4 +228,42 @@ test("a result the PC could not post is kept and sent first on the next tick, so
 
 test("harness-run exit codes mean something to a caller that gates on them", () => {
   assert.deepEqual(["DONE", "FINDINGS", "FAILED", "EXPIRED", "LOST", "QUEUED", "CLAIMED"].map(exitFor), [0, 3, 1, 1, 1, 2, 2]);
+});
+
+test("keepEnv passes one action's own key through, never the control key", () => {
+  const saved = { ...process.env };
+  Object.assign(process.env, { HARNESS_CONTROL_KEY: KEY, HARNESS_KEY: "snap-value", DEVICE_AGENT_KEY: "dev-value", STATENOUR_SYNC_KEY: "sync-value" });
+  try {
+    const print =
+      "process.stdout.write(['HARNESS_CONTROL_KEY','HARNESS_KEY','DEVICE_AGENT_KEY','STATENOUR_SYNC_KEY'].map((k) => k + '=' + (process.env[k] ?? '')).join(','))";
+    // The REAL harness-snapshot-now entry, with only its argv swapped for an env printer: it sees HARNESS_KEY and nothing else.
+    const snapshot = { ...localDecision(allowlist, "nattynour", "harness-snapshot-now"), argv: ["node", "-e", print] };
+    assert.equal(runAction(snapshot, { secrets: [] }).output, "HARNESS_CONTROL_KEY=,HARNESS_KEY=snap-value,DEVICE_AGENT_KEY=,STATENOUR_SYNC_KEY=");
+    // Every other action still sees no key at all.
+    const status = { ...localDecision(allowlist, "nattynour", "pc-status"), argv: ["node", "-e", print] };
+    assert.equal(runAction(status, { secrets: [] }).output, "HARNESS_CONTROL_KEY=,HARNESS_KEY=,DEVICE_AGENT_KEY=,STATENOUR_SYNC_KEY=");
+    // An entry that asks for the control key does not get it.
+    const kept = runAction({ argv: ["node", "-e", print], timeoutSec: 10, maxOutputBytes: 4000, keepEnv: ["HARNESS_KEY", "HARNESS_CONTROL_KEY"] }, { secrets: [] });
+    assert.equal(kept.output, "HARNESS_CONTROL_KEY=,HARNESS_KEY=snap-value,DEVICE_AGENT_KEY=,STATENOUR_SYNC_KEY=");
+    const table = { ...allowlist, actions: { x: { argv: ["node", "a.mjs"], pcs: ["nattynour"], needsGo: false, keepEnv: ["HARNESS_CONTROL_KEY", "HARNESS_KEY"] } } };
+    assert.deepEqual(localDecision(table, "nattynour", "x").keepEnv, ["HARNESS_KEY"]);
+    assert.deepEqual(localDecision(allowlist, "nattynour", "harness-snapshot-now").keepEnv, ["HARNESS_KEY"]);
+    assert.deepEqual(localDecision(allowlist, "nattynour", "pc-status").keepEnv, []);
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("a half-written spool is set aside and polling carries on", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "harness-badspool-"));
+  writeFileSync(join(dir, "harness-poll-unsent-result.json"), '{"id":"ha_1","pc":"natt');
+  const paths = [];
+  const doFetch = async (url) => {
+    paths.push(new URL(url).pathname);
+    return { ok: true, status: 200, json: async () => ({ data: { action: null } }) };
+  };
+  await pollOnce({ pc: "nattynour", key: KEY, url: "https://stub.test" }, { allowlist, doFetch, dir });
+  assert.deepEqual(paths, ["/api/devices/harness/actions/claim"]);
+  assert.ok(!existsSync(join(dir, "harness-poll-unsent-result.json")));
+  assert.ok(readdirSync(dir).some((n) => n.startsWith("harness-poll-unsent-result.json.bad-")));
 });

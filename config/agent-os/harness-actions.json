@@ -1,5 +1,5 @@
 {
-  "$comment": "Harness control allowlist (job 2026-11-06-harness-control-nick-node). The ONLY things bdnick, Nick or a Claude session can ask a PC to run. Each action is a name plus the exact argv the PC runs from its own checkout; nothing in a request can add to or change argv. 'node' as argv[0] means the poller's own node binary. findingsExitCodes are exit codes meaning 'ran fine and reported problems' (FINDINGS, not FAILED). needsGo=true (or a missing needsGo) is refused by every door until an approval path ships. v1 holds read-only actions only: nothing writes outside the repo or restarts anything. Server mirror: apps/statenour/lib/services/harness-control.ts HARNESS_ACTIONS (tests/services/harness-control.test.ts fails if the two drift). Poller: scripts/agent-os/harness-poll.mjs.",
+  "$comment": "Harness control allowlist (job 2026-11-06-harness-control-nick-node). The ONLY things bdnick, Nick or a Claude session can ask a PC to run. Each action is a name plus the exact argv the PC runs from its own checkout; nothing in a request can add to or change argv. keepEnv names the env keys that one action needs passed through (never HARNESS_CONTROL_KEY); every other harness key is stripped from children. 'node' as argv[0] means the poller's own node binary. findingsExitCodes are exit codes meaning 'ran fine and reported problems' (FINDINGS, not FAILED). needsGo=true (or a missing needsGo) is refused by every door until an approval path ships. v1 holds read-only actions only: nothing writes outside the repo or restarts anything. Server mirror: apps/statenour/lib/services/harness-control.ts HARNESS_ACTIONS (tests/services/harness-control.test.ts fails if the two drift). Poller: scripts/agent-os/harness-poll.mjs.",
   "version": 1,
   "pcs": {
     "nattynour": {
@@ -45,7 +45,10 @@
       ],
       "needsGo": false,
       "timeoutSec": 120,
-      "findingsExitCodes": []
+      "findingsExitCodes": [],
+      "keepEnv": [
+        "HARNESS_KEY"
+      ]
     },
     "bootstrap-check": {
       "summary": "Report what the machine bootstrap would change on this PC; changes nothing (--check). Exit 1 means it found drift.",
