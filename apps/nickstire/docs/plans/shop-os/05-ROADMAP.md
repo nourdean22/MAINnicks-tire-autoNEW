@@ -96,3 +96,17 @@ and a separate schedule; ShopDriver stays live until every gate passes. The /sys
 ## Lanes (monorepo-manager)
 lane-research (bake-off scripts, API tests, vendor docs), lane-nickstire-server (read-only mirror, money and funnel
 logs), lane-nickstire-client (/system brain screens). At most 2 writer lanes at once on this machine.
+
+## 2026-11-06 extension: sourcing and computer work are part of the counter flow
+
+These are planning gates, not new calendar dates. "Day 1" begins when the shop actually starts the approved measurement period.
+
+- **Before days 1-3:** refresh the list of active supplier accounts/branches and current vendor terms; identify the front-desk PC and every camera, phone, microphone, printer, browser and Whisper owner. No model install or cleanup until the baseline and rollback path exist.
+- **Days 1-7:** record manual parts/tire search time, exact-match rate, selected supplier, promised vs actual arrival, wrong/partial orders, cost/core/credit differences, parts-blocked minutes, quote-to-sale and owner interruptions. Keep the source and UNKNOWN cases.
+- **Days 8-12:** start with existing D&K/Gateway Tire code, AutoZone Pro, and Parts Authority/IMC. Verify account-specific API/punchout permission, terms, exact fitment, branch stock, arrival promise, landed cost, returns/cores, export and counter speed. Check PartsTech developer exclusivity before choosing an aggregator. A missing API or unverified account scores UNKNOWN/zero for the adapter decision. See [20-SUPPLIER-INTEGRATION-START](20-SUPPLIER-INTEGRATION-START.md).
+- **Days 13-14:** decide ledger path as before. The prior custom-core approval remains a live input; the latest recommendation is buy the core/build the brain, and the evidence decides.
+- **After the ledger choice:** deliver read-only offer comparisons first; connect an estimate line and tire quote next; enable human-confirmed ordering only after idempotency, status checks and reconciliation pass. Keep a visible official portal handoff where integration is unavailable.
+- **Separate PC lane:** audit/clean the actual front-desk PC safely, then benchmark licensed local models and the bounded worker. The model is optional and does not make Railway work offline. Full offline CRM requires a separate design and business case.
+- **Before vendor bake-off closes:** use the 38-item Chrome bar inventory, 3 synced shortcuts, and 2 screenshot-only labels in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md). REA-inspect one authorized routine task for every in-scope source, starting AutoZone Pro, Parts Authority/IMC, and D&K/Gateway, then the other parts/tire catalogs, labor source, financing handoffs, payment terminal, communications and schedule. Record inputs, outputs, decision points, approvals, terms and failure/manual path; keep bank, personal, retail and unrelated destinations out of the repair-order data model. The current REA run verified only selected public entry screens; do not treat it as complete. The authenticated pass needs the user's authorized Chrome profile exposed to REA on loopback CDP. Do not bypass Cloudflare or other site controls. Screenshot labels alone are not a verified workflow.
+
+Reference the full flows and gates in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md). Existing cutover, 7-close, outage, export, margin and no-paper/text gates still apply. Success must be measured against baseline, not asserted from adapter status.

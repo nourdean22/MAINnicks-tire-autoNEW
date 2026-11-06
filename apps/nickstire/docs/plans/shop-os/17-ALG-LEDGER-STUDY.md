@@ -135,3 +135,7 @@ The private study compares our car count and ARO with the Shop Index medians (sa
 If one captured after-hours response proves a call returns lines, one overnight run over the history turns sections
 5-6 into exact job mixes, gives the first gross-profit and labor-rate baseline, and confirms or kills rules 2, 7 and 8.
 The live per-ticket feed stays a day 13-14 decision.
+
+## 9. Sourcing baseline limitation (2026-11-06)
+
+The ledger study describes shop ticket and estimate patterns, not supplier-level price/availability histories. The current ALG mirror stores ticket headers and loses the parts/labor/tax split; supplier, SKU, branch, promised/actual arrival, returns, cores and credits are not reliable historical fields. Do not claim a savings baseline or supplier ranking from those headers. Start a prospective, source-labeled log from authorized quote/order receipts and distinguish observed cost/arrival from inferred or unknown values. Revisit the historical baseline only after the permitted ALG line-item/API map proves the needed fields.

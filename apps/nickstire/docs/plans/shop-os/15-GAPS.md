@@ -102,3 +102,19 @@ QuickBooks, Routes, Drive share (13, PR 3383); ALG screens (14, PR 3385); MCP (1
 | "keep all sessions up to date with each other" | manager process (memory feedback-sessions-share-findings) |
 
 Quotes still uncovered after docs 16 and 17: a1-a6. Everything above is a plan gap, not code; nothing here is built.
+
+## 2026-11-06 added sourcing, desktop and local-model gaps
+
+| Gap | Cost if missed | Next step |
+|---|---|---|
+| No verified supplier capability/terms matrix for every active account and branch | false stock/ETA, wrong adapter, or blocked ordering | Task 0 in the 2026-11-06 implementation plan |
+| No normalized, evidence-bearing offer contract or cross-supplier landed-cost comparison | cheapest/closest choice is misleading or incomparable | Build read-only offer contract before checkout |
+| No quote-to-actual supplier cost, arrival, return, core and credit reconciliation | savings and supplier reliability cannot be proven | Tie selected offer to supplier receipt and daily close |
+| No status recovery for a submit timeout or webhook gap | duplicate or phantom supplier order | idempotency key plus status-before-retry |
+| No approved portal-only computer handoff or domain/action boundary | hidden automation, credential leakage, or accidental purchase | visible official-portal handoff; human submits |
+| Front-desk cleanup and local-model install lack current machine/owner receipts | counter, camera, phone or Whisper outage | fresh inventory and reversible cleanup proposal |
+| Model quality/latency/concurrency eval does not exist | fast-looking but false output or CPU contention | golden shop eval and rollback gates |
+| Local inference is easy to confuse with offline CRM | work lost or duplicated during internet outage | keep limited online worker; separate offline CRM design |
+| New-tire sourcing and used-tire unit safety are not one data path | wrong fitment or unsafe inventory claim | supplier offers for new; inspected per-unit stock for used |
+
+These additions are part of the active plan, not proof that any supplier, PC or model is ready. Full acceptance and ordering is in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).

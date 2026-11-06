@@ -1,10 +1,15 @@
 # Shop OS 12: a local AI box and a machine mesh
 
+# Current status (2026-11-06)
+
+Gemma 3 4B/Ollama is a historical candidate, not a verified deployment. Planning notes say a front-desk install handoff was sent, but its receipt was still owed. Re-check the PC before treating it as installed. Section 8 below and [the newer design](18-SUPPLIER-DESKTOP-OFFLINE-AI.md) supersede earlier "install now" wording. Full offline CRM is a separate project.
+
+
 Job 2026-10-30-shop-os-local-ai. Nour, 2026-10-30: "i might want to download a offline ai from huggingface to run
 locally n expand our options n cababilities on the shop pc, maybe even interconnect nattynour (this laptop) and
 nicksmax (other laptop)". Labels as in the README; every number carries one.
 
-**Answer (after Nour ruled, 2026-10-30, section 7):** install now. The front-desk PC becomes a local node (option B):
+**Historical recommendation (2026-10-30; superseded by section 8):** evaluate an Ollama local node on the front-desk PC (option B), subject to a hardware check and install receipt.
 Ollama plus gemma3:4b (3.4 GB, text and image, FACT ollama.com/library/gemma3), mostly a night-shift batch worker on
 our own data (section 2). The PCs link through our own server (option C), not a VPN. The first install is a hand-off
 block for Nour; nothing is installed until he runs it.
@@ -125,3 +130,19 @@ NOT CHECKED (2026-10-30, empty or failed): a llama.cpp benchmark for the Ryzen 5
 page (timed out); Google's Gemini pricing page (DNS failure); a mechanic-shop local-LLM case study (host not found);
 Frigate's GenAI page (404; read through doc mirrors, so CLAIM); whether Ollama logs prompts; whether Ollama's Vulkan
 backend picks up the Arc 140V; Perplexity in Chrome (blocked by policy since 2026-10-22).
+
+## 8. 2026-11-06 update: PC cleanup, CRM harness, and honest offline scope
+
+**Status correction:** the 2026-10-30 recommendation to try Ollama plus Gemma 3 4B is a candidate, not a measured production choice. The prior planning-manager notes say a front-desk paste block was handed to Nour and that installation receipts were still owed. This repository has no verified receipt that the model or worker is installed. Re-check the actual machine before relying on any prior hardware measurement or install state.
+
+**Machine boundaries:** MECHANICS (front desk) is the only candidate to evaluate first; its older snapshot was Ryzen 5 7520U, 16 GB RAM, integrated graphics, and CPU Whisper use. Refresh this before a cleanup or model test. NattyNour is mobile, not a reliable shop worker. NicksMax is a different camera/lot PC; the older snapshot recorded 7.9 GB RAM and CPU saturation by its camera workload. Do not install, clean, stop, reboot, or change camera/voice services on NicksMax without its current owner handing it off.
+
+**Cleanup sequence:** record disk/RAM/CPU/GPU, apps and startup items, active camera/sign/phone/mic/printer/Whisper services, browser/vendor profiles, backups and process owners. Propose a reversible ranked list. Preserve credentials, customer/work records, browser/vendor sessions, drivers, recovery logs, camera/sign/voice and other session-owned workloads. Change one thing at a time, only with the required specific go for deletion/uninstall/config changes, then verify each shop workflow and rollback path. Do not optimize disk space at the cost of counter or camera reliability.
+
+**Model harness:** choose models only after fresh hardware inventory and publisher-license review. Pin model digest, quantization, backend, runtime, prompt/eval version and machine. Run fixed synthetic/redacted cases for vehicle/part/tire fitment, ambiguous VIN, stale/contradictory stock, fees/core arithmetic, source timeout, unknown facts, portal prompt injection, tool choice, and customer draft. Measure p50/p95, schema-valid rate, citation/grounding, abstention, human edits, CPU/GPU/RAM/disk/thermal load, Whisper real-time factor, crash/restart, upkeep and cost. Safety gate: zero invented price/stock/fitment/safety facts; median draft under 30 seconds; Whisper RTF stays under 0.5 during concurrent use. If no model passes, stay deterministic or use the explicitly approved fallback/no-AI path.
+
+**Worker:** only if the model passes, use an outbound-HTTPS job pull with bounded payload, lease, heartbeat, claim-before-act, idempotent completion, expiry, retry limit, schema validation, redacted telemetry, and one-line rollback. Keep Ollama loopback-only; do not add a LAN port or VPN by default. Customer data stays in the approved server store; minimize each job and erase temporary payloads.
+
+**Offline boundary:** local inference is not offline CRM. Phase 1 still needs the Railway app/database connection to get the job and persist its result. If the shop needs full offline CRM, first prove outage frequency/cost, then design encrypted local data, durable outbox, conflicts, device identity, expiry, backup/restore and replay. Until then, offline means paper intake and unsent draft only; do not queue payments, supplier orders, approvals, customer sends or price changes.
+
+Full sourcing and computer handoff design: [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).

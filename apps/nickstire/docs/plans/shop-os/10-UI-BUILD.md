@@ -52,3 +52,25 @@ language (`apps/nickstire/docs/ADMIN_PHILOSOPHY.md`), dial ENERGY 2 / RHYTHM 1 /
 2. Keyboard-only run at the counter; one-thumb run on a phone at 390 px width.
 3. Every button does something real or is not there.
 4. The mockup's sample numbers never reach production code.
+
+## 5. 2026-11-06 screen and flow extension
+
+### Repair-order sourcing drawer
+
+On each estimate line, open a right-side drawer containing the verified vehicle/job context, supplier query, status for every configured source, and three evidence-backed offers at most: Lowest total, Fastest ready, Best fit for this job. Cards show exact match/grade, supplier and branch, quantity/stock or UNKNOWN, checked time/expiry, item/core/fees/delivery/tax, pickup/delivery promise, route minutes only when available, and why it ranked. Keep supplier cost separate from customer retail price and margin.
+
+Actions are Compare, Refresh, Add to estimate, Open supplier, Prepare order preview, and Mark received. The order preview repeats supplier/account/branch/SKU/fitment/quantity/cost/ETA and RO; the operator must submit. If price/stock changes, freeze the previous quote snapshot and require the user to accept the new values. If submit status is unknown, prevent a second submit until the supplier reference is checked.
+
+### Tire quote flow
+
+Vehicle/plate/VIN or manual size -> confirmed size and load/speed -> new supplier offers plus separate inspected used-tire units -> installed set price with every fee -> customer choice -> one RO. Do not auto-select a vehicle or claim inventory from stale catalog data. See full acceptance and edge cases in 18.
+
+### Portal handoff and computer controls
+
+Use the official API/punchout when the vendor allows it. If only a portal works, open it visibly with a prefilled supported search or copied SKU/quantity and pause for the operator. No hidden scraping, arbitrary shell/browser access, auto-submit, or credential capture. Keep the PWA as the default client; a local bridge is a separate allowlisted component only if evidence shows the PWA handoff is insufficient.
+
+The supplier drawer, tire quote, estimates, offline boundary, loading/empty/error/partial states, and exact user actions are specified in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).
+
+### Counter reference shelf from the shop bookmarks
+
+Do not make a wall of external-site buttons. In the RO workspace, provide a task-based shelf (parts, tires/wheels, labor, used parts, customer financing, payments, calls/schedule and shop operations) that clearly labels each action as built-in, connected, or portal handoff. Put the source and verified timestamp on any information brought back to the RO. Portal handoffs open visibly and return to the same RO/line. Financing, payment, banking and insurance remain explicit customer/operator flows; they are not background CRM actions. Use [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md) for the screenshot inventory, unknown labels, privacy limits and discovery checklist.

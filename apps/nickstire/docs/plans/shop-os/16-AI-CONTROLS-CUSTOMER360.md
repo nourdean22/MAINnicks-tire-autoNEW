@@ -137,3 +137,11 @@ when `SMS_CONSENT_GATE=enforce` (`sms.ts:2467`); prod values UNKNOWN. Turn both 
 - OpenAI help (403): "ChatGPT developer mode MCP plans write confirmation".
 - Instagram terms (script page): "Instagram terms of use automated collection".
 - PDL and Twilio use policies; Instagram 24-hour DM window; Ohio HB 345 / HB 801 status.
+
+## D. Supplier search, computer actions, and local model controls (2026-11-06)
+
+The assistant may explain verified source results or draft a note. Deterministic fitment, inventory evidence, price rules, estimate approvals, order state and audit records remain authoritative. The model cannot pick a supplier and submit an order, substitute a part, change a price, invent stock/ETA, or call a customer tool without the operator's visible action.
+
+Any browser/computer handoff is limited to approved vendor domains and visible, bounded actions. It may open a supported supplier search or prepare a cart if terms permit; it must pause before checkout. No hidden scraping, arbitrary shell, cookie export, private-endpoint probing, or unattended submit. Secrets stay in the approved credential store and never in prompts, notes, logs or customer records.
+
+Local inference is optional. A local worker may receive only the minimum bounded task, use a lease/heartbeat, validate structured output, expire payloads, and return UNKNOWN on failure. It does not make the Railway-backed CRM work offline. A full offline CRM requires its own encrypted-storage and reconciliation design. See [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).
