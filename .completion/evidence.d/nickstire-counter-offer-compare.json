@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Admin -> Tires: a new 'Compare suppliers' panel sits at the top. Type a tire size (225/65R17, 2256517 or 225 65 17) and a quantity (default 4), tap 'Check suppliers'. Two cards show Best price and Quickest arrival (supplier, Local/Regional, cost unless 'Hide cost' is on, availability and the usual 30-60 min run for shelf stock); under them every offer with qty, availability and why it lost (short quantity, no price, regional timing unknown). A status row says whether Gateway answered and lists ATD and Capital Tire as not connected. Read-only: nothing orders."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json counter-supplier-compare added (in_progress, unit_verified, disabled until deployed and walked); REALITY-LEDGER.md re-rendered."
+    }
+  }
+}

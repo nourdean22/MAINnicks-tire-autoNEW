@@ -2,6 +2,25 @@
   "$comment": "Completion Authority capability ledger — THE canonical record of what is actually done. States only advance with evidence; scripts/check-capability-ledger.mjs enforces the gates and CI runs it. 'Merged' is not a state on purpose: code merge and capability promotion are independent events. Render docs/operations/REALITY-LEDGER.md from this file via scripts/render-reality-ledger.mjs — never edit the rendered file by hand.",
   "capabilities": [
     {
+      "capabilityId": "counter-supplier-compare",
+      "name": "Admin > Tires 'Compare suppliers' shows Best price and Quickest arrival across connected suppliers, ranking where the part is (shelf, transfer, next day, shipped) before price",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "PR nourdean22/MAINnicks-tire-autoNEW#3568 (branch nickstire/counter-offer-compare): shared/sourcing.ts compareOffers (pure ranking per docs/plans/shop-os/26-VENDOR-SCHEMATICS section 2; Nour 2026-11-06: route runs are 30-60 min, availability is what differs), server/services/sourcingGateway.ts (Gateway/D&K local -> shelf, regional -> transfer with no invented time, missing -> unknown), server/routers/sourcing.ts sourcing.compareTires (adminProcedure, read-only), client/src/components/admin/SupplierComparePanel.tsx mounted at the top of TireOrdersSection.",
+        "tests": "shared/sourcing.test.ts (7) and server/services/sourcingGateway.test.ts (10), all green. Red/green: ranking price before availability tier fails 2 of the 7 ranking tests.",
+        "deploymentId": null
+      },
+      "blockers": [],
+      "deferredScope": [
+        "Only Gateway/D&K tires are connected. ATD and Capital Tire (tires) and Parts Authority, O'Reilly, Federated, AutoZone and Amazon Business (parts) have no adapter; the panel lists them as not connected. Screen 2 (part-type picker) waits on the first parts adapter.",
+        "Run times are the stated 30-60 min default, not measured; measurement needs a received tap on supplier orders (14-STOLEN-MECHANISMS row 62)."
+      ],
+      "lastVerifiedAt": "2026-11-06",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
+    },
+    {
       "capabilityId": "site-chat-discount-program",
       "name": "The site chat's get_current_specials states the /discounts program (20% off labor, up to $250) from DISCOUNT_PROGRAMS, not a second copy",
       "owner": "nickstire",
