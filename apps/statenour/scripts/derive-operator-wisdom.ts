@@ -130,7 +130,7 @@ async function main() {
       noJson += 1;
       continue;
     }
-    keptBatches.push(parsed.kept);
+    keptBatches.push(parsed.kept.map((k) => ({ ...k, model: reply.model })));
     dropped += parsed.dropped;
     console.log(`batch ${i + 1}/${batches.length}: ${batch.length} rows, kept ${parsed.kept.length}, dropped ${parsed.dropped}`);
   }

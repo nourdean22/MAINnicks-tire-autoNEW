@@ -31,6 +31,8 @@ export interface OperatorInsight {
   kind: OperatorInsightKind;
   text: string;
   sourceIds: string[];
+  /** The model that produced it; batches can rotate providers, so lineage is per insight (Codex P2, PR 3569). */
+  model?: string;
 }
 
 /** One brain row the model may cite, by id. */
@@ -160,6 +162,7 @@ export interface WriteOperatorWisdomDeps {
   retire: (keepKeys: string[]) => Promise<number>;
   /** Ids in the pool that are brain_memories rows (the rest are journal dumps). */
   memoryIds: ReadonlySet<string>;
+  /** Fallback for a row without its own model. */
   modelId: string;
 }
 
@@ -185,7 +188,7 @@ export async function writeOperatorWisdom(
       memoryKind: "derived",
       extractionMethod: "llm_extract",
       trustTier: "AGENT_INFERRED",
-      modelId: deps.modelId,
+      modelId: r.modelId ?? deps.modelId,
       derivedFrom: ids.filter((x) => deps.memoryIds.has(x)),
       evidenceRefs: ids.map((x) => (deps.memoryIds.has(x) ? `brain-memory:${x}` : `brain-dump:${x}`)),
       metadata: r.metadata,
@@ -209,6 +212,7 @@ export function operatorWisdomRows(insights: OperatorInsight[], derivedAt: strin
       content: i.text,
       confidence: 0.7,
       source: OPERATOR_WISDOM_SOURCE,
+      modelId: i.model,
       metadata: {
         origin: OPERATOR_WISDOM_ORIGIN,
         kind: i.kind,

@@ -148,6 +148,16 @@ describe("writeOperatorWisdom: admitted as derived, embedded before the old set 
     expect(out).toMatchObject({ wisdom: 1, candidates: 0, retired: 2, kept: true });
   });
 
+  it("records the model that produced each insight, not the last batch's model (Codex P2, PR 3569)", async () => {
+    const { deps } = fakeDeps();
+    const rows = operatorWisdomRows([
+      { ...insight, model: "minimax-m3" },
+      { kind: "pattern", text: "Ships the smallest change first, then widens only on a receipt.", sourceIds: ["m1"], model: "glm-4.6" },
+    ]);
+    await writeOperatorWisdom(rows, { ...deps, memoryIds, modelId: "glm-4.6" });
+    expect(deps.admit.mock.calls.map((c) => (c[0] as { modelId: string }).modelId)).toEqual(["minimax-m3", "glm-4.6"]);
+  });
+
   it("keeps the previous set when any new row did not embed (a row with no vector is never recalled)", async () => {
     const { deps } = fakeDeps({ embed: vi.fn(async () => ({ landed: 0, total: 1 })) });
     const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "m" });
