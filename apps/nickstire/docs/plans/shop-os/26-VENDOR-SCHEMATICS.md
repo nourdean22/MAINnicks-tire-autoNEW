@@ -29,6 +29,16 @@ supplier and branch IDs ..."). Nothing here replaces 18; it adds the fields the 
 | Promotions | - | rebate tiles | program goal gauge | Spotlights as a filter | spend-to-entries tracker |
 | Shop trade name on account | Nick's and Moe's fields | MOE'S TIRE | moeseuclid | Moe's Euclid Tire & Auto | Moe's Tire & Auto - Euclid |
 
+**Parts Authority / IMC (27), same capabilities:** vehicle lookup Y/M/M + mandatory engine, VIN or plate+state,
+competitor part # with "fits this vehicle" badge; stock at the home branch, local transfer branches and ~35 plants;
+**per-location Submit By and My Branch Departure times** (the only vendor that gives them); runs about every 30
+minutes plus Saturday delivery; fulfillment Primary / Transfer / Shipping / **DoorDash**; Hide Prices; OE number,
+OE list price and qty-per-vehicle above every aftermarket option; quality grade Good -> Ultra Premium on every SKU;
+Repair Jobs (24) and Quick Selections; exploded OE diagrams; multiple carts named by vehicle; Fast Order and My
+Jobs; lost-sale reasons (too expensive, need genuine, not stocked, wrong brand, other); live run tracking (run,
+ETA, driver); orders, invoices and returns searchable by part number; documented punchout for Mitchell 1, ALLDATA
+and R.O. Writer.
+
 ## 2. Supplier offer: fields to add to 18's contract
 
 18 already carries supplier/branch IDs, SKU, fitment, quantity or UNKNOWN, price/core/fees/total, location and
@@ -46,6 +56,10 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `rawDescription` | 24 unparsed strings like `225/65R17~NEX~N Priz S~B/4 BW 102V TL` | Parse as fallback when structured spec fields are missing |
 | `sourceTags[]` per figure: `catalog_fitment / supplier_live / cached / manual`, plus `preferredBrand` | 25 provenance icons ("Item found in Catalog data", "Primary Brand", "Information supplied by Member's System") | Every number on an offer card says where it came from (row 33) |
 | `restrictedStates[]` | 25 VOC/EPA page (several chemicals list OH) | Shown on the card; blocks the order line for the shop's state unless overridden with a reason (row 35) |
+| `submitBy`, `departsMyBranchAt` per location | 27 Item Availability (home, Lorain, Huron times; far plants "Shipping") | Arrival = departure + route time; the most precise arrival data seen; refresh near each cutoff (row 36) |
+| `oeRef: {oeNumber, oeListPrice, qtyPerVehicle, note}` per part type | 27 OE header row | Anchors the offer list; pre-fills quantity; gives the quote a dealer-price reference (row 39) |
+| `qualityGrade: good / better / best / ultra_premium` | 27 Quality Rating | Seeds the Good/Better/Best quote options (row 40) |
+| `fulfillmentMode` adds `transfer` and `courier` | 27 Branch Preferences (T, D = DoorDash) | Shown on the card; shop can disable modes per supplier (row 43) |
 
 Per-vendor static fallback until an API says otherwise: a hand-entered table of route runs and cutoffs per
 supplier branch (from the rep questions in 24 and 25), clearly labeled "schedule, not live".
@@ -114,3 +128,5 @@ row 24); bulk entry by paste in comma or pipe with three formats (25), or keyboa
   warehouses, whether those are orderable online. (25)
 - Gateway: is the Regional bucket orderable and how fast. (22)
 Until answered, those suppliers compete on price only and show "ETA unknown - call".
+- Parts Authority: drive time from branch 29 to the shop after "My Branch Departure", how Saturday delivery and
+  DoorDash are chosen, and whether IMC will enable the Mitchell 1/ALLDATA-style punchout for Shop OS. (27)

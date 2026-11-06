@@ -40,6 +40,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [24-CAPITAL-TIRE-UX-AUDIT](24-CAPITAL-TIRE-UX-AUDIT.md) | full Capital Tire wholesale portal UX audit (Nour's own account, 2026-11-06): per-warehouse stock across 10 named warehouses with home-warehouse-only ordering and ROUTE/PICKUP (no ETA), a lost-sale reason capture, a scoped markup-rule engine with an AI assistant, a Good/Better/Best customer quote printout, a hide-cost customer view, stock-out substitution, dual front/rear size search, and trim-level fitment with placard psi, TPMS and plus sizing |
 | [25-FEDERATED-UX-AUDIT](25-FEDERATED-UX-AUDIT.md) | full FederatedLink (Federated Auto Parts / Fisher Auto Parts store) UX audit (Nour's own account, 2026-11-06): five-mode search, Y/M/M/Engine picker, three-pane part-type picker with Total Job kits, results with Alt Locations across 12 stores/warehouses (no ETA), interchange + buyer's guide, lost-sale and discrepancy actions, stock/list ordering with paste upload, invoices with inline lines, and a cart that builds labor quotes |
 | [26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) | rollup of audits 21-25 for the build: cross-vendor matrix, fields to add to 18's supplier-offer contract, shop-owned objects (ShopIdentity, SellPriceRule, Quote, DeclineReason, JobKit, PartCrossRef, CatalogIssue, SupplierOrderDraft), screens in build order, and the open questions that block Quickest Arrival |
+| [27-PARTS-AUTHORITY-UX-AUDIT](27-PARTS-AUTHORITY-UX-AUDIT.md) | full Parts Authority / IMC Web Warehouse UX audit (Nour's own account, 2026-11-06): per-location Submit By and My Branch Departure times, a header run-cutoff clock (~every 30 min) with alarm, live delivery-run tracking, OE reference row with qty per vehicle, quality grades, Repair Jobs, exploded OE diagrams, vehicle-named carts, DoorDash/transfer/shipping branch modes, lost-sale reasons, and the existing Mitchell 1/ALLDATA punchout |
 
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
@@ -87,6 +88,14 @@ and a five-mode search box (14-STOLEN-MECHANISMS rows 27-32). It also shows the 
 quotes - rejected for Nick's. **[26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) rolls all five audits into
 the offer fields, shop objects and screens the build must implement - read it before 21-25.** Correction from
 Nour (2026-11-06): the shop also trades as Moe's, so "Moe's" on vendor accounts is current, not stale.
+
+A Parts Authority / IMC Web Warehouse pass (Nour's own account, 2026-11-06, read-only) is in
+[27-PARTS-AUTHORITY-UX-AUDIT](27-PARTS-AUTHORITY-UX-AUDIT.md) - Nour's top parts vendor. It is the first vendor
+to give real arrival data: per source location a Submit By and a My Branch Departure time, runs about every 30
+minutes with a cutoff clock on every page, Saturday delivery and live run tracking. It also shows the OE part
+and OE price above every aftermarket option, grades every SKU Good to Ultra Premium, names carts after the
+vehicle, and already supports a "vehicle in, basket back, human orders" punchout for Mitchell 1 and ALLDATA - the
+integration to ask IMC for first (14-STOLEN-MECHANISMS rows 36-44).
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

@@ -97,7 +97,7 @@ tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, 
 vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
 and whichever others the first-cohort gate above eventually adds).
 
-**What the five completed vendor passes actually show, concretely:**
+**What the six completed vendor passes actually show, concretely:**
 
 - **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
   shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
@@ -119,6 +119,12 @@ and whichever others the first-cohort gate above eventually adds).
   cutoff anywhere**. Same shape as Capital Tire, so the location/arrival split in point 6 below is the norm
   across suppliers, not a tire quirk. The field-level version of all of this is in
   [26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) section 2.
+- **Parts Authority / IMC** (27-PARTS-AUTHORITY-UX-AUDIT sections 1, 3a, 5): the first vendor that answers
+  *when* precisely - per source location a **Submit By** time and a **My Branch Departure** time (home branch 29
+  Cleveland, transfer branches Lorain and Huron, distant plants "Shipping"), a header cutoff clock showing runs
+  about every 30 minutes, Saturday delivery, and a live run tracker (run, ETA, driver). It is the reference for
+  Quickest Arrival; Nour also ranks it cheapest and widest (spot check in chat, prices kept out of the repo per
+  IMC terms, 20 PA-T).
 
 No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
 its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each
