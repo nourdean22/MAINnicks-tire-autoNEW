@@ -179,6 +179,18 @@ so it drops from the block any `## ` section or `@RTK.md` line already present o
 Bootstrap refuses a `permissions` key in `user-layer.json` outright. A yes here is a code change in a PR, never a table edit
 alone.
 
+### Auto-mode layer (2026-11-06)
+
+`config/agent-os/auto-mode-layer.json` holds classifier prose (`autoMode.environment`, `allow`, `soft_deny`) and
+`permissions.ask` rules for Railway config commands. Nour runs `node scripts/agent-os/auto-mode-layer.mjs` on each PC
+(`--check` reports); bootstrap never applies it. Why a separate script: the classifier reads `autoMode` only from
+`~/.claude/settings.json` or managed settings, never from a repo's `.claude/settings*.json` (code.claude.com/docs/en/auto-mode-config,
+read 2026-11-06), and an agent in auto mode cannot write settings (Self-Modification). The script refuses any key but those
+two, any list without `"$defaults"` (dropping it removes the built-in force-push and exfiltration rules), and any ask rule
+that is not one `Bash(...)`/`PowerShell(...)` prefix. It never writes `permissions.allow`: broad allow rules are dropped
+in auto mode anyway, and a prefix cannot tell a review-thread resolve from a branch delete. Entries it installed and the
+layer later drops are removed (`~/.claude/auto-mode-layer.installed.json`). Probes: the PR body of this job.
+
 ### MCP entries in `~/.claude.json`
 
 | Item | Kind | Decision | Reason |
@@ -191,7 +203,8 @@ alone.
 | Item | Kind | Decision | Reason |
 |---|---|---|---|
 | `.credentials.json` and its temp file | secret | skip | Never read, never copied. |
-| Agents, commands, output styles at user level | n/a | nothing to copy | The folders do not exist (FACT). The repo's lane agents and commands already travel by git. |
+| Agents, commands at user level | n/a | nothing to copy | The folders do not exist (FACT). The repo's lane agents and commands already travel by git. |
+| `output-styles/nour.md` | portable | vendor (2026-11-06) | Source `config/agent-os/output-styles/nour.md`, selected by `outputStyle: "nour"`. Written from his last 50 sessions (26 of 230 typed replies were a bare "?" after a message that ended mid-step). `FILE_SRC` allows one subfolder under `config/agent-os` and no all-dots segment. A desktop session reads the file at start: restart open sessions. |
 | `RTK.md` | needs a tool | vendor | See the CLAUDE.md table. |
 | `session-skills.md` | machine | skip | A generated index from 2026-10-08, already stale; the profile says it is not a source of truth. |
 | `scheduled-tasks/nourcity-heartbeat-*` (4) | machine | skip | They must fire on one PC. Copies on three PCs would run the heartbeat three times. |

@@ -36,7 +36,7 @@
   ],
   "settings": {
     "skillListingBudgetFraction": 0.02,
-    "outputStyle": "Concise",
+    "outputStyle": "nour",
     "theme": "dark",
     "skipWorkflowUsageWarning": true,
     "precomputeCompactionEnabled": true,
@@ -58,7 +58,8 @@
     { "event": "PreToolUse", "matcher": "Bash", "key": "rtk hook claude", "command": "rtk hook claude", "requires": "rtk" }
   ],
   "files": [
-    { "src": "config/agent-os/RTK.md", "dest": "RTK.md", "requires": "rtk" }
+    { "src": "config/agent-os/RTK.md", "dest": "RTK.md", "requires": "rtk" },
+    { "src": "config/agent-os/output-styles/nour.md", "dest": "output-styles/nour.md" }
   ],
   "mcpServers": {
     "vapi-docs": { "type": "http", "url": "https://docs.vapi.ai/_mcp/server" }
