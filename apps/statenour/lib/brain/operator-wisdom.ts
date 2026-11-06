@@ -104,15 +104,16 @@ export function parseOperatorInsights(
   return { kept, dropped, parseError: false };
 }
 
-/**
- * The script's arguments. --limit is required: the full 177-row prod pool came back empty from the
- * reason lane 3 of 3 times (2026-11-06), so no default size is proven (Codex P2, PR 3562).
- */
+/** Default pool: the 50 newest rows. The full 177-row prod pool came back empty from the reason lane 3 of 3 (2026-11-06). */
+export const OPERATOR_WISDOM_DEFAULT_LIMIT = 50;
+
+/** The script's arguments: --apply, and --limit=N (default 50 newest-first; never the whole pool). Codex P2, PR 3562. */
 export function operatorWisdomArgs(argv: string[]): { apply: boolean; limit: number } | { error: string } {
   const raw = argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
-  const limit = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (raw === undefined) return { apply: argv.includes("--apply"), limit: OPERATOR_WISDOM_DEFAULT_LIMIT };
+  const limit = /^\d+$/.test(raw) ? Number(raw) : NaN;
   if (!Number.isInteger(limit) || limit < 1) {
-    return { error: "pass --limit=N (a whole number of brain rows, e.g. --limit=20): no default pool size is proven" };
+    return { error: `--limit must be a whole number of brain rows (default ${OPERATOR_WISDOM_DEFAULT_LIMIT}, newest first)` };
   }
   return { apply: argv.includes("--apply"), limit };
 }
@@ -153,6 +154,7 @@ export async function writeOperatorWisdom(
       confidence: r.confidence,
       memoryKind: "derived",
       extractionMethod: "llm_extract",
+      trustTier: "AGENT_INFERRED",
       modelId: deps.modelId,
       derivedFrom: ids.filter((x) => deps.memoryIds.has(x)),
       evidenceRefs: ids.map((x) => (deps.memoryIds.has(x) ? `brain-memory:${x}` : `brain-dump:${x}`)),

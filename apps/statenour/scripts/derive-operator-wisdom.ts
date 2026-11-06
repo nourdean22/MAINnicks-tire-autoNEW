@@ -13,8 +13,8 @@
  * by kind, kept vs dropped), and returns before any write. The insight text is never printed: it is
  * personal, and terminal output ends up in PRs and logs.
  *
- * Run: `railway run -s statenour-web -- pnpm exec tsx scripts/derive-operator-wisdom.ts --limit=20` (dry run)
- *      add `--apply` to write (a production write: Nour's go). --limit is required.
+ * Run: `railway run -s statenour-web -- pnpm exec tsx scripts/derive-operator-wisdom.ts` (dry run, 50 newest rows)
+ *      `--limit=N` for a different pool size; add `--apply` to write (a production write: Nour's go).
  */
 import Module from "node:module";
 import {
@@ -70,18 +70,23 @@ async function main() {
     },
     orderBy: { lastSeen: "desc" },
     take: POOL_MEMORY_CAP,
-    select: { id: true, category: true, content: true },
+    select: { id: true, category: true, content: true, lastSeen: true },
   });
   const dumps = await prisma.brainDump.findMany({
     where: { deletedAt: null, createdAt: { gte: new Date(now.getTime() - DUMP_DAYS * 86_400_000) } },
     orderBy: { createdAt: "desc" },
     take: POOL_DUMP_CAP,
-    select: { id: true, summary: true, rawThoughts: true },
+    select: { id: true, summary: true, rawThoughts: true, createdAt: true },
   });
+  // Newest first across both sources, then the limit, so journal entries compete on recency with brain rows.
   const pool: PoolItem[] = [
-    ...memories,
-    ...dumps.map((d) => ({ id: d.id, category: "journal", content: d.summary || d.rawThoughts })),
-  ].filter((p) => p.content && p.content.trim().length > 0).slice(0, limit);
+    ...memories.map((m) => ({ id: m.id, category: m.category, content: m.content, at: m.lastSeen })),
+    ...dumps.map((d) => ({ id: d.id, category: "journal", content: d.summary || d.rawThoughts, at: d.createdAt })),
+  ]
+    .filter((p) => p.content && p.content.trim().length > 0)
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+    .slice(0, limit)
+    .map(({ id, category, content }) => ({ id, category, content }));
 
   const byCategory = new Map<string, number>();
   for (const p of pool) byCategory.set(p.category, (byCategory.get(p.category) ?? 0) + 1);

@@ -89,9 +89,9 @@ describe("parseOperatorInsights keeps only grounded insights", () => {
   });
 });
 
-describe("operatorWisdomArgs: the pool size is explicit (Codex P2: the full 177-row pool came back empty 3 of 3)", () => {
-  it("refuses a run with no --limit", () => {
-    expect(operatorWisdomArgs([])).toMatchObject({ error: expect.stringMatching(/--limit/) });
+describe("operatorWisdomArgs: a bounded pool by default (Codex P2: the full 177-row pool came back empty 3 of 3)", () => {
+  it("defaults to the 50 newest rows, never the whole pool", () => {
+    expect(operatorWisdomArgs([])).toEqual({ apply: false, limit: 50 });
   });
   it("reads --limit and --apply", () => {
     expect(operatorWisdomArgs(["--limit=20"])).toEqual({ apply: false, limit: 20 });
@@ -131,7 +131,12 @@ describe("writeOperatorWisdom: admitted as derived, embedded before the old set 
       modelId: "minimax-m3",
       derivedFrom: ["m1"],
       evidenceRefs: ["brain-memory:m1", "brain-dump:d1"],
+      trustTier: "AGENT_INFERRED",
+      confidence: 0.7,
     }));
+    // The admitted row is still a curated author the wisdom slots admit (manager ruling, 14:55 ET).
+    const admitted = deps.admit.mock.calls[0][0] as { category: string; key: string; metadata: { origin: string } };
+    expect(curatedWisdomAuthor({ category: admitted.category, key: admitted.key, origin: admitted.metadata.origin })).toBe("Nour (derived)");
     expect(calls.at(-1)).toBe("retire");
     expect(calls.indexOf("embed")).toBeLessThan(calls.indexOf("retire"));
     expect(out).toMatchObject({ wisdom: 1, candidates: 0, retired: 2, kept: true });
