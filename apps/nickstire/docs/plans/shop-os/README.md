@@ -124,5 +124,5 @@ An Amazon pass (public pages, signed out, 2026-11-06, read-only) is in [29-AMAZO
 Amazon gives the clearest delivery promise of any source (a date plus an "order within" clock) and a conditional
 fit badge, but its earliest promise was next day and sponsored results ignore the vehicle filter; Shop OS takes
 the promise wording, the arrives-by filter and return-by dates (14-STOLEN-MECHANISMS rows 52-60). The signed-in
-Amazon Business pass adds the ticket number printed on the box, a received tap per line, and a resale vs
-shop-use split on purchases because one Ohio reseller exemption covers the whole account (rows 61-65).
+Amazon Business pass adds the ticket number printed on the box, and a received tap per line (rows 61-65; the resale/shop-use split in row 63 is parked - tax setup confirmed
+correct).

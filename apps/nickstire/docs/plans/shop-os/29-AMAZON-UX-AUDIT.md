@@ -138,8 +138,7 @@ quantity-quote link and a Quantity Discounts store exist.
 - Seller and shipper as separate fields; new vs used/reman as a condition field.
 - The ticket number in the PO field, so it prints on the box and the packing slip (rows 61-62).
 - A received tap per line, which also feeds 26's measured delivery times.
-- Resale vs shop-use on every purchase line, because one Ohio reseller exemption covers everything bought on
-  the account (row 63).
+- Resale vs shop-use on every purchase line (row 63) - PARKED: the tax setup is confirmed correct.
 
 What Shop OS rejects: sponsored or unfitted items mixed into fitted results; repeated merchandising blocks;
 "frequently bought together" that is not job-aware (Shop OS uses job kits from 26 instead).
@@ -155,9 +154,8 @@ same-day run.
 - Answered: Nour has Amazon Business and uses it several times a week, including for vehicle-specific small
   parts the jobbers apparently do not stock. Amazon is a real **availability** source (tier 3-4 in 26 section 2:
   overnight/next day), not just a price reference; it is never a Quickest Arrival winner for a car on a lift.
-- Tax (for Nour's accountant, not legal advice): Ohio exempts items bought for resale and parts permanently
-  transferred to the customer; tools and consumables used by the shop are normally taxable, so if the reseller
-  exemption is applied to them, use tax is owed. Decide whether to scope the exemption or accrue use tax.
+- Tax: closed. Nour (2026-11-06) has already reviewed the account's tax setup and it is set up correctly. No
+  Shop OS tax feature is needed for Amazon.
 - Integration: punchout and e-invoicing are offered; whether Shop OS can act as the "purchasing system" (cXML
   punchout) and whether an ordering/reconciliation API is available to this account is UNKNOWN - ask Amazon
   Business support or the App Center.
