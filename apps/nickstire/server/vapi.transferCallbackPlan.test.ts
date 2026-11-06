@@ -92,6 +92,17 @@ describe("the code default plan (first deploy, or a live destination with no pla
     expect(first.length).toBeLessThanOrEqual(60);
   });
 
+  it("the counter is told, never asked (Nour 2026-11-06: no asking the manager to take the call)", () => {
+    const first = plan.transferAssistant?.firstMessage ?? "";
+    const ASKS = /\?|say yes|take it|want (it|this)|can you/i;
+    expect("Caller on the line for Nick's. Say yes to take it.").toMatch(ASKS); // positive control: the old line
+    expect(first).not.toMatch(ASKS);
+    const rules = plan.transferAssistant?.model?.messages?.[0]?.content ?? "";
+    // Any live person connects; only a machine, silence or an explicit "can't take it" cancels.
+    expect(rules).toMatch(/live person[^.]*transferSuccessful immediately/i);
+    expect(rules).not.toMatch(/anything that is not a no/i);
+  });
+
   it("the caller hears ringback, not hold music", () => {
     expect(plan.holdAudioUrl).toMatch(/\/ringback\.wav$/);
   });

@@ -725,7 +725,7 @@ export const voiceAgentRouter = router({
         const { textOnDutyManager } = await import("../services/eventBus");
         const sent = await textOnDutyManager(`⚠️ COMPLAINT (follow-up call)\n${name} — ${phone || "no number"}\n${input.reason.slice(0, 200)}`);
         if (sent.status === "sent" || sent.status === "pending") return { status: "delivered" };
-        log.warn("escalate → complaint text did not go out", { callId: input.callId, status: sent.status, reason: sent.reason });
+        log.error("escalate → complaint text did not go out", { callId: input.callId, status: sent.status, reason: sent.reason });
         return { status: "failed" };
       };
       let reached = false;
@@ -735,7 +735,7 @@ export const voiceAgentRouter = router({
           : await sendComplaint();
         reached = res === null || res.status !== "failed"; // null: an earlier escalate on this call already sent it
       } catch (e) {
-        log.warn("escalate → complaint text to the manager failed", { callId: input.callId, err: e instanceof Error ? e.message : String(e) });
+        log.error("escalate → complaint text to the manager failed", { callId: input.callId, err: e instanceof Error ? e.message : String(e) });
       }
       const tail = "Never promise a callback or a time. Tell them to bring it by any open day and the counter will take a look (first come, first served): " + spokenShopDirections();
       return {

@@ -602,11 +602,11 @@ interface VapiTransferPlan {
 // live experimental plan; the number, mode, plan message, sipVerb and dialTimeout
 // stay operator-owned. Runbook: docs/runbooks/vapi-warm-transfer-fallback.md.
 const CODE_OWNED_TRANSFER_FIELDS = {
-  // The counter hears ONE sentence and accepts (manager ruling R2). Vapi gives no
-  // way to bridge before a person answers: the docs tie transferSuccessful to a
-  // live operator accepting.
+  // The counter hears ONE announcement and is never asked (Nour, 2026-11-06: no
+  // asking the manager whether to take the call). Vapi gives no way to bridge
+  // before a person answers, so the transfer assistant connects on any live voice.
   transferAssistant: {
-    firstMessage: "Caller on the line for Nick's. Say yes to take it.",
+    firstMessage: "Nick's customer on the line. Connecting you now.",
     firstMessageMode: "assistant-speaks-first",
     // Bounded so a caller is never parked: a counter that goes quiet is cancelled
     // in 10 s, and the whole hand-off cannot outlast 45 s.
@@ -617,7 +617,7 @@ const CODE_OWNED_TRANSFER_FIELDS = {
       model: "gpt-4o",
       messages: [{
         role: "system",
-        content: "You hand a waiting caller to the front counter at Nick's Tire & Auto. You already said your one line; never speak again. A live person answering with anything that is not a no (yes, yeah, ok, sure, go ahead, put them through, hello, Nick's) -> call transferSuccessful immediately. Call transferCancel for voicemail, a recorded greeting, an automated menu or hold message, a busy tone, silence, or a person who says no or can't take it.",
+        content: "You hand a waiting caller to the front counter at Nick's Tire & Auto. You already said your one line; never speak again and never ask anything. Any live person speaking (hello, Nick's, yeah, what's up, anything) -> call transferSuccessful immediately. Call transferCancel only for voicemail, a recorded greeting, an automated menu or hold message, a busy tone, silence, or a person who says outright they can't take a call right now.",
       }],
     },
   },
