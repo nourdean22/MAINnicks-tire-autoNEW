@@ -697,11 +697,33 @@ export const voiceAgentRouter = router({
       callerNumber: z.string().max(30).optional(),
       /** Accepted from older live tool configs; unused since 2026-11-06 (no callbacks). */
       bestTime: z.string().max(120).optional(),
+      /** Set by the webhook from Vapi's call type (outboundPhoneCall), never by the model. */
+      outbound: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      await noteOnCallTrail(input.callId, "escalate", { urgency: input.urgency, reason: input.reason.slice(0, 200) });
-      log.info("Voice agent escalate noted, no callback made", { urgency: input.urgency });
-      return { success: true, callback: false, message: noCallbackGuidance() };
+      await noteOnCallTrail(input.callId, "escalate", { urgency: input.urgency, reason: input.reason.slice(0, 200), outbound: input.outbound === true });
+      log.info("Voice agent escalate noted, no callback made", { urgency: input.urgency, outbound: input.outbound === true });
+      if (!input.outbound) return { success: true, callback: false, message: noCallbackGuidance() };
+      // The outbound follow-up caller escalates only a complaint (Nour, 2026-11-06: a
+      // complaint still texts the manager). Once per call through the persisted claim
+      // the old callback alert used; still no callback row and no promise.
+      const sendComplaint = async (): Promise<TelegramSendResult> => {
+        const phone = pickArrivalPhone(undefined, input.callerNumber).replace(/\D/g, "").slice(-10);
+        const name = (await resolveCallerName(input.name, input.callerNumber)) ?? "Customer";
+        const { emit } = await import("../services/eventBus");
+        await emit.callbackRequested({ id: null, name, phone, reason: `COMPLAINT (follow-up call): ${input.reason}` });
+        return { status: "delivered" };
+      };
+      (input.callId
+        ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-complaint:${input.callId}`, sendComplaint))
+        : sendComplaint()
+      ).catch((e) => log.warn("escalate → complaint text to the manager failed", { err: e instanceof Error ? e.message : String(e) }));
+      return {
+        success: true,
+        callback: false,
+        message: "A note about this complaint went to the shop manager. Never promise a callback or a time. "
+          + "Tell them to bring it by any open day and the counter will look at it first thing: " + spokenShopDirections(),
+      };
     }),
 
   /**

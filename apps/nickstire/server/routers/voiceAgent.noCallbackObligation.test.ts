@@ -173,3 +173,17 @@ describe("scheduleCallback makes no callback obligation", () => {
     expect(h.callbackRequested).not.toHaveBeenCalled();
   });
 });
+
+describe("a complaint on an outbound follow-up call texts the on-duty manager (Nour 2026-11-06: \"yes\")", () => {
+  it("outbound escalate sends ONE manager text per call, with no callback row and no promise", async () => {
+    const c = await caller();
+    await c.escalate({ reason: "Post-repair complaint: brakes squeal", urgency: "high", callerNumber: CALLER, callId: "call_o1", outbound: true });
+    await c.escalate({ reason: "Post-repair complaint: brakes squeal", urgency: "high", callerNumber: CALLER, callId: "call_o1", outbound: true });
+    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(h.callbackRequested).toHaveBeenCalledTimes(1);
+    expect(String((h.callbackRequested.mock.calls[0][0] as { reason: string }).reason)).toMatch(/^COMPLAINT \(follow-up call\): Post-repair complaint: brakes squeal/);
+    expect(h.rows).toHaveLength(0);
+    expect(h.promises).toHaveLength(0);
+  });
+});

@@ -99,3 +99,20 @@ describe("escalate receives the connected caller ID", () => {
     expect(h.calls[0].args.callerNumber).toBe("+12165550123");
   });
 });
+
+describe("escalate learns the call direction from Vapi, never from the model (2026-11-06)", () => {
+  const withType = (args: Record<string, unknown>, type?: string) => {
+    const ev = toolCall("escalate", args, "+12165550123");
+    return { ...ev, call: { ...ev.call, ...(type ? { type } : {}) } };
+  };
+
+  it("an outbound call's escalate carries outbound: true", async () => {
+    await postEvent(withType({ reason: "Post-repair complaint: squeal" }, "outboundPhoneCall"));
+    expect(h.calls[0].args.outbound).toBe(true);
+  });
+
+  it("an inbound call's escalate never carries it, even if the model sends it (positive control)", async () => {
+    await postEvent(withType({ reason: "x", outbound: true }, "inboundPhoneCall"));
+    expect(h.calls[0].args.outbound).toBeUndefined();
+  });
+});
