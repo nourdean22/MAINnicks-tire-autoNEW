@@ -1,0 +1,4 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["tools/sovereign-dev/AI-PLAYGROUND-INSTRUCTIONS.md"]
+}
