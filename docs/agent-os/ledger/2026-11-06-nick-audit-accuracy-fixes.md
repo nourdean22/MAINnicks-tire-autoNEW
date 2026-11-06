@@ -4,4 +4,4 @@
 
 | Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
 |---|---|---|---|---|---|---|---|
-| 2026-11-06-nick-audit-accuracy-fixes | see PR | verdict table sent before code | 6 of 6 new tests red on unfixed code (isolation 2f/1p, bridge sender 1f/5p, toolHealth 1f/2p, probe reason 1f/1p, pulse window 1f/0p, wisdom origin 1f/7p) | 6 killed / 6 tried (each fix reverted = the recorded red) | start ~18:20Z, merge: see PR | 0 | vitest runs 2026-11-06 ~23:30-23:55Z |
+| 2026-11-06-nick-audit-accuracy-fixes | see PR | verdict table sent before code | 6 of 6 new tests red on unfixed code (isolation 2f/1p, bridge sender 1f/5p, toolHealth 1f/2p, probe reason 1f/1p, pulse window 1f/0p, wisdom origin 1f/7p) | 6 killed / 6 tried (each fix reverted = the recorded red) | start ~18:20Z, merge: see PR | 0 | vitest runs 2026-11-06 ~18:30-19:30Z |
