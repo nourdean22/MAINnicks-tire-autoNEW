@@ -135,8 +135,9 @@ export const metaTools = {
         // NICKS_ADMIN_URL + BRIDGE_API_KEY. So toolHealth would
         // report bridge=ok while every bridge tool was returning
         // { error: "Bridge not configured" } silently.
-        const envChecks = {
-          anthropic: { present: !!process.env.ANTHROPIC_API_KEY, var: "ANTHROPIC_API_KEY" },
+        const envChecks: Record<string, { present: boolean; var: string; optional?: true }> = {
+          // A fallback provider, unset by design (DEPLOY.md, chat/route.ts): "not configured", never "missing".
+          anthropic: { present: !!process.env.ANTHROPIC_API_KEY, var: "ANTHROPIC_API_KEY", optional: true },
           telegram: { present: !!process.env.TELEGRAM_BOT_TOKEN, var: "TELEGRAM_BOT_TOKEN" },
           github: { present: !!process.env.GITHUB_TOKEN, var: "GITHUB_TOKEN" },
           google: { present: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY, var: "GOOGLE_SERVICE_ACCOUNT_KEY" },
@@ -151,7 +152,8 @@ export const metaTools = {
           },
         };
 
-        const missing = Object.entries(envChecks).filter(([, v]) => !v.present).map(([k]) => k);
+        const missing = Object.entries(envChecks).filter(([, v]) => !v.present && !v.optional).map(([k]) => k);
+        const notConfigured = Object.entries(envChecks).filter(([, v]) => !v.present && v.optional).map(([k]) => k);
         const present = Object.entries(envChecks).filter(([, v]) => v.present).map(([k]) => k);
 
         // v10.0.179 · derive count from the catalog instead of
@@ -166,6 +168,7 @@ export const metaTools = {
           services: {
             operational: present,
             missing,
+            notConfigured,
           },
           toolCount: TOOL_CATALOG.length,
           recommendation: missing.length > 0
