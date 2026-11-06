@@ -122,7 +122,10 @@ describe("writeOperatorWisdom: admitted as derived, embedded before the old set 
 
   it("goes through admission as a derived memory with its brain lineage, then keeps, embeds, and only then retires", async () => {
     const { deps, calls } = fakeDeps();
-    const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "minimax-m3" });
+    const rows = operatorWisdomRows([insight]);
+    const out = await writeOperatorWisdom(rows, { ...deps, memoryIds, modelId: "minimax-m3" });
+    // retire keeps THIS set: an empty keep-list would soft-delete every derived row, the new ones included (reader P1, PR 3562).
+    expect(deps.retire).toHaveBeenCalledWith([rows[0].key]);
     expect(deps.admit).toHaveBeenCalledWith(expect.objectContaining({
       category: "wisdom",
       source: "pack:nour-brain-derived",

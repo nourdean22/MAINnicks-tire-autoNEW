@@ -4,8 +4,8 @@
  * 2026-11-06 audit: bdnick held 94 tasks titled "[Nick's Tire] Send, edit, or discard win-back draft
  * #4242" (77 soft-deleted, 16 open, 1 done). 4242 is the mocked draft id in
  * bridgeSmsCampaignDraft.test.ts; that test drives the real bridge route, which calls
- * escalateToOwner with the real fetch, and apps/nickstire/.env (copied into every worktree) and
- * railway run carry STATENOUR_SYNC_KEY. The fix is vitest.config.ts `test.env`, same as Telegram
+ * escalateToOwner with the real fetch, and a run under `railway run` (or any shell with the key
+ * exported) carries STATENOUR_SYNC_KEY; vitest itself does not load .env. The fix is vitest.config.ts `test.env`, same as Telegram
  * (telegramTestIsolation.test.ts). The positive control proves the same path DOES post once the
  * test itself supplies a key, so a green "no post" is not a path that never ran.
  */
@@ -37,7 +37,14 @@ afterEach(() => {
 });
 
 describe("the vitest process carries no StateNour sync key", () => {
-  it("STATENOUR_SYNC_KEY is empty, whatever the parent shell or .env held", () => {
+  it("vitest.config.ts blanks STATENOUR_SYNC_KEY itself (fails in any shell, CI included, if the line is removed)", async () => {
+    // The process.env check below only goes red when the parent shell carries the key (railway run, an exported
+    // var); vitest does not load .env. This pins the config line, so the guard can fail where CI runs (reader P1, PR 3562).
+    const { default: config } = await import("../../vitest.config");
+    expect((config as { test?: { env?: Record<string, string> } }).test?.env?.STATENOUR_SYNC_KEY).toBe("");
+  });
+
+  it("STATENOUR_SYNC_KEY is empty in the test process, whatever the parent shell held", () => {
     expect(process.env.STATENOUR_SYNC_KEY ?? "").toBe("");
   });
 
