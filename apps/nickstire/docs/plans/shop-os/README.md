@@ -35,6 +35,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [19-CRM-BUILD-PROMPT](19-CRM-BUILD-PROMPT.md) | copy-ready lead prompt for the future plan/build session |
 | [20-SUPPLIER-INTEGRATION-START](20-SUPPLIER-INTEGRATION-START.md) | provider-by-provider start for AutoZone Pro, Parts Authority/IMC, and existing D&K/Gateway Tire; evidence, REA status, PartsTech terms, and vendor gates |
 | [21-ALG-UX-AUDIT](21-ALG-UX-AUDIT.md) | full ALG screen-by-screen UX audit (Nour's own Real-Time Pro login, 2026-11-06): nav, ticket wizard, package jobs, 14-template reminder library, real vendor/markup list, 3-role access + per-seat pricing, no-scheduling gap, what it changes elsewhere in the plan |
+| [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) | full Gateway Tire/D&K B2B portal UX audit (Nour's own account, 2026-11-06): tires/supplies/wheels catalogs, 28-field tire spec schema, the shop's own 100%-markup rule explaining the 2.00x cost-to-retail pattern, Quote List, an unused built-in Bay Manager scheduling board, order history, and what it means for nickstire.org's tire page and ordering widget |
 
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
@@ -46,6 +47,13 @@ A full ALG reverse-engineering pass (Nour's own Real-Time Pro login, 2026-11-06,
 "ALG/ShopDriver Elite" to "ALG (Real-Time Pro, by Dowell Systems)" - a different, lower tier than ShopDriver
 Elite - and confirms real vendor names/markup model, a 14-template reminder library, package jobs, $35/mo
 1-seat pricing with no MFA, and no reachable scheduling board anywhere in the product on this tier.
+
+A full Gateway Tire/D&K B2B portal pass (Nour's own account, 2026-11-06, read-only) is now in
+[22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md). It confirms D&K = Dunlap & Kyle Company Inc., explains the
+2.00x cost-to-retail pattern as the shop's own 100%-markup rule (not a Gateway default) still labeled with the
+stale "Moe's Tire" name, finds a Quote List safe-quote flow and an unused built-in Bay Manager scheduling board,
+and captures the 28-field tire spec schema, Local/Regional stock split, and delivery-cutoff banner that feed
+nickstire.org's tire page and ordering widget.
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).
