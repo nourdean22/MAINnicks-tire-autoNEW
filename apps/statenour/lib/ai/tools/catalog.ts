@@ -338,6 +338,9 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getTopDecisions",              category: "business_read",  battle: true,  cost: "cheap",  riskClass: "low" },
   { name: "getFleetTruth",                category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
   { name: "getHarnessStatus",             category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
+  // Harness control (2026-11-06): queues one allowlisted, read-only check on a PC. sideEffecting so strict mode asks first.
+  { name: "runHarnessAction",             category: "ai_analysis",         sideEffecting: true, cost: "cheap", riskClass: "medium" },
+  { name: "getHarnessActionResult",       category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
   { name: "fetchVideoTranscript",         category: "research",       battle: true,  cost: "cheap",  riskClass: "low" },
   // 2026-08-13 · BDN-201/207 · mid-turn recovery lane + read-only sandbox.
   // invokeTool proxies READ-SAFE tools only (fail-closed via

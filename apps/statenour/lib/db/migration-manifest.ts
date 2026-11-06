@@ -85,4 +85,5 @@ export const REPO_MIGRATIONS: readonly string[] = [
   "20261029180000_task_notes_attachments",
   "20261102200000_brain_dump_person_ids",
   "20261103130000_reflection_person_ids",
+  "20261106180000_harness_actions",
 ];

@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Written for THIS diff (PR 3563, job 2026-11-06-harness-control-nick-node); live walkthrough deferred until Nour's four steps after merge (apply migration 20261106180000_harness_actions, set HARNESS_CONTROL_KEY on statenour-web, write NATTYNOUR's harness config, register NOURCITY-Harness-Poll). What he sees then: (1) bdnick /system > Harness: a Nick row ('Agent on bdnick · <commit> · PCs can take actions', or UNKNOWN with last-seen when the 15-minute sentinel tick stops) and a Recent actions list (action on PC · who asked · time, state done/findings/failed/expired/lost with exit code; 'Recent actions unknown. Harness control is not migrated yet.' before the migration, never 'none'). (2) nickstire /admin > Settings > Status > Harness card: the same Nick row, no buttons. (3) bdnick chat: 'run pc status on my laptop' shows the 'Asking a PC' tool card, then 'Reading the PC's answer' with state and exit code. Proven offline by renderToStaticMarkup tests (tests/components/harness-panel.test.tsx, apps/nickstire/client/src/__tests__/harness-card.test.tsx) and the reach tests in tests/ai/harness-tool-reachability.test.ts."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No docs/operations/capability-ledger.json row exists for the harness (the 2026-11-05 snapshot lane PR 3546 shipped without one) and that file is nickstire-owned, outside this lane's paths. The control channel is BUILT + UNWIRED in production until Nour's steps: no HARNESS_CONTROL_KEY, no harness_actions table, no poll task on any PC, so every door refuses and Nick declines to queue. A ledger row belongs in the follow-up that records the first live round trip on NATTYNOUR."
+    }
+  }
+}

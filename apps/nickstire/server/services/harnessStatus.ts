@@ -43,6 +43,14 @@ export interface HarnessStatus {
     unread: Record<string, string>;
   };
   sites: Record<"bdnick" | "nickstire", { commit: string; asOf: string } | null>;
+  /** Nick, the agent on bdnick, as a harness node. Absent from a bdnick deploy older than 2026-11-06. */
+  nick?: {
+    state: "reporting" | "unknown";
+    lastSeenAt: string | null;
+    reason: string | null;
+    version: string | null;
+    controlKeyReady: boolean | null;
+  };
 }
 
 export async function readHarnessFromBdnick(): Promise<HarnessStatus> {

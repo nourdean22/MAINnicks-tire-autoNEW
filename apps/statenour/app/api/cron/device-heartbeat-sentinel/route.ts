@@ -299,4 +299,24 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   };
 }
 
-export const GET = cronHandler(async () => runHeartbeatSentinel());
+// Nick's harness node rides this tick (job 2026-11-06-harness-control-nick-node): already the 15-minute
+// Neon-waking cadence, so a second waker is never added. Its own failure never fails the sentinel, and a
+// sentinel failure never skips Nick's stamp (that would read Nick as silent while he is up).
+export const GET = cronHandler(async () => {
+  let result: Awaited<ReturnType<typeof runHeartbeatSentinel>> | undefined;
+  let sentinelError: unknown;
+  try {
+    result = await runHeartbeatSentinel();
+  } catch (err) {
+    sentinelError = err;
+  }
+  let nickHarness: string;
+  try {
+    const { heartbeatNick } = await import("@/lib/services/harness-control");
+    nickHarness = await heartbeatNick();
+  } catch (err) {
+    nickHarness = `failed: ${(err as Error)?.message?.slice(0, 120) ?? "unknown"}`;
+  }
+  if (sentinelError) throw sentinelError;
+  return { ...result, nickHarness };
+});

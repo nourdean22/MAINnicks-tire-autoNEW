@@ -51,7 +51,8 @@ const STRICT = process.argv.includes("--strict");
 const AUTH_SIGNAL = new RegExp(
   [
     // explicit guards
-    "require(Session|CronAuth|SyncAuth|BridgeAuth|DeviceAgentAuth)",
+    // HarnessControl: the harness control doors' scoped key (lib/services/harness-control.ts, 2026-11-06).
+    "require(Session|CronAuth|SyncAuth|BridgeAuth|DeviceAgentAuth|HarnessControl)",
     // wrapper-style handlers that carry their own guard
     "(cron|sync|bridge|evidence)Handler",
     // assert-style guards (runner, bridge, mcp)

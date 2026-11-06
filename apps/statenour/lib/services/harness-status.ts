@@ -4,7 +4,9 @@
  * especially the chat and the admin connnected to the herness".
  *
  * Read-only by construction. Each PC pushes a snapshot (scripts/agent-os/harness-snapshot.mjs) and
- * nothing here can reach a PC: there is no command path, no queue, no reply field.
+ * nothing here can reach a PC: the snapshot door has no command path and no reply field. The separate
+ * control channel (lib/services/harness-control.ts, its own key and table) is only READ here: Nick's
+ * node row and the last few allowlisted actions, so the card shows what agents asked the PCs to do.
  *
  * Storage is RunnerNode (nodeKey `harness:<pc>`, snapshot in metadata), so no table and no migration.
  * lastHeartbeatAt is stamped by this server, so a PC with a wrong clock cannot read as fresh.
@@ -14,6 +16,7 @@
  * on its own (the Prometheus Pushgateway page warns of exactly this), so the reader must age it.
  */
 import { z } from "zod";
+import type { HarnessActionView } from "@/lib/services/harness-control";
 
 export const HARNESS_PCS = [
   { key: "nattynour", label: "NattyNour" },
@@ -30,6 +33,22 @@ const NODE_PREFIX = "harness:";
 export const NOT_HARNESS_NODE = { nodeKey: { not: { startsWith: NODE_PREFIX } } };
 export const harnessNodeKey = (pc: HarnessPcKey) => `${NODE_PREFIX}${pc}`;
 export const harnessPcLabel = (pc: HarnessPcKey) => HARNESS_PCS.find((p) => p.key === pc)!.label;
+
+/** Nick, the agent on bdnick, as a harness node: stamped by the 15-minute device sentinel tick. */
+export const NICK_NODE_KEY = `${NODE_PREFIX}nick`;
+/** Three missed 15-minute ticks. */
+export const NICK_STALE_MS = 45 * 60_000;
+export type HarnessAgentView = {
+  key: "nick";
+  label: "Nick";
+  state: "reporting" | "unknown";
+  lastSeenAt: string | null;
+  reason: string | null;
+  /** The deploy commit Nick runs. */
+  version: string | null;
+  /** Whether bdnick holds a usable HARNESS_CONTROL_KEY, so PCs can claim what Nick queues. Null = not reported. */
+  controlKeyReady: boolean | null;
+};
 
 /** The repo is public and the PCs are named by role only: no paths, no addresses, whatever the field. */
 const LOCAL_DETAIL = /[A-Za-z]:[\\/]|\\Users\\|\/(?:home|Users)\/|\b\d{1,3}(?:\.\d{1,3}){3}\b/;
@@ -85,7 +104,7 @@ export const harnessSnapshotSchema = z
   .strict();
 export type HarnessSnapshot = z.infer<typeof harnessSnapshotSchema>;
 
-export type HarnessRow = { nodeKey: string; lastHeartbeatAt: Date | null; metadata: unknown };
+export type HarnessRow = { nodeKey: string; lastHeartbeatAt: Date | null; metadata: unknown; version?: string | null };
 
 export type HarnessPcView = {
   key: HarnessPcKey;
@@ -125,7 +144,28 @@ export type HarnessStatus = {
   graphReason: string | null;
   vault: HarnessVaultDb & { graph: HarnessSnapshot["vaultGraph"] };
   sites: Record<"bdnick" | "nickstire", { commit: string; asOf: string } | null>;
+  nick: HarnessAgentView;
+  /** The newest allowlisted actions, newest first. Null when they could not be read; see actionsReason. */
+  actions: HarnessActionView[] | null;
+  actionsReason: string | null;
 };
+
+export type HarnessActionsRead = { items: HarnessActionView[] } | { items: null; reason: string };
+const ACTIONS_UNREAD: HarnessActionsRead = { items: null, reason: "The action list was not read" };
+
+/** Pure: Nick's node row aged by the server clock, like a PC's. */
+export function nickViewFromRow(row: HarnessRow | undefined, now: Date): HarnessAgentView {
+  const base = { key: "nick" as const, label: "Nick" as const, version: row?.version ?? null, controlKeyReady: null };
+  const seenAt = row?.lastHeartbeatAt ?? null;
+  if (!seenAt) return { ...base, state: "unknown", lastSeenAt: null, reason: "Never reported" };
+  const ageMs = now.getTime() - seenAt.getTime();
+  const agent = (row?.metadata as { harnessAgent?: { controlKeyReady?: unknown } } | null)?.harnessAgent;
+  const controlKeyReady = typeof agent?.controlKeyReady === "boolean" ? agent.controlKeyReady : null;
+  if (ageMs > NICK_STALE_MS) {
+    return { ...base, controlKeyReady, state: "unknown", lastSeenAt: seenAt.toISOString(), reason: `Silent ${Math.floor(ageMs / 60_000)} min` };
+  }
+  return { ...base, controlKeyReady, state: "reporting", lastSeenAt: seenAt.toISOString(), reason: null };
+}
 
 const unknownPc = (key: HarnessPcKey, lastSeenAt: string | null, reason: string): HarnessPcView => ({
   key,
@@ -144,7 +184,12 @@ const unknownPc = (key: HarnessPcKey, lastSeenAt: string | null, reason: string)
 });
 
 /** Pure, so the stale and failed-read rules are pinned without a database. */
-export function harnessStatusFromRows(rows: HarnessRow[], now: Date = new Date(), vaultDb: HarnessVaultDb = VAULT_UNREAD): HarnessStatus {
+export function harnessStatusFromRows(
+  rows: HarnessRow[],
+  now: Date = new Date(),
+  vaultDb: HarnessVaultDb = VAULT_UNREAD,
+  actions: HarnessActionsRead = ACTIONS_UNREAD,
+): HarnessStatus {
   const fresh: Array<{ label: string; seenAt: Date; snapshot: HarnessSnapshot }> = [];
 
   const pcs = HARNESS_PCS.map(({ key, label }): HarnessPcView => {
@@ -198,6 +243,9 @@ export function harnessStatusFromRows(rows: HarnessRow[], now: Date = new Date()
     graphReason: graphFrom ? null : "No reporting PC has the code graph",
     vault: { ...vaultDb, graph: fresh.find((f) => f.snapshot.vaultGraph !== null)?.snapshot.vaultGraph ?? null },
     sites: { bdnick: site("bdnick"), nickstire: site("nickstire") },
+    nick: nickViewFromRow(rows.find((r) => r.nodeKey === NICK_NODE_KEY), now),
+    actions: actions.items,
+    actionsReason: actions.items ? null : actions.reason,
   };
 }
 
@@ -205,10 +253,25 @@ export function harnessStatusFromRows(rows: HarnessRow[], now: Date = new Date()
 export async function readHarnessStatus(): Promise<HarnessStatus> {
   const { prisma } = await import("@/lib/prisma");
   const rows = await prisma.runnerNode.findMany({
-    where: { nodeKey: { in: HARNESS_PCS.map((p) => harnessNodeKey(p.key)) } },
-    select: { nodeKey: true, lastHeartbeatAt: true, metadata: true },
+    where: { nodeKey: { in: [...HARNESS_PCS.map((p) => harnessNodeKey(p.key)), NICK_NODE_KEY] } },
+    select: { nodeKey: true, lastHeartbeatAt: true, metadata: true, version: true },
   });
-  return harnessStatusFromRows(rows, new Date(), await readVaultDb());
+  return harnessStatusFromRows(rows, new Date(), await readVaultDb(), await readActions());
+}
+
+/** Its own failure, its own reason: a missing table or a failed read never costs the PC rows. */
+async function readActions(): Promise<HarnessActionsRead> {
+  try {
+    const { listRecentHarnessActions } = await import("@/lib/services/harness-control");
+    return { items: await listRecentHarnessActions(8) };
+  } catch (err) {
+    const status = (err as { status?: number } | null)?.status;
+    if (status !== 503) {
+      const { logger } = await import("@/lib/logger");
+      logger.withSurface("services/harness-status").warn("harness_actions_read_failed", { error: (err as Error)?.message?.slice(0, 200) });
+    }
+    return { items: null, reason: status === 503 ? "Harness control is not migrated yet" : "The action list could not be read" };
+  }
 }
 
 /** Each read stands alone: one failing leaves that field unknown and the rest of the card intact. */

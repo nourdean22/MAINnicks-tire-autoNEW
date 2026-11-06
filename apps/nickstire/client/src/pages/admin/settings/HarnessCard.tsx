@@ -2,7 +2,8 @@
  * HarnessCard: the three PCs, open PRs and what each site runs, on Settings > Status
  * (job 2026-11-05-harness-apps-connect).
  *
- * Read-only: this card has no action, and nothing behind it can reach a PC. A PC that stopped
+ * This card has no action. Nick (the agent on bdnick) shows as a node of his own; agents can ask a PC
+ * for allowlisted read-only checks through bdnick, never from here. A PC or Nick that stopped
  * reporting reads UNKNOWN with its last-seen time. A null reading says unknown, never zero.
  */
 import { Activity } from "lucide-react";
@@ -89,6 +90,35 @@ export default function HarnessCard() {
               </li>
             ),
           )}
+          {!status.nick ? (
+            <li className="flex flex-col gap-0.5">
+              <span className="text-[13px] font-medium text-foreground">Nick</span>
+              <span className="text-[12px] text-amber-400">Unknown: this bdnick deploy does not report Nick yet.</span>
+            </li>
+          ) : status.nick.state === "unknown" ? (
+            <li className="flex flex-col gap-0.5">
+              <span className="flex items-baseline gap-2">
+                <span className="text-[13px] font-medium text-foreground">Nick</span>
+                <span className="text-[11px] font-semibold text-amber-400">UNKNOWN</span>
+              </span>
+              <span className="text-[12px] text-foreground/60">
+                {status.nick.lastSeenAt ? `Last seen ${lastSeen(status.nick.lastSeenAt)}. ` : ""}
+                {status.nick.reason}
+              </span>
+            </li>
+          ) : (
+            <li className="flex flex-col gap-0.5">
+              <span className="text-[13px] font-medium text-foreground">Nick</span>
+              <span className="text-[12px] text-foreground/60">
+                Agent on bdnick · {short(status.nick.version)} ·{" "}
+                {status.nick.controlKeyReady === null
+                  ? "control key not reported"
+                  : status.nick.controlKeyReady
+                    ? "PCs can take actions"
+                    : "control key not set"}
+              </span>
+            </li>
+          )}
         </ul>
         <p className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-foreground/60">
           <span>bdnick {short(status.sites.bdnick?.commit)}</span>
@@ -129,7 +159,7 @@ export default function HarnessCard() {
             ))}
           </ul>
         )}
-        <p className="text-[11px] text-foreground/50">Read-only. Nothing here can merge, restart or run anything.</p>
+        <p className="text-[11px] text-foreground/50">This card has no buttons. Agents can only ask a PC for allowlisted read-only checks, through bdnick.</p>
       </div>
     </Panel>
   );
