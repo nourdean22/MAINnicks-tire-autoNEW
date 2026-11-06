@@ -52,8 +52,11 @@ activity log; 1% electronic-order earn-back.
 asks only the missing attributes (single-option fields pre-selected); a **conditional fit badge** ("fits only if
 Position Front"); a **named delivery date plus an "order within" countdown** per offer, different by membership;
 a "Get It by Tomorrow" facet; seller and shipper as separate fields; new and used offers side by side; a
-**return-by date** on the offer; low-stock text. Fitment filtering is opt-in and sponsored items ignore it. Account
-features (Amazon Business pricing, approvals, invoices) UNKNOWN until a signed-in pass.
+**return-by date** on the offer; low-stock text. Fitment filtering is opt-in and sponsored items ignore it.
+Signed in (Amazon Business): checkout PO/order fields that **print on the box label and packing slip**, per-line
+"Mark as received" and an optional 3-way-match receiving module, an Ohio **reseller** tax exemption applied
+account-wide, punchout and e-invoicing options, order search by PO number, "Overnight by 6:00 AM" and one-day
+promises. Nour already buys vehicle-specific small parts, tools and shop consumables there several times a week.
 
 ## 2. Supplier offer: fields to add to 18's contract
 
@@ -82,6 +85,7 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `fitConfidence: confirmed / conditional / not_confirmed` with `fitConditions[]` (e.g. position front) | 29 "fits only if following criteria are met: Position Front"; 29 sponsored misfit | A conditional fit shows its condition; a not-confirmed fit is never the default pick (rows 52, 56) |
 | `arrival.range {from, to}` and `arrival.byMembership[]` | 29 "FREE delivery Nov 10 - 12"; Prime vs non-Prime dates | Rank on the latest date of the range; use the date for the shop's actual membership (row 54) |
 | `returnBy: date` per order line; `soldBy`, `shipsFrom`, `condition: new / reman / used`; `restocking` | 29 buy box and results | Returns queue warns before expiry; used safety parts hidden by default (rows 57-59) |
+| Supplier order line adds `purchaseUse: resale / shop_use / non_shop`, `shipTo: shop / other`, `poText` (ticket # + vehicle), `receivedAt` | 29 section 5 (reseller exemption on all purchases; mixed ship-to; PO printed on the box; Mark as received) | Ticket-attached lines default to resale + shop; shop-use totals reported monthly; `receivedAt` feeds measured run times (rows 61-64) |
 
 **Delivery reality (Nour, 2026-11-06):** the route suppliers "are all usually about 30 min to an hour unless held
 up", but "the availability is what differs a lot of the time". So for local route deliveries the run time is
@@ -177,6 +181,7 @@ is still open is **which locations each account can actually order from and how 
 Until answered, those suppliers compete on price only and show "ETA unknown - call".
 - Parts Authority: drive time from branch 29 to the shop after "My Branch Departure", how Saturday delivery and
   DoorDash are chosen, and whether IMC will enable the Mitchell 1/ALLDATA-style punchout for Shop OS. (27)
-- Amazon: ETA is shown (date + countdown) but the earliest seen was next day with Prime; whether Nour has Amazon
-  Business and what it changes is UNKNOWN. Treat as `ship` with a named date; never a Quickest Arrival winner for
-  a car on a lift. (29)
+- Amazon: ETA is shown (date + countdown); earliest for parts seen was overnight by 6 AM / next day, no same-day
+  automotive. Nour has Amazon Business. Open: whether Shop OS can be the punchout "purchasing system" or use an
+  ordering/reconciliation API. Treat as `ship`; it competes for next-morning jobs and parts no jobber has, never
+  for a car on a lift. (29)

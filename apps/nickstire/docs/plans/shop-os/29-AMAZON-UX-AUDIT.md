@@ -1,12 +1,11 @@
 # Shop OS 29: Amazon (automotive parts) UX audit (screen by screen)
 
-Job 2026-11-06-shop-os-amazon-ux-audit. Status: PARTIAL (public, signed-out pass). Read-only, on-screen
-navigation of amazon.com in Nour's browser, same pattern as 21-28. Nothing was added to a cart, bought, listed
-or reviewed. Amazon showed a bot check ("Continue shopping") and later a sign-in wall; Nour cleared both himself -
-nothing was bypassed and no sign-in was done for him. The page still said "Hello, sign in" at the end, so
-**every account-side feature (Amazon Business pricing, approvals, lists, orders, invoices, returns, tax
-exemption) is UNKNOWN** until a signed-in pass. Prices and stock counts are not recorded here (chat only),
-matching 27 and 28.
+Job 2026-11-06-shop-os-amazon-ux-audit. Status: COMPLETE (two passes). Read-only, on-screen navigation of
+amazon.com in Nour's browser, same pattern as 21-28. Pass 1 was public and signed out (sections 1-4). Pass 2
+was Nour's own **Amazon Business (Prime Business)** account after he signed in himself (section 5). Nothing was
+added to a cart, bought, listed, reviewed or saved; no setting was changed. Amazon showed a bot check and a
+sign-in wall in pass 1; Nour cleared both himself. Prices, order values, order numbers, addresses, users and
+account IDs are not recorded here (chat only), matching 27 and 28.
 
 Evidence tags: **OBSERVED**, **INFERRED**, **UNKNOWN**.
 
@@ -77,11 +76,57 @@ source seen for a car on a lift: the earliest promise was next day with Prime, a
 - "Report an issue with this product or seller" and "Would you like to tell us about a lower price?" links.
 - Reviews: star histogram visible; review text needs sign-in.
 
-## 5. What a shop gets that a consumer does not
+## 5. Signed-in pass: the Amazon Business account (OBSERVED)
 
-UNKNOWN in this pass (needs Nour signed in, ideally to an Amazon Business account): business pricing and
-quantity discounts, purchase approvals, multi-user accounts, PO fields, invoices and tax exemption, order and
-return history, and any API/punchout. Amazon Business is listed in the footer; nothing beyond that was observed.
+**Identity.** Prime Business account named "Moes Euclid Tire and Auto" (Moe's is a current trade name), one
+admin, business profile at the shop address. Orders show "Placed by" a person and "Paid by" the business.
+
+**Account menu.** Manage Your Business: Buying Policies & Approvals, Billing & Shipping, Users, Tax Exemption &
+licenses, System Integrations. Quick actions: Add Users, Manage Budgets, Set Spending Limits, **Track Receiving
+for 3WM**, Simplify Your Reporting. Your Account: Business Settings, Amazon Business Card, Business Analytics,
+Prime Business, Subscribe & Save, **Manage Quotes**, Switch Accounts. An "Amazon Business Assistant" AI chat
+opens on settings pages.
+
+**Business settings hub.** Billing & shipping (shared payment methods, addresses and delivery preferences,
+**Business order info**, Budgets/Blanket POs, **Receiving (3-Way Match)**, checkout defaults); User management
+(users, groups, account authority, enhanced security); Buying policies and approvals; Tax exemption and
+licenses; System integrations.
+
+**Business order info.** Up to 19 order fields (6 standard, 13 custom) shown to the buyer at checkout, as an open
+text field or a pick list, with optional guidance text. Amazon states the values appear on order details,
+Business Analytics reports and packing slips, and **the PO number is printed on carrier shipping labels and
+physical packing slips**. Current state: one field, "PO Number", on, open text, no guidance.
+
+**Receiving (3-Way Match).** "Track product receiving": mark individual items received / not received.
+Current state: **off**. Separately, every delivered order line already has a **"Mark as received"** button.
+
+**Tax exemption.** One exemption on file: type **Reseller**, jurisdiction **Ohio**, status VALID, applying to
+"Amazon & Participating Sellers". In one sampled order for a hand tool (not resold), "Estimated tax to be
+collected" was $0.00 - i.e. the reseller exemption was applied to a shop-use purchase.
+
+**System integrations.** Configure purchasing system (punchout from systems such as Coupa, SciQuest, Skyward),
+**E-Invoicing** ("transmitting invoices and line-item data to your systems"), domain verification, SSO,
+UNSPSC classification, SCIM user sync, App Center. None appeared configured. Whether Amazon Business offers an
+ordering/reconciliation API this account can use was not shown - UNKNOWN.
+
+**Orders.** Search by item, order **or PO number**; tabs Orders, Buy Again, Not Yet Shipped, Digital, Amazon
+Pay, Cancelled; filter by who paid (business or self); **View order reports**; per order: placed date, total,
+ship to, placed by, invoice; per line: return-by date ("Eligible through ..."), Track package, Print packing
+slip, Mark as received. The account places orders several times a week. What it buys (categories only):
+**vehicle-specific small parts** (connector pigtails, coolant hoses, latches, lamps, trim), **shop tools**,
+**shop consumables** (towels, receipt paper, tire-changer mount heads, paint markers), and some non-shop items.
+Ship-to alternates between the shop and a personal address, including for some vehicle parts.
+
+**Delivery, signed in, to the shop ZIP.** Same pads as section 4: "Prime Tomorrow ... Order within 6 hrs 10
+mins", "Shorter shipping distance". Buy Again items show "FREE One-Day" and **"Overnight by 6:00 AM"**. A
+Same-Day storefront offers "3 hour delivery" but only for household/office/grocery-type categories, and said
+"Delivery for today isn't available right now" at the time checked. No same-day automotive option was seen.
+
+**Fit.** The account's own garage vehicle (not a test vehicle) drove a red **"This does not fit"** badge on the
+CR-V pads - the negative fit state is shown as clearly as the positive one.
+
+**Pricing.** On the sampled pads the business price matched the signed-out price; a "Need more than N units?"
+quantity-quote link and a Quantity Discounts store exist.
 
 ## 6. What Shop OS takes (see 14-STOLEN-MECHANISMS rows 52-60)
 
@@ -91,6 +136,10 @@ return history, and any API/punchout. Amazon Business is listed in the footer; n
   `arrival` and `orderCutoff`.
 - Return-by **date** on every line, so returns are chased before they expire.
 - Seller and shipper as separate fields; new vs used/reman as a condition field.
+- The ticket number in the PO field, so it prints on the box and the packing slip (rows 61-62).
+- A received tap per line, which also feeds 26's measured delivery times.
+- Resale vs shop-use on every purchase line, because one Ohio reseller exemption covers everything bought on
+  the account (row 63).
 
 What Shop OS rejects: sponsored or unfitted items mixed into fitted results; repeated merchandising blocks;
 "frequently bought together" that is not job-aware (Shop OS uses job kits from 26 instead).
@@ -103,8 +152,12 @@ same-day run.
 
 ## 8. Open questions
 
-- Does Nour have, or want, an Amazon Business account? If yes, a signed-in pass for pricing, approvals, invoices,
-  returns and tax exemption.
-- Is Amazon a real third source for planned (next-day) jobs and shop supplies, or only a price reference? Shop OS
-  should treat it as `fulfillmentMode: ship` with a named date and never as a Quickest Arrival winner for a car
-  on a lift.
+- Answered: Nour has Amazon Business and uses it several times a week, including for vehicle-specific small
+  parts the jobbers apparently do not stock. Amazon is a real **availability** source (tier 3-4 in 26 section 2:
+  overnight/next day), not just a price reference; it is never a Quickest Arrival winner for a car on a lift.
+- Tax (for Nour's accountant, not legal advice): Ohio exempts items bought for resale and parts permanently
+  transferred to the customer; tools and consumables used by the shop are normally taxable, so if the reseller
+  exemption is applied to them, use tax is owed. Decide whether to scope the exemption or accrue use tax.
+- Integration: punchout and e-invoicing are offered; whether Shop OS can act as the "purchasing system" (cXML
+  punchout) and whether an ordering/reconciliation API is available to this account is UNKNOWN - ask Amazon
+  Business support or the App Center.
