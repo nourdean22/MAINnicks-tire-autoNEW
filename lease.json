@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/counter-offer-compare",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "manual-28760-1793999135842",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\counter-offer-compare",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-11-06T21:05:37.302Z",
+  "expiresAt": "2026-11-07T09:05:37.302Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
