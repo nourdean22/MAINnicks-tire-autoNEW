@@ -1,6 +1,6 @@
 # Nick's Shop OS: plan folder (nickstire.org/system)
 
-Job 2026-10-26-shop-os. Status: PLANNING, nothing built. Nour asked (2026-10-26) for his own shop system to replace
+Job 2026-10-26-shop-os. Status: PLANNING; new `/system` screens and supplier adapters are not built, while existing shop features remain reusable. Nour asked (2026-10-26) for his own shop system to replace
 ALG/ShopDriver Elite, with parts vendors, an AI copilot and everything done from the estimate and invoice screens, at
 nickstire.org/system. He approved approach A on 2026-10-26, then paused. ChatGPT and Perplexity each scored the v1
 plan 4/10 on 2026-10-27; after a deep-research round (v2: 6.5/10 and 7/10) and Nour's "more money, easier life" steer,
@@ -31,6 +31,21 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [15-GAPS](15-GAPS.md) | 27 gaps no plan file covers (his words, the shop's day, data, integrations, operations), top 10 by cost, 5 unrun research queries |
 | [16-AI-CONTROLS-CUSTOMER360](16-AI-CONTROLS-CUSTOMER360.md) | Claude/ChatGPT in the CRM over MCP, every owner setting in /system, what a customer profile may lawfully hold |
 | [17-ALG-LEDGER-STUDY](17-ALG-LEDGER-STUDY.md) | every mirrored ALG ticket and estimate: how, why, what, who, when; ten execution rules; five blind spots (figures private) |
+| [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md) | supplier comparisons, authorized portal handoffs, PC readiness, local-AI evaluation, offline boundary, and detailed flows |
+| [19-CRM-BUILD-PROMPT](19-CRM-BUILD-PROMPT.md) | copy-ready lead prompt for the future plan/build session |
+| [20-SUPPLIER-INTEGRATION-START](20-SUPPLIER-INTEGRATION-START.md) | provider-by-provider start for AutoZone Pro, Parts Authority/IMC, and existing D&K/Gateway Tire; evidence, REA status, PartsTech terms, and vendor gates |
+| [21-ALG-UX-AUDIT](21-ALG-UX-AUDIT.md) | full ALG screen-by-screen UX audit (Nour's own Real-Time Pro login, 2026-11-06): nav, ticket wizard, package jobs, 14-template reminder library, real vendor/markup list, 3-role access + per-seat pricing, no-scheduling gap, what it changes elsewhere in the plan |
+
+The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
+
+## Current status update (2026-11-06)
+The new Shop OS remains planning work. Source search found no /system product routes in the nickstire client. Current D&K tire search/order code and existing customer/estimate tools are reuse candidates, not proof that the new screens or supplier adapters exist. The front-desk local-model handoff has no completion receipt in the reviewed memory; re-check before installation. The updated design is in [18](18-SUPPLIER-DESKTOP-OFFLINE-AI.md); the build sequence is in [the implementation plan](../../../../../docs/superpowers/plans/2026-11-06-shop-os-sourcing-desktop-offline-ai.md).
+
+A full ALG reverse-engineering pass (Nour's own Real-Time Pro login, 2026-11-06, read-only) is now in
+[21-ALG-UX-AUDIT](21-ALG-UX-AUDIT.md), rows added to [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md). It corrects
+"ALG/ShopDriver Elite" to "ALG (Real-Time Pro, by Dowell Systems)" - a different, lower tier than ShopDriver
+Elite - and confirms real vendor names/markup model, a 14-template reminder library, package jobs, $35/mo
+1-seat pricing with no MFA, and no reachable scheduling board anywhere in the product on this tier.
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

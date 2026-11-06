@@ -132,3 +132,11 @@ command search, retail POS cart.
 Customer data stays in our database (no copy to Google Sheets or any outside store from /system; the work-order sheet
 sync is off for it); no customer text, supplier order or payment without a person's tap; ALG keeps
 running until cutover; no copying of ALG's or MOTOR's licensed content beyond what the license allows.
+
+## 10. 2026-11-06 supplier and connected-computer extension
+
+One estimate line opens a source drawer that searches only approved, configured supplier adapters. It compares exact fitment, branch stock and freshness, total landed cost, pickup/delivery promise, route time when verified, and actual supplier reliability. The operator sees the sources that did not answer and chooses an offer. The app prepares a cart/order preview; a person submits it. A timeout after submit is an unknown order state, so status is checked before retry.
+
+For tires, confirm vehicle/size and load/speed rating, show installed set price and fees, and distinguish supplier tires from inspected used tires in shop inventory. For other repair parts, keep OEM/aftermarket grade and cross-reference evidence visible. The detailed offer fields, states, safety rules and layout are in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).
+
+The computer path uses the existing PWA plus supported APIs/punchout. A portal-only supplier gets a visible, operator-controlled handoff; no hidden scraping or autonomous checkout. A local model is an optional draft assistant, not the source of fitment, stock, price or approval. Local inference does not make the Railway-hosted app an offline CRM.

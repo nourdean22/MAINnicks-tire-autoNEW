@@ -99,11 +99,25 @@ Protractor, AutoLeap, Qminder (not opened); TireGuru (no mechanism on public pag
 key list (PDF unreadable here); Shop-Ware help center (not found public); every ALG screen (none public; Nour's
 screenshots fill these).
 
-## From Nour's screenshots (empty until they arrive)
+## From Nour's account (ALG reverse-engineering pass, 2026-11-06, direct read-only navigation of his own
+Real-Time Pro login - see 21-ALG-UX-AUDIT for the full screen-by-screen record)
 
-A screenshot of a screen behind Nour's own login is observation of his account, never a copy of code. Crop or blur
-customer names, phones and plates before sharing; images stay out of this public repo.
+A screenshot of, or direct navigation through, a screen behind Nour's own login is observation of his account,
+never a copy of code. Crop or blur customer names, phones and plates before sharing; images stay out of this
+public repo. Real values below are either ALG's own subscription/settings data (not customer PII) or rounded/
+generalized where a figure could identify a real customer.
 
 | # | Screen | From (product, screen) | ALG does it this way | Ours does it this way | Mechanism to steal | Adopt / adapt / reject | Cost | Kill criterion | Received |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | | | | | | | | | yyyy-mm-dd |
+| 1 | Save/apply a repeat job in one click | ALG, Summary step "Save Package Job" + Settings > Package Jobs | One named package = 1 labor line + N parts + N fees, added to a ticket in one click (real example: "TINA" = thermostat R&R + hazardous waste fee + coolant + kit) | Package jobs don't exist yet | ADOPT: named, shop-saved bundles (labor+parts+fees) addable in one tap from the counter screen | AIP (08-IDEAS); ~1-2 days on top of existing labor/parts/misc line models | kill if package usage stays <1/week after 2 weeks live | 2026-11-06 |
+| 2 | Lifecycle/win-back email library | ALG, Settings > Communication > Automatic Reminders | 14 pre-written templates (Thank-You at day 0 through Timing Belt at day 1460), each with full marketing copy, all Enabled by default; shop-wide day/time scheduling defaults | Decline-recovery sequence exists (08-IDEAS #4) but no proactive interval-based win-back library | ADOPT the day-since-service trigger model; ADAPT the copy to personalize by vehicle age/mileage instead of a flat day count | 05-ROADMAP "free money" phase (days 4-7); ~2-3 days for template library + scheduler, mostly content not code | kill a template if open/click rate is below the shop's email baseline after 90 days | 2026-11-06 |
+| 3 | Vendor markup model | ALG, Settings > Vendors & Parts Markup | One global default markup (30%) + named per-vendor overrides (AZ/FISHER/PA at 30%, DETROIT overridden to 0%, others inherit default); 8 real vendor accounts incl. AutoZone, Parts Authority, Gateway, Fisher, GM, O'Reilly | 20-SUPPLIER-INTEGRATION-START's offer contract doesn't yet fix a markup model | ADOPT: shop-wide default + per-vendor override, not a single flat margin number | 20-SUPPLIER-INTEGRATION-START, low cost (a lookup table) | kill if real margin needs per-SKU overrides ALG's per-vendor model can't express (watch first bake-off month) | 2026-11-06 |
+| 4 | VIN-free vehicle intake | ALG, Settings > Advanced > QuickVIN (CARFAX, free on the subscription) | Plate + state -> VIN, year, make, model, no scanner needed; pitched explicitly as fewer wrong-parts orders | Not built | ADOPT: CARFAX QuickVIN or equivalent plate-decode at ticket intake | AIP (08-IDEAS, 01-DESIGN counter screen); CARFAX partnership/cost UNKNOWN, needs a vendor call | kill if plate-decode accuracy is worse than typing VIN by hand in a timed test | 2026-11-06 |
+| 5 | Crew logins | ALG, Staff Management + Subscription | $35/mo buys exactly 1 seat; additional seats are a paid add-on; access control is 3 flat roles (Staff/Manager/Account Owner), no MFA found anywhere | 09-ACCESS-AND-SECURITY wants free crew logins + MFA + audit trail from day one | REJECT ALG's per-seat pricing and flat roles; our version is the differentiator, not a copy | 09-ACCESS P0 tasks | kill condition is 09-ACCESS's own: no MFA/audit trail at go-live blocks launch | 2026-11-06 |
+| 6 | No dispatch/scheduling board | ALG, checked every top-nav entry (Manage dropdown = Customers + Automatic Reminders only) | None found, despite a Shop Hours setting whose own copy implies appointment scheduling exists somewhere | 05-ROADMAP/08-IDEAS already lean toward a board | CONFIRMED GAP, not adopted from anywhere - build our own, it's open ground | 05 brain phase | n/a (gap, not a feature to kill) | 2026-11-06 |
+
+## 2026-11-06 sourcing and portal mechanisms
+
+Extend the existing per-screen benchmark with the sourcing workflow: adopt a fast exact-vehicle/part search, multi-source comparison that names the supplier and branch, evidence for stock/ETA, an installed tire total, visible reasons for the selected offer, and a deliberate order confirmation. Reuse Nickstire's Gateway/D&K code and the capability pattern in the PartsTech/OEC study before adding a supplier-specific connector.
+
+For screenshots, use only public pages or screenshots from an account the shop is authorized to use. Record date, account scope, source URL or supplied screenshot, terms status, the observed mechanism, adopt/adapt/reject decision, cost, and kill condition. Recreate interaction patterns; do not copy vendor code/catalogs, inspect hidden/private endpoints, scrape logged-in pages, or automate checkout against terms. See the concrete adapter and portal fallback contract in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).

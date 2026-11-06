@@ -91,3 +91,13 @@ Prerequisite: name a counter lead for the days 1-3 money-leak sheet (06 row 0). 
 - Empty searches (0 hits, not proof of "no account"): partstech, routes.googleapis, computeRoutes, quickbooks, maverick, tireweb, wheelpros in both apps' code.
 - Any key NAME set in Railway (no prod read); Koalafi's reply; Google Cloud console; Drive ownership; connector auth; repomix; trial terms.
 - Manager: UPSTREAMS holds PartsTech and MOTOR as WATCH while 05 days 4-7 reopens PartsTech; record the change.
+
+## 7. 2026-11-06 recheck required
+
+The connector census above is dated 2026-10-30; it is not current proof of account access, active credentials, terms, or adapter readiness. Re-read the exact tool, repo code, vendor documentation, supplier account and branch before enabling an integration. Current code evidence from 2026-11-06: D&K/Gateway tire search/order exists in `server/routers/gatewayTire.ts`, `server/services/gatewayClient.ts`, and `server/services/gatewaySupplierOrder.ts`; direct PartsTech, AutoZone, O'Reilly and Parts Authority adapter availability remains unproven by the prior census. A code hit or environment variable name is not a working connection.
+
+Add a capability row per supplier with: account owner, branches, product families, catalog/fitment/price/stock/ETA/cart/order/status/invoice/returns/cores capabilities, vendor terms, auth and credential name only, rate/cache limits, health receipt and rollback. Current customer-facing/vendor ordering is always a human action. No spend or signup is implied.
+
+The computer path defaults to the existing PWA plus official API/punchout. A portal fallback is visible and operator-controlled. PC cleanup and local-model state require fresh device receipts; the older front-desk spec and Gemma candidate are not proof of current installation. Detailed acceptance is in [18-SUPPLIER-DESKTOP-OFFLINE-AI](18-SUPPLIER-DESKTOP-OFFLINE-AI.md).
+
+The browser bookmark bar is a separate discovery source for labor, parts, tire/wheel, used-part, financing, payments, insurance, phone and shop-operation workflows. Section 18 now contains the 38 bar shortcuts, 3 synced shortcuts and 2 screenshot-only labels. REA observed selected public login surfaces, not the authenticated Chrome session; no password, cookie or customer data was captured. Add a tool to the integration register only after confirming its owner, actual task, account/branch, terms, supported interface and failure/manual path; a bookmark is not proof of an API, account, credential, or permission. Use the REA evidence and current connection blocker in section 20 before redoing discovery.
