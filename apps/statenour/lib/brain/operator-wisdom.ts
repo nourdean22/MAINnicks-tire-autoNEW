@@ -6,7 +6,7 @@
  * (qualitative_identity, blind_spot, pattern, preference, belief, goal) and journal dumps, but none of
  * them reach Nick's forced wisdom slots: selectWisdomSlots admits only category=wisdom rows with a
  * curated author. This module is the pure half: the prompt, the grounding validator and the row
- * shape. scripts/derive-operator-wisdom.ts does the reads, the one model call and the write.
+ * shape. scripts/derive-operator-wisdom.ts does the reads, one model call per OPERATOR_WISDOM_BATCH rows and the write.
  *
  * Rows use source "pack:nour-brain-derived", which memory-consolidation's CURATED_GUARD keeps away
  * from the merge and prune passes, and origin "nour-brain-derived" (lib/brain/wisdom-origins.ts),
@@ -106,6 +106,36 @@ export function parseOperatorInsights(
 
 /** Default pool: the 50 newest rows. The full 177-row prod pool came back empty from the reason lane 3 of 3 (2026-11-06). */
 export const OPERATOR_WISDOM_DEFAULT_LIMIT = 50;
+
+/**
+ * Rows per model call. minimax-m3 thinks before it writes, and the thinking is billed against the 8,192-token
+ * reason-lane cap (createOllamaModel). Measured 2026-11-06 on the live lane: 20 real rows used 7,025 output tokens
+ * for 2,399 visible chars (the earlier 20-row dry run that returned 595 chars and no JSON fits: cut off mid-reply);
+ * 50 rows came back empty (provider.garbage). Ten rows a call leaves most of the cap unused.
+ */
+export const OPERATOR_WISDOM_BATCH = 10;
+
+/** The pool in order, OPERATOR_WISDOM_BATCH rows a call; the last batch is whatever is left. */
+export function chunkPool<T>(pool: T[], size: number = OPERATOR_WISDOM_BATCH): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < pool.length; i += size) out.push(pool.slice(i, i + size));
+  return out;
+}
+
+/** The kept insights of every batch, in order, one row per distinct text, PER_KIND_CAP per kind across all batches. */
+export function mergeOperatorInsights(batches: OperatorInsight[][]): OperatorInsight[] {
+  const seen = new Set<string>();
+  const perKind = new Map<string, number>();
+  const out: OperatorInsight[] = [];
+  for (const insight of batches.flat()) {
+    const text = insight.text.trim();
+    if (seen.has(text) || (perKind.get(insight.kind) ?? 0) >= PER_KIND_CAP) continue;
+    seen.add(text);
+    perKind.set(insight.kind, (perKind.get(insight.kind) ?? 0) + 1);
+    out.push(insight);
+  }
+  return out;
+}
 
 /** The script's arguments: --apply, and --limit=N (default 50 newest-first; never the whole pool). Codex P2, PR 3562. */
 export function operatorWisdomArgs(argv: string[]): { apply: boolean; limit: number } | { error: string } {
