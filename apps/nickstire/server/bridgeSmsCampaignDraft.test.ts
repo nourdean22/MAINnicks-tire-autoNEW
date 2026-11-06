@@ -18,6 +18,7 @@ const execute = vi.fn();
 const insertValues = vi.fn();
 const sendTelegram = vi.fn(async () => true);
 const isEnabled = vi.fn(async () => true);
+const escalateToOwner = vi.fn((_e: Record<string, unknown>) => undefined);
 
 vi.mock("./sms", () => ({
   sendSms: (...a: unknown[]) => sendSms(...a),
@@ -25,6 +26,8 @@ vi.mock("./sms", () => ({
 }));
 vi.mock("./services/telegram", () => ({ sendTelegram: (...a: unknown[]) => sendTelegram(...a) }));
 vi.mock("./services/featureFlags", () => ({ isEnabled: (...a: unknown[]) => isEnabled(...a) }));
+// The bridge sender: unmocked, this route's fixture draft #4242 reached live bdnick as a task.
+vi.mock("./services/ownerEscalation", () => ({ escalateToOwner: (e: Record<string, unknown>) => escalateToOwner(e) }));
 vi.mock("./db", () => ({
   getDb: async () => ({
     execute: (...a: unknown[]) => execute(...a),
@@ -137,6 +140,27 @@ describe("bridge sms-campaign · prepares, never sends", () => {
     expect(preloadedAt).toBeLessThan(segmentAt);
     expect(sendBody).toMatch(/audience: "persisted" as const/);
     expect(sendBody).toMatch(/audience: "segment" as const/);
+  });
+
+  it("never posts the fixture escalation to StateNour, even with a sync key set (2026-11-06: 94 '#4242' bdnick tasks)", async () => {
+    // Layer 2 of 2 (layer 1: vitest.config.ts test.env, pinned by statenourBridgeTestIsolation.test.ts).
+    vi.stubEnv("STATENOUR_SYNC_KEY", "a-key-someone-set");
+    const fetchSpy = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    try {
+      const handler = await captureRoute("/api/bridge/sms-campaign");
+      await handler({ body: { dryRun: false, limit: 10, daysSince: 30 } }, fakeRes());
+      await vi.dynamicImportSettled();
+      await new Promise((r) => setTimeout(r, 0));
+      const posts = fetchSpy.mock.calls.map((c) => String((c as unknown[])[0])).filter((u) => u.includes("/api/sync/nour-os"));
+      expect(posts).toEqual([]);
+      // CONTROL: the route did reach its escalation step, so "no post" is not a path that never ran.
+      expect(escalateToOwner).toHaveBeenCalledTimes(1);
+      expect(escalateToOwner.mock.calls[0][0]).toMatchObject({ subjectId: "draft-4242" });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("dryRun:true still previews without inserting or sending", async () => {
