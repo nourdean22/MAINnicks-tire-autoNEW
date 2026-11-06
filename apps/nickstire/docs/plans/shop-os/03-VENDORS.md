@@ -88,3 +88,58 @@ PUBLIC-DOC = documented product capability; REPOSITORY = source behavior only. E
 Public IMC corroboration is now available on [imcparts.net FAQ](https://www.imcparts.net/faq/index.shtml), [catalog compatibility](https://www.imcparts.net/imcAdvantages/index.shtml) and [Mitchell 1 walkthrough](https://www.imcparts.net/shopMgmt/index.shtml); QA-host links in earlier research are historical leads. No account facts were obtained from private pages.
 
 The complete bar/overflow/synced inventory stays in 18, with each sourcing label routed in 20. Deduplicate shortcut aliases into one supplier identity. Older claims above about aggregator tiers, labor licenses and finance APIs remain historical leads until current approval/entitlement is verified. In particular, PartsTech shop-portal access does not establish developer API rights, and its retention rule can block storing unpurchased comparison history.
+
+## Cross-supplier comparison: best price AND fastest arrival, together (2026-11-06, Nour's requirement)
+
+Nour's own words (2026-11-06, moving from the Gateway to the ATD pass): "the crm i want to be displaying
+whenever we want showing both best priced and quickest in order when we need to order anything like parts
+tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, not specific to any one
+vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
+and whichever others the first-cohort gate above eventually adds).
+
+**What the three completed vendor passes actually show, concretely:**
+
+- **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
+  shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
+  comparator. Zero evidence to draw on here beyond "this is the gap Shop OS fills."
+- **Gateway/D&K** (22-GATEWAY-DK-UX-AUDIT section 4a; 14-STOLEN-MECHANISMS row 11): a two-tier stock split per
+  SKU - **Local** (branch-level on-hand) vs. **Regional** (wider network) - shown for Gateway's own catalog
+  only, no price-vs-speed ranking against any other vendor.
+- **ATD** (23-ATD-UX-AUDIT sections 4-5; 14-STOLEN-MECHANISMS row 12): a **six-tier** stock/delivery
+  breakdown per SKU - Pickup / Today / Tomorrow / a named next-local-delivery date / an expandable per-date
+  Multi-Day forecast / National (3-5 business days) - again shown for ATD's own catalog only.
+
+No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
+its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each
+individually good at "how fast can *I* get it to you," but none of them tell him "which of my tire vendors is
+cheapest, and separately, which is fastest, for this exact part, right now." That comparison has to live in
+Shop OS, because no single supplier portal has - or has any incentive to build - a cross-supplier view.
+
+**Design implication for Shop OS's ordering screen (counter screen and nickstire.org's tire-ordering widget
+alike):** for any part/tire lookup that returns more than one connected-supplier offer, show at minimum two
+explicitly labeled, always-visible picks - **Best Price** and **Quickest Arrival** - rather than one merged
+"best" recommendation a human has to trust blindly. Concretely:
+
+1. Normalize every connected supplier's own delivery data into a common tier scale (adopt ATD's six-tier
+   granularity as the ceiling - 14-STOLEN-MECHANISMS row 12 - and degrade gracefully to fewer tiers for a
+   supplier whose API/portal returns less, e.g. Gateway's two-tier Local/Regional).
+2. Compute, per lookup: the lowest landed cost across all returned offers (**Best Price**), and the earliest
+   available arrival time across all returned offers at that common tier scale (**Quickest Arrival**) -
+   shown side by side, not averaged or hidden behind one combined "recommended" pick. When the same offer wins
+   both (cheapest supplier also happens to be fastest), say so explicitly rather than showing two identical
+   cards that look like a bug.
+3. Show which supplier and branch each pick came from (never just a price with no attribution) - this mirrors
+   what 03-VENDORS' capability-gate table already asks of every adapter (branch quantity, ETA meaning) and
+   what the supplier-offer contract in 18-SUPPLIER-DESKTOP-OFFLINE-AI defines.
+4. The "order countdown" convention confirmed on both Gateway and ATD (22-GATEWAY-DK-UX-AUDIT section 4;
+   23-ATD-UX-AUDIT section 1) - "order by X to get Y" - should be carried per-vendor into this same comparison
+   screen, so staff see not just which vendor is fastest in the abstract but the actual cutoff clock running
+   against each option.
+5. This is purely a display/ranking layer on top of the existing supplier-offer contract (18) and the
+   first-cohort capability gate above; it needs no new vendor permissions beyond what each adapter already
+   has to expose (price, branch quantity, ETA meaning) - it is a reason to make sure every adapter actually
+   returns those fields consistently, not a new integration surface on its own.
+
+See [23-ATD-UX-AUDIT](23-ATD-UX-AUDIT.md) section 4 and [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md) row 12
+for the concrete six-tier reference depth, and [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) section 4a /
+row 11 for the simpler two-tier precedent this design must still degrade to gracefully.
