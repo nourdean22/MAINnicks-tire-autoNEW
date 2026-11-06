@@ -78,15 +78,16 @@ test('configure mirrors all eleven MCPs, exact model and V2 provider without app
   assert.equal(result.code, 0, result.stdout);
   assert.equal(receipt(result).status, 'OK');
   const config = JSON.parse(await readFile(f.output, 'utf8'));
-  assert.deepEqual(Object.keys(config.mcp), names);
+  assert.deepEqual(Object.keys(config.mcp.servers), names);
   for (const name of names.slice(0, 8)) {
-    assert.equal(config.mcp[name].type, 'local');
-    assert.deepEqual(config.mcp[name].command, ['node', `${name}.mjs`]);
+    assert.equal(config.mcp.servers[name].type, 'local');
+    assert.deepEqual(config.mcp.servers[name].command, ['node', `${name}.mjs`]);
+    assert.equal(config.mcp.servers[name].disabled, false);
   }
-  for (const name of names.slice(8)) assert.deepEqual(config.mcp[name], {
-    type: 'remote', url: `https://${name}.example/mcp`, enabled: true,
+  for (const name of names.slice(8)) assert.deepEqual(config.mcp.servers[name], {
+    type: 'remote', url: `https://${name}.example/mcp`, disabled: false,
   });
-  assert.deepEqual(config.mcp.vault.environment, { VAULT: secret });
+  assert.deepEqual(config.mcp.servers.vault.environment, { VAULT: secret });
   assert.equal(config.model, 'ai-playground/companion');
   assert.deepEqual(config.instructions, [path.join(path.dirname(cli), 'AI-PLAYGROUND-INSTRUCTIONS.md')]);
   assert.equal(config.providers['ai-playground'].package, '@opencode/ai/providers/openai-compatible');
@@ -229,14 +230,22 @@ test('endpoint down refuses configure and leaves existing override untouched', a
 test('disabled entries and remote headers stay local with enablement preserved', async t => {
   const config = fixture();
   config.mcpServers.datetime.disabled = true;
+  config.mcpServers.datetime.timeout = 45000;
+  config.mcpServers.context7.timeout = 60000;
   config.mcpServers.context7.headers = { Authorization: secret };
   const f = await setup(t, config);
   const result = await run(f, ['configure', '--json']);
   assert.equal(result.code, 0);
   receipt(result);
   const generated = JSON.parse(await readFile(f.output, 'utf8'));
-  assert.equal(generated.mcp.datetime.enabled, false);
-  assert.deepEqual(generated.mcp.context7.headers, { Authorization: secret });
+  assert.equal(generated.mcp.servers.datetime.disabled, true);
+  assert.deepEqual(generated.mcp.servers.datetime.timeout, {
+    startup: 45000, catalog: 45000, execution: 45000,
+  });
+  assert.deepEqual(generated.mcp.servers.context7.headers, { Authorization: secret });
+  assert.deepEqual(generated.mcp.servers.context7.timeout, {
+    startup: 60000, catalog: 60000, execution: 60000,
+  });
 });
 
 test('health cannot echo a private env value masquerading as the model ID', async t => {
@@ -274,7 +283,7 @@ test('opencode consumer receives local override, preserves inline policies, and 
   });
   assert.deepEqual(JSON.parse(invocation.configContent).permission, callerInline.permission);
   assert.equal(invocation.cwd, project);
-  assert.deepEqual(Object.keys(invocation.consumed.mcp), names);
+  assert.deepEqual(Object.keys(invocation.consumed.mcp.servers), names);
   assert.equal(out.join('').includes(secret), false);
 });
 
@@ -334,9 +343,10 @@ test('default coding launch keeps every MCP configured without starting any MCP 
     opencodeVersion: async () => '2.0.0',
   });
   assert.equal(code, 0);
-  assert.deepEqual(Object.keys(generated.mcp), names);
-  const enabled = Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name);
+  assert.deepEqual(Object.keys(generated.mcp.servers), names);
+  const enabled = Object.entries(generated.mcp.servers).filter(([, entry]) => !entry.disabled).map(([name]) => name);
   assert.deepEqual(enabled, []);
+  assert.ok(Object.values(generated.mcp.servers).every(entry => !Object.hasOwn(entry, 'enabled')));
 });
 
 test('coding launch can opt in to an additional MCP without dropping the configured catalog', async t => {
@@ -353,8 +363,8 @@ test('coding launch can opt in to an additional MCP without dropping the configu
     opencodeVersion: async () => '2.0.0',
   });
   assert.equal(code, 0);
-  assert.deepEqual(Object.keys(generated.mcp), names);
-  assert.deepEqual(Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name),
+  assert.deepEqual(Object.keys(generated.mcp.servers), names);
+  assert.deepEqual(Object.entries(generated.mcp.servers).filter(([, entry]) => !entry.disabled).map(([name]) => name),
     ['desktop-commander', 'pdf']);
 });
 
@@ -487,8 +497,8 @@ test('default coding profile tolerates optional MCP servers absent from the inst
     opencodeVersion: async () => '2.0.0',
   });
   assert.equal(code, 0);
-  assert.deepEqual(Object.keys(generated.mcp), names.filter(name => !['vault', 'desktop-commander'].includes(name)));
-  assert.deepEqual(Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name), []);
+  assert.deepEqual(Object.keys(generated.mcp.servers), names.filter(name => !['vault', 'desktop-commander'].includes(name)));
+  assert.deepEqual(Object.entries(generated.mcp.servers).filter(([, entry]) => !entry.disabled).map(([name]) => name), []);
 });
 
 test('simultaneous coding launches get isolated immutable config paths and clean them up', async t => {
@@ -510,9 +520,9 @@ test('simultaneous coding launches get isolated immutable config paths and clean
   assert.deepEqual(await Promise.all([run('pdf'), run('vapi-docs')]), [0, 0]);
   assert.equal(new Set(invocations.map(item => item.configPath)).size, 2);
   for (const server of ['pdf', 'vapi-docs']) {
-    const invocation = invocations.find(item => item.config.mcp[server].enabled);
+    const invocation = invocations.find(item => !item.config.mcp.servers[server].disabled);
     assert.ok(invocation, `${server} should remain in its own launch profile`);
-    assert.deepEqual(Object.entries(invocation.config.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name),
+    assert.deepEqual(Object.entries(invocation.config.mcp.servers).filter(([, entry]) => !entry.disabled).map(([name]) => name),
       [server]);
   }
   assert.deepEqual(await readdir(f.configDir), ['mcp.json']);

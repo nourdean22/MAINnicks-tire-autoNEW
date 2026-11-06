@@ -387,11 +387,16 @@ export async function configure(result, env = process.env, {
   await assertOutsideRepo(actualDir);
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/.test(fileName) || fileName.includes('..')) invalid();
   const destination = path.join(actualDir, fileName);
-  const mcp = Object.fromEntries(Object.entries(result.mapped.mcp).map(([name, entry]) => [name, {
-    ...entry,
-    enabled: entry.enabled && (selectedMcp === undefined || selectedMcp.has(name)),
-  }]));
-  if (requiredMcp !== undefined && [...requiredMcp].some(name => !Object.hasOwn(mcp, name) || !mcp[name].enabled)) invalid();
+  const mcpServers = Object.fromEntries(Object.entries(result.mapped.mcp).map(([name, entry]) => {
+    const { enabled, timeout, ...server } = entry;
+    const selected = enabled && (selectedMcp === undefined || selectedMcp.has(name));
+    return [name, {
+      ...server,
+      ...(timeout === undefined ? {} : { timeout: { startup: timeout, catalog: timeout, execution: timeout } }),
+      disabled: !selected,
+    }];
+  }));
+  if (requiredMcp !== undefined && [...requiredMcp].some(name => !Object.hasOwn(mcpServers, name) || mcpServers[name].disabled)) invalid();
   const modelId = result.modelId ?? result.health.modelId;
   const defaultModel = preferredModelAlias(modelId);
   const models = { companion: {
@@ -416,7 +421,7 @@ export async function configure(result, env = process.env, {
         models,
       },
     },
-    mcp,
+    mcp: { servers: mcpServers },
   };
   const temporary = path.join(actualDir, `.opencode-${randomUUID()}.tmp`);
   try {
