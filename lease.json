@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "statenour/appearance-chat-home-2026-10-23",
-  "status": "active",
+  "status": "released",
   "sessionKind": "unknown",
   "sessionId": "0900c49a-b55d-42a9-ab64-d67bd9d10a3a",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\shop-ip-camera-access-857719",
   "claimedBy": "2026-10-23-bdnick-pro-rebuild wave B appearance chat+home",
   "claimedAt": "2026-10-23T12:54:55.034Z",
   "expiresAt": "2026-10-24T00:54:55.034Z",
-  "releasedAt": null,
-  "releaseReason": null,
-  "priorLeaseSha": null
+  "releasedAt": "2026-11-06T16:27:24.684Z",
+  "releaseReason": "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1",
+  "priorLeaseSha": "ee1feb91420fc080c60398692f30b6c74c7a3500",
+  "releasedBy": "fd1a6c4c-6776-4627-bc27-d176ac289715",
+  "foreignReleaseReason": null
 }
