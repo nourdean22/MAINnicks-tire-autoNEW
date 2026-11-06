@@ -21,7 +21,7 @@ import { invokeLLM } from "../_core/llm";
 import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
-import { getBusinessDateKey } from "../lib/timezoneAssert";
+import { getBusinessDateKey, shiftDateKey } from "../lib/timezoneAssert";
 const log = createLogger("nick-intelligence");
 
 // ─── CROSS-PIPELINE ANALYTICS ─────────────────────────
@@ -666,9 +666,10 @@ export async function getShopPulse(): Promise<{
     ),
     // Pending callbacks
     d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
-    // This week's closed jobs
+    // This week's closed jobs: the last 7 shop days, the window revenue_range reads (a rolling UTC
+    // instant against the shop-local invoiceDate pulled in part of an 8th day, audit 2026-11-06).
     d.select().from(invoices).where(and(
-      sql`${invoices.invoiceDate} >= ${weekAgo}`,
+      sql`${invoices.invoiceDate} >= ${shiftDateKey(todayKey, -6)}`,
       eq(invoices.paymentStatus, "paid")
     )),
     // This week's estimates
