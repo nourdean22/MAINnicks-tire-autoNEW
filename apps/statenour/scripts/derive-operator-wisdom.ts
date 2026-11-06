@@ -5,23 +5,26 @@
  * belief, goal, decision/chat patterns, confidence >= 0.6) and his recent journal dumps, makes ONE
  * reason-lane call on the normal provider chain (inside the daily AI budget), keeps only insights
  * whose every cited id is a row it was shown (lib/brain/operator-wisdom.ts), and on --apply writes
- * them as curated wisdom rows (origin nour-brain-derived, source pack:nour-brain-derived), retires
- * this script's own earlier rows that the new set no longer holds, and embeds the new rows.
+ * them through admitMemory as DERIVED memories (lineage, AGENT_INFERRED tier, the wisdom quality
+ * gate) under origin nour-brain-derived / source pack:nour-brain-derived, embeds them, and only then
+ * retires this script's own earlier rows (writeOperatorWisdom).
  *
  * DRY RUN BY DEFAULT: it reads and calls the model, prints counts only (pool by category, insights
  * by kind, kept vs dropped), and returns before any write. The insight text is never printed: it is
  * personal, and terminal output ends up in PRs and logs.
  *
- * Run: `railway run -s statenour-web -- pnpm exec tsx scripts/derive-operator-wisdom.ts` (dry run)
- *      add `--apply` to write (a production write: Nour's go).
+ * Run: `railway run -s statenour-web -- pnpm exec tsx scripts/derive-operator-wisdom.ts --limit=20` (dry run)
+ *      add `--apply` to write (a production write: Nour's go). --limit is required.
  */
 import Module from "node:module";
 import {
   buildOperatorWisdomPrompt,
   OPERATOR_INSIGHT_KINDS,
   OPERATOR_WISDOM_SOURCE,
+  operatorWisdomArgs,
   operatorWisdomRows,
   parseOperatorInsights,
+  writeOperatorWisdom,
   type PoolItem,
 } from "@/lib/brain/operator-wisdom";
 
@@ -48,10 +51,12 @@ const POOL_DUMP_CAP = 40;
 const DUMP_DAYS = 60;
 
 async function main() {
-  const apply = process.argv.includes("--apply");
-  // --limit N: a smaller pool (the reason lane returned empty on the full 177-row pool, 2026-11-06).
-  const limitArg = process.argv.find((a) => a.startsWith("--limit="));
-  const limit = limitArg ? Math.max(1, Number(limitArg.split("=")[1]) || 0) : Infinity;
+  const args = operatorWisdomArgs(process.argv.slice(2));
+  if ("error" in args) {
+    console.error(`[!] ${args.error}`);
+    process.exit(1);
+  }
+  const { apply, limit } = args;
   const { prisma } = await import("@/lib/prisma");
   const { aiChat } = await import("@/lib/ai/provider");
   const now = new Date();
@@ -119,29 +124,38 @@ async function main() {
   }
 
   const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
-  const rows = operatorWisdomRows(parsed.kept, now.toISOString());
-  const written: string[] = [];
-  for (const r of rows) {
-    const saved = await prisma.brainMemory.upsert({
-      where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: r.key } },
-      create: { category: BRAIN_CATEGORIES.WISDOM, key: r.key, content: r.content, confidence: r.confidence, source: r.source, metadata: r.metadata },
-      update: { content: r.content, confidence: r.confidence, source: r.source, metadata: r.metadata, deletedAt: null },
-      select: { id: true },
-    });
-    written.push(saved.id);
-  }
-  // A refresh, not an append: this script's own rows the new set no longer holds are retired.
-  const retired = await prisma.brainMemory.updateMany({
-    where: {
-      category: BRAIN_CATEGORIES.WISDOM,
-      source: OPERATOR_WISDOM_SOURCE,
-      deletedAt: null,
-      key: { notIn: rows.map((r) => r.key) },
-    },
-    data: { deletedAt: now },
-  });
+  const { admitMemory } = await import("@/lib/brain/memory-admission");
+  const { computeExpiresAt } = await import("@/lib/brain/category-ttl");
   const { embedLoadedRows, embedSummary } = await import("./_lib/embed-loaded-rows");
-  console.log(`[ok] wrote ${written.length}, retired ${retired.count} older, ${embedSummary(await embedLoadedRows(written))}`);
+  const out = await writeOperatorWisdom(operatorWisdomRows(parsed.kept, now.toISOString()), {
+    admit: (input) => admitMemory(input as unknown as Parameters<typeof admitMemory>[0]),
+    categoryOf: async (id) => (await prisma.brainMemory.findUnique({ where: { id }, select: { category: true } }))?.category ?? null,
+    // remember() stamps a new row with a 24 h probation; wisdom's category policy (category-ttl) is keep forever.
+    // deletedAt: null revives a row an earlier run retired whose text came back.
+    keepForever: async (ids) => {
+      if (ids.length === 0) return;
+      await prisma.brainMemory.updateMany({
+        where: { id: { in: ids } },
+        data: { expiresAt: computeExpiresAt(BRAIN_CATEGORIES.WISDOM), deletedAt: null },
+      });
+    },
+    embed: (ids) => embedLoadedRows(ids),
+    // A refresh, not an append: this script's own rows the new set no longer holds.
+    retire: async (keepKeys) =>
+      (
+        await prisma.brainMemory.updateMany({
+          where: { category: BRAIN_CATEGORIES.WISDOM, source: OPERATOR_WISDOM_SOURCE, deletedAt: null, key: { notIn: keepKeys } },
+          data: { deletedAt: now },
+        })
+      ).count,
+    memoryIds: new Set(memories.map((m) => m.id)),
+    modelId: reply.model,
+  });
+  console.log(
+    `[ok] wisdom ${out.wisdom}, parked by the quality gate ${out.candidates}, ${embedSummary(out.embedded)}, ` +
+      (out.kept ? `retired ${out.retired} older` : "previous set KEPT (nothing new reached wisdom, or a row did not embed)"),
+  );
+  if (!out.kept) process.exit(1);
 }
 
 main()

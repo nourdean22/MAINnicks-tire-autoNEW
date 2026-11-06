@@ -7,12 +7,14 @@
  * origin that names its author, (2) every insight grounded in brain rows that exist, (3) a source
  * the grinder and prune skip ("pack:*", memory-consolidation CURATED_GUARD).
  */
-import { describe, expect, it } from "vitest";
-import { curatedWisdomAuthor, selectWisdomSlots } from "@/lib/brain/contextual-recall";
+import { describe, expect, it, vi } from "vitest";
+import { curatedWisdomAuthor, provenancePrefix, selectWisdomSlots } from "@/lib/brain/contextual-recall";
 import {
   OPERATOR_WISDOM_ORIGIN,
+  operatorWisdomArgs,
   operatorWisdomRows,
   parseOperatorInsights,
+  writeOperatorWisdom,
 } from "@/lib/brain/operator-wisdom";
 
 const now = new Date("2026-11-06T20:00:00Z");
@@ -31,6 +33,14 @@ describe("brain-derived operator wisdom reaches Nick's wisdom slots", () => {
     // Reads as derived, never as his own words (manager ruling 2026-11-06).
     expect(curatedWisdomAuthor(r)).toBe("Nour (derived)");
     expect(selectWisdomSlots([r], 2, { useEmbeddings: true, now })).toHaveLength(1);
+  });
+
+  it("recall labels the row inferred, never 'curated' like a hand-picked pack (Codex P2, PR 3562)", () => {
+    const m = { category: "wisdom", key: "wisdom_nour-brain-derived_trait_aaaaaaaa", origin: OPERATOR_WISDOM_ORIGIN, content: "x", confidence: 0.7, relevance: "direct" as const, source: "pack:nour-brain-derived" };
+    expect(provenancePrefix(m)).toContain("inferred");
+    expect(provenancePrefix(m)).not.toContain("curated");
+    // CONTROL: a hand-curated pack row still says curated.
+    expect(provenancePrefix({ ...m, key: "wisdom_baltasar-gracian_001", origin: "baltasar-gracian", source: "pack:baltasar-gracian" })).toContain("curated");
   });
 
   it("CONTROL: an uncurated origin with the same scores is still rejected", () => {
@@ -76,6 +86,71 @@ describe("parseOperatorInsights keeps only grounded insights", () => {
     const out = parseOperatorInsights("I could not do that.", pool);
     expect(out.kept).toEqual([]);
     expect(out.parseError).toBe(true);
+  });
+});
+
+describe("operatorWisdomArgs: the pool size is explicit (Codex P2: the full 177-row pool came back empty 3 of 3)", () => {
+  it("refuses a run with no --limit", () => {
+    expect(operatorWisdomArgs([])).toMatchObject({ error: expect.stringMatching(/--limit/) });
+  });
+  it("reads --limit and --apply", () => {
+    expect(operatorWisdomArgs(["--limit=20"])).toEqual({ apply: false, limit: 20 });
+    expect(operatorWisdomArgs(["--apply", "--limit=40"])).toEqual({ apply: true, limit: 40 });
+  });
+  it("refuses a limit that is not a positive whole number", () => {
+    for (const bad of ["--limit=0", "--limit=abc", "--limit=-5", "--limit=2.5"]) {
+      expect(operatorWisdomArgs([bad])).toHaveProperty("error");
+    }
+  });
+});
+
+describe("writeOperatorWisdom: admitted as derived, embedded before the old set is retired", () => {
+  const insight = { kind: "trait" as const, text: "Moves fastest when the next step is one concrete action.", sourceIds: ["m1", "d1"] };
+  function fakeDeps(over: Partial<Parameters<typeof writeOperatorWisdom>[1]> = {}) {
+    const calls: string[] = [];
+    const deps = {
+      admit: vi.fn(async (input: Record<string, unknown>) => { calls.push(`admit:${String(input.key)}`); return { id: "row1" }; }),
+      categoryOf: vi.fn(async () => "wisdom"),
+      keepForever: vi.fn(async (ids: string[]) => { calls.push(`keep:${ids.join(",")}`); }),
+      embed: vi.fn(async (ids: string[]) => { calls.push("embed"); return { landed: ids.length, total: ids.length }; }),
+      retire: vi.fn(async () => { calls.push("retire"); return 2; }),
+      ...over,
+    };
+    return { deps, calls };
+  }
+  const memoryIds = new Set(["m1"]);
+
+  it("goes through admission as a derived memory with its brain lineage, then keeps, embeds, and only then retires", async () => {
+    const { deps, calls } = fakeDeps();
+    const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "minimax-m3" });
+    expect(deps.admit).toHaveBeenCalledWith(expect.objectContaining({
+      category: "wisdom",
+      source: "pack:nour-brain-derived",
+      memoryKind: "derived",
+      extractionMethod: "llm_extract",
+      modelId: "minimax-m3",
+      derivedFrom: ["m1"],
+      evidenceRefs: ["brain-memory:m1", "brain-dump:d1"],
+    }));
+    expect(calls.at(-1)).toBe("retire");
+    expect(calls.indexOf("embed")).toBeLessThan(calls.indexOf("retire"));
+    expect(out).toMatchObject({ wisdom: 1, candidates: 0, retired: 2, kept: true });
+  });
+
+  it("keeps the previous set when any new row did not embed (a row with no vector is never recalled)", async () => {
+    const { deps } = fakeDeps({ embed: vi.fn(async () => ({ landed: 0, total: 1 })) });
+    const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "m" });
+    expect(deps.retire).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ retired: 0, kept: false });
+  });
+
+  it("a row the wisdom quality gate parks as wisdom_candidate is counted, not kept forever and not embedded as wisdom", async () => {
+    const { deps } = fakeDeps({ categoryOf: vi.fn(async () => "wisdom_candidate") });
+    const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "m" });
+    expect(deps.keepForever).toHaveBeenCalledWith([]);
+    expect(out).toMatchObject({ wisdom: 0, candidates: 1 });
+    // Nothing reached wisdom: the old set stays.
+    expect(deps.retire).not.toHaveBeenCalled();
   });
 });
 

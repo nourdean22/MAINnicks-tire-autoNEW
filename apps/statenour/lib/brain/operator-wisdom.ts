@@ -104,6 +104,70 @@ export function parseOperatorInsights(
   return { kept, dropped, parseError: false };
 }
 
+/**
+ * The script's arguments. --limit is required: the full 177-row prod pool came back empty from the
+ * reason lane 3 of 3 times (2026-11-06), so no default size is proven (Codex P2, PR 3562).
+ */
+export function operatorWisdomArgs(argv: string[]): { apply: boolean; limit: number } | { error: string } {
+  const raw = argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+  const limit = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isInteger(limit) || limit < 1) {
+    return { error: "pass --limit=N (a whole number of brain rows, e.g. --limit=20): no default pool size is proven" };
+  }
+  return { apply: argv.includes("--apply"), limit };
+}
+
+export interface WriteOperatorWisdomDeps {
+  /** lib/brain/memory-admission admitMemory: remember() underneath, so the wisdom quality gate runs. */
+  admit: (input: Record<string, unknown>) => Promise<{ id: string }>;
+  /** The category the row landed in: the gate parks a non-principle as wisdom_candidate. */
+  categoryOf: (id: string) => Promise<string | null>;
+  /** remember() gives a new row a 24 h probation; wisdom's category policy is keep forever. */
+  keepForever: (ids: string[]) => Promise<void>;
+  embed: (ids: string[]) => Promise<{ landed: number; total: number }>;
+  /** Soft-delete this writer's earlier rows whose keys are not in the new set; returns the count. */
+  retire: (keepKeys: string[]) => Promise<number>;
+  /** Ids in the pool that are brain_memories rows (the rest are journal dumps). */
+  memoryIds: ReadonlySet<string>;
+  modelId: string;
+}
+
+/**
+ * Write a derived set through memory admission, then refresh. The previous set is retired only when
+ * at least one row reached wisdom AND every one of them embedded: a row with no vector never enters
+ * the curated KNN lane, so retiring first could leave Nick with neither set (Codex P2, PR 3562).
+ */
+export async function writeOperatorWisdom(
+  rows: ReturnType<typeof operatorWisdomRows>,
+  deps: WriteOperatorWisdomDeps,
+): Promise<{ wisdom: number; candidates: number; embedded: { landed: number; total: number }; retired: number; kept: boolean }> {
+  const wisdomIds: string[] = [];
+  let candidates = 0;
+  for (const r of rows) {
+    const ids = r.metadata.sourceIds;
+    const { id } = await deps.admit({
+      category: "wisdom",
+      key: r.key,
+      content: r.content,
+      source: r.source,
+      confidence: r.confidence,
+      memoryKind: "derived",
+      extractionMethod: "llm_extract",
+      modelId: deps.modelId,
+      derivedFrom: ids.filter((x) => deps.memoryIds.has(x)),
+      evidenceRefs: ids.map((x) => (deps.memoryIds.has(x) ? `brain-memory:${x}` : `brain-dump:${x}`)),
+      metadata: r.metadata,
+    });
+    if ((await deps.categoryOf(id)) === "wisdom") wisdomIds.push(id);
+    else candidates += 1;
+  }
+  await deps.keepForever(wisdomIds);
+  const embedded = wisdomIds.length ? await deps.embed(wisdomIds) : { landed: 0, total: 0 };
+  const kept = wisdomIds.length > 0 && embedded.landed === embedded.total;
+  const retired = kept ? await deps.retire(rows.map((r) => r.key)) : 0;
+  return { wisdom: wisdomIds.length, candidates, embedded, retired, kept };
+}
+
 /** The BrainMemory(category="wisdom") rows for a set of insights. Keys hash the text, so a re-run of the same insight updates it. */
 export function operatorWisdomRows(insights: OperatorInsight[], derivedAt: string = new Date().toISOString()) {
   return insights.map((i) => {

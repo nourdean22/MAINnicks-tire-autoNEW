@@ -59,7 +59,7 @@ import {
   type MemoryEvidenceClass,
   isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
-import { CURATED_WISDOM_ORIGINS, resolveWisdomOrigin, WISDOM_ORIGIN_KEY_PREFIXES, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
+import { CURATED_WISDOM_ORIGINS, INFERRED_CURATED_ORIGINS, resolveWisdomOrigin, WISDOM_ORIGIN_KEY_PREFIXES, wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
 
 /**
  * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
@@ -188,7 +188,11 @@ export function provenancePrefix(m: RelevantMemory): string {
   // name this line shows, and pack rows stored as source "manual" are not
   // something the operator stated.
   const author = curatedWisdomAuthor(m);
-  if (author) return `[${m.category} · ${author} · curated${seen}]`;
+  if (author) {
+    // A model's synthesis about Nour (nour-brain-derived) is admitted like a curated author but is not hand-picked text.
+    const inferred = INFERRED_CURATED_ORIGINS.has(resolveWisdomOrigin(m.key ?? "", m.origin));
+    return `[${m.category} · ${author} · ${inferred ? "inferred" : "curated"}${seen}]`;
+  }
   const cls = evidenceClassForSource(m.source ?? "");
   // 05-X7: the ladder files model-made sources under its fallback; say inferred.
   const label =

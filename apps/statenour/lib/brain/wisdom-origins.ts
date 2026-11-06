@@ -240,6 +240,12 @@ export const CURATED_WISDOM_ORIGINS: ReadonlySet<string> = new Set<WisdomOrigin>
 ]);
 
 /**
+ * Curated origins whose rows are a MODEL's synthesis (with cited sources), not a hand-picked text.
+ * They are admitted to the wisdom slots like any curated author, but recall labels them inferred.
+ */
+export const INFERRED_CURATED_ORIGINS: ReadonlySet<string> = new Set<WisdomOrigin>(["nour-brain-derived"]);
+
+/**
  * Resolve a wisdom row's origin. `metadata.origin` wins when set — it is
  * what the seeders and the promotion paths write — and the key prefix is
  * the fallback for rows that predate it.
