@@ -49,9 +49,17 @@ export type PromiseType = (typeof PROMISE_TYPES)[number];
 const MIRROR_SOURCE_KINDS = ["callback_request", "owed_reply", "emergency"] as const;
 export type MirrorSourceKind = (typeof MIRROR_SOURCE_KINDS)[number];
 
+/**
+ * Rows no reader shows: the mirror's shadow kinds, and `voice`, the receptionist's
+ * callback promises, retired 2026-11-06 (Nour: the receptionist makes no callback
+ * obligations). escalate writes no new ones; this keeps the open ones out of the
+ * sweep (no "Promise overdue" row), the panel and the debt card.
+ */
+const HIDDEN_SOURCE_KINDS = [...MIRROR_SOURCE_KINDS, "voice"] as const;
+
 async function notMirrored() {
   const { sql } = await import("drizzle-orm");
-  return sql`source_kind NOT IN (${sql.join(MIRROR_SOURCE_KINDS.map((k) => sql`${k}`), sql`, `)})`;
+  return sql`source_kind NOT IN (${sql.join(HIDDEN_SOURCE_KINDS.map((k) => sql`${k}`), sql`, `)})`;
 }
 
 export const PROMISE_STATUSES = ["open", "kept", "missed", "cancelled"] as const;

@@ -118,6 +118,9 @@ const NOT_A_CUSTOMER_RES: RegExp[] = [
   /\b(no cost to join|pick up (and drop off )?packages at your (store|shop|business))\b/i,
   /^\s*https?:\/\/\S+\s*$/i,
   /\b(babe|bby)\b/i,
+  // 2026-11-06: a lender or funding broker about the owner's own account ("updated terms on
+  // your $44263 file"), shown on Today as an urgent customer text. Customers say invoice or bill.
+  /\b(?:your|the)\s+\$\s?\d[\d,]*(?:\.\d{2})?\s+(?:file|application|funding)\b/i,
 ];
 
 /** A short thank-you or "all good so far" with no question or problem in it. */
@@ -572,6 +575,15 @@ export function isCancellationPolicyQuestion(body: string): boolean {
     hasActiveEstimate: false,
     hasActiveLead: false,
   });
+}
+
+/**
+ * A text from someone who is not a shop customer, by the same gate smsOrchestrator uses to skip it:
+ * not_a_customer, with no safety risk and no other ask riding along. Today's waiting-text rows use it.
+ */
+export function isNotACustomerText(body: string): boolean {
+  const d = routeInboundSms(body, { hasActiveBooking: false, hasActiveEstimate: false, hasActiveLead: false });
+  return d.primary === "not_a_customer" && d.risk !== "human_only" && d.secondary.every((i) => i === "hours_location");
 }
 
 export function routeInboundSms(body: string, ctx: SmsRouterContext): SmsIntentDecision {

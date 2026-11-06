@@ -35,7 +35,7 @@ const MIRROR_SOURCE_KINDS = ["callback_request", "owed_reply", "emergency"];
 
 /** The readers' queries, each checked to exclude exactly the mirror kinds. */
 function expectShadowed(q: { text: string; params: unknown[] }) {
-  expect(q.text).toContain("source_kind NOT IN (?, ?, ?)");
+  expect(q.text).toContain("source_kind NOT IN (?, ?, ?, ?)");
   expect(q.params).toEqual(expect.arrayContaining(MIRROR_SOURCE_KINDS));
 }
 

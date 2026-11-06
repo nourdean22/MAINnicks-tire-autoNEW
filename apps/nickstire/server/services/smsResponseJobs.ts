@@ -31,6 +31,7 @@ import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isMissingTableError } from "../lib/dbErrors";
 import { isNonCustomer } from "./nonCustomerFilter";
+import { isNotACustomerText } from "./smsIntentRouter";
 
 const log = createLogger("sms-response-jobs");
 
@@ -557,6 +558,7 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
   const byThread = new Map<number, { item: WaitingConversation; newest: number }>();
   for (const r of rows) {
     if (isNonCustomer({ customerPhone: r.phone, customerName: r.customerName })) continue;
+    if (isNotACustomerText(r.body)) continue; // a lender or spam sender is not a customer waiting on us
     const texts = r.texts ?? 1;
     const newest = r.newestMinutes ?? r.waitingMinutes;
     const seen = byThread.get(r.conversationId);

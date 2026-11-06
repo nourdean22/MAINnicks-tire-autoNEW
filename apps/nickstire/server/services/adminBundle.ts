@@ -46,6 +46,15 @@ function settled<T>(p: PromiseSettledResult<T>): T | null {
  * Inlined here so adminBundle doesn't depend on the lead router (which
  * would cause a circular import via the appRouter).
  */
+/**
+ * The voice receptionist's callback rows (escalate: utmSource voice-agent; scheduleCallback:
+ * sourcePage vapi-voice-agent). It makes no callback obligations since 2026-11-06, so Today drops
+ * its old rows too; they stay in the Callbacks list.
+ */
+function isReceptionistCallback(row: { utmSource?: string | null; sourcePage?: string | null }): boolean {
+  return row.utmSource === "voice-agent" || row.sourcePage === "vapi-voice-agent";
+}
+
 async function listLeads() {
   const d = await db();
   // THROW, do not return []. An unreachable database is not "no leads".
@@ -117,7 +126,7 @@ export async function getOverviewMediumBundle() {
     getDashboardStats(),
     getBookings(),
     listLeads(),
-    getCallbackRequests(),
+    getCallbackRequests().then((rows) => rows.filter((row: Parameters<typeof isReceptionistCallback>[0]) => !isReceptionistCallback(row))),
     getSiteHealth(),
     // Customers waiting on a human text reply: the ROS-058 obligation, the
     // same reduction as the Outreach badge and the morning brief (audit I).
