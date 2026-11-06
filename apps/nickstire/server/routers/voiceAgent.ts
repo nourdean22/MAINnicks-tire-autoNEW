@@ -295,17 +295,18 @@ export function noCallbackGuidance(): string {
 }
 
 /**
- * Best-effort: the reason rides on the call trail, never as a task for the shop. The
- * `voice-escalated:<callId>` marker is what keeps the call out of the missed-call lanes
- * (recovery text, "Missed call" callback row and card), the job the callback row used to do.
+ * The reason rides on the call trail, never as a task for the shop. The escalate marker
+ * (alertClaim.escalatedMarkerKey) keeps the call out of the missed-call lanes (recovery text,
+ * "Missed call" callback row and card), the job the callback row used to do. It is written
+ * FAIL CLOSED: false means it is not there and the tool must say so, so Vapi retries.
+ * The trail note after it is best-effort.
  */
-async function noteOnCallTrail(callId: string | undefined, tool: string, metadata: Record<string, unknown>): Promise<void> {
-  if (!callId) return;
-  try {
-    const { claimAlertOnce } = await import("../services/alertClaim");
-    await claimAlertOnce(`voice-escalated:${callId}`);
-  } catch (err) {
-    log.warn("Failed to mark the call escalated", { callId, tool, err: err instanceof Error ? err.message : String(err) });
+async function noteOnCallTrail(callId: string | undefined, tool: string, metadata: Record<string, unknown>): Promise<boolean> {
+  if (!callId) return true;
+  const { escalatedMarkerKey, writeMarkerStrict } = await import("../services/alertClaim");
+  if (!(await writeMarkerStrict(escalatedMarkerKey(callId)))) {
+    log.error("escalate marker NOT written; the missed-call lanes could text or card this caller", { callId, tool });
+    return false;
   }
   try {
     const { recordCallState } = await import("../services/voice-call-state");
@@ -313,7 +314,16 @@ async function noteOnCallTrail(callId: string | undefined, tool: string, metadat
   } catch (err) {
     log.warn("Failed to note the tool on the call-state trail", { callId, tool, err: err instanceof Error ? err.message : String(err) });
   }
+  return true;
 }
+
+/** escalate / scheduleCallback reply when the marker could not be written. */
+const NOT_NOTED = {
+  success: false,
+  noted: false,
+  callback: false,
+  message: "Not noted yet: call escalate once more. Either way never promise a callback; tell them they can come in or call the shop once it's open.",
+} as const;
 
 const DAYS_FROM_SUNDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
@@ -701,7 +711,7 @@ export const voiceAgentRouter = router({
       outbound: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      await noteOnCallTrail(input.callId, "escalate", { urgency: input.urgency, reason: input.reason.slice(0, 200), outbound: input.outbound === true });
+      if (!(await noteOnCallTrail(input.callId, "escalate", { urgency: input.urgency, reason: input.reason.slice(0, 200), outbound: input.outbound === true }))) return NOT_NOTED;
       log.info("Voice agent escalate noted, no callback made", { urgency: input.urgency, outbound: input.outbound === true });
       if (!input.outbound) return { success: true, callback: false, message: noCallbackGuidance() };
       // The outbound follow-up caller escalates only a complaint (Nour, 2026-11-06: a
@@ -1367,7 +1377,7 @@ export const voiceAgentRouter = router({
       callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
-      await noteOnCallTrail(input.callId, "scheduleCallback", { reason: input.reason?.slice(0, 200) ?? null });
+      if (!(await noteOnCallTrail(input.callId, "scheduleCallback", { reason: input.reason?.slice(0, 200) ?? null }))) return NOT_NOTED;
       return { success: true, callback: false, message: noCallbackGuidance() };
     }),
 });

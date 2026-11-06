@@ -11,6 +11,7 @@ interface LeadLike extends LeadOriginInput {
 
 interface CallbackLike {
   status?: string | null;
+  phone?: string | null;
 }
 
 export interface AdminActionableCounts {
@@ -53,9 +54,16 @@ export function getAdminActionableCounts(input: {
   const actionableLeadRows = leads.filter(isOpenLead);
   const newLeads = actionableLeadRows.length;
   const urgentLeads = actionableLeadRows.filter((lead) => (lead.urgencyScore ?? 0) >= 4).length;
-  const pendingCallbacks = callbacks.filter((callback) =>
-    PENDING_CALLBACK_STATUSES.has(callback.status ?? "new"),
-  ).length;
+  // One per phone, like Today's board (two requests from one caller are one person to call, 2026-11-06).
+  const pendingCallbackKeys = new Set(
+    callbacks
+      .filter((callback) => PENDING_CALLBACK_STATUSES.has(callback.status ?? "new"))
+      .map((callback, i) => {
+        const phone = String(callback.phone ?? "").replace(/\D/g, "").slice(-10);
+        return phone.length === 10 ? phone : `row-${i}`;
+      }),
+  );
+  const pendingCallbacks = pendingCallbackKeys.size;
 
   const actionableLeads = actionableLeadRows.length;
 

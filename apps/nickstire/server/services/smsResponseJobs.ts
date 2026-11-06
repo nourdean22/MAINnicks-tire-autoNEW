@@ -31,7 +31,10 @@ import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isMissingTableError } from "../lib/dbErrors";
 import { isNonCustomer } from "./nonCustomerFilter";
-import { isNotACustomerText } from "./smsIntentRouter";
+import { isLenderText } from "./smsIntentRouter";
+
+/** Threads already logged as hidden from Today (log once per process, not per 30 s bundle read). */
+const loggedLenderThreads = new Set<number>();
 
 const log = createLogger("sms-response-jobs");
 
@@ -523,6 +526,8 @@ export interface HumanPendingRow {
   customerName: string | null;
   /** The latest open text. */
   body: string;
+  /** Every open text, oldest first (Today's lender check reads all of them). */
+  bodies?: string[];
   /** Since the oldest open text. */
   waitingMinutes: number;
   /** Any open text's dueAt (createdAt + HUMAN_SLA_MS) has passed. */
@@ -558,7 +563,16 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
   const byThread = new Map<number, { item: WaitingConversation; newest: number }>();
   for (const r of rows) {
     if (isNonCustomer({ customerPhone: r.phone, customerName: r.customerName })) continue;
-    if (isNotACustomerText(r.body)) continue; // a lender or spam sender is not a customer waiting on us
+    // A lender about the owner's own account, on EVERY open text of the thread, is not a customer
+    // waiting on us (2026-11-06). The row stays human_pending; "No reply needed" closes it.
+    const openTexts = r.bodies && r.bodies.length > 0 ? r.bodies : [r.body];
+    if (openTexts.every(isLenderText)) {
+      if (!loggedLenderThreads.has(r.conversationId)) {
+        loggedLenderThreads.add(r.conversationId);
+        log.info("Today: lender thread left out of waiting texts", { conversationId: r.conversationId });
+      }
+      continue;
+    }
     const texts = r.texts ?? 1;
     const newest = r.newestMinutes ?? r.waitingMinutes;
     const seen = byThread.get(r.conversationId);
@@ -625,6 +639,7 @@ async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
            MAX(j.customerPhone) AS phone,
            MAX(c.customerName) AS customerName,
            SUBSTRING_INDEX(GROUP_CONCAT(j.body ORDER BY j.createdAt DESC, j.id DESC SEPARATOR '~|~'), '~|~', 1) AS body,
+           GROUP_CONCAT(j.body ORDER BY j.createdAt ASC, j.id ASC SEPARATOR '~|~') AS allBodies,
            COUNT(*) AS texts,
            TIMESTAMPDIFF(MINUTE, MIN(j.createdAt), NOW()) AS waitingMinutes,
            TIMESTAMPDIFF(MINUTE, MAX(j.createdAt), NOW()) AS newestMinutes,
@@ -642,6 +657,8 @@ async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
       phone: String(r.phone ?? ""),
       customerName: r.customerName == null ? null : String(r.customerName),
       body: String(r.body ?? ""),
+      // Cut at group_concat_max_len: a cut text reads as not-a-lender, so the thread stays (fail safe).
+      bodies: r.allBodies == null ? undefined : String(r.allBodies).split("~|~"),
       waitingMinutes,
       overdue: Number(r.overdue ?? 0) === 1,
       texts: r.texts == null ? 1 : Number(r.texts),

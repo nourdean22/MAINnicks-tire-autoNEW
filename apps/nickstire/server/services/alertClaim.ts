@@ -19,6 +19,45 @@ import type { TelegramSendResult } from "./telegram";
 
 const log = createLogger("alert-claim");
 
+/**
+ * The escalate marker (2026-11-06): escalate writes no callback row, so this row is what keeps
+ * an escalated call out of the missed-call lanes. One builder for writer and readers, cut to
+ * the column's 100 chars exactly as the INSERT stores it.
+ */
+export const ESCALATED_MARKER_PREFIX = "voice-escalated:";
+export function escalatedMarkerKey(callId: string): string {
+  return `${ESCALATED_MARKER_PREFIX}${callId}`.slice(0, 100);
+}
+
+/** SQL: this call has NO escalate marker. For a missed-call candidate query, on every row. */
+export function notEscalatedSql(callIdColumn: unknown) {
+  return sql`NOT EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = LEFT(CONCAT(${ESCALATED_MARKER_PREFIX}, ${callIdColumn}), 100))`;
+}
+
+/**
+ * Writes a marker row and reports whether it is there. FAIL CLOSED, unlike claimAlertOnce:
+ * false on a missing database or a failed write, so the caller can say so instead of
+ * assuming the marker exists. An existing row (INSERT IGNORE, 0 rows) counts as written.
+ */
+export async function writeMarkerStrict(alertKey: string, now: Date = new Date()): Promise<boolean> {
+  try {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) {
+      log.error("marker NOT written: database unavailable", { alertKey });
+      return false;
+    }
+    await db.execute(sql`
+      INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at)
+      VALUES (${alertKey.slice(0, 100)}, ${getBusinessDateKey(now)}, NOW())
+    `);
+    return true;
+  } catch (err) {
+    log.error("marker NOT written", { alertKey, error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
 /** A short, stable id for a set of strings (a state fingerprint), order-independent. */
 export function stateFingerprint(parts: string[]): string {
   return createHash("sha1").update([...parts].sort().join("\n")).digest("hex").slice(0, 12);

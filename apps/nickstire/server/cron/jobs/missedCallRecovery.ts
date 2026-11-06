@@ -238,6 +238,7 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     const { vapiCallLogs, customers } = await import("../../../drizzle/schema");
     const { and, eq, gte, lte, isNull, isNotNull, sql, desc } = await import("drizzle-orm");
     const { normalizePhone } = await import("../../lib/phone");
+    const { notEscalatedSql } = await import("../../services/alertClaim");
 
     const now = Date.now();
     const windowStart = new Date(now - WINDOW_MAX_AGE_MS);
@@ -261,6 +262,8 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         isNull(vapiCallLogs.callbackId),
         gte(vapiCallLogs.createdAt, windowStart),
         lte(vapiCallLogs.createdAt, windowEnd),
+        // Every candidate, not only tool-reaching ones: an escalated caller is never texted or carded.
+        notEscalatedSql(vapiCallLogs.vapiCallId),
       ))
       .orderBy(desc(vapiCallLogs.createdAt))
       .limit(100);

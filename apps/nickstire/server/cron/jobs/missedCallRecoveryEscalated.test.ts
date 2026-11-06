@@ -40,8 +40,33 @@ describe("an escalated call is handled, not a missed call", () => {
     expect(await proveCapturedNothing("call_e2")).toBe(false);
   });
 
+  it("a failed evidence read is not proof (fail closed): no text, no row, no card", async () => {
+    h.execute.mockRejectedValueOnce(new Error("db"));
+    expect(await proveCapturedNothing("call_e4")).toBe(false);
+  });
+
   it("POSITIVE CONTROL: a tool call that captured nothing and was not escalated is proven", async () => {
     h.execute.mockResolvedValueOnce(evidenceRow({ escalated: 0 }));
     expect(await proveCapturedNothing("call_e3")).toBe(true);
+  });
+});
+
+describe("every missed-call candidate is checked for the escalate marker, tool-reaching or not", () => {
+  it("both collectors put the marker check in their candidate query", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const f of ["server/cron/jobs/missedCallRecovery.ts", "server/services/opportunityQueue.ts"]) {
+      expect([f, /notEscalatedSql\(vapiCallLogs\.vapiCallId\)/.test(readFileSync(f, "utf-8"))]).toEqual([f, true]);
+    }
+  });
+
+  it("the query reads the same 100-char key the writer writes", async () => {
+    const { escalatedMarkerKey, notEscalatedSql } = await import("../../services/alertClaim");
+    const { sql } = await import("drizzle-orm");
+    expect(escalatedMarkerKey("call_1")).toBe("voice-escalated:call_1");
+    expect(escalatedMarkerKey("x".repeat(120))).toHaveLength(100);
+    const q = notEscalatedSql(sql`vapiCallId`) as unknown as { queryChunks: unknown[] };
+    const text = q.queryChunks.map((c) => { const v = (c as { value?: unknown })?.value; return Array.isArray(v) ? v.join("") : "?"; }).join("");
+    expect(text).toMatch(/NOT EXISTS[\s\S]*cron_alerts_fired[\s\S]*LEFT\(CONCAT\(\?, \?\), 100\)/);
+    expect(boundStrings(q)).toContain("voice-escalated:");
   });
 });

@@ -19,6 +19,9 @@ const h = vi.hoisted(() => ({
   insertFailsOnce: false,
   callbackRequested: vi.fn(),
   promises: [] as Array<Record<string, unknown>>,
+  claimFails: false,
+  textOnDuty: vi.fn(),
+  sendTelegram: vi.fn(),
 }));
 
 /** Collect the bound string values of a drizzle SQL fragment (for the fake LIKE). */
@@ -76,6 +79,7 @@ function fakeDrizzle() {
 async function fakeExecute(q: { queryChunks?: unknown[] }) {
   const { text, params } = render(q);
   const key = `${params[0]}|${params[1]}`;
+  if (/INSERT IGNORE/i.test(text) && h.claimFails && String(params[0]).startsWith("voice-escalated:")) throw new Error("db down");
   if (/INSERT IGNORE/i.test(text)) {
     if (h.claims.has(key)) return [{ affectedRows: 0 }];
     h.claims.add(key);
@@ -100,10 +104,14 @@ vi.mock("../services/voice-call-state", () => ({ recordCallState: async () => {}
 vi.mock("../services/promiseLedger", () => ({
   createVoicePromise: async (p: Record<string, unknown>) => { h.promises.push(p); return { skipped: true, reason: "test" }; },
 }));
-vi.mock("../services/telegram", () => ({ sendTelegram: async () => ({ status: "delivered" }) }));
+vi.mock("../services/telegram", () => ({ sendTelegram: (...a: unknown[]) => (h.sendTelegram as Fn)(...a) }));
 vi.mock("../services/eventBus", async (orig) => {
   const real = await orig<typeof import("../services/eventBus")>();
-  return { ...real, emit: { ...real.emit, callbackRequested: (...a: unknown[]) => (h.callbackRequested as Fn)(...a) } };
+  return {
+    ...real,
+    textOnDutyManager: (...a: unknown[]) => (h.textOnDuty as Fn)(...a),
+    emit: { ...real.emit, callbackRequested: (...a: unknown[]) => (h.callbackRequested as Fn)(...a) },
+  };
 });
 
 function ctx(): TrpcContext {
@@ -122,22 +130,49 @@ beforeEach(() => {
   h.insertFailsOnce = false;
   h.promises = [];
   h.callbackRequested.mockResolvedValue(undefined);
+  h.claimFails = false;
+  h.textOnDuty.mockReset();
+  h.textOnDuty.mockResolvedValue({ status: "sent" });
+  h.sendTelegram.mockReset();
+  h.sendTelegram.mockResolvedValue({ status: "delivered" });
   vi.stubGlobal("fetch", async () => { throw new Error("network call in a unit test"); });
 });
+
+const settle = () => new Promise((r) => setTimeout(r, 50)); // the old alert was fire-and-forget
+const noManagerText = () => {
+  expect(h.callbackRequested).not.toHaveBeenCalled();
+  expect(h.textOnDuty).not.toHaveBeenCalled();
+  expect(h.sendTelegram).not.toHaveBeenCalled();
+};
 afterEach(() => {
   vi.unstubAllGlobals();
   h.callbackRequested.mockReset();
 });
 
 describe("escalate makes no callback obligation", () => {
-  it("writes no callback row, no promise and sends no manager text", async () => {
-    const c = await caller();
-    const res = await c.escalate({ reason: "rack check: 225/65R17", urgency: "high", callerNumber: CALLER, callId: "call_n1", bestTime: "after 3" });
-    expect(res.success).toBe(true);
-    await new Promise((r) => setTimeout(r, 50)); // the old alert was fire-and-forget
+  const closedCall = { reason: "rack check: 225/65R17", urgency: "high" as const, callerNumber: CALLER, callId: "call_n1", bestTime: "after 3" };
+
+  it("writes no callback row", async () => {
+    expect((await (await caller()).escalate(closedCall)).success).toBe(true);
     expect(h.rows).toHaveLength(0);
+  });
+
+  it("writes no promise", async () => {
+    await (await caller()).escalate(closedCall);
     expect(h.promises).toHaveLength(0);
-    expect(h.callbackRequested).not.toHaveBeenCalled();
+  });
+
+  it("sends no manager text, no Telegram and no bus event", async () => {
+    await (await caller()).escalate(closedCall);
+    await settle();
+    noManagerText();
+  });
+
+  it("a failed escalate-marker write is reported, so Vapi retries (fail closed, not fail open)", async () => {
+    h.claimFails = true;
+    const res = await (await caller()).escalate({ reason: "after hours", callerNumber: CALLER, callId: "call_f1" });
+    expect(res).toMatchObject({ success: false, noted: false });
+    expect(res.message).toMatch(/escalate once more/i);
   });
 
   it("marks the call escalated, so the missed-call lanes do not text or card it", async () => {
@@ -164,13 +199,22 @@ describe("escalate makes no callback obligation", () => {
 });
 
 describe("scheduleCallback makes no callback obligation", () => {
-  it("writes no callback row and no promise", async () => {
-    const c = await caller();
-    const res = await c.scheduleCallback({ name: "Sam", phone: "2165550123", reason: "alignment", preferredTime: "morning", callId: "call_s1" });
-    expect(res.success).toBe(true);
+  const asked = { name: "Sam", phone: "2165550123", reason: "alignment", preferredTime: "morning", callId: "call_s1" };
+
+  it("writes no callback row", async () => {
+    expect((await (await caller()).scheduleCallback(asked)).success).toBe(true);
     expect(h.rows).toHaveLength(0);
+  });
+
+  it("writes no promise", async () => {
+    await (await caller()).scheduleCallback(asked);
     expect(h.promises).toHaveLength(0);
-    expect(h.callbackRequested).not.toHaveBeenCalled();
+  });
+
+  it("sends no manager text, no Telegram and no bus event", async () => {
+    await (await caller()).scheduleCallback(asked);
+    await settle();
+    noManagerText();
   });
 });
 

@@ -278,6 +278,8 @@ export default function OverviewSection() {
       const sameCaller = phoneKey.length === 10 ? callbackRowByPhone.get(phoneKey) : undefined;
       if (sameCaller) {
         sameCaller.alsoIds = [...(sameCaller.alsoIds ?? []), callback.id];
+        const more = sameCaller.alsoIds.length;
+        sameCaller.detail = `${sameCaller.detail.replace(/ · \+\d+ more requests?$/, "")} · +${more} more request${more === 1 ? "" : "s"}`;
         continue;
       }
       items.push({
@@ -416,7 +418,7 @@ export default function OverviewSection() {
       await logReceipt(item, "admin.lead_contacted", { from: item.status, to: "contacted" });
     } else {
       for (const id of [item.entityId, ...(item.alsoIds ?? [])]) await callbackUpdate.mutateAsync({ id, status: "completed" });
-      await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed" });
+      await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed", ...(item.alsoIds?.length ? { alsoIds: item.alsoIds } : {}) });
     }
     await utils.adminDashboard.overviewMediumBundle.invalidate();
     return true;

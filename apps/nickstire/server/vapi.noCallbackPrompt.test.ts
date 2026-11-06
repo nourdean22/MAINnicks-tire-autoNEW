@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_SYSTEM_PROMPT, FOLLOW_UP_SYSTEM_PROMPT, VAPI_TOOLS, buildAssistantConfig } from "./services/vapi";
 
-const OFFERS_A_CALLBACK = /callback list|call you back\b|have someone[^.]{0,40}call|someone will call|the shop will call|for the callback/i;
+const OFFERS_A_CALLBACK = /callback list|call you back\b|have someone[^.]{0,40}call|someone will call|the shop will call|for the callback|be in touch|get back to you|reach out/i;
 
 type Tool = { type?: string; function?: { name?: string; description?: string; parameters?: { properties?: Record<string, { description?: string }> } } };
 const escalate = (VAPI_TOOLS as unknown as Tool[]).find((t) => t.function?.name === "escalate")!.function!;
@@ -24,6 +24,7 @@ describe("no served line offers or promises a callback", () => {
       "Sorry, nobody could grab the phone up front. Want the shop to call you back?",
       "Want me to have someone from the shop call you back instead?",
       "you're on the shop's callback list, someone will call you back",
+      "we got it logged, we'll be in touch.",
     ]) expect(old).toMatch(OFFERS_A_CALLBACK);
   });
 

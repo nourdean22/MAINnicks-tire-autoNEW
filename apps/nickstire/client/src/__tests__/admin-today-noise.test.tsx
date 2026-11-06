@@ -66,6 +66,7 @@ vi.mock("@/pages/admin/PromisesPanel", () => ({ default: h.Marker("promises") })
 vi.mock("@/pages/admin/today/ArrivalLoadStrip", () => ({ default: h.Marker("arrival") }));
 vi.mock("@/pages/admin/today/ExceptionFeed", () => ({ default: h.Marker("exceptions") }));
 import OverviewSection from "@/pages/admin/OverviewSection";
+import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { getQueueActionDefinition } from "@/pages/admin/today/queueActions";
 
 const CHECKS_KEY = "nicks-admin-today-checks";
@@ -117,6 +118,25 @@ describe("one row per phone for callbacks", () => {
       fireEvent.click(screen.getByRole("button", { name: "Complete callback" }));
     });
     await waitFor(() => expect(done.sort()).toEqual([1, 2]));
+  });
+
+  it("the folded row says how many more requests it holds, and the receipt names every id", async () => {
+    const receipts: Array<Record<string, unknown>> = [];
+    h.mutations.set("callback.updateStatus", () => ({ mutateAsync: async () => ({}), isPending: false }));
+    h.mutations.set("adminSecurity.recordAction", () => ({ mutateAsync: async (v: Record<string, unknown>) => { receipts.push(v); return { reference: "ACT-2" }; }, isPending: false }));
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE({ callbacks: [cb(1, "(216) 555-0101"), cb(2, "2165550101")] })));
+    render(<OverviewSection />);
+    expect(screen.getByText(/\+1 more request/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Complete callback" }));
+    });
+    await waitFor(() => expect(receipts).toHaveLength(1));
+    expect((receipts[0].changes as Record<string, unknown>).alsoIds).toEqual([2]);
+  });
+
+  it("the sidebar counts one pending callback per phone, like the board", () => {
+    const counts = getAdminActionableCounts({ callbacks: [cb(1, "(216) 555-0101"), cb(2, "2165550101"), cb(3, "(216) 555-0102")] });
+    expect(counts.pendingCallbacks).toBe(2);
   });
 });
 

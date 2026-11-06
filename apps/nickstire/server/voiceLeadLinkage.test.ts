@@ -177,7 +177,7 @@ describe("both ends are actually wired", () => {
   // Behaviour is pinned in routers/voiceAgent.noCallbackObligation.test.ts.
   it("neither receptionist tool inserts a callback row any more", async () => {
     const s = await read("./routers/voiceAgent.ts");
-    expect(s).not.toMatch(/insert\(callbackRequests\)/);
+    expect(s).not.toMatch(/insert\(callbackRequests\)|createCallbackRequest\(/);
   });
 
   it("the webhook extracts BOTH ids and writes them at INSERT", async () => {

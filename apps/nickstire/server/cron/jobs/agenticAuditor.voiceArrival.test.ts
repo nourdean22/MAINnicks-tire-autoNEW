@@ -116,3 +116,31 @@ describe("RULE 3 · bookSlot persisted", () => {
     expect(findingsWritten().map((f) => f.type)).not.toContain("missing_arrival_record");
   });
 });
+
+describe("RULE 4 · escalate promises no callback since 2026-11-06", () => {
+  const callWith = (name: string) => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: "call-tow-1",
+        artifact: { messages: [
+          { role: "assistant", toolCalls: [{ id: "tc9", function: { name, arguments: JSON.stringify({ reason: "after hours" }) } }] },
+          { role: "tool", toolCallId: "tc9", result: JSON.stringify({ success: true }) },
+        ] },
+      }),
+    })) as unknown as typeof fetch;
+  };
+
+  it("an escalate with no callback row raises no missing_followthrough", async () => {
+    callWith("escalate");
+    await processAgenticAuditor();
+    expect(h.updates.length).toBeGreaterThan(0);
+    expect(findingsWritten().map((f) => f.type)).not.toContain("missing_followthrough");
+  });
+
+  it("control: submitCallback with no callback row still raises it", async () => {
+    callWith("submitCallback");
+    await processAgenticAuditor();
+    expect(findingsWritten().map((f) => f.type)).toContain("missing_followthrough");
+  });
+});
