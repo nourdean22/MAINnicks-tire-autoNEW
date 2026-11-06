@@ -1,7 +1,7 @@
 {
   "evidence": {
     "bridge-tests": {
-      "ref": "node --test tools/sovereign-dev/ai-playground.test.mjs: 98 passed, 0 failed, including secret-redaction, Windows ACL, eleven-server mapping, additive and disabled MCP selection, safe local model-path receipts, preserving restrictive inherited OpenCode permissions, rejecting malformed inline config, no assumed alternate-model limits, Windows interrupt cleanup, skill instructions, and simultaneous isolated launches."
+      "ref": "node --test tools/sovereign-dev/ai-playground.test.mjs: 101 passed, 0 failed, including secret-redaction, Windows ACL, eleven-server mapping, additive and disabled MCP selection, safe local model-path receipts, preserving restrictive inherited OpenCode permissions, rejecting malformed inline config, no assumed alternate-model limits, Windows interrupt cleanup, selected Companion alias in both config layers, skill instructions, and simultaneous isolated launches."
     },
     "harness-tests": {
       "ref": "claude plugin test .claude/mods/nourcity-harness: 20 passed, 0 failed; scheduled health reads never start the app."
@@ -16,7 +16,7 @@
       "ref": "AI Playground UI showed the Companion preset with Huihui-Qwen3.5-9B-abliterated.Q4_K_M on llama.cpp and returned the exact local test response. Bridge health returned OK with the filename-only model ID and all 11 MCP names. Previously proven media: TTS output and ComfyUI image generation/upscale."
     },
     "known-gaps": {
-      "ref": "Full 11-server OpenCode request exceeded context. A short local coding request produced no visible response and was stopped after about ten minutes; live OpenCode inference remains unverified. The default profile is now skills-only and keeps all 11 tools selectable. Whisper transcription remains unverified; video model needs 21.51 GB with about 14.9 GB free; a separate OpenVINO model was not downloaded pending model-specific approval."
+      "ref": "Full 11-server OpenCode request exceeded context. The skills MCP timed out during startup; the default profile now starts no MCPs while all 11 remain selectable. A direct OpenAI-compatible local request with Qwen thinking disabled answered OK in 651 ms after the endpoint was idle. The first fast coding profile still had its inline model selector pinning the normal Companion alias; a regression test exposed and fixed that. A later OpenCode CLI smoke in an empty folder produced no visible answer within 70 seconds and was stopped, so live OpenCode inference remains unverified. Whisper transcription remains unverified; video model needs 21.51 GB with about 14.9 GB free; a separate OpenVINO model was not downloaded pending model-specific approval."
     }
   }
 }

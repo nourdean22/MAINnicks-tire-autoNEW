@@ -121,19 +121,25 @@ file. The persistent `configure` command writes the
 stable user-local reference file. Since the OpenAI-compatible model listing does
 not report context/output limits, the bridge does not assign unverified limits
 to whichever model AI Playground currently serves. A live request with all 11
-MCP servers enabled exceeded the selected model's context. To keep a coding
-session useful and within the measured boundary, the default enables only
-`skills`. All configured MCP entries remain in
-the generated catalog; add any other server by repeating `--mcp`, for example
+MCP servers enabled exceeded the selected model's context. The local `skills`
+MCP also timed out during startup on this PC. The default therefore starts no
+MCP servers and uses OpenCode's built-in coding tools. All configured MCP
+entries remain in the generated catalog; add any server by repeating `--mcp`, for example
 `opencode --mcp browser -- run "inspect this page in the browser"` or
-`opencode --mcp web-search --mcp fetch -- run "research this API"`. Explicitly
+`opencode --mcp skills --mcp web-search --mcp fetch -- run "research this API"`. Explicitly
 selected servers are enabled only if present and enabled in AI Playground; absent,
 disabled, or unknown selections fail before a config file is created. Missing
 optional servers in the installed catalog are skipped in the default profile.
 
 The generated config runs OpenCode with its own local standalone server and sets
 the selected model in both the override and inline config, so project or
-background-session settings cannot silently route work elsewhere. It loads
+background-session settings cannot silently route work elsewhere. For the
+recognized abliterated Qwen3.5 9B file, the regular coding shortcut selects a
+fast alias with hidden reasoning disabled in the request; the Deep Think
+shortcut selects the same model ID with its normal reasoning behavior. Other
+models use the normal Companion alias. This changes request mode, not the GGUF
+file. Model-specific request bodies are supported by [OpenCode V2 provider configuration](https://opencode.ai/v2/docs/providers/).
+It loads
 `AI-PLAYGROUND-INSTRUCTIONS.md`, which tells Companion to discover and read
 installed skills on demand, including `steal-like-an-artist`,
 `reverse-engineer-anything`, and `find-skills`. This avoids loading those full
@@ -142,9 +148,9 @@ checking, and secret handling. `browser` enables the configured Playwright brows
 it does not promise access to the user's signed-in Chrome profile. Desktop
 Commander has its own Desktop shortcut and can also be enabled with `--mcp`.
 
-`install-playground-shortcuts.ps1` creates four durable Desktop shortcuts:
-the saved AI Playground Companion, the coding harness, the coding harness with
-Desktop Commander, and the coding harness with the Playwright `browser` MCP.
+`install-playground-shortcuts.ps1` creates five durable Desktop shortcuts:
+the saved AI Playground Companion, fast coding, deeper-thinking coding, coding
+with Desktop Commander, and coding with the Playwright `browser` MCP.
 Run it once from the checked-out repo:
 
 ```powershell
@@ -154,9 +160,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/sovereign-dev/install-
 The installer finds a dedicated checkout on `main`, so the shortcuts keep
 working after a feature worktree is removed and always open the merged project.
 Run it after the launcher has reached that checkout. Both coding shortcuts open
-the monorepo root as the starting folder. The regular coding profile starts with the `skills` server so
-the local model has room for the repo and task. Use the Desktop Commander
-shortcut or add `--mcp NAME` for any other configured tool, such as `vault`,
+the monorepo root as the starting folder. The regular coding profile connects no
+MCP server by default. Use the Desktop Commander shortcut or add `--mcp NAME`
+for any other configured tool, such as `skills`, `vault`,
 `graphify`, or `browser`. For another project, change to its
 folder from the opened terminal before starting OpenCode.
 
@@ -167,7 +173,9 @@ OpenCode usage in the repo and works only when AI Playground is healthy. The
 Desktop shortcuts open the repo root, so OpenCode picks up its `AGENTS.md` and
 project instructions before using project tools.
 
-Pass OpenCode arguments after `--`, for example `opencode -- run "inspect the tests"`. Existing
+Pass `--thinking` before `--` to select full reasoning; the matching Desktop
+shortcut does this for you. Pass OpenCode arguments after `--`, for example
+`opencode -- run "inspect the tests"`. Existing
 global/project settings follow [OpenCode's normal merge order](https://opencode.ai/docs/en/config/);
 the bridge's model selector takes precedence while preserving inline settings,
 including permissions. The bridge adds no approval or permission rules. A missing or

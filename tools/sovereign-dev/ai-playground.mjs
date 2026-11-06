@@ -23,10 +23,18 @@ const URL_TEXT = /https?:\/\/[^\s"'<>]+/g;
 const SENSITIVE_KEY = /token|key|auth|secret|pass|pwd|sig|credential|session|bearer|jwt|code/i;
 const PUBLIC_QUERY_KEY = /^(?:format|type|page|limit|offset|sort|order|direction|cursor|stream|version|include|exclude)$/i;
 const decodedValue = value => { try { return decodeURIComponent(value); } catch { return value; } };
-const CODING_MCP_SERVERS = new Set(['skills']);
+const CODING_MCP_SERVERS = new Set();
 const LOCAL_COMPANION_MODEL = 'ai-playground/companion';
+const LOCAL_COMPANION_FAST_MODEL = 'ai-playground/companion-fast';
+const QWEN_ABLITERATED_FILE = 'huihui-qwen3.5-9b-abliterated.q4_k_m.gguf';
 
-function localModelInlineConfig(existing) {
+function preferredModelAlias(modelId) {
+  return path.win32.basename(modelId ?? '').toLowerCase() === QWEN_ABLITERATED_FILE
+    ? LOCAL_COMPANION_FAST_MODEL : LOCAL_COMPANION_MODEL;
+}
+
+function localModelInlineConfig(existing, model = LOCAL_COMPANION_MODEL) {
+  if (![LOCAL_COMPANION_MODEL, LOCAL_COMPANION_FAST_MODEL].includes(model)) invalid();
   let config = {};
   if (existing !== undefined && existing !== '') {
     try { config = JSON.parse(existing); } catch { throw new Error('Invalid OpenCode inline config'); }
@@ -34,7 +42,7 @@ function localModelInlineConfig(existing) {
       throw new Error('Invalid OpenCode inline config');
     }
   }
-  return JSON.stringify({ ...config, model: LOCAL_COMPANION_MODEL });
+  return JSON.stringify({ ...config, model });
 }
 const PUBLIC_MODEL_PATH_COMPONENTS = new Set(['ai-playground']);
 
@@ -383,20 +391,28 @@ export async function configure(result, env = process.env, {
     enabled: entry.enabled && (selectedMcp === undefined || selectedMcp.has(name)),
   }]));
   if (requiredMcp !== undefined && [...requiredMcp].some(name => !Object.hasOwn(mcp, name) || !mcp[name].enabled)) invalid();
+  const modelId = result.modelId ?? result.health.modelId;
+  const defaultModel = preferredModelAlias(modelId);
+  const models = { companion: {
+    name: 'Companion (local)', modelID: modelId,
+    // OpenAI-compatible /models does not report limits. Do not claim
+    // Companion limits for a different model the user may load later.
+    capabilities: { tools: true },
+  } };
+  if (defaultModel === LOCAL_COMPANION_FAST_MODEL) models['companion-fast'] = {
+    name: 'Companion Fast (same local model)', modelID: modelId,
+    body: { chat_template_kwargs: { enable_thinking: false } },
+    capabilities: { tools: true },
+  };
   const config = {
     $schema: SCHEMA,
     instructions: [path.join(path.dirname(fileURLToPath(import.meta.url)), 'AI-PLAYGROUND-INSTRUCTIONS.md')],
-    model: 'ai-playground/companion',
+    model: defaultModel,
     providers: {
       'ai-playground': {
         name: 'AI Playground (local)', package: '@opencode/ai/providers/openai-compatible',
         settings: { baseURL: `${result.baseURL}/v1` },
-        models: { companion: {
-          name: 'Companion (local)', modelID: result.modelId ?? result.health.modelId,
-          // OpenAI-compatible /models does not report limits. Do not claim
-          // Companion limits for a different model the user may load later.
-          capabilities: { tools: true },
-        } },
+        models,
       },
     },
     mcp,
@@ -470,10 +486,12 @@ function parseArgs(argv) {
   let endpoint;
   let args = [];
   let requestedMcp;
+  let modelAlias;
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--' && command === 'opencode') { args = rest.slice(i + 1); break; }
     if (rest[i] === '--json') continue;
     if (rest[i] === '--endpoint' && rest[i + 1]) { endpoint = loopbackEndpoint(rest[++i]); continue; }
+    if (command === 'opencode' && rest[i] === '--thinking') { modelAlias = LOCAL_COMPANION_MODEL; continue; }
     if (command === 'opencode' && rest[i] === '--mcp' && rest[i + 1] && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(rest[i + 1])) {
       (requestedMcp ??= new Set()).add(rest[++i]);
       continue;
@@ -481,7 +499,7 @@ function parseArgs(argv) {
     invalid();
   }
   return {
-    command, endpoint, args,
+    command, endpoint, args, modelAlias,
     selectedMcp: command === 'opencode' ? new Set([...CODING_MCP_SERVERS, ...(requestedMcp ?? [])]) : undefined,
     requiredMcp: requestedMcp,
   };
@@ -492,7 +510,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
   const write = options.write ?? (value => process.stdout.write(value));
   const emit = value => write(`${JSON.stringify(value)}\n`);
   try {
-    const { command, endpoint, args, selectedMcp, requiredMcp } = parseArgs(argv);
+    const { command, endpoint, args, modelAlias, selectedMcp, requiredMcp } = parseArgs(argv);
     if (command === 'start' || command === 'open') {
       await (options.openApp ?? openApp)(env);
       emit({ schemaVersion: 1, status: 'OK' });
@@ -529,10 +547,11 @@ export async function main(argv = process.argv.slice(2), options = {}) {
       generated = await configure(result, env, { selectedMcp, requiredMcp, fileName,
         writePrivate: options.writePrivate });
       if (interrupted) return interrupted === 'SIGINT' ? 130 : 143;
+      const selectedModel = modelAlias ?? preferredModelAlias(result.modelId ?? result.health.modelId);
       const localArgs = args.includes('--standalone') ? args : ['--standalone', ...args];
       return await (options.launch ?? launch)(opencode, localArgs, {
         cwd: options.cwd ?? process.cwd(), env: { ...env, OPENCODE_CONFIG: generated,
-          OPENCODE_CONFIG_CONTENT: localModelInlineConfig(env.OPENCODE_CONFIG_CONTENT) },
+          OPENCODE_CONFIG_CONTENT: localModelInlineConfig(env.OPENCODE_CONFIG_CONTENT, selectedModel) },
         spawnProcess: options.spawnProcess, platform: options.platform,
         registerChildStop: stop => { stopChild = stop; },
       });

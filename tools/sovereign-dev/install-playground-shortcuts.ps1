@@ -51,12 +51,14 @@ function Save-Shortcut([string]$name, [string]$target, [string]$arguments, [stri
 
 $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
 $codingArgs = '/k ""' + $launcher + '""'
+$thinkingArgs = '/k ""' + $launcher + '" --thinking"'
 $desktopArgs = '/k ""' + $launcher + '" --mcp desktop-commander"'
 $browserArgs = '/k ""' + $launcher + '" --mcp browser"'
 
 $created = @(
   (Save-Shortcut 'AI Playground Companion' $app '' (Split-Path -Parent $app) $app),
   (Save-Shortcut 'AI Playground Coding Companion' $cmd $codingArgs $repoRoot $cmd),
+  (Save-Shortcut 'AI Playground Coding Companion - Deep Think' $cmd $thinkingArgs $repoRoot $cmd),
   (Save-Shortcut 'AI Playground Coding + Desktop Tools' $cmd $desktopArgs $repoRoot $cmd),
   (Save-Shortcut 'AI Playground Coding + Browser' $cmd $browserArgs $repoRoot $cmd)
 )

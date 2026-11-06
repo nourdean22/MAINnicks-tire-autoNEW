@@ -75,7 +75,7 @@ async function bridge() {
 test('configure mirrors all eleven MCPs, exact model and V2 provider without approvals', async t => {
   const f = await setup(t);
   const result = await run(f, ['configure', '--json'], { native: true });
-  assert.equal(result.code, 0);
+  assert.equal(result.code, 0, result.stdout);
   assert.equal(receipt(result).status, 'OK');
   const config = JSON.parse(await readFile(f.output, 'utf8'));
   assert.deepEqual(Object.keys(config.mcp), names);
@@ -97,6 +97,50 @@ test('configure mirrors all eleven MCPs, exact model and V2 provider without app
   assert.equal(config.permissions, undefined);
   assert.equal(config.policies, undefined);
   assert.deepEqual(await readdir(f.configDir), ['mcp.json', 'opencode.playground.json']);
+});
+
+test('abliterated Qwen gets a fast alias on the same model ID with thinking disabled', async t => {
+  const qwenId = 'Huihui-Qwen3.5-9B-abliterated.Q4_K_M.gguf';
+  const f = await setup(t, fixture(), { data: [{ id: qwenId }] });
+  const { inspectHealth, configure } = await bridge();
+  const result = await inspectHealth({ env: { LOCALAPPDATA: f.dir }, endpoint: f.endpoint,
+    runtime: async () => ({ playground: 'OFF', ports: [] }) });
+  assert.equal(result.health.status, 'OK', JSON.stringify(result.health));
+  await configure(result, { LOCALAPPDATA: f.dir }, {
+    writePrivate: async (filePath, payload) => writeFile(filePath, payload),
+  });
+  const config = JSON.parse(await readFile(f.output, 'utf8'));
+  const models = config.providers['ai-playground'].models;
+  assert.equal(config.model, 'ai-playground/companion-fast');
+  assert.equal(models.companion.modelID, qwenId);
+  assert.equal(models['companion-fast'].modelID, qwenId);
+  assert.deepEqual(models['companion-fast'].body, {
+    chat_template_kwargs: { enable_thinking: false },
+  });
+  assert.equal(models.companion.limit, undefined);
+  assert.equal(models['companion-fast'].limit, undefined);
+  assert.equal(result.health.modelId, qwenId);
+});
+
+test('default abliterated launch pins the fast alias in OpenCode inline config', async t => {
+  const qwenId = 'Huihui-Qwen3.5-9B-abliterated.Q4_K_M.gguf';
+  const f = await setup(t, fixture(), { data: [{ id: qwenId }] });
+  const { main } = await bridge();
+  let invocation;
+  const code = await main(['opencode', '--endpoint', f.endpoint, '--', 'run', 'test'], {
+    env: { ...process.env, LOCALAPPDATA: f.dir, APPDATA: f.dir, PATH: '' },
+    runtime: async () => ({ playground: 'OFF', ports: [] }),
+    writePrivate: async (filePath, payload) => writeFile(filePath, payload),
+    launch: async (_command, _args, options) => {
+      const generated = JSON.parse(await readFile(options.env.OPENCODE_CONFIG, 'utf8'));
+      invocation = { model: generated.model, inline: JSON.parse(options.env.OPENCODE_CONFIG_CONTENT) };
+      return 0;
+    },
+    opencodeVersion: async () => '2.0.0',
+  });
+  assert.equal(code, 0);
+  assert.equal(invocation.model, 'ai-playground/companion-fast');
+  assert.equal(invocation.inline.model, 'ai-playground/companion-fast');
 });
 
 test('health is read-only, reports names only and keeps unrelated readiness unknown', async t => {
@@ -215,6 +259,30 @@ test('opencode consumer receives local override, preserves inline policies, and 
   assert.equal(out.join('').includes(secret), false);
 });
 
+test('thinking option keeps the same local Companion model and selects the reasoning alias', async t => {
+  const qwenId = 'Huihui-Qwen3.5-9B-abliterated.Q4_K_M.gguf';
+  const f = await setup(t, fixture(), { data: [{ id: qwenId }] });
+  const { main } = await bridge();
+  let invocation;
+  const code = await main(['opencode', '--endpoint', f.endpoint, '--thinking', '--', 'run', 'test'], {
+    env: { ...process.env, LOCALAPPDATA: f.dir, APPDATA: f.dir, PATH: '' },
+    runtime: async () => ({ playground: 'OFF', ports: [] }),
+    writePrivate: async (filePath, payload) => writeFile(filePath, payload),
+    launch: async (_command, _args, options) => {
+      const generated = JSON.parse(await readFile(options.env.OPENCODE_CONFIG, 'utf8'));
+      invocation = { model: generated.model, models: generated.providers['ai-playground'].models,
+        inline: JSON.parse(options.env.OPENCODE_CONFIG_CONTENT) };
+      return 0;
+    },
+    opencodeVersion: async () => '2.0.0',
+  });
+  assert.equal(code, 0);
+  assert.equal(invocation.model, 'ai-playground/companion-fast');
+  assert.equal(invocation.inline.model, 'ai-playground/companion');
+  assert.equal(invocation.models.companion.modelID, qwenId);
+  assert.equal(invocation.models['companion-fast'].modelID, qwenId);
+});
+
 test('invalid inherited OpenCode inline config fails closed before launch', async t => {
   const f = await setup(t);
   const { main } = await bridge();
@@ -233,7 +301,7 @@ test('invalid inherited OpenCode inline config fails closed before launch', asyn
   assert.deepEqual(JSON.parse(out.join('')), { schemaVersion: 1, status: 'UNAVAILABLE' });
 });
 
-test('coding launch keeps every MCP configured but enables a context-safe coding set', async t => {
+test('default coding launch keeps every MCP configured without starting any MCP server', async t => {
   const f = await setup(t);
   const { main } = await bridge();
   let generated;
@@ -249,7 +317,7 @@ test('coding launch keeps every MCP configured but enables a context-safe coding
   assert.equal(code, 0);
   assert.deepEqual(Object.keys(generated.mcp), names);
   const enabled = Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name);
-  assert.deepEqual(enabled, ['skills']);
+  assert.deepEqual(enabled, []);
 });
 
 test('coding launch can opt in to an additional MCP without dropping the configured catalog', async t => {
@@ -268,7 +336,7 @@ test('coding launch can opt in to an additional MCP without dropping the configu
   assert.equal(code, 0);
   assert.deepEqual(Object.keys(generated.mcp), names);
   assert.deepEqual(Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name),
-    ['skills', 'desktop-commander', 'pdf']);
+    ['desktop-commander', 'pdf']);
 });
 
 test('explicitly requested disabled MCP fails instead of silently staying disabled', async t => {
@@ -401,7 +469,7 @@ test('default coding profile tolerates optional MCP servers absent from the inst
   });
   assert.equal(code, 0);
   assert.deepEqual(Object.keys(generated.mcp), names.filter(name => !['vault', 'desktop-commander'].includes(name)));
-  assert.deepEqual(Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name), ['skills']);
+  assert.deepEqual(Object.entries(generated.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name), []);
 });
 
 test('simultaneous coding launches get isolated immutable config paths and clean them up', async t => {
@@ -426,7 +494,7 @@ test('simultaneous coding launches get isolated immutable config paths and clean
     const invocation = invocations.find(item => item.config.mcp[server].enabled);
     assert.ok(invocation, `${server} should remain in its own launch profile`);
     assert.deepEqual(Object.entries(invocation.config.mcp).filter(([, entry]) => entry.enabled).map(([name]) => name),
-      ['skills', server]);
+      [server]);
   }
   assert.deepEqual(await readdir(f.configDir), ['mcp.json']);
 });
