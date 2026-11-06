@@ -230,9 +230,10 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
   {
     // v3 (2026-11-06): nothing backs a callback promise. escalate() writes no
     // callback row or promise since Nour's "no callback text" order, so the old
-    // escalate and after-hours exemptions would pass false promises.
+    // escalate, after-hours and conditional ("if the tire arrives") exemptions
+    // would all pass false promises.
     label: "unbacked_callback_promise",
-    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:back\s+)?if)/i,
+    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b/i,
   },
 
   /* ── TIRE SAFETY · added 2026-09-18, sourced to primary documents ──

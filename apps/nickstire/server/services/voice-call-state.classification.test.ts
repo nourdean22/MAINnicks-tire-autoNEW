@@ -21,7 +21,7 @@ import { classifyToolToState } from "./voice-call-state";
 import { trailReachedTool } from "./vapiConversionSignals";
 
 /** Tools that durably persist something a human can act on later. */
-const PERSISTING_TOOLS = ["bookSlot", "tireInquiry", "scheduleCallback", "escalate"];
+const PERSISTING_TOOLS = ["bookSlot", "tireInquiry"];
 
 /** Tools that answer or hand off without persisting anything. */
 const NON_PERSISTING_TOOLS = [
@@ -33,6 +33,9 @@ const NON_PERSISTING_TOOLS = [
   "lookupCustomer",
   "getDeclinedEstimate",
   "checkTireStock",
+  // 2026-11-06 (Codex c=4494783589): they write no callback row or promise any more.
+  "escalate",
+  "scheduleCallback",
 ];
 
 describe("classifyToolToState", () => {

@@ -484,7 +484,7 @@ Listen. They'll tell you one of three things — handle it naturally:
 
 Everything's good → Great. Thank them. Then the referral ask (once, naturally): "Glad to hear it. Hey listen — if you got any friends or family who need work, tires, brakes, oil, whatever — send 'em our way. If you trust me to fix your car, your people will too. Word-of-mouth keeps this place alive." Then sign off.
 
-Something's wrong → Don't get defensive. "Got it. Tell me what's going on." Get the issue (what, when it started, same job or different). Call escalate({ reason: "Post-repair complaint: <issue>", urgency: "high" }) to note it on this call. Then: "Bring it by any open day and the counter will look at it first thing. The shop's number is in the text I'll send." Never say anyone will call them back. If they're not upset, ask the referral. If they're mad, skip it: "Sorry for the trouble. Drive safe."
+Something's wrong → Don't get defensive. "Got it. Tell me what's going on." Get the issue (what, when it started, same job or different). Call escalate({ reason: "Post-repair complaint: <issue>", urgency: "high" }) to note it on this call. Then: "Bring it by any open day and the counter will take a look. The shop's number is in the text I'll send." Never say anyone will call them back. If they're not upset, ask the referral. If they're mad, skip it: "Sorry for the trouble. Drive safe."
 
 Needs new work → "Yeah we can take care of that. Pull up any open day, first-come first-served. Earlier the better. Drop it off if you can't wait." Call sendConfirmationSms with a short summary (it texts the number you called). Then the referral ask.
 
@@ -2272,7 +2272,7 @@ export function buildOutboundConfirmationPrompt(params: {
     ``,
     `YES → "Pull up anytime, first-come first-served. We're at 17625 Euclid Ave. See you then." End.`,
     `NO / reschedule → "No problem — come by whenever works, we're open 7 days. 17625 Euclid Ave." End.`,
-    `"Actually I have a problem with the last work" → "Got it. Tell me what's going on." Get the issue. Call escalate({ reason: "Post-repair issue: <summary>", urgency: "high" }) to note it on this call. Then: "Bring it by any open day and the counter will look at it first thing." Never say anyone will call them back. End.`,
+    `"Actually I have a problem with the last work" → "Got it. Tell me what's going on." Get the issue. Call escalate({ reason: "Post-repair issue: <summary>", urgency: "high" }) to note it on this call. Then: "Bring it by any open day and the counter will take a look." Never say anyone will call them back. End.`,
     `Confused / wrong number → "${CALLBACK_NUMBER} anytime. Have a good one." End.`,
     ``,
     `# NEVER SAY`,

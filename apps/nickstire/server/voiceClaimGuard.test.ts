@@ -212,6 +212,13 @@ describe("stock, capacity, wait and person claims", () => {
       .not.toContain("unbacked_callback_promise");
   });
 
+  it("v3: a conditional callback promise is still a promise nothing backs (Codex c=4494783617)", () => {
+    expect(voiceClaimViolations(["We'll call you back if the tire arrives today."])).toContain("unbacked_callback_promise");
+    expect(voiceClaimViolations(["I'll call you if anything changes."])).toContain("unbacked_callback_promise");
+    // POSITIVE CONTROL: inviting the caller to call is not a promise.
+    expect(voiceClaimViolations(["Call us if anything changes."])).not.toContain("unbacked_callback_promise");
+  });
+
   it("v3: escalate on the call no longer backs a callback promise", () => {
     const capture = { role: "bot", message: "Sorry about that — you're on the shop's callback list, someone will call you back." };
     const escalate = { role: "tool_calls", toolCalls: [{ id: "t1", type: "function", function: { name: "escalate", arguments: "{}" } }] };

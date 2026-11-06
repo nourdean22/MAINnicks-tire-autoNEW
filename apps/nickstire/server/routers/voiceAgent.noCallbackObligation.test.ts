@@ -214,4 +214,9 @@ describe("a complaint on an outbound follow-up call texts the on-duty manager (N
     expect(String((h.callbackRequested.mock.calls[0][0] as { reason: string }).reason)).toMatch(/^COMPLAINT \(follow-up call\): Post-repair complaint: brakes squeal/);
     expect(h.rows).toHaveLength(0);
   });
+
+  it("the outbound complaint reply promises no priority (first come, first served)", async () => {
+    const res = await (await caller()).escalate({ reason: "Post-repair complaint: squeal", urgency: "high", callerNumber: CALLER, callId: "call_o2", outbound: true });
+    expect(res.message).not.toMatch(/first thing|right away|priority/i);
+  });
 });

@@ -197,9 +197,10 @@ export default function OverviewSection() {
   );
   // The open count leaves out rows the board already lists as callbacks and owed texts.
   const followUps = useMemo(() => worklist.filter((row) => !hiddenOnToday(row)), [worklist]);
-  // The rows shown are the Pipeline's first five cards minus those, so each one is on the Pipeline's
-  // first screen too; Today may show fewer than five.
-  const followUpsShown = useMemo(() => worklist.slice(0, FOLLOW_UPS_ON_BOARD).filter((row) => !hiddenOnToday(row)), [worklist]);
+  // The first five rows Today does not hide, in the Pipeline's worklist order. Hidden rows are removed
+  // BEFORE the cap (2026-11-06): Today hides whole classes now (missed-call cards, retired promises), and
+  // capping first let them use up every slot and hide a real obligation behind "Done for today".
+  const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
   // The server sent its full window, so more rows may exist past it. Read from the UNFILTERED length:
   // the board's own filter can drop the count under the limit without making the window any less full.
   const followUpsSaturated = canOpenPipeline && (followUpData?.items.length ?? 0) >= FOLLOW_UPS_INPUT.limit;

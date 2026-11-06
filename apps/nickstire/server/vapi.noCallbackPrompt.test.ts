@@ -6,7 +6,7 @@
  * the config (Admin > Voice Receptionist > Push Latest Config).
  */
 import { describe, expect, it } from "vitest";
-import { ASSISTANT_SYSTEM_PROMPT, FOLLOW_UP_SYSTEM_PROMPT, VAPI_TOOLS, buildAssistantConfig } from "./services/vapi";
+import { ASSISTANT_SYSTEM_PROMPT, FOLLOW_UP_SYSTEM_PROMPT, VAPI_TOOLS, buildAssistantConfig, buildOutboundConfirmationPrompt } from "./services/vapi";
 
 const OFFERS_A_CALLBACK = /callback list|call you back\b|have someone[^.]{0,40}call|someone will call|the shop will call|for the callback|be in touch|get back to you|reach out/i;
 
@@ -48,5 +48,16 @@ describe("no served line offers or promises a callback", () => {
 
   it("the follow-up caller", () => {
     expect(FOLLOW_UP_SYSTEM_PROMPT).not.toMatch(OFFERS_A_CALLBACK);
+  });
+
+  it("the complaint paths promise no priority: the shop is first come, first served (Codex c=4494783573)", () => {
+    const PRIORITY = /first thing|right away|top of the list|ahead of|priority|before anyone/i;
+    expect("the counter will look at it first thing").toMatch(PRIORITY); // positive control
+    const confirm = buildOutboundConfirmationPrompt({ customerName: "Sam", service: "brakes", preferredDay: "tomorrow" });
+    for (const [where, text] of [["follow-up", FOLLOW_UP_SYSTEM_PROMPT], ["confirmation", confirm]] as const) {
+      const complaint = text.split(/\n/).filter((l) => /complaint|problem with the last work|post-repair/i.test(l)).join("\n");
+      expect([where, complaint.length > 0]).toEqual([where, true]);
+      expect([where, PRIORITY.test(complaint)]).toEqual([where, false]);
+    }
   });
 });

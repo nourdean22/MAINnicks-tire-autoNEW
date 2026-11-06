@@ -78,6 +78,11 @@ const READ_TOOLS = new Set([
   // → vapi_call_logs.convertedToLead = 1, so every caller who merely asked "do
   // you have my size?" counted as a converted lead with no lead behind it.
   "checkTireStock",
+  // 2026-11-06 · escalate and scheduleCallback MOVED here: they write no callback row or
+  // promise any more (the receptionist makes no callback obligations), so counting them as
+  // tool_called would set convertedToLead = 1 with nothing behind it.
+  "escalate",
+  "scheduleCallback",
 ]);
 /**
  * Tools that DURABLY PERSIST something a human can act on later — the basis of
@@ -86,8 +91,6 @@ const READ_TOOLS = new Set([
 const WRITE_TOOLS = new Set([
   "bookSlot",
   "tireInquiry",
-  "scheduleCallback",
-  "escalate",
 ]);
 const CONFIRM_TOOLS = new Set(["sendConfirmationSms"]);
 

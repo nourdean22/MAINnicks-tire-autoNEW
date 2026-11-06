@@ -153,6 +153,20 @@ describe("the evaluator's missed-call cards are not on Today (Nour 2026-11-06: \
   });
 });
 
+describe("hidden rows never use up Today's five follow-up slots (Codex c=4494783556)", () => {
+  it("five retired Front Counter rows ahead of a real operator promise: the real one shows", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    const retired = (n: number) => opp(`r${n}`, { reason: `callback promised by Front Counter #${n}`, evidence: { promiseType: "callback", owner: "Front Counter" } });
+    h.queries.set("opportunityQueue.list", ok({ queryable: true, items: [
+      retired(1), retired(2), retired(3), retired(4), retired(5),
+      opp("real", { reason: "quote promised by Nour, due tomorrow.", evidence: { promiseType: "quote", owner: "Nour" } }),
+    ] }));
+    render(<OverviewSection />);
+    expect(screen.getByText(/quote promised by Nour/)).toBeTruthy();
+    expect(screen.queryByText(/Done for today/)).toBeNull();
+  });
+});
+
 describe("the receptionist's retired callback promises are not on Today", () => {
   it("hides a Front Counter callback promise and keeps an operator's own promise", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));

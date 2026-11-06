@@ -310,7 +310,8 @@ async function noteOnCallTrail(callId: string | undefined, tool: string, metadat
   }
   try {
     const { recordCallState } = await import("../services/voice-call-state");
-    await recordCallState({ callId, state: "tool_called", metadata: { tool, ...metadata } });
+    // intent_captured, not tool_called: a note is not a conversion (no row survives the call).
+    await recordCallState({ callId, state: "intent_captured", metadata: { tool, ...metadata } });
   } catch (err) {
     log.warn("Failed to note the tool on the call-state trail", { callId, tool, err: err instanceof Error ? err.message : String(err) });
   }
@@ -732,7 +733,7 @@ export const voiceAgentRouter = router({
         success: true,
         callback: false,
         message: "A note about this complaint went to the shop manager. Never promise a callback or a time. "
-          + "Tell them to bring it by any open day and the counter will look at it first thing: " + spokenShopDirections(),
+          + "Tell them to bring it by any open day and the counter will take a look (first come, first served): " + spokenShopDirections(),
       };
     }),
 
