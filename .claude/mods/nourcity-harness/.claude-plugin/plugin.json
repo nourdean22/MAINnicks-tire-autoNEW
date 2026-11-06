@@ -1,7 +1,7 @@
 {
   "name": "nourcity-harness",
-  "version": "0.2.0",
-  "description": "NOURCITY harness at a glance: free RAM and the heavy lease, open PRs with their checks, main's last commit and worktree counts, in a pane and the status line.",
+  "version": "0.3.0",
+  "description": "NOURCITY harness at a glance: machine, PR, worktree and local AI Playground health with explicit start controls.",
   "author": { "name": "Nour" },
   "types": "./types/index.d.ts"
 }

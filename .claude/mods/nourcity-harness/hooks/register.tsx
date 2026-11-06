@@ -1,19 +1,21 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Pr, Snapshot, Trees } from '../types'
+import type { PlaygroundHealth, Pr, ServiceState, Snapshot, Trees } from '../types'
 
-// The harness pane for the NOURCITY monorepo. It only reads: the repo's own scripts do the work
-// (heavy.mjs status, board.mjs, repo-status.mjs --sweep without --execute), so updating what the
-// pane knows means changing one of those scripts or one parser below, never a second copy.
+// The harness pane reads status from the repo's own scripts and the Playground bridge. Only its
+// explicit Playground buttons can launch the app; all scheduled status reads remain read-only.
 
 const PANE = 'harness'
 const TITLE = 'Harness'
 // Every session runs its own tick, so keep it slow: 5 minutes, and never a second refresh while one is still running.
 const TICK_MS = 300_000
 const SWEEP_TIMEOUT_MS = 300_000
+const PLAYGROUND_CLI = 'tools/sovereign-dev/ai-playground.mjs'
+const AI_STATES = ['OK', 'OFF', 'UNAVAILABLE', 'UNKNOWN'] as const
 // Change a tag when that value's fields change: it declines what an earlier version stored.
 const snap = atom({ plugin: 'nourcity-harness', key: 'snap' } as const, null, { shape: 'snap-1' })
+const playgroundState = atom({ plugin: 'nourcity-harness', key: 'playground' } as const, null, { shape: 'playground-1' })
 const trees = atom({ plugin: 'nourcity-harness', key: 'trees' } as const, null, { shape: 'trees-1' })
 const busy = atom({ plugin: 'nourcity-harness', key: 'busy' } as const, false)
 
@@ -101,6 +103,82 @@ const cut = (text: string, n: number) => (text.length > n ? `${text.slice(0, Mat
 let root: string | null = null
 // True from the start of a refresh to its end; only the timer reads it (a button press is the user's call).
 let refreshing = false
+let refreshingWithGh = false
+let activeRefresh: Promise<void> | null = null
+let queuedGhResolvers: Array<() => void> = []
+let playgroundActionBusy = false
+let playgroundRevision = 0
+
+/** Only copy fixed state labels and a count from the bridge receipt; never persist its model ID. */
+export function parsePlayground(stdout: string): PlaygroundHealth | null {
+  try {
+    const data = JSON.parse(stdout) as {
+      schemaVersion?: unknown
+      services?: Record<string, unknown>
+      mcp?: { status?: unknown; names?: unknown }
+    }
+    if (!data || typeof data !== 'object' || data.schemaVersion !== 1 || !data.services || typeof data.services !== 'object') return null
+    const state = (value: unknown): ServiceState => AI_STATES.includes(value as ServiceState) ? value as ServiceState : 'UNKNOWN'
+    const services = data.services
+    const names = data.mcp?.names
+    const mcpStatus = state(data.mcp?.status)
+    const validNames = Array.isArray(names) && names.length > 0 && names.every(name => typeof name === 'string' && name.trim().length > 0)
+
+    return {
+      services: {
+        playground: state(services.playground),
+        llamaCpp: state(services.llamaCpp),
+        coreServices: state(services.coreServices),
+        homeAgent: state(services.homeAgent),
+        comfyui: state(services.comfyui),
+        openvino: state(services.openvino),
+        tts: state(services.tts),
+        whisper: state(services.whisper),
+      },
+      mcp: {
+        status: mcpStatus === 'OK' && !validNames ? 'UNKNOWN' : mcpStatus,
+        count: validNames ? (names as string[]).length : 0,
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
+async function readPlayground($: EngineInterface): Promise<PlaygroundHealth | null> {
+  if (root === null) return null
+  try {
+    const ran = await $.process.run(['node', PLAYGROUND_CLI, 'health', '--json'], { cwd: root, timeoutMs: 15_000 })
+    return ran.exitCode === 0 ? parsePlayground(ran.stdout) : null
+  } catch {
+    return null
+  }
+}
+
+/** Start or open is reachable only from a user action; scheduled refreshes call readPlayground only. */
+async function playgroundAction($: EngineInterface, action: 'start' | 'open'): Promise<void> {
+  if (root === null || playgroundActionBusy) return
+  playgroundActionBusy = true
+  try {
+    const ran = await $.process.run(['node', PLAYGROUND_CLI, action, '--json'], { cwd: root, timeoutMs: 15_000 })
+    if (ran.exitCode !== 0) throw new Error('Playground action failed')
+    let playground: PlaygroundHealth | null = null
+    for (let attempt = 0; attempt < 4; attempt++) {
+      playground = await readPlayground($)
+      if (playground?.services.llamaCpp === 'OK') break
+      if (attempt < 3) await $.clock.sleep(1_500)
+    }
+    playgroundRevision++
+    await update($, playgroundState, () => playground)
+    $.ui.status(playground?.services.llamaCpp === 'OK' ? 'AI Playground model ready' : 'AI Playground opened; model status is shown in /harness')
+  } catch {
+    playgroundRevision++
+    await update($, playgroundState, () => null)
+    $.ui.status('AI Playground could not be opened; check the local installation')
+  } finally {
+    playgroundActionBusy = false
+  }
+}
 
 /** The timer's refresh: skipped while the last one is still running, so slow scripts never stack up node processes. */
 async function tick($: EngineInterface): Promise<void> {
@@ -108,14 +186,36 @@ async function tick($: EngineInterface): Promise<void> {
   await refresh($, false)
 }
 
-async function refresh($: EngineInterface, withGh: boolean): Promise<void> {
-  if (root === null) return
-  refreshing = true
-  try {
-    await refreshOnce($, withGh)
-  } finally {
-    refreshing = false
+function refresh($: EngineInterface, withGh: boolean): Promise<void> {
+  if (root === null) return Promise.resolve()
+  if (refreshing) {
+    if (!withGh) return Promise.resolve()
+    if (refreshingWithGh) return activeRefresh ?? Promise.resolve()
+    return new Promise(resolve => queuedGhResolvers.push(resolve))
   }
+  refreshing = true
+  refreshingWithGh = withGh
+  const current = (async () => {
+    try {
+      await refreshOnce($, withGh)
+    } finally {
+      refreshing = false
+      refreshingWithGh = false
+      if (queuedGhResolvers.length > 0) {
+        const resolveQueued = queuedGhResolvers
+        queuedGhResolvers = []
+        try {
+          await refresh($, true)
+        } finally {
+          for (const resolve of resolveQueued) resolve()
+        }
+      }
+    }
+  })()
+  activeRefresh = current
+  return current.finally(() => {
+    if (activeRefresh === current) activeRefresh = null
+  })
 }
 
 async function refreshOnce($: EngineInterface, withGh: boolean): Promise<void> {
@@ -126,6 +226,9 @@ async function refreshOnce($: EngineInterface, withGh: boolean): Promise<void> {
   let prs: Pr[] | null = null
   let main: string | null = null
   let boardAgeMin: number | null = null
+  const playgroundRevisionAtStart = playgroundRevision
+  const playground = await readPlayground($)
+  if (playgroundRevision === playgroundRevisionAtStart) await update($, playgroundState, () => playground)
   try {
     const ran = await $.process.run(['node', 'scripts/agent-os/heavy.mjs', 'status'], { cwd: root, timeoutMs: 15_000 })
     heavy = parseHeavy(ran.stdout)
@@ -219,6 +322,7 @@ export const register: Register = on => {
     const s = await read($, snap)
     const t = await read($, trees)
     const isBusy = await read($, busy)
+    const p = await read($, playgroundState)
     const width = Math.max(24, e.props.bodyColumns ?? 40)
 
     if (root === null) {
@@ -244,6 +348,20 @@ export const register: Register = on => {
             <Text>Chrome slot: {s.chrome ?? "couldn't read"}</Text>
           </Box>
         )}
+
+        <Text bold>AI Playground</Text>
+        <Box flexDirection="column">
+          <Text>App: {p?.services.playground ?? 'UNKNOWN'} · Chat model: {p?.services.llamaCpp ?? 'UNKNOWN'}</Text>
+          <Text>Core Services: {p?.services.coreServices ?? 'UNKNOWN'} · Home Agent: {p?.services.homeAgent ?? 'UNKNOWN'}</Text>
+          <Text>MCP config: {p?.mcp.status ?? 'UNKNOWN'}{p?.mcp.status === 'OK' ? ` (${p.mcp.count} configured ${p.mcp.count === 1 ? 'server' : 'servers'})` : ''}</Text>
+          <Text>Image: {p?.services.comfyui ?? 'UNKNOWN'} · OpenVINO: {p?.services.openvino ?? 'UNKNOWN'}</Text>
+          <Text>Speech: TTS {p?.services.tts ?? 'UNKNOWN'} · Whisper {p?.services.whisper ?? 'UNKNOWN'}</Text>
+        </Box>
+        <Box>
+          <Button key="start-playground" label="Start Playground" hotkey="p" onPress={() => playgroundAction($, 'start')} />
+          <Text> </Text>
+          <Button key="repair-media" label="Open Playground for media" hotkey="m" onPress={() => playgroundAction($, 'open')} />
+        </Box>
 
         <Text bold>Open PRs{s?.boardAgeMin != null ? ` (board ${s.boardAgeMin} min old)` : ''}</Text>
         {s === null ? (

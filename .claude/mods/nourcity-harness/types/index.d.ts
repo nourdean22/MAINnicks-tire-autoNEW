@@ -1,6 +1,23 @@
 /** One open PR as the repo's board (scripts/agent-os/board.mjs) records it. */
 export type Pr = { number: number; title: string; checks: string | null }
 
+export type ServiceState = 'OK' | 'OFF' | 'UNAVAILABLE' | 'UNKNOWN'
+
+/** Sanitized local Playground health. Model IDs and MCP configuration values never enter plugin state. */
+export type PlaygroundHealth = {
+  services: {
+    playground: ServiceState
+    llamaCpp: ServiceState
+    coreServices: ServiceState
+    homeAgent: ServiceState
+    comfyui: ServiceState
+    openvino: ServiceState
+    tts: ServiceState
+    whisper: ServiceState
+  }
+  mcp: { status: ServiceState; count: number }
+}
+
 /**
  * One read of the machine and the board. A part that failed to read is null with its reason in `errors`,
  * never a zero: "0 open PRs" and "couldn't read the PRs" must not look alike.
@@ -23,6 +40,7 @@ declare module 'claude-code' {
   interface PluginState {
     'nourcity-harness': {
       snap: Shaped<Snapshot | null>
+      playground: Shaped<PlaygroundHealth | null>
       trees: Shaped<Trees | null>
       busy: boolean
     }

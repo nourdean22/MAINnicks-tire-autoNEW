@@ -1,0 +1,22 @@
+{
+  "evidence": {
+    "bridge-tests": {
+      "ref": "node --test tools/sovereign-dev/ai-playground.test.mjs: 98 passed, 0 failed, including secret-redaction, Windows ACL, eleven-server mapping, additive and disabled MCP selection, safe local model-path receipts, preserving restrictive inherited OpenCode permissions, rejecting malformed inline config, no assumed alternate-model limits, Windows interrupt cleanup, skill instructions, and simultaneous isolated launches."
+    },
+    "harness-tests": {
+      "ref": "claude plugin test .claude/mods/nourcity-harness: 20 passed, 0 failed; scheduled health reads never start the app."
+    },
+    "plugin-and-diff-validation": {
+      "ref": "claude plugin validate .claude/mods/nourcity-harness passed; git diff --check passed."
+    },
+    "live-local-health": {
+      "ref": "node tools/sovereign-dev/ai-playground.mjs health --json: bridge status OK, Playground OK, llama.cpp model endpoint OK, MCP config OK with 11 server names. Core Services, Home Agent, ComfyUI, OpenVINO, TTS, and Whisper remain UNKNOWN to the bridge because it lacks independent probes."
+    },
+    "playground-restoration": {
+      "ref": "AI Playground UI showed the Companion preset with Huihui-Qwen3.5-9B-abliterated.Q4_K_M on llama.cpp and returned the exact local test response. Bridge health returned OK with the filename-only model ID and all 11 MCP names. Previously proven media: TTS output and ComfyUI image generation/upscale."
+    },
+    "known-gaps": {
+      "ref": "Full 11-server OpenCode request exceeded context. A short local coding request produced no visible response and was stopped after about ten minutes; live OpenCode inference remains unverified. The default profile is now skills-only and keeps all 11 tools selectable. Whisper transcription remains unverified; video model needs 21.51 GB with about 14.9 GB free; a separate OpenVINO model was not downloaded pending model-specific approval."
+    }
+  }
+}
