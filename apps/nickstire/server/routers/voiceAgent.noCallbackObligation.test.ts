@@ -140,6 +140,12 @@ describe("escalate makes no callback obligation", () => {
     expect(h.callbackRequested).not.toHaveBeenCalled();
   });
 
+  it("marks the call escalated, so the missed-call lanes do not text or card it", async () => {
+    const c = await caller();
+    await c.escalate({ reason: "after hours", callerNumber: CALLER, callId: "call_m1" });
+    expect([...h.claims].some((k) => k.startsWith("voice-escalated:call_m1|"))).toBe(true);
+  });
+
   it("tells the assistant no callback is coming, so it never promises one", async () => {
     const c = await caller();
     const res = await c.escalate({ reason: "wants the counter", callerNumber: CALLER, callId: "call_n2" });

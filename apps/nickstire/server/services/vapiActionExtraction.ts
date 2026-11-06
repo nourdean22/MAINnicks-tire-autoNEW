@@ -369,7 +369,7 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
  */
 export async function loadCallCaptureEvidence(
   callId: string,
-): Promise<Pick<CallMeta, "leadId" | "callbackId" | "reachedTool" | "existingCallbackForCall" | "hasExpectedArrival">> {
+): Promise<Pick<CallMeta, "leadId" | "callbackId" | "reachedTool" | "existingCallbackForCall" | "hasExpectedArrival"> & { escalated?: boolean }> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
@@ -384,7 +384,8 @@ export async function loadCallCaptureEvidence(
         EXISTS (SELECT 1 FROM callback_requests
                 WHERE createdAt >= NOW() - INTERVAL 7 DAY AND context LIKE ${likeCallId}) AS hasCallback,
         (EXISTS (SELECT 1 FROM expected_arrivals WHERE sourceRef = ${callId})
-          OR EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${callId}`})) AS hasArrival`);
+          OR EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${callId}`})) AS hasArrival,
+        EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-escalated:${callId}`}) AS escalated`);
     const r = (rows as unknown as Array<Record<string, unknown>>)[0] ?? {};
     const fk = (v: unknown): number | null => {
       const n = Number(v);
@@ -396,6 +397,8 @@ export async function loadCallCaptureEvidence(
       reachedTool: Number(r.convertedToLead) === 1,
       existingCallbackForCall: Number(r.hasCallback) === 1,
       hasExpectedArrival: Number(r.hasArrival) === 1,
+      // escalate ran (2026-11-06): the caller was told to come in or call back, so not a missed call.
+      escalated: Number(r.escalated) === 1,
     };
   } catch (err) {
     log.warn("capture-evidence read failed — gate runs without it", {

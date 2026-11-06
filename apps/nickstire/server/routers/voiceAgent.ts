@@ -294,9 +294,19 @@ export function noCallbackGuidance(): string {
     + "Tell them they can come in or call the shop once it's open: " + spokenShopDirections();
 }
 
-/** Best-effort: the reason rides on the call trail, never as a task for the shop. */
+/**
+ * Best-effort: the reason rides on the call trail, never as a task for the shop. The
+ * `voice-escalated:<callId>` marker is what keeps the call out of the missed-call lanes
+ * (recovery text, "Missed call" callback row and card), the job the callback row used to do.
+ */
 async function noteOnCallTrail(callId: string | undefined, tool: string, metadata: Record<string, unknown>): Promise<void> {
   if (!callId) return;
+  try {
+    const { claimAlertOnce } = await import("../services/alertClaim");
+    await claimAlertOnce(`voice-escalated:${callId}`);
+  } catch (err) {
+    log.warn("Failed to mark the call escalated", { callId, tool, err: err instanceof Error ? err.message : String(err) });
+  }
   try {
     const { recordCallState } = await import("../services/voice-call-state");
     await recordCallState({ callId, state: "tool_called", metadata: { tool, ...metadata } });

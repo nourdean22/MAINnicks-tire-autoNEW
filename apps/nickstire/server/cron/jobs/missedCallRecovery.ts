@@ -99,7 +99,7 @@ export async function proveCapturedNothing(vapiCallId: string): Promise<boolean>
   return (
     ev.reachedTool !== undefined && // undefined = the read failed → unknown → skip
     ev.leadId == null && ev.callbackId == null &&
-    !ev.existingCallbackForCall && !ev.hasExpectedArrival
+    !ev.existingCallbackForCall && !ev.hasExpectedArrival && !ev.escalated
   );
 }
 

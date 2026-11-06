@@ -349,6 +349,7 @@ describe("loadCallCaptureEvidence — one bounded read, fails open", () => {
       reachedTool: true,
       existingCallbackForCall: true,
       hasExpectedArrival: false,
+      escalated: false,
     });
   });
 
