@@ -37,6 +37,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [21-ALG-UX-AUDIT](21-ALG-UX-AUDIT.md) | full ALG screen-by-screen UX audit (Nour's own Real-Time Pro login, 2026-11-06): nav, ticket wizard, package jobs, 14-template reminder library, real vendor/markup list, 3-role access + per-seat pricing, no-scheduling gap, what it changes elsewhere in the plan |
 | [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) | full Gateway Tire/D&K B2B portal UX audit (Nour's own account, 2026-11-06): tires/supplies/wheels catalogs, 28-field tire spec schema, the shop's own 100%-markup rule explaining the 2.00x cost-to-retail pattern, Quote List, an unused built-in Bay Manager scheduling board, order history, and what it means for nickstire.org's tire page and ordering widget |
 | [23-ATD-UX-AUDIT](23-ATD-UX-AUDIT.md) | full ATD Online (American Tire Distributors) B2B portal UX audit (Nour's own account, 2026-11-06): a six-tier Pickup/Today/Tomorrow/named-date/Multi-Day/National delivery model, a step-up password re-auth gate on Users/Accounting, a built-in Quotes CRM funnel (Open/Contacted/Converted/Closed), recurring-order Lists with share permissions, a paste-from-spreadsheet Stock Order screen, a VIN-to-OE-fitment flow with a wheel visualizer, and a live vendor marketing-program progress gauge |
+| [24-CAPITAL-TIRE-UX-AUDIT](24-CAPITAL-TIRE-UX-AUDIT.md) | full Capital Tire wholesale portal UX audit (Nour's own account, 2026-11-06): per-warehouse stock across 10 named warehouses with home-warehouse-only ordering and ROUTE/PICKUP (no ETA), a lost-sale reason capture, a scoped markup-rule engine with an AI assistant, a Good/Better/Best customer quote printout, a hide-cost customer view, stock-out substitution, dual front/rear size search, and trim-level fitment with placard psi, TPMS and plus sizing |
 
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
@@ -65,6 +66,16 @@ paste-from-spreadsheet Stock Order bulk-reorder screen, a VIN-to-OE-fitment flow
 live vendor marketing-program progress gauge. It also feeds a new cross-cutting requirement into
 [03-VENDORS](03-VENDORS.md): Shop OS's CRM must show both the best-priced and the quickest-to-arrive option
 across connected suppliers whenever ordering.
+
+A full Capital Tire wholesale pass (Nour's own account, 2026-11-06, read-only) is now in
+[24-CAPITAL-TIRE-UX-AUDIT](24-CAPITAL-TIRE-UX-AUDIT.md). Capital Tire runs on a white-label TCS Technologies
+portal and shows exact stock at 10 named warehouses but lets this account order only from its home warehouse
+(Macedonia, OH), with ROUTE or PICKUP at checkout and no ETA anywhere - which forces a correction in
+[03-VENDORS](03-VENDORS.md): supplier offers must carry location and arrival as separate fields. Its strongest
+mechanisms for Shop OS are a structured lost-sale reason capture with competitor price, a rule-based markup
+engine (default + scoped rules, tie-break, max-profit cap, live preview), a Good/Better/Best customer quote
+printout with fees and road hazard, a one-click hide-cost customer view, stock-out substitution, and
+trim-level fitment with placard psi, TPMS and plus sizing (14-STOLEN-MECHANISMS rows 18-26).
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

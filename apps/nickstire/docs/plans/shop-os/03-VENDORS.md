@@ -97,7 +97,7 @@ tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, 
 vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
 and whichever others the first-cohort gate above eventually adds).
 
-**What the three completed vendor passes actually show, concretely:**
+**What the four completed vendor passes actually show, concretely:**
 
 - **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
   shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
@@ -108,6 +108,11 @@ and whichever others the first-cohort gate above eventually adds).
 - **ATD** (23-ATD-UX-AUDIT sections 4-5; 14-STOLEN-MECHANISMS row 12): a **six-tier** stock/delivery
   breakdown per SKU - Pickup / Today / Tomorrow / a named next-local-delivery date / an expandable per-date
   Multi-Day forecast / National (3-5 business days) - again shown for ATD's own catalog only.
+- **Capital Tire** (24-CAPITAL-TIRE-UX-AUDIT section 4; 14-STOLEN-MECHANISMS row 23): exact on-hand at **10
+  named warehouses**, summarized as Available (home warehouse, Macedonia OH) + Regional (rest, capped 50+);
+  only the home warehouse is orderable online; fulfillment is chosen at checkout as **ROUTE or PICKUP**; and
+  **no ETA, delivery date, or cutoff countdown appears anywhere**. Rich on *where*, silent on *when* - the
+  mirror image of ATD.
 
 No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
 its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each
@@ -139,6 +144,14 @@ explicitly labeled, always-visible picks - **Best Price** and **Quickest Arrival
    first-cohort capability gate above; it needs no new vendor permissions beyond what each adapter already
    has to expose (price, branch quantity, ETA meaning) - it is a reason to make sure every adapter actually
    returns those fields consistently, not a new integration surface on its own.
+6. **Correction from the Capital Tire pass (2026-11-06):** location and arrival are separate dimensions that
+   vendors expose independently, so the normalized offer carries them as separate fields - **location**
+   (branch name, exact qty, orderable-by-this-account yes/no), **arrival** (ETA tier, or explicitly
+   `unknown`), and **fulfillment mode** (route delivery / pickup / ship). Quickest Arrival ranks only offers
+   with a known ETA and lists the rest as "ETA unknown - call to confirm" instead of guessing; a branch that
+   holds stock but is not orderable by this account never wins Quickest Arrival on its own. Cheapest first
+   fix for Capital Tire: ask the rep for the ROUTE schedule, the order cutoff, and how regional stock reaches
+   Cleveland, then encode that as a static ETA rule until an API says otherwise.
 
 See [23-ATD-UX-AUDIT](23-ATD-UX-AUDIT.md) section 4 and [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md) row 12
 for the concrete six-tier reference depth, and [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) section 4a /
