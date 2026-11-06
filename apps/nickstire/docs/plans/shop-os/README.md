@@ -41,6 +41,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [25-FEDERATED-UX-AUDIT](25-FEDERATED-UX-AUDIT.md) | full FederatedLink (Federated Auto Parts / Fisher Auto Parts store) UX audit (Nour's own account, 2026-11-06): five-mode search, Y/M/M/Engine picker, three-pane part-type picker with Total Job kits, results with Alt Locations across 12 stores/warehouses (no ETA), interchange + buyer's guide, lost-sale and discrepancy actions, stock/list ordering with paste upload, invoices with inline lines, and a cart that builds labor quotes |
 | [26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) | rollup of audits 21-25 for the build: cross-vendor matrix, fields to add to 18's supplier-offer contract, shop-owned objects (ShopIdentity, SellPriceRule, Quote, DeclineReason, JobKit, PartCrossRef, CatalogIssue, SupplierOrderDraft), screens in build order, and the open questions that block Quickest Arrival |
 | [27-PARTS-AUTHORITY-UX-AUDIT](27-PARTS-AUTHORITY-UX-AUDIT.md) | full Parts Authority / IMC Web Warehouse UX audit (Nour's own account, 2026-11-06): per-location Submit By and My Branch Departure times, a header run-cutoff clock (~every 30 min) with alarm, live delivery-run tracking, OE reference row with qty per vehicle, quality grades, Repair Jobs, exploded OE diagrams, vehicle-named carts, DoorDash/transfer/shipping branch modes, lost-sale reasons, and the existing Mitchell 1/ALLDATA punchout |
+| [28-OREILLY-UX-AUDIT](28-OREILLY-UX-AUDIT.md) | full O'Reilly Pro / First Call Online UX audit (Nour's own account, 2026-11-06): plate/YMM/VIN lookup, per-SKU "Available Now" vs "In Network - In Store By / If Ordered By" ETAs, quote-per-vehicle cart with labor and return types, 4-step delivery tracker, interchange wizard with house-brand substitutes, unused Manage Customers mini-CRM, shop pricing/tax/PO/bay/fleet preferences, activity log, and a 1% electronic earn-back |
 
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
@@ -96,6 +97,12 @@ minutes with a cutoff clock on every page, Saturday delivery and live run tracki
 and OE price above every aftermarket option, grades every SKU Good to Ultra Premium, names carts after the
 vehicle, and already supports a "vehicle in, basket back, human orders" punchout for Mitchell 1 and ALLDATA - the
 integration to ask IMC for first (14-STOLEN-MECHANISMS rows 36-44).
+
+An O'Reilly Pro pass (Nour's own account, 2026-11-06, read-only) is in [28-OREILLY-UX-AUDIT](28-OREILLY-UX-AUDIT.md).
+O'Reilly shows a per-part ETA to its store with a cutoff ("In Store By tomorrow 7:30 AM if ordered by 5:25 PM"),
+a four-step order tracker, returns that ride back with the delivery, bay/fleet/PO fields on orders, and a 1%
+earn-back on electronic orders; like Federated it also offers customer lists and labor quotes inside the portal,
+which Shop OS keeps for itself (14-STOLEN-MECHANISMS rows 45-51).
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

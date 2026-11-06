@@ -39,6 +39,15 @@ Jobs; lost-sale reasons (too expensive, need genuine, not stocked, wrong brand, 
 ETA, driver); orders, invoices and returns searchable by part number; documented punchout for Mitchell 1, ALLDATA
 and R.O. Writer.
 
+**O'Reilly Pro (28), same capabilities:** vehicle by plate+state, Y/M/M with optional engine and submodel, or VIN;
+part types by Most Popular / All / Package Jobs with SAVE kits; position asked per part type; results with
+warranty text, specs, list/cost, **"Available Now" vs "In Network - In Store By <time> - If Ordered By <time>"**
+vs "Call for Pricing"; the cart is a **quote per vehicle** (parts, labor, other) with delivery type, return type
+(new/core/warranty) and store message; **4-step delivery tracker**; interchange wizard with "May Use" house-brand
+substitutes and "Fit not Determined"; stock orders; **Manage Customers** (unused); shop preferences for labor
+rate, split tax, pricing method, PO mask, bay and fleet IDs, labor-guide integration; employees and an exportable
+activity log; 1% electronic-order earn-back.
+
 ## 2. Supplier offer: fields to add to 18's contract
 
 18 already carries supplier/branch IDs, SKU, fitment, quantity or UNKNOWN, price/core/fees/total, location and
@@ -60,6 +69,9 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `oeRef: {oeNumber, oeListPrice, qtyPerVehicle, note}` per part type | 27 OE header row | Anchors the offer list; pre-fills quantity; gives the quote a dealer-price reference (row 39) |
 | `qualityGrade: good / better / best / ultra_premium` | 27 Quality Rating | Seeds the Good/Better/Best quote options (row 40) |
 | `fulfillmentMode` adds `transfer` and `courier` | 27 Branch Preferences (T, D = DoorDash) | Shown on the card; shop can disable modes per supplier (row 43) |
+| `arrival.orderBy` with `arrival.at` for network stock | 28 "In Store By: Tomorrow 7:30 AM - If Ordered By: 5:25 PM" | Show the order-by time beside the ETA (row 45) |
+| `priceStatus` adds `call_for_price` | 28 "Call for Pricing and Availability" | Shown, never wins Best Price |
+| Supplier order fields: `ticketRef`, `bayId`, `fleetId`, `returnsAttached[]`, `status: placed / processed / out_for_delivery / delivered` | 28 Shop Preferences, Return Type, Delivery Details | Every order maps back to a ticket; pending returns ride with the next order (rows 46-48) |
 
 Per-vendor static fallback until an API says otherwise: a hand-entered table of route runs and cutoffs per
 supplier branch (from the rep questions in 24 and 25), clearly labeled "schedule, not live".

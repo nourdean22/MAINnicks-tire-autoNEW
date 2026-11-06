@@ -97,7 +97,7 @@ tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, 
 vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
 and whichever others the first-cohort gate above eventually adds).
 
-**What the six completed vendor passes actually show, concretely:**
+**What the seven completed vendor passes actually show, concretely:**
 
 - **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
   shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
@@ -125,6 +125,11 @@ and whichever others the first-cohort gate above eventually adds).
   about every 30 minutes, Saturday delivery, and a live run tracker (run, ETA, driver). It is the reference for
   Quickest Arrival; Nour also ranks it cheapest and widest (spot check in chat, prices kept out of the repo per
   IMC terms, 20 PA-T).
+- **O'Reilly Pro** (28-OREILLY-UX-AUDIT sections 4-5): "n Available Now" at the servicing store, or "n In Network
+  - In Store By: Tomorrow 7:30 AM - If Ordered By: 5:25 PM" per SKU, or "Call for Pricing and Availability"; plus a
+  four-step order tracker (placed, processed, out for delivery, delivered). It gives an ETA to the *store* with a
+  cutoff, not the store-to-shop run times Parts Authority gives; in the one-job spot check it was the most
+  expensive of the three parts vendors (chat only).
 
 No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
 its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each
