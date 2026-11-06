@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-05T15:30:05.158Z",
-  "count": 659,
+  "generatedAt": "2026-11-06T21:34:33.069Z",
+  "count": 660,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -603,6 +603,7 @@
     "query.snap.list",
     "query.snap.summary",
     "query.socialPipeline.status",
+    "query.sourcing.compareTires",
     "query.specials.all",
     "query.specials.getActive",
     "query.system.health",
