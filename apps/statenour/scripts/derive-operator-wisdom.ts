@@ -2,8 +2,9 @@
  * Derive wisdom about Nour from his own brain, for Nick's wisdom slots (Nick audit A8, 2026-11-06).
  *
  * Reads the brain's derived rows about Nour (qualitative_identity, blind_spot, pattern, preference,
- * belief, goal, decision/chat patterns, confidence >= 0.6) and his recent journal dumps, makes ONE
- * reason-lane call on the normal provider chain (inside the daily AI budget), keeps only insights
+ * belief, goal, decision/chat patterns, confidence >= 0.6) and his recent journal dumps, makes one
+ * reason-lane call per OPERATOR_WISDOM_BATCH rows on the normal provider chain (inside the daily AI
+ * budget; one call for the whole pool ran out of output tokens on hidden thinking), keeps only insights
  * whose every cited id is a row it was shown (lib/brain/operator-wisdom.ts), and on --apply writes
  * them through admitMemory as DERIVED memories (lineage, AGENT_INFERRED tier, the wisdom quality
  * gate) under origin nour-brain-derived / source pack:nour-brain-derived, embeds them, and only then
@@ -19,6 +20,8 @@
 import Module from "node:module";
 import {
   buildOperatorWisdomPrompt,
+  chunkPool,
+  mergeOperatorInsights,
   OPERATOR_INSIGHT_KINDS,
   OPERATOR_WISDOM_SOURCE,
   operatorWisdomArgs,
@@ -96,35 +99,64 @@ async function main() {
     process.exit(1);
   }
 
-  const { system, user } = buildOperatorWisdomPrompt(pool);
-  const reply = await aiChat(
-    [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    "reason",
-    { telemetry: { functionId: "operator-wisdom" }, timeoutMs: 180_000 },
+  // One call per batch: a thinking model spends the lane's output cap on hidden reasoning in proportion to the
+  // rows it reads, so the whole pool in one call came back cut off or empty (OPERATOR_WISDOM_BATCH, 2026-11-06).
+  const batches = chunkPool(pool);
+  const keptBatches: Parameters<typeof mergeOperatorInsights>[0] = [];
+  let dropped = 0;
+  let noAnswer = 0;
+  let noJson = 0;
+  let modelId = "";
+  for (const [i, batch] of batches.entries()) {
+    const { system, user } = buildOperatorWisdomPrompt(batch);
+    const reply = await aiChat(
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      "reason",
+      { telemetry: { functionId: "operator-wisdom" }, timeoutMs: 180_000 },
+    );
+    if (reply.provider === "none" || reply.provider === "emergency") {
+      const why = (reply.failures ?? []).map((f) => `${f.provider}:${f.failureClass ?? "?"}:${f.message.slice(0, 80)}`).join(", ");
+      console.error(`[!] batch ${i + 1}/${batches.length}: no model answered (provider ${reply.provider}; ${why || "no failure detail"})`);
+      noAnswer += 1;
+      continue;
+    }
+    modelId = reply.model;
+    const parsed = parseOperatorInsights(reply.content, new Set(batch.map((p) => p.id)));
+    if (parsed.parseError) {
+      console.error(`[!] batch ${i + 1}/${batches.length}: the reply held no insights JSON (provider ${reply.provider}, ${reply.content.length} chars)`);
+      noJson += 1;
+      continue;
+    }
+    keptBatches.push(parsed.kept.map((k) => ({ ...k, model: reply.model })));
+    dropped += parsed.dropped;
+    console.log(`batch ${i + 1}/${batches.length}: ${batch.length} rows, kept ${parsed.kept.length}, dropped ${parsed.dropped}`);
+  }
+  if (keptBatches.length === 0) {
+    console.error(`[!] no batch yielded insights (${noAnswer} unanswered, ${noJson} without JSON of ${batches.length}); nothing derived, nothing written`);
+    process.exit(1);
+  }
+  const kept = mergeOperatorInsights(keptBatches);
+  const perKind = OPERATOR_INSIGHT_KINDS.map((k) => `${k} ${kept.filter((i) => i.kind === k).length}`);
+  console.log(
+    `insights kept ${kept.length} from ${keptBatches.length}/${batches.length} batches (${noAnswer} unanswered, ${noJson} without JSON), ` +
+      `dropped ${dropped} (ungrounded or malformed): ${perKind.join(", ")}`,
   );
-  if (reply.provider === "none" || reply.provider === "emergency") {
-    const why = (reply.failures ?? []).map((f) => `${f.provider}:${f.failureClass ?? "?"}:${f.message.slice(0, 80)}`).join(", ");
-    console.error(`[!] no model answered (provider ${reply.provider}; ${why || "no failure detail"}); nothing derived, nothing written`);
-    process.exit(1);
-  }
-
-  const parsed = parseOperatorInsights(reply.content, new Set(pool.map((p) => p.id)));
-  if (parsed.parseError) {
-    console.error(`[!] the reply held no insights JSON (provider ${reply.provider}); nothing written`);
-    process.exit(1);
-  }
-  const perKind = OPERATOR_INSIGHT_KINDS.map((k) => `${k} ${parsed.kept.filter((i) => i.kind === k).length}`);
-  console.log(`insights kept ${parsed.kept.length}, dropped ${parsed.dropped} (ungrounded or malformed): ${perKind.join(", ")}`);
 
   if (!apply) {
     console.log("[dry-run] no write. Re-run with --apply to write these as wisdom rows.");
     return;
   }
-  if (parsed.kept.length === 0) {
+  if (kept.length === 0) {
     console.error("[!] zero grounded insights: refusing to retire the existing set");
+    process.exit(1);
+  }
+  // The write retires every earlier row the new set no longer holds, so a partial derivation (a batch that did
+  // not answer) would retire insights that batch would have re-derived. All batches or no write.
+  if (noAnswer + noJson > 0) {
+    console.error(`[!] ${noAnswer + noJson} of ${batches.length} batches failed: refusing to write from a partial derivation`);
     process.exit(1);
   }
 
@@ -132,7 +164,7 @@ async function main() {
   const { admitMemory } = await import("@/lib/brain/memory-admission");
   const { computeExpiresAt } = await import("@/lib/brain/category-ttl");
   const { embedLoadedRows, embedSummary } = await import("./_lib/embed-loaded-rows");
-  const out = await writeOperatorWisdom(operatorWisdomRows(parsed.kept, now.toISOString()), {
+  const out = await writeOperatorWisdom(operatorWisdomRows(kept, now.toISOString()), {
     admit: (input) => admitMemory(input as unknown as Parameters<typeof admitMemory>[0]),
     categoryOf: async (id) => (await prisma.brainMemory.findUnique({ where: { id }, select: { category: true } }))?.category ?? null,
     // remember() stamps a new row with a 24 h probation; wisdom's category policy (category-ttl) is keep forever.
@@ -154,7 +186,7 @@ async function main() {
         })
       ).count,
     memoryIds: new Set(memories.map((m) => m.id)),
-    modelId: reply.model,
+    modelId,
   });
   console.log(
     `[ok] wisdom ${out.wisdom}, parked by the quality gate ${out.candidates}, ${embedSummary(out.embedded)}, ` +

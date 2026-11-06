@@ -10,6 +10,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { curatedWisdomAuthor, provenancePrefix, selectWisdomSlots } from "@/lib/brain/contextual-recall";
 import {
+  chunkPool,
+  mergeOperatorInsights,
+  OPERATOR_WISDOM_BATCH,
   OPERATOR_WISDOM_ORIGIN,
   operatorWisdomArgs,
   operatorWisdomRows,
@@ -145,6 +148,16 @@ describe("writeOperatorWisdom: admitted as derived, embedded before the old set 
     expect(out).toMatchObject({ wisdom: 1, candidates: 0, retired: 2, kept: true });
   });
 
+  it("records the model that produced each insight, not the last batch's model (Codex P2, PR 3569)", async () => {
+    const { deps } = fakeDeps();
+    const rows = operatorWisdomRows([
+      { ...insight, model: "minimax-m3" },
+      { kind: "pattern", text: "Ships the smallest change first, then widens only on a receipt.", sourceIds: ["m1"], model: "glm-4.6" },
+    ]);
+    await writeOperatorWisdom(rows, { ...deps, memoryIds, modelId: "glm-4.6" });
+    expect(deps.admit.mock.calls.map((c) => (c[0] as { modelId: string }).modelId)).toEqual(["minimax-m3", "glm-4.6"]);
+  });
+
   it("keeps the previous set when any new row did not embed (a row with no vector is never recalled)", async () => {
     const { deps } = fakeDeps({ embed: vi.fn(async () => ({ landed: 0, total: 1 })) });
     const out = await writeOperatorWisdom(operatorWisdomRows([insight]), { ...deps, memoryIds, modelId: "m" });
@@ -182,5 +195,34 @@ describe("operatorWisdomRows", () => {
   it("the key is stable for the same text, so a re-run updates instead of duplicating", () => {
     expect(operatorWisdomRows([insight])[0].key).toBe(operatorWisdomRows([{ ...insight }])[0].key);
     expect(operatorWisdomRows([insight])[0].key).not.toBe(operatorWisdomRows([{ ...insight, text: `${insight.text} More.` }])[0].key);
+  });
+});
+
+describe("batched derivation: the pool is split so one call's hidden thinking fits the 8,192-token lane cap", () => {
+  // Measured 2026-11-06 on the live reason lane (minimax-m3): 20 real rows used 7,025 output tokens for 2,399 visible chars;
+  // 50 rows came back EMPTY (hidden reasoning spent the whole cap: provider.garbage, emergency). So: 10 rows a call.
+  const item = (i: number) => ({ id: `m${i}`, category: "pattern", content: `note ${i}` });
+  const ins = (kind: string, text: string) => ({ kind: kind as "pattern", text, sourceIds: ["m1"] });
+
+  it("chunkPool splits in order into batches of OPERATOR_WISDOM_BATCH, the last one shorter", () => {
+    expect(OPERATOR_WISDOM_BATCH).toBe(10);
+    const batches = chunkPool(Array.from({ length: 25 }, (_, i) => item(i)));
+    expect(batches.map((b) => b.length)).toEqual([10, 10, 5]);
+    expect(batches[1][0].id).toBe("m10");
+    expect(chunkPool([])).toEqual([]);
+  });
+
+  it("mergeOperatorInsights keeps batch order, drops a repeated text, and caps each kind at 10 across batches", () => {
+    const a = Array.from({ length: 6 }, (_, i) => ins("pattern", `pattern insight number ${i} about how Nour works`));
+    const b = [
+      ins("pattern", "pattern insight number 0 about how Nour works"), // repeat of a[0]
+      ...Array.from({ length: 6 }, (_, i) => ins("pattern", `second batch pattern ${i} about how Nour works`)),
+      ins("trait", "a trait insight about how Nour works"),
+    ];
+    const merged = mergeOperatorInsights([a, b]);
+    expect(merged.filter((i) => i.kind === "pattern")).toHaveLength(10);
+    expect(merged.filter((i) => i.kind === "trait")).toHaveLength(1);
+    expect(merged[0]).toEqual(a[0]);
+    expect(merged.filter((i) => i.text === a[0].text)).toHaveLength(1);
   });
 });
