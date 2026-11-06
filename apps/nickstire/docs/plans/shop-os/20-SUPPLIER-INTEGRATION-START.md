@@ -162,6 +162,15 @@ All CRM actions in this table are PROPOSED. Only the named controls are SCREENSH
 
 Use PA-2 as a pattern, not as an interface implementation: confirmed work-order vehicle -> IMC catalog -> human selects parts -> cart Transfer back to work order -> Price Check -> separate human Order Parts action. A transferred basket is estimate material, not a purchase acknowledgement.
 
+**2026-11-06 update (signed-in observation, 27-PARTS-AUTHORITY-UX-AUDIT):** Nour's own Web Warehouse account was
+navigated read-only through Claude in Chrome with the operator present. Signed-in search, vehicle selection,
+results, per-location availability (Submit By / My Branch Departure), branch fulfillment modes (Primary,
+Transfer, Shipping, DoorDash), carts, order/return tracking and live delivery runs are now observed. A second
+documented punchout exists for **ALLDATA Manage Online** (vehicle passed in, cart Transfer, Add to Document,
+Inquiry, Order; IMC must enable the account). This is behavior evidence, not API or integration approval; the
+PA-T terms caution on price/inventory reuse still applies. Next action: ask IMC for the Mitchell 1/ALLDATA-style
+handshake for Shop OS.
+
 For Shop OS, request a supported session launch and callback specification, account/branch binding, vehicle vocabulary, returned item identity, units/pack quantity, quoted cost, availability location and pricing expiry. A callback must bind to the originating RO, line and search revision, expire, and be authenticated using the vendor's supported mechanism. Reject replayed or mismatched returns. Recheck fitment if vehicle context changed. Do not invent callback endpoints or send credentials in a launch URL.
 
 PA-1 corroborates real-time inventory claims and catalog partnerships, but actual update latency, branch quantity semantics and this shop's truck route remain UNKNOWN. The walkthrough's default ground shipping for non-truck customers is not a same-day delivery promise. If custom launch/return is unavailable, staff use their approved Web Warehouse bookmark and re-enter only permitted transaction facts. PA-T means even a CRM hyperlink or persisted quote-data workflow needs terms clarification; pending that, instruct staff to use the existing bookmark without building an embedded portal or automated importer.
