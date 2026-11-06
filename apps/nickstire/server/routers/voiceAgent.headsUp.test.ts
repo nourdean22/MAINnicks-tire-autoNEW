@@ -104,7 +104,6 @@ vi.mock("../lib/logger", async (orig) => ({
   createLogger: () => ({ info: () => {}, debug: () => {}, error: () => {}, warn: (...a: unknown[]) => (h.warn as Fn)(...a) }),
 }));
 vi.mock("../services/voice-call-state", () => ({ recordCallState: async () => {} }));
-vi.mock("../services/promiseLedger", () => ({ createVoicePromise: async () => ({ skipped: true, reason: "test" }) }));
 vi.mock("../services/telegram", () => ({ sendTelegram: (...a: unknown[]) => (h.sendTelegram as Fn)(...a) }));
 vi.mock("../services/vapi", async (orig) => ({
   ...(await orig<typeof import("../services/vapi")>()),

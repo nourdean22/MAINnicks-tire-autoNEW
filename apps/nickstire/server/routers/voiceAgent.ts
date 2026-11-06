@@ -289,7 +289,7 @@ export function spokenShopDirections(): string {
 }
 
 /** What the assistant says when a caller wanted a person: no callback is promised, ever. */
-export function noCallbackGuidance(): string {
+function noCallbackGuidance(): string {
   return "Noted on this call. No callback is scheduled and nobody was texted, so never say anyone will call them back. "
     + "Tell them they can come in or call the shop once it's open: " + spokenShopDirections();
 }

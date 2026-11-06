@@ -18,7 +18,6 @@ const h = vi.hoisted(() => ({
   rows: [] as Array<{ id: number; context: string; name: string; phone: string }>,
   insertFailsOnce: false,
   callbackRequested: vi.fn(),
-  promises: [] as Array<Record<string, unknown>>,
   claimFails: false,
   textOnDuty: vi.fn(),
   sendTelegram: vi.fn(),
@@ -101,9 +100,6 @@ vi.mock("../lib/logger", async (orig) => ({
   createLogger: () => ({ info: () => {}, debug: () => {}, error: () => {}, warn: () => {} }),
 }));
 vi.mock("../services/voice-call-state", () => ({ recordCallState: async () => {} }));
-vi.mock("../services/promiseLedger", () => ({
-  createVoicePromise: async (p: Record<string, unknown>) => { h.promises.push(p); return { skipped: true, reason: "test" }; },
-}));
 vi.mock("../services/telegram", () => ({ sendTelegram: (...a: unknown[]) => (h.sendTelegram as Fn)(...a) }));
 vi.mock("../services/eventBus", async (orig) => {
   const real = await orig<typeof import("../services/eventBus")>();
@@ -128,7 +124,6 @@ beforeEach(() => {
   h.claims.clear();
   h.rows = [];
   h.insertFailsOnce = false;
-  h.promises = [];
   h.callbackRequested.mockResolvedValue(undefined);
   h.claimFails = false;
   h.textOnDuty.mockReset();
@@ -155,11 +150,6 @@ describe("escalate makes no callback obligation", () => {
   it("writes no callback row", async () => {
     expect((await (await caller()).escalate(closedCall)).success).toBe(true);
     expect(h.rows).toHaveLength(0);
-  });
-
-  it("writes no promise", async () => {
-    await (await caller()).escalate(closedCall);
-    expect(h.promises).toHaveLength(0);
   });
 
   it("sends no manager text, no Telegram and no bus event", async () => {
@@ -206,11 +196,6 @@ describe("scheduleCallback makes no callback obligation", () => {
     expect(h.rows).toHaveLength(0);
   });
 
-  it("writes no promise", async () => {
-    await (await caller()).scheduleCallback(asked);
-    expect(h.promises).toHaveLength(0);
-  });
-
   it("sends no manager text, no Telegram and no bus event", async () => {
     await (await caller()).scheduleCallback(asked);
     await settle();
@@ -228,6 +213,5 @@ describe("a complaint on an outbound follow-up call texts the on-duty manager (N
     expect(h.callbackRequested).toHaveBeenCalledTimes(1);
     expect(String((h.callbackRequested.mock.calls[0][0] as { reason: string }).reason)).toMatch(/^COMPLAINT \(follow-up call\): Post-repair complaint: brakes squeal/);
     expect(h.rows).toHaveLength(0);
-    expect(h.promises).toHaveLength(0);
   });
 });

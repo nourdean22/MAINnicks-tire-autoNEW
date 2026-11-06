@@ -18,7 +18,7 @@ export const LIST_INPUT = { states: [...RELEVANT_STATES], limit: 500, order: "wo
  * on a human reply (as owed texts). Today leaves them out of its follow-up rows and count so one person
  * is not counted twice; Sales Pipeline still shows them. Names from server/services/opportunityQueue.ts.
  */
-export const LISTED_ELSEWHERE_ON_TODAY: readonly string[] = ["callback", "human_pending_sms"];
+const LISTED_ELSEWHERE_ON_TODAY: readonly string[] = ["callback", "human_pending_sms"];
 
 /**
  * Rows Today leaves out: the sources it lists elsewhere, the evaluator missed-call cards, and the receptionist's callback promises

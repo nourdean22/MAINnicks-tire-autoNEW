@@ -49,7 +49,7 @@ const STALE_CLOSE_MARKER = "[SYSTEM: Closed as stale]";
  * `createdAt + window` and that day's close. Created while closed: the next
  * opening plus the window. Null when the configured hours yield no instant; the
  * caller writes nothing then, because an invented deadline manufactures a
- * breach the shop never agreed to (the same refusal as createVoicePromise).
+ * breach the shop never agreed to (the same refusal the retired voice-promise writer made).
  */
 export function responseDueAt(
   createdAt: Date,

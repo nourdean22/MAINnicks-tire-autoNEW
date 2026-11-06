@@ -60,6 +60,17 @@ describe("open voice promises are invisible to every reader that nags", () => {
   });
 });
 
+describe("the voice-promise writer and its backlog readers are gone (2026-11-06)", () => {
+  it("promiseLedger exports none of them, and voiceAgent never reaches the ledger", async () => {
+    const mod = await import("./promiseLedger");
+    for (const name of ["createVoicePromise", "voicePromiseBacklog", "renderVoicePromiseLine"]) {
+      expect([name, name in mod]).toEqual([name, false]);
+    }
+    const voice = readFileSync(join(process.cwd(), "server/routers/voiceAgent.ts"), "utf-8");
+    expect(voice).not.toMatch(/promiseLedger|createVoicePromise|createPromise\(/);
+  });
+});
+
 describe("the morning brief has no FROM CALLS callback to-do line", () => {
   it("does not read the voice promise backlog", () => {
     const src = readFileSync(join(process.cwd(), "server/cron/jobs/morningBrief.ts"), "utf-8");
