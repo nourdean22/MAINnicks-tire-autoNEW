@@ -120,6 +120,19 @@ describe("one row per phone for callbacks", () => {
   });
 });
 
+describe("the evaluator's missed-call cards are not on Today (Nour 2026-11-06: \"off\")", () => {
+  it("hides a missed_call card and keeps another follow-up (positive control); the card stays in Sales Pipeline", () => {
+    h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
+    h.queries.set("opportunityQueue.list", ok({ queryable: true, items: [
+      opp("m", { sourceType: "missed_call", reason: "The receptionist's evaluation says this is unresolved (asked if a tire size is in stock); a human call-back beats any text." }),
+      opp("e", { sourceType: "unapproved_estimate", reason: "Estimate waiting on the customer." }),
+    ] }));
+    render(<OverviewSection />);
+    expect(screen.queryByText(/a human call-back beats any text/)).toBeNull();
+    expect(screen.getByText(/Estimate waiting on the customer/)).toBeTruthy();
+  });
+});
+
 describe("the receptionist's retired callback promises are not on Today", () => {
   it("hides a Front Counter callback promise and keeps an operator's own promise", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(BUNDLE()));
