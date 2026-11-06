@@ -191,8 +191,10 @@ V2 `providers`, `package`, `settings`, and `capabilities.tools`. The older singu
 `provider` examples still appear on the providers documentation page as of
 2026-11-05; the machine-readable schema governs this bridge. The exact live model
 ID is mapped to the stable local alias `ai-playground/companion`.
-MCP entries use the schema-supported per-server compatibility form; OpenCode V2
-normalizes it to `mcp.servers` and `disabled` when reading the override.
+MCP entries use OpenCode V2's `mcp.servers` shape directly. Unselected servers
+are marked `disabled: true`; only requested, installed, enabled servers are
+marked `disabled: false` for that run. AI Playground's single timeout value is
+expanded to V2's `startup`, `catalog`, and `execution` timeout fields.
 
 For explicit app actions only:
 
