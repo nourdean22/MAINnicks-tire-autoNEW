@@ -7,13 +7,39 @@
  */
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir, uptime } from "node:os";
 import { dirname, join } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HEAVY = join(dirname(fileURLToPath(import.meta.url)), "heavy.mjs");
+
+// Every fixture dir goes through tmp() so the after() hook can remove it: a standalone
+// `node --test` run is outside the run-scoped TEMP that verify.mjs gets from runTmp.mjs, and
+// 2,813 leaked heavy-* dirs were found on 2026-11-06, all test fixtures (heavy.mjs itself creates none).
+const fixtures = [];
+function tmp() {
+  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  fixtures.push(dir);
+  return dir;
+}
+
+after(() => {
+  // force + retries: a child that just exited can still hold heavy.lock open for a moment on Windows. One dir that
+  // stays held must not stop the rest: each removal is tried on its own and the leftovers are asserted together.
+  for (const d of fixtures) {
+    try {
+      rmSync(d, { recursive: true, force: true, maxRetries: 3 });
+    } catch {
+      // reported by the existsSync check below
+    }
+  }
+  const left = fixtures.filter((d) => existsSync(d));
+  assert.deepEqual(left, [], `fixture dirs left behind in ${tmpdir()}: ${left.length}`);
+  const raw = (readFileSync(fileURLToPath(import.meta.url), "utf8").match(/mkdtempSync\(/g) || []).length;
+  assert.equal(raw, 1, "every fixture dir must be made through tmp(), so the after() hook can remove it");
+});
 
 function env(dir, extra = {}) {
   const e = { ...process.env, HEAVY_LOCK_DIR: dir, HEAVY_POLL_MS: "100", HEAVY_FREE_MB: "99999", ...extra };
@@ -40,7 +66,7 @@ const plantLock = (dir, rec, slot = "heavy") =>
   writeFileSync(lockFile(dir, slot), JSON.stringify({ token: "planted", command: "planted cmd", session: "sib", ...rec }));
 
 test("two concurrent runs serialize: the second starts only after the first exits", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const a = join(dir, "a.txt");
   const b = join(dir, "b.txt");
   const first = runAsync(dir, ["run", "--", process.execPath, "-e", stamp(a, 1200)]);
@@ -57,7 +83,7 @@ test("two concurrent runs serialize: the second starts only after the first exit
 });
 
 test("positive control: a fresh lock held by a live pid is NOT taken over", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now() });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "1200" });
@@ -73,7 +99,7 @@ const thisBoot = () => Math.round(Date.now() - uptime() * 1000);
 const thisUp = () => Math.round(uptime() * 1000);
 
 test("a lease past the old 20 min TTL whose holder pid is ALIVE still blocks the waiter (no overlap)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now() - 21 * 60_000, upMs: thisUp() });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "1200" });
@@ -83,7 +109,7 @@ test("a lease past the old 20 min TTL whose holder pid is ALIVE still blocks the
 });
 
 test("the wrapper's pid is dead but the child it spawned is alive: the lease still holds", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"]).stdout.toString();
   plantLock(dir, { pid: Number(dead), childPid: process.pid, startedMs: Date.now() });
   const marker = join(dir, "ran.txt");
@@ -93,7 +119,7 @@ test("the wrapper's pid is dead but the child it spawned is alive: the lease sti
 });
 
 test("a hung holder past the 45 min hard ceiling is reclaimed, and the takeover is logged", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now() - 46 * 60_000, upMs: thisUp() });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r.code, 0, r.out);
@@ -101,12 +127,12 @@ test("a hung holder past the 45 min hard ceiling is reclaimed, and the takeover 
 });
 
 test("a lease written before a reboot is reclaimed at once, even when its pid number is alive again", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now(), upMs: thisUp() + 86_400_000 });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /took over .*rebooted/);
-  const take = mkdtempSync(join(tmpdir(), "heavy-"));
+  const take = tmp();
   plantLock(take, { pid: null, startedMs: Date.now(), upMs: thisUp() + 86_400_000 });
   const r2 = await runAsync(take, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r2.code, 0, r2.out);
@@ -116,7 +142,7 @@ test("a lease written before a reboot is reclaimed at once, even when its pid nu
 // Red-team 2026-10-31: the first draft compared wall-clock boot estimates (Date.now() - uptime), so an NTP or manual clock step
 // over 2 min read a LIVE holder as "machine rebooted" and a waiter started a second run on top: the exact overlap this fixes.
 test("a wall-clock step does not read as a reboot: a live holder stamped this boot still blocks", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now(), acquiredMs: Date.now(), bootMs: thisBoot() - 10 * 60_000, upMs: thisUp() - 1000 });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "1200" });
@@ -126,7 +152,7 @@ test("a wall-clock step does not read as a reboot: a live holder stamped this bo
 });
 
 test("a pid-less `take` record still ends at its expiry (over 20 minutes)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: null, startedMs: Date.now() - 21 * 60_000 });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
   assert.equal(r.code, 0, r.out);
@@ -144,7 +170,7 @@ const assertDisjoint = (iv) => {
 };
 
 test("four runs racing for a FREE lease: exactly one holds it at a time (claim-before-act)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const files = [0, 1, 2, 3].map((i) => join(dir, `r${i}.txt`));
   const rs = await Promise.all(files.map((f) => runAsync(dir, ["run", "--", process.execPath, "-e", stamp(f, 300)])));
   for (const r of rs) assert.equal(r.code, 0, r.out);
@@ -152,7 +178,7 @@ test("four runs racing for a FREE lease: exactly one holds it at a time (claim-b
 });
 
 test("three runs racing to take over one DEAD holder's lease: exactly one wins at a time", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"]).stdout.toString();
   plantLock(dir, { pid: Number(dead), startedMs: Date.now() });
   const files = [0, 1, 2].map((i) => join(dir, `r${i}.txt`));
@@ -163,7 +189,7 @@ test("three runs racing to take over one DEAD holder's lease: exactly one wins a
 });
 
 test("status prints the holder pid, child pid and age", () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, childPid: process.pid, startedMs: Date.now() - 95_000, upMs: thisUp() });
   const out = spawnSync(process.execPath, [HEAVY, "status"], { env: env(dir) }).stdout.toString();
   assert.match(out, new RegExp(`heavy: held by sib since \\S+ \\(age 1m 3[5-9]s\\) \\(planted cmd\\), pid ${process.pid}, child pid ${process.pid}`));
@@ -172,7 +198,7 @@ test("status prints the holder pid, child pid and age", () => {
 // Old copies of heavy.mjs in other worktrees judge only the on-disk startedMs against 20 min. The holder refreshes it, so those
 // copies keep waiting too; acquiredMs keeps the real start, and readLock reports it as startedMs (status, board, the ceiling).
 test("a running holder records its child pid and refreshes startedMs; readLock still reports the real start", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const p = runAsync(dir, ["run", "--", process.execPath, "-e", "setTimeout(()=>{},1500)"], { HEAVY_REFRESH_MS: "200" });
   await new Promise((r) => setTimeout(r, 1000));
   const disk = JSON.parse(readFileSync(lockFile(dir), "utf8"));
@@ -190,7 +216,7 @@ test("a running holder records its child pid and refreshes startedMs; readLock s
 });
 
 test("a holder whose lease a sibling took over never rewrites or releases the sibling's record", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const p = runAsync(dir, ["run", "--", process.execPath, "-e", "setTimeout(()=>{},1500)"], { HEAVY_REFRESH_MS: "100", HEAVY_MAX_WAIT_MS: "3000" });
   // Plant the sibling only once the holder has its lease (first draft planted on a timer and raced a slow holder start).
   for (let i = 0; i < 100 && !existsSync(lockFile(dir)); i++) await new Promise((r) => setTimeout(r, 50));
@@ -203,7 +229,7 @@ test("a holder whose lease a sibling took over never rewrites or releases the si
 });
 
 test("a lock whose pid is dead is taken over", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"]).stdout.toString();
   plantLock(dir, { pid: Number(dead), startedMs: Date.now() });
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "0"], { HEAVY_MAX_WAIT_MS: "3000" });
@@ -212,7 +238,7 @@ test("a lock whose pid is dead is taken over", async () => {
 });
 
 test("low free RAM: the run waits, then starts once RAM recovers", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const ramFile = join(dir, "ram.txt");
   writeFileSync(ramFile, "400");
   const marker = join(dir, "ran.txt");
@@ -227,7 +253,7 @@ test("low free RAM: the run waits, then starts once RAM recovers", async () => {
 });
 
 test("a held chrome slot makes a heavy run wait; status prints both slots", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const take = spawnSync(process.execPath, [HEAVY, "take", "--slot", "chrome"], { env: env(dir, { CLAUDE_SESSION_ID: "reels" }) });
   assert.equal(take.status, 0, String(take.stderr));
   const status = spawnSync(process.execPath, [HEAVY, "status"], { env: env(dir) }).stdout.toString();
@@ -244,7 +270,7 @@ test("a held chrome slot makes a heavy run wait; status prints both slots", asyn
 });
 
 test("a nested run inside a held lease runs directly instead of deadlocking on itself", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const inner = `${JSON.stringify(process.execPath)} ${JSON.stringify(HEAVY)} run -- ${JSON.stringify(process.execPath)} -e 0`;
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", `process.exit(require('child_process').spawnSync(${JSON.stringify(inner)},{shell:true,stdio:'inherit'}).status)`], {
     HEAVY_MAX_WAIT_MS: "2000",
@@ -253,7 +279,7 @@ test("a nested run inside a held lease runs directly instead of deadlocking on i
 });
 
 test("fails OPEN on its own errors: a lock dir under a regular file (ENOTDIR) runs the child unleased with its exit code", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const file = join(dir, "plain-file");
   writeFileSync(file, "x");
   const r = await runAsync(join(file, "locks"), ["run", "--", process.execPath, "-e", "process.exit(7)"]);
@@ -264,7 +290,7 @@ test("fails OPEN on its own errors: a lock dir under a regular file (ENOTDIR) ru
 // 2026-10-19: four sibling commit hooks each waited 90 s and then ran tsc anyway (3.6 GB each), so the lease protected nothing once
 // every waiter gave up together and git itself hit "Out of memory". The hook form now FAILS the hook; the session retries the commit.
 test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, then FAILS the hook (exit 1) and spawns no child", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   plantLock(dir, { pid: process.pid, startedMs: Date.now() });
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--max-wait", "1s", "--", process.execPath, "-e", stamp(marker, 0)], { HEAVY_MAX_WAIT_MS: "4000" });
@@ -272,7 +298,7 @@ test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, the
   assert.ok(!existsSync(marker), "the command must NOT run unleased after the short wait");
   assert.match(r.out, /heavy lease busy: retry the commit/);
   assert.doesNotMatch(r.out, /proceeding unleased/);
-  const ram = mkdtempSync(join(tmpdir(), "heavy-"));
+  const ram = tmp();
   const ramMarker = join(ram, "ran.txt");
   const r2 = await runAsync(ram, ["run", "--max-wait", "1s", "--", process.execPath, "-e", stamp(ramMarker, 0)], { HEAVY_FREE_MB: "300", HEAVY_MAX_WAIT_MS: "4000" });
   assert.equal(r2.code, 1, r2.out);
@@ -281,7 +307,7 @@ test("--max-wait (the lefthook form): a held lease or low RAM waits briefly, the
 });
 
 test("--max-wait with a FREE lease still runs the command and passes its exit code (control: the new refusal is not a blanket failure)", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const marker = join(dir, "ran.txt");
   const r = await runAsync(dir, ["run", "--max-wait", "1s", "--", process.execPath, "-e", `require('fs').appendFileSync(${JSON.stringify(marker)},'x');process.exit(5)`], { HEAVY_MAX_WAIT_MS: "4000" });
   assert.equal(r.code, 5, r.out);
@@ -289,7 +315,7 @@ test("--max-wait with a FREE lease still runs the command and passes its exit co
 });
 
 test("a lock file whose JSON is not an object (null) is corrupt: taken over once old, not waited on forever", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   writeFileSync(lockFile(dir), "null");
   const old = new Date(Date.now() - 60_000);
   utimesSync(lockFile(dir), old, old);
@@ -299,7 +325,7 @@ test("a lock file whose JSON is not an object (null) is corrupt: taken over once
 });
 
 test("corrupt takeover re-checks what it moved: a sibling's fresh lock written after our read is put back, not deleted", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   process.env.HEAVY_LOCK_DIR = dir;
   try {
     const { readLock, takeOver } = await import("./heavy.mjs");
@@ -318,7 +344,7 @@ test("corrupt takeover re-checks what it moved: a sibling's fresh lock written a
 });
 
 test("a signal to heavy kills the child before the lease is released", { skip: process.platform === "win32" ? "Windows has no catchable SIGTERM from process.kill; CI (Linux) runs this" : false }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const pidFile = join(dir, "child.pid");
   const child = spawn(process.execPath, [HEAVY, "run", "--", process.execPath, "-e", `require('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setTimeout(()=>{},30000)`], { env: env(dir) });
   for (let i = 0; i < 50 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 100));
@@ -337,7 +363,7 @@ test("a signal to heavy kills the child before the lease is released", { skip: p
 });
 
 test("the child's exit code is passed through", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "heavy-"));
+  const dir = tmp();
   const r = await runAsync(dir, ["run", "--", process.execPath, "-e", "process.exit(7)"]);
   assert.equal(r.code, 7, r.out);
   assert.ok(!existsSync(lockFile(dir)), "a failing command still releases the lock");
