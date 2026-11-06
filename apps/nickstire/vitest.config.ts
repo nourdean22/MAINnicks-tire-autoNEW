@@ -20,7 +20,9 @@ export default defineConfig({
     // `railway run` carry the live token; vitest assigns test.env to process.env in the worker AFTER the
     // parent's values (setup-common: `process.env[key] = env[key]`), so empty strings win. Tests that need
     // a token set their own (vi.stubEnv). Pin: server/__tests__/telegramTestIsolation.test.ts.
-    env: { TELEGRAM_BOT_TOKEN: "", TELEGRAM_CHAT_ID: "" },
+    // STATENOUR_SYNC_KEY: same leak into live bdnick (94 fixture "#4242" tasks, 2026-11-06 audit).
+    // Pin: server/__tests__/statenourBridgeTestIsolation.test.ts.
+    env: { TELEGRAM_BOT_TOKEN: "", TELEGRAM_CHAT_ID: "", STATENOUR_SYNC_KEY: "" },
     testTimeout: 30000,
     // Serial by DEFAULT, not by remembering a CLI flag.
     //
