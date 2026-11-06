@@ -40,6 +40,11 @@ describe("a lender's text is not a customer text", () => {
     expect(isLenderText(text)).toBe(false);
   });
 
+  it("a truncated history never hides the newest customer text (Codex c=4495402014)", () => {
+    const truncated: HumanPendingRow = { ...row(4, [LENDER]), body: CUSTOMER };
+    expect(waitingConversations([truncated]).map((i) => i.conversationId)).toEqual([4]);
+  });
+
   it("Today hides a thread only when every open text is a lender's", () => {
     const items = waitingConversations([row(1, [LENDER]), row(2, [CUSTOMER]), row(3, [LENDER, CUSTOMER])]);
     expect(items.map((i) => i.conversationId).sort()).toEqual([2, 3]);

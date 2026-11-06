@@ -46,6 +46,12 @@ describe("no served line offers or promises a callback", () => {
     expect(line).not.toMatch(/\?/);
   });
 
+  it("the call evaluation no longer passes a call for a scheduled callback (Codex c=4495402034)", () => {
+    const plan = JSON.stringify((buildAssistantConfig("https://nickstire.org/api/webhooks/vapi") as unknown as { analysisPlan: unknown }).analysisPlan);
+    expect(plan).not.toMatch(/callback was scheduled/i);
+    expect(plan).toMatch(/promised a callback/i);
+  });
+
   it("the follow-up caller", () => {
     expect(FOLLOW_UP_SYSTEM_PROMPT).not.toMatch(OFFERS_A_CALLBACK);
   });

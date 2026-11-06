@@ -31,6 +31,7 @@ import { getCallbackServedEvidence } from "./callbackServedEvidence";
 import { leads as leadsTable } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
+import { isReceptionistCallback } from "../lib/receptionistCallbacks";
 
 const log = createLogger("services:adminBundle");
 
@@ -46,15 +47,6 @@ function settled<T>(p: PromiseSettledResult<T>): T | null {
  * Inlined here so adminBundle doesn't depend on the lead router (which
  * would cause a circular import via the appRouter).
  */
-/**
- * The voice receptionist's callback rows (escalate: utmSource voice-agent; scheduleCallback:
- * sourcePage vapi-voice-agent). It makes no callback obligations since 2026-11-06, so Today drops
- * its old rows too; they stay in the Callbacks list.
- */
-function isReceptionistCallback(row: { utmSource?: string | null; sourcePage?: string | null }): boolean {
-  return row.utmSource === "voice-agent" || row.sourcePage === "vapi-voice-agent";
-}
-
 async function listLeads() {
   const d = await db();
   // THROW, do not return []. An unreachable database is not "no leads".

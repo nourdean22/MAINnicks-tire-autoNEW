@@ -41,8 +41,10 @@ describe("isDuplicateKeyError", () => {
     expect(isDuplicateKeyError("plain string, no key")).toBe(false);
   });
 
-  it("the four call sites use it and carry no private copy (comment-stripped)", () => {
-    const files = ["../services/proposals.ts", "../services/shopDriverMirror.ts", "../services/promiseLedger.ts"];
+  it("the call sites use it and carry no private copy (comment-stripped)", () => {
+    // promiseLedger.ts left this list 2026-11-06: its one call site lived in createVoicePromise, deleted
+    // when the receptionist stopped making callback promises (PR 3555).
+    const files = ["../services/proposals.ts", "../services/shopDriverMirror.ts"];
     for (const f of files) {
       const src = stripComments(readFileSync(resolve(__dirname, f), "utf8"));
       expect(src, f).toContain("isDuplicateKeyError(");
@@ -53,6 +55,13 @@ describe("isDuplicateKeyError", () => {
     // shopDriverMirror had TWO copies; both must be gone.
     const mirror = stripComments(readFileSync(resolve(__dirname, "../services/shopDriverMirror.ts"), "utf8"));
     expect(mirror.match(/isDuplicateKeyError\(/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
+  it("promiseLedger keeps no private duplicate-key copy and no longer imports the recogniser it stopped using", () => {
+    const src = stripComments(readFileSync(resolve(__dirname, "../services/promiseLedger.ts"), "utf8"));
+    expect(src).not.toMatch(/\/Duplicate entry\|ER_DUP_ENTRY\/i/);
+    expect(src).not.toMatch(/function isDuplicateKeyError/);
+    expect(src).not.toMatch(/isDuplicateKeyError/);
   });
 });
 

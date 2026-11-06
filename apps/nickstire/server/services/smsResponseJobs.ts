@@ -565,7 +565,8 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
     if (isNonCustomer({ customerPhone: r.phone, customerName: r.customerName })) continue;
     // A lender about the owner's own account, on EVERY open text of the thread, is not a customer
     // waiting on us (2026-11-06). The row stays human_pending; "No reply needed" closes it.
-    const openTexts = r.bodies && r.bodies.length > 0 ? r.bodies : [r.body];
+    // The newest text always counts, even when the aggregate was cut (group_concat_max_len).
+    const openTexts = [...(r.bodies ?? []), r.body];
     if (openTexts.every(isLenderText)) {
       if (!loggedLenderThreads.has(r.conversationId)) {
         loggedLenderThreads.add(r.conversationId);

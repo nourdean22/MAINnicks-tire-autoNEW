@@ -899,7 +899,7 @@ const ANALYSIS_PLAN = {
     messages: [
       {
         role: "system" as const,
-        content: "Evaluate whether this Nick's Tire & Auto call was successful. PASS = customer's question was answered AND (a) booking was made, OR (b) callback was scheduled, OR (c) customer left with the info they needed. FAIL = customer hung up unsatisfied, AI made things up, or customer asked for human and didn't get one.",
+        content: "Evaluate whether this Nick's Tire & Auto call was successful. PASS = customer's question was answered AND (a) a visit or drop-off was agreed, OR (b) customer left with the info they needed or a clear way in (come by, or call the shop when open). FAIL = customer hung up unsatisfied, AI made things up, AI promised a callback (the shop schedules none), or customer asked for human and didn't get one.",
       },
       { role: "user" as const, content: "Transcript:\n{{transcript}}" },
     ],

@@ -4,6 +4,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { sql, eq, gte, and, desc, isNull } from "drizzle-orm";
+import { notReceptionistCallbackSql } from "../lib/receptionistCallbacks";
 import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
@@ -102,7 +103,7 @@ export const controlCenterRouter = router({
       const [leadsTodayArr, bookingsTodayArr, callbacksArr, quotesTodayArr] = await Promise.all([
         d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, todayStart)),
         d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, todayStart)),
-        d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
+        d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
           gte(leads.createdAt, todayStart), sql`${leads.status} IN ('contacted', 'booked')`
         )),
@@ -378,7 +379,7 @@ export const controlCenterRouter = router({
           .where(and(eq(leads.status, "contacted"), sql`${leads.createdAt} < ${twoDaysAgo}`)),
         d.select({ count: sql<number>`count(*)` })
           .from(callbackRequests)
-          .where(eq(callbackRequests.status, "new")),
+          .where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
         d.select({
             id: leads.id, name: leads.name, phone: leads.phone,
             service: leads.recommendedService, createdAt: leads.createdAt, status: leads.status,

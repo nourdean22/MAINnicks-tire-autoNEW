@@ -15,7 +15,7 @@
  */
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
-import { isDuplicateKeyError, isMissingTableError } from "../lib/dbErrors";
+import { isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("promise-ledger");
 
@@ -79,19 +79,6 @@ export function classifyOverdue(dueAt: Date, now: Date): { overdue: boolean; hou
 }
 
 let tableMissingWarned = false;
-/**
- * A UNIQUE-constraint rejection. Migration 0125 put uq_promise_source on
- * (source_kind, source_id, promise_type), which means the DATABASE now refuses
- * the duplicate that createVoicePromise's read-then-write could not catch
- * between two concurrent webhook deliveries.
- *
- * That is the point of the index — but it relocates the failure from the data
- * into control flow. Before 0125 a race produced two rows and no error; after
- * it, one row and a thrown ER_DUP_ENTRY. The caller has to be taught that this
- * particular throw is not a failed write, it is someone else's successful one.
- * The recogniser is lib/dbErrors.isDuplicateKeyError — one definition for the
- * four call sites that used to carry their own.
- */
 function warnMissingOnce(where: string): void {
   if (!tableMissingWarned) {
     tableMissingWarned = true;
@@ -489,8 +476,8 @@ export async function sweepOverduePromises(): Promise<{ recordsProcessed: number
  * and whose numerator can only be produced by hand measures how often somebody
  * clicked a button, not how the shop behaved.
  *
- * Unmeasured is not failed. Voice promises are counted by voicePromiseBacklog()
- * and reported as a to-do list with that caveat attached.
+ * Unmeasured is not failed. Voice promises are retired (2026-11-06): the
+ * receptionist makes none, and the open ones are hidden from every reader.
  */
 export async function promiseLedgerStats(windowDays = 30): Promise<{
   created: number;

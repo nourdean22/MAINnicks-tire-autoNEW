@@ -716,24 +716,35 @@ export const voiceAgentRouter = router({
       log.info("Voice agent escalate noted, no callback made", { urgency: input.urgency, outbound: input.outbound === true });
       if (!input.outbound) return { success: true, callback: false, message: noCallbackGuidance() };
       // The outbound follow-up caller escalates only a complaint (Nour, 2026-11-06: a
-      // complaint still texts the manager). Once per call through the persisted claim
-      // the old callback alert used; still no callback row and no promise.
+      // complaint still texts the manager). A complaint text, not a callback_requested event
+      // (that one says "CALLBACK" and counts as a conversion). Once per call through the
+      // persisted claim; a send that did not go out hands the claim back so a retry sends.
       const sendComplaint = async (): Promise<TelegramSendResult> => {
         const phone = pickArrivalPhone(undefined, input.callerNumber).replace(/\D/g, "").slice(-10);
         const name = (await resolveCallerName(input.name, input.callerNumber)) ?? "Customer";
-        const { emit } = await import("../services/eventBus");
-        await emit.callbackRequested({ id: null, name, phone, reason: `COMPLAINT (follow-up call): ${input.reason}` });
-        return { status: "delivered" };
+        const { textOnDutyManager } = await import("../services/eventBus");
+        const sent = await textOnDutyManager(`⚠️ COMPLAINT (follow-up call)\n${name} — ${phone || "no number"}\n${input.reason.slice(0, 200)}`);
+        if (sent.status === "sent" || sent.status === "pending") return { status: "delivered" };
+        log.warn("escalate → complaint text did not go out", { callId: input.callId, status: sent.status, reason: sent.reason });
+        return { status: "failed" };
       };
-      (input.callId
-        ? import("../services/alertClaim").then(({ sendOncePerState }) => sendOncePerState(`voice-complaint:${input.callId}`, sendComplaint))
-        : sendComplaint()
-      ).catch((e) => log.warn("escalate → complaint text to the manager failed", { err: e instanceof Error ? e.message : String(e) }));
+      let reached = false;
+      try {
+        const res = input.callId
+          ? await (await import("../services/alertClaim")).sendOncePerState(`voice-complaint:${input.callId}`, sendComplaint)
+          : await sendComplaint();
+        reached = res === null || res.status !== "failed"; // null: an earlier escalate on this call already sent it
+      } catch (e) {
+        log.warn("escalate → complaint text to the manager failed", { callId: input.callId, err: e instanceof Error ? e.message : String(e) });
+      }
+      const tail = "Never promise a callback or a time. Tell them to bring it by any open day and the counter will take a look (first come, first served): " + spokenShopDirections();
       return {
         success: true,
         callback: false,
-        message: "A note about this complaint went to the shop manager. Never promise a callback or a time. "
-          + "Tell them to bring it by any open day and the counter will take a look (first come, first served): " + spokenShopDirections(),
+        managerTexted: reached,
+        message: reached
+          ? "A note about this complaint went to the shop manager. " + tail
+          : "The note did NOT reach the shop manager. Ask them to call the shop when it's open. " + tail,
       };
     }),
 

@@ -9,6 +9,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { eq, gte, sql, and, desc } from "drizzle-orm";
+import { notReceptionistCallbackSql } from "../../lib/receptionistCallbacks";
 import { invokeLLM } from "../../_core/llm";
 
 import { db } from "../../lib/db-helper";
@@ -120,7 +121,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select({ count: sql<number>`count(*)` }).from(bookings)
         .where(and(gte(bookings.createdAt, yesterdayStart), sql`${bookings.createdAt} < ${todayStart}`)),
       d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads).where(eq(leads.status, "new")),
-      d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
+      d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, weekAgo)),
       d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
       d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),

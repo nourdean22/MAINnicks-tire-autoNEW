@@ -204,15 +204,28 @@ describe("scheduleCallback makes no callback obligation", () => {
 });
 
 describe("a complaint on an outbound follow-up call texts the on-duty manager (Nour 2026-11-06: \"yes\")", () => {
-  it("outbound escalate sends ONE manager text per call, with no callback row and no promise", async () => {
+  it("outbound escalate texts the manager ONE complaint per call: no callback event, no row (Codex c=4495401985)", async () => {
     const c = await caller();
+    const first = await c.escalate({ reason: "Post-repair complaint: brakes squeal", urgency: "high", callerNumber: CALLER, callId: "call_o1", outbound: true });
     await c.escalate({ reason: "Post-repair complaint: brakes squeal", urgency: "high", callerNumber: CALLER, callId: "call_o1", outbound: true });
-    await c.escalate({ reason: "Post-repair complaint: brakes squeal", urgency: "high", callerNumber: CALLER, callId: "call_o1", outbound: true });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(h.callbackRequested).toHaveBeenCalledTimes(1);
-    expect(String((h.callbackRequested.mock.calls[0][0] as { reason: string }).reason)).toMatch(/^COMPLAINT \(follow-up call\): Post-repair complaint: brakes squeal/);
+    expect(h.textOnDuty).toHaveBeenCalledTimes(1);
+    expect(String(h.textOnDuty.mock.calls[0][0])).toMatch(/COMPLAINT \(follow-up call\)/);
+    expect(String(h.textOnDuty.mock.calls[0][0])).toMatch(/Post-repair complaint: brakes squeal/);
+    expect(String(h.textOnDuty.mock.calls[0][0])).not.toMatch(/CALLBACK/);
+    expect(first.message).toMatch(/went to the shop manager/);
+    await settle();
+    expect(h.callbackRequested).not.toHaveBeenCalled();
     expect(h.rows).toHaveLength(0);
+  });
+
+  it("a manager text that did not go out is reported, and the next escalate retries it (Codex c=4495401993)", async () => {
+    h.textOnDuty.mockResolvedValueOnce({ status: "skipped", reason: "no on-duty number" });
+    const c = await caller();
+    const res = await c.escalate({ reason: "Post-repair complaint: noise", urgency: "high", callerNumber: CALLER, callId: "call_o3", outbound: true });
+    expect(res.message).toMatch(/did not reach the shop manager/i);
+    expect(res.message).not.toMatch(/went to the shop manager/);
+    await c.escalate({ reason: "Post-repair complaint: noise", urgency: "high", callerNumber: CALLER, callId: "call_o3", outbound: true });
+    expect(h.textOnDuty).toHaveBeenCalledTimes(2);
   });
 
   it("the outbound complaint reply promises no priority (first come, first served)", async () => {
