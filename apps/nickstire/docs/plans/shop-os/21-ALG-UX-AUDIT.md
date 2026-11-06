@@ -1,5 +1,7 @@
 # Shop OS 21: ALG full UX audit (screen by screen, settings by setting)
 
+> **Correction (2026-11-06, Nour):** the shop also trades as **Moe's** ("we're Moe's too"). "Moe's" on a vendor account or ALG field is a current trade name, not a stale one. Read every "stale name" / "rename sweep" remark below as: keep one shop-identity record that holds both trade names (Nick's and Moe's) and records which name each vendor account uses; no rename is needed. The separate point about duplicate, unsynced shop-name fields still stands.
+
 Job 2026-11-06-shop-os-alg-ux-audit. PLANNING, nothing built. Nour (2026-11-06): "reverse engineer alg which is my
 current crm and i love it and i want to base it all around this design so dont miss a single detail." This is that
 pass: every screen, every settings page, every toggle, reached through Nour's own paid, already-authenticated

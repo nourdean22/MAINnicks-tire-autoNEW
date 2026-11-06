@@ -97,7 +97,7 @@ tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, 
 vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
 and whichever others the first-cohort gate above eventually adds).
 
-**What the four completed vendor passes actually show, concretely:**
+**What the five completed vendor passes actually show, concretely:**
 
 - **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
   shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
@@ -113,6 +113,12 @@ and whichever others the first-cohort gate above eventually adds).
   only the home warehouse is orderable online; fulfillment is chosen at checkout as **ROUTE or PICKUP**; and
   **no ETA, delivery date, or cutoff countdown appears anywhere**. Rich on *where*, silent on *when* - the
   mirror image of ATD.
+- **Federated / Fisher Auto Parts** (25-FEDERATED-UX-AUDIT section 5a): the first parts vendor - exact qty at
+  the home store (C185OH), six more Fisher stores, four warehouses and the Federated co-op, with core charge
+  per location; only the home store looked orderable online; a phone icon where stock is zero; **no ETA or
+  cutoff anywhere**. Same shape as Capital Tire, so the location/arrival split in point 6 below is the norm
+  across suppliers, not a tire quirk. The field-level version of all of this is in
+  [26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) section 2.
 
 No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
 its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each

@@ -38,6 +38,8 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) | full Gateway Tire/D&K B2B portal UX audit (Nour's own account, 2026-11-06): tires/supplies/wheels catalogs, 28-field tire spec schema, the shop's own 100%-markup rule explaining the 2.00x cost-to-retail pattern, Quote List, an unused built-in Bay Manager scheduling board, order history, and what it means for nickstire.org's tire page and ordering widget |
 | [23-ATD-UX-AUDIT](23-ATD-UX-AUDIT.md) | full ATD Online (American Tire Distributors) B2B portal UX audit (Nour's own account, 2026-11-06): a six-tier Pickup/Today/Tomorrow/named-date/Multi-Day/National delivery model, a step-up password re-auth gate on Users/Accounting, a built-in Quotes CRM funnel (Open/Contacted/Converted/Closed), recurring-order Lists with share permissions, a paste-from-spreadsheet Stock Order screen, a VIN-to-OE-fitment flow with a wheel visualizer, and a live vendor marketing-program progress gauge |
 | [24-CAPITAL-TIRE-UX-AUDIT](24-CAPITAL-TIRE-UX-AUDIT.md) | full Capital Tire wholesale portal UX audit (Nour's own account, 2026-11-06): per-warehouse stock across 10 named warehouses with home-warehouse-only ordering and ROUTE/PICKUP (no ETA), a lost-sale reason capture, a scoped markup-rule engine with an AI assistant, a Good/Better/Best customer quote printout, a hide-cost customer view, stock-out substitution, dual front/rear size search, and trim-level fitment with placard psi, TPMS and plus sizing |
+| [25-FEDERATED-UX-AUDIT](25-FEDERATED-UX-AUDIT.md) | full FederatedLink (Federated Auto Parts / Fisher Auto Parts store) UX audit (Nour's own account, 2026-11-06): five-mode search, Y/M/M/Engine picker, three-pane part-type picker with Total Job kits, results with Alt Locations across 12 stores/warehouses (no ETA), interchange + buyer's guide, lost-sale and discrepancy actions, stock/list ordering with paste upload, invoices with inline lines, and a cart that builds labor quotes |
+| [26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) | rollup of audits 21-25 for the build: cross-vendor matrix, fields to add to 18's supplier-offer contract, shop-owned objects (ShopIdentity, SellPriceRule, Quote, DeclineReason, JobKit, PartCrossRef, CatalogIssue, SupplierOrderDraft), screens in build order, and the open questions that block Quickest Arrival |
 
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
@@ -52,8 +54,8 @@ Elite - and confirms real vendor names/markup model, a 14-template reminder libr
 
 A full Gateway Tire/D&K B2B portal pass (Nour's own account, 2026-11-06, read-only) is now in
 [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md). It confirms D&K = Dunlap & Kyle Company Inc., explains the
-2.00x cost-to-retail pattern as the shop's own 100%-markup rule (not a Gateway default) still labeled with the
-stale "Moe's Tire" name, finds a Quote List safe-quote flow and an unused built-in Bay Manager scheduling board,
+2.00x cost-to-retail pattern as the shop's own 100%-markup rule (not a Gateway default) labeled with the shop's
+Moe's trade name (a current name, not stale - Nour, 2026-11-06), finds a Quote List safe-quote flow and an unused built-in Bay Manager scheduling board,
 and captures the 28-field tire spec schema, Local/Regional stock split, and delivery-cutoff banner that feed
 nickstire.org's tire page and ordering widget.
 
@@ -76,6 +78,15 @@ mechanisms for Shop OS are a structured lost-sale reason capture with competitor
 engine (default + scoped rules, tie-break, max-profit cap, live preview), a Good/Better/Best customer quote
 printout with fees and road hazard, a one-click hide-cost customer view, stock-out substitution, and
 trim-level fitment with placard psi, TPMS and plus sizing (14-STOLEN-MECHANISMS rows 18-26).
+
+A Federated Auto Parts / Fisher Auto Parts pass (Nour's own FederatedLink account, 2026-11-06, read-only) is in
+[25-FEDERATED-UX-AUDIT](25-FEDERATED-UX-AUDIT.md) - the first parts vendor. It confirms the Capital Tire
+pattern (exact stock at many named locations, home-store-only ordering, no ETA) and adds job-based part kits,
+graded interchange with reverse fitment, catalog discrepancy reporting, a three-pane multi-part-type picker,
+and a five-mode search box (14-STOLEN-MECHANISMS rows 27-32). It also shows the vendor cart building labor
+quotes - rejected for Nick's. **[26-VENDOR-SCHEMATICS](26-VENDOR-SCHEMATICS.md) rolls all five audits into
+the offer fields, shop objects and screens the build must implement - read it before 21-25.** Correction from
+Nour (2026-11-06): the shop also trades as Moe's, so "Moe's" on vendor accounts is current, not stale.
 
 ## Five facts that shape everything
 1. The shop closes a few mid-to-large tickets a day (production read; exact figures stay out of this public repo).

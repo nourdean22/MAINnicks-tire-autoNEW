@@ -1,5 +1,7 @@
 # Shop OS 23: ATD Online (American Tire Distributors) B2B portal UX audit (screen by screen)
 
+> **Correction (2026-11-06, Nour):** the shop also trades as **Moe's** ("we're Moe's too"). "Moe's" on a vendor account or ALG field is a current trade name, not a stale one. Read every "stale name" / "rename sweep" remark below as: keep one shop-identity record that holds both trade names (Nick's and Moe's) and records which name each vendor account uses; no rename is needed. The separate point about duplicate, unsynced shop-name fields still stands.
+
 Job 2026-11-06-shop-os-atd-ux-audit. Status: COMPLETE (one pass). Read-only navigation of Nour's own
 authenticated ATD Online account (atdonline.com), same legitimate-access pattern as
 [21-ALG-UX-AUDIT](21-ALG-UX-AUDIT.md) and [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md). ATD is Nour's

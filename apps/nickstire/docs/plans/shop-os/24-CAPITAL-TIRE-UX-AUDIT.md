@@ -15,9 +15,9 @@ pass deliberately avoided).
 ## 0. Identity
 
 - Login handle: **moeseuclid** - the same handle as ATD (23 section 0). Greeting reads "Hello, Moe's Euclid
-  Tire & Auto - Moe's"; My Account shows Company "Moe's Euclid Tire & Auto", User status Active. This is the
-  **sixth** confirmed surfacing of the stale "Moe's" legacy name across vendor systems this session - the
-  global rename sweep flagged in 23 should now explicitly include Capital Tire.
+  Tire & Auto - Moe's"; My Account shows Company "Moe's Euclid Tire & Auto", User status Active. Moe's is a
+  current trade name of the shop (Nour, 2026-11-06: "we're Moe's too"), not a stale one - no rename needed;
+  Shop OS's single shop-identity record should list both trade names and which one each vendor account uses.
 - Ship-to: **17625 Euclid Avenue, Cleveland OH 44112** (PRIMARY, the only address in the account's address
   picker, which opens from the header location-pin icon) - same physical shop as the Gateway/D&K and ATD
   accounts.
