@@ -199,25 +199,26 @@ describe("stock, capacity, wait and person claims", () => {
       .toContain("named_person_promise");
   });
 
-  it("flags an unbacked callback promise but allows the after-hours form", () => {
+  it("v3 (2026-11-06): every callback promise is unbacked, the after-hours form included", () => {
     expect(voiceClaimViolations(["I'll call you back once I check the rack."]))
       .toContain("unbacked_callback_promise");
-    // Rule 6 CLOSED path: escalate() makes this one real and durable.
+    // escalate writes nothing since 2026-11-06, so the old after-hours lines are now false promises.
     expect(voiceClaimViolations(["Someone will call you first thing when we open."]))
-      .not.toContain("unbacked_callback_promise");
-    // …and the v2 wording of the same scripted line (2026-09-23 prompt).
+      .toContain("unbacked_callback_promise");
     expect(voiceClaimViolations(["We're closed now, but you're on the shop's callback list — someone will call you back when we're open."]))
+      .toContain("unbacked_callback_promise");
+    // POSITIVE CONTROL for the other direction: an invitation to call the shop is not a promise.
+    expect(voiceClaimViolations(["Call us once we're open, or just come by."]))
       .not.toContain("unbacked_callback_promise");
   });
 
-  it("v2: a callback promised on a call where escalate ran is backed; the same words without it are not", () => {
+  it("v3: escalate on the call no longer backs a callback promise", () => {
     const capture = { role: "bot", message: "Sorry about that — you're on the shop's callback list, someone will call you back." };
     const escalate = { role: "tool_calls", toolCalls: [{ id: "t1", type: "function", function: { name: "escalate", arguments: "{}" } }] };
-    const backed = buildVoiceClaimRecord({ messages: [capture, escalate] });
-    expect(backed?.violations).not.toContain("unbacked_callback_promise");
-    expect(backed?.escalated).toBe(true);
-    expect(backed?.v).toBe(2);
-    // POSITIVE CONTROL: no escalate → the promise is unbacked and flagged.
+    const withEscalate = buildVoiceClaimRecord({ messages: [capture, escalate] });
+    expect(withEscalate?.violations).toContain("unbacked_callback_promise");
+    expect(withEscalate?.escalated).toBe(true);
+    expect(withEscalate?.v).toBe(3);
     const unbacked = buildVoiceClaimRecord({ messages: [capture, { role: "tool_calls", toolCalls: [{ function: { name: "tireInquiry" } }] }] });
     expect(unbacked?.violations).toContain("unbacked_callback_promise");
     expect(unbacked?.escalated).toBe(false);

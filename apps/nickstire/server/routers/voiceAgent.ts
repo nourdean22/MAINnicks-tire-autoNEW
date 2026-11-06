@@ -685,7 +685,7 @@ export const voiceAgentRouter = router({
       callId: z.string().max(100).optional(),
       /** The number VAPI connected (caller ID), injected by the webhook — never by the model. */
       callerNumber: z.string().max(30).optional(),
-      /** When the caller said a callback suits them, in their words (CALLBACK CAPTURE). */
+      /** Accepted from older live tool configs; unused since 2026-11-06 (no callbacks). */
       bestTime: z.string().max(120).optional(),
     }))
     .mutation(async ({ input }) => {
@@ -1318,7 +1318,7 @@ export const voiceAgentRouter = router({
         success: true,
         handOffToHuman: true,
         aiHint:
-          "You cannot see the rack. Do NOT state whether the tire is in stock, do not promise a timeframe, and do not promise a callback yourself: only escalate records one. Hand the caller to a person so someone can physically check it: transferCall while open; escalate (CALLBACK CAPTURE) while closed, if they won't hold, or if the transfer doesn't connect.",
+          "You cannot see the rack. Do NOT state whether the tire is in stock, do not promise a timeframe, and never promise a callback: nobody is assigned to make one. Hand the caller to a person so someone can physically check it: transferCall while open. Closed, won't hold, or the transfer doesn't connect: NO ANSWER UP FRONT (escalate notes the size; invite them to come by).",
       };
     }),
 

@@ -193,10 +193,10 @@ describe("every script and tool text the model reads promises nothing untracked"
     for (const [where, text] of SCRIPTS) expect([where, DONE_TEXT.test(text)]).toEqual([where, false]);
   });
 
-  it("escalate is allowed for CALLBACK CAPTURE during open hours, not only when closed", () => {
+  it("escalate is allowed for NO ANSWER UP FRONT during open hours, not only when closed", () => {
     const d = toolTexts().find((t) => t.where === "escalate")?.text ?? "";
     expect(d).not.toBe("");
-    expect(d).toMatch(/CALLBACK CAPTURE/);
+    expect(d).toMatch(/NO ANSWER UP FRONT/);
     expect(d).not.toMatch(/Never during open hours/i);
   });
 
