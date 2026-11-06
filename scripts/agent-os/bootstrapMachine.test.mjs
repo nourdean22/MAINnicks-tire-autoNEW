@@ -50,6 +50,8 @@ function bareRepoScript(label) {
   const repo = join(SCRATCH, label);
   for (const f of ["bootstrap-machine.mjs", "always-on-skills.mjs", "plugin-index.mjs", "find-skills-turn.mjs", "session-surface.mjs"]) write(join(repo, "scripts", "agent-os", f), readFileSync(join(HERE, f)));
   for (const f of ["global-claude-md-block.md", "local-services.json", "user-layer.json", "RTK.md"]) write(join(repo, "config", "agent-os", f), readFileSync(join(ROOT, "config", "agent-os", f)));
+  // Every other file the layer installs (the output style, 2026-11-06), so the fixture repo stays installable.
+  for (const x of JSON.parse(readFileSync(join(ROOT, "config", "agent-os", "user-layer.json"), "utf8")).files ?? []) write(join(repo, x.src), readFileSync(join(ROOT, x.src)));
   mkdirSync(join(repo, ".claude", "skills"), { recursive: true });
   return { repo, script: join(repo, "scripts", "agent-os", "bootstrap-machine.mjs") };
 }
@@ -220,7 +222,7 @@ test("apply touches nothing else: unrelated settings, hooks, skills and CLAUDE.m
   assert.equal(s.hooks.SessionStart.filter((g) => JSON.stringify(g).includes("always-on-skills.mjs")).length, 1);
   assert.match(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), /^# my rules\n\nkeep this line\n/);
   assert.ok(existsSync(join(home, ".claude", "skills", "mine", "SKILL.md")));
-  const unexpected = files(home).filter((f) => !/^\.claude\/(settings\.json|CLAUDE\.md|RTK\.md|hooks\/|skills\/|bootstrap-backup\/)|^\.claude\.json$/.test(f));
+  const unexpected = files(home).filter((f) => !/^\.claude\/(settings\.json|CLAUDE\.md|RTK\.md|output-styles\/nour\.md|hooks\/|skills\/|bootstrap-backup\/)|^\.claude\.json$/.test(f));
   assert.deepEqual(unexpected, []);
 });
 
@@ -473,6 +475,31 @@ test("rtk: on PATH, the hook, RTK.md and the import install; a machine where rtk
   assert.equal(runOn(home, { pathEnv, args: ["--check"] }).code, 0);
   runOn(home, { pathEnv: pathDir("rtk-gone", false) });
   assert.equal(json(join(home, ".claude", "settings.json")).hooks.PreToolUse[0].hooks[0].command, "rtk hook claude", "bootstrap removes nothing");
+});
+
+test("output style (2026-11-06): nour.md installs to ~/.claude/output-styles/, outputStyle reads nour, --check is then clean", () => {
+  const home = makeHome("output-style");
+  assert.equal(LAYER.settings.outputStyle, "nour", "the layer must select the nour style");
+  assert.match(run(home, "--check").out, /MISSING\s+~\/\.claude\/output-styles\/nour\.md/);
+  const r = run(home);
+  assert.equal(r.code, 0, r.out);
+  const src = join(ROOT, "config", "agent-os", "output-styles", "nour.md");
+  assert.ok(readFileSync(join(home, ".claude", "output-styles", "nour.md")).equals(readFileSync(src)), "installed style differs from the repo copy");
+  assert.equal(json(join(home, ".claude", "settings.json")).outputStyle, "nour");
+  // The harness picks the style by its frontmatter name: a mismatch silently falls back to Default.
+  assert.match(readFileSync(src, "utf8"), /^---\r?\nname: nour\r?\ndescription: .+/);
+  assert.match(run(home, "--check").out, /ok\s+~\/\.claude\/output-styles\/nour\.md/);
+});
+
+test("output style: a files[] src that climbs out of config/agent-os refuses, a one-level subfolder passes", () => {
+  for (const [label, src, refused] of [["climb", "config/agent-os/../../.env", true], ["climb-sub", "config/agent-os/../x/RTK.md", true], ["dots", "config/agent-os/.../RTK.md", true], ["two-deep", "config/agent-os/a/b/RTK.md", true],["sub", "config/agent-os/output-styles/nour.md", false]]) {
+    const { repo, script } = fixtureRepo(`style-src-${label}`);
+    const f = join(repo, "config", "agent-os", "user-layer.json");
+    write(f, JSON.stringify({ ...json(f), files: [{ src, dest: "output-styles/nour.md" }] }, null, 2));
+    const home = makeHome(`style-src-${label}-home`);
+    if (refused) assertRefused(runOn(home, { script }), home, mtimes(home), /REFUSE.*user-layer\.json.*file/);
+    else assert.equal(runOn(home, { script }).code, 0);
+  }
 });
 
 test("the bootstrap needs no pnpm, gh or claude: with an empty PATH (a sparse clone, the Desktop bundle) apply still installs the layer", () => {

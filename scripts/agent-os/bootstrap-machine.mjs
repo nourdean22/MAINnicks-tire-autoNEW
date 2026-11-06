@@ -79,7 +79,9 @@ const LAYER_KEYS = new Set(["_doc", "skills", "settings", "hooks", "files", "mcp
 const SETTINGS_KEYS = new Set(["skillListingBudgetFraction", "outputStyle", "theme", "skipWorkflowUsageWarning", "precomputeCompactionEnabled", "switchModelsOnFlag", "inputNeededNotifEnabled", "agentPushNotifEnabled", "extraKnownMarketplaces"]);
 const HOOK_KEYS = new Set(["event", "matcher", "sources", "key", "command", "timeout", "requires"]);
 // Where files[] may write. Without this a dest of settings.json or CLAUDE.md would replace the whole file and sidestep the gate.
-const FILE_DESTS = new Set(["RTK.md"]);
+const FILE_DESTS = new Set(["RTK.md", "output-styles/nour.md"]);
+// One optional subfolder under config/agent-os, never an all-dots segment ("..", or "..." that Windows trims to "..").
+const FILE_SRC = /^config\/agent-os\/(?:(?!\.+\/)[\w.-]+\/)?(?!\.+$)[\w.-]+$/;
 const isMap = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /** Why this user-layer.json may not install; empty when it may. */
@@ -99,7 +101,7 @@ export function layerProblems(layer) {
     if (Object.keys(h).some((k) => !HOOK_KEYS.has(k)) || !h.event || !h.key || !String(h.command ?? "").includes(h.key)) out.push(`hook "${h.key ?? h.event}" must have an event, a key and a command naming that key, and no other field`);
   }
   for (const x of layer.files ?? []) {
-    if (!FILE_DESTS.has(x.dest) || !/^config\/agent-os\/[\w.-]+$/.test(x.src ?? "")) out.push(`file "${x.dest}" must be a named destination copied from config/agent-os`);
+    if (!FILE_DESTS.has(x.dest) || !FILE_SRC.test(x.src ?? "")) out.push(`file "${x.dest}" must be a named destination copied from config/agent-os`);
   }
   return out;
 }

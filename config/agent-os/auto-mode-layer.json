@@ -1,0 +1,44 @@
+{
+  "_doc": "Machine-only auto-mode classifier entries. scripts/agent-os/auto-mode-layer.mjs merges this into ~/.claude/settings.json when Nour runs it; agents cannot write settings in auto mode (Self-Modification) and the user layer carries no permission entries (ruling 2026-11-05). Every list keeps $defaults. Reviewed with `claude auto-mode critique` 2026-11-06. Audit: docs/agent-os/MACHINE-SYNC.md, section Auto-mode layer.",
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Organization: one owner-operator (Nour) running Nick's Tire & Auto and his own NOUR OS; he is the only human on the repo and the only reviewer. He runs several Claude Code sessions at once; a session started by another session receives its task as its first user message.",
+      "Source control: github.com/nourdean22/MAINnicks-tire-autoNEW, a PUBLIC repository with no branch protection. The repo's merge gate (node scripts/agent-os/merge-gate.mjs) waits for green CI and the Codex review itself before it squash-merges. A merge to main auto-deploys the three Railway services (nickstire, statenour, worker). The repo's PreToolUse hook (scripts/agent-os/pretool.mjs) denies pushes to main, force-pushes and destructive git and SQL commands.",
+      "Trusted internal domains: nickstire.org and bdnick.info, his own production sites (reads; writes follow Sensitive remote targets).",
+      "Sensitive remote targets: the Railway project with the services nickstire, statenour and worker; the TiDB Cloud database behind nickstire and the Neon Postgres database behind statenour. Every DATABASE_URL on this machine points at production, including inside `railway run`.",
+      "Sensitive data locations & audiences: customer names, phone numbers, invoices and messages in the two production databases and in ShopDriver exports; they stay on this machine and in those databases, never in the public repo, a PR, a commit or a gist."
+    ],
+    "allow": [
+      "$defaults",
+      "PR review housekeeping in nourdean22/MAINnicks-tire-autoNEW: resolving or unresolving a review thread (the GraphQL resolveReviewThread / unresolveReviewThread mutations through gh api graphql) and replying to a review comment, on a PR the agent opened earlier in this transcript or one the user's own messages named. Content rules (secrets, customer data, Excess Sensitive Detail) still apply to reply text. This does NOT cover deleting or editing comments, dismissing or approving reviews, closing PRs or issues, or any write in another repository.",
+      "CI reruns in nourdean22/MAINnicks-tire-autoNEW: gh run rerun (with or without --failed) of a run that a push earlier in this transcript triggered or that belongs to a PR the user's own messages named, and gh run cancel of a run the agent's own push triggered. Reruns are of CI checks, not deploys (Railway deploys from the merge, not from a workflow). This does NOT cover gh workflow disable, editing workflow files to skip checks, or deleting runs.",
+      "Merging a PR in nourdean22/MAINnicks-tire-autoNEW by running node scripts/agent-os/merge-gate.mjs (the gate checks CI and the Codex review itself) on a PR the agent opened earlier in this transcript or one the user's own messages named. Nour's standing order is that merges on green are the agent's, and it covers the Railway auto-deploy that follows. A raw gh pr merge still needs the user's order, and --admin is never covered. This merge is not 'pushing to main' in the soft_deny rule below.",
+      "File writes by a script the agent wrote this session, when the files are under its session scratchpad (%LOCALAPPDATA%\\Temp\\claude\\ on Windows, $TMPDIR/claude/ elsewhere) or a git worktree under .claude/worktrees of this repository, other than the config files listed in Self-Modification. Only the file effect is covered: network calls, database access or anything else the script does is judged by the other rules.",
+      "These repository commands, as long as the agent did not edit the script it runs this session: node scripts/agent-os/board.mjs, node scripts/agent-os/ledger-check.mjs, node scripts/agent-os/bootstrap-machine.mjs --check, node scripts/agent-os/auto-mode-layer.mjs --check, node --test scripts/agent-os/<name>.test.mjs, pnpm exec vitest run <test file>, pnpm typecheck, pnpm lint. A test run that connects to a live database or a send API is not covered."
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Customer contact. Must name: the recipient and the message. Sending an SMS, call, email, social or Google Business post, review reply or ad, through the send or post endpoints of Twilio, Telnyx, Vapi, Meta, Google or Resend, the apps' own send, post or outbox endpoints, or any script that calls them, including a test send to any real phone number or inbox. Clears only when the user's own message names that send.",
+      "Production database writes. Must name: the database and the statement. INSERT, UPDATE, DELETE, MERGE or any DDL against the TiDB or Neon production databases, by any route: railway run, a node or tsx script, prisma db execute, prisma migrate deploy, prisma db push, drizzle-kit push or migrate, the Neon or Prisma MCP SQL tools, or a test run that inherits DATABASE_URL. A --dry-run flag clears it only when the script source shown in this transcript returns before any write under that flag. Clears only when the user's own message names that write.",
+      "Railway configuration. Must name: the service and the change. railway variables --set, railway variable set or delete, railway up, railway redeploy, railway down, and any change to a Railway service, domain or deploy setting. Clears only when the user's own message names that change.",
+      "Spending money. Must name: the transaction. Purchases, top-ups, plan changes, paid credit buys, Stripe charges or refunds, supplier orders.",
+      "Pushing to main. Must name: the push. Any git push whose destination is the main branch of nourdean22/MAINnicks-tire-autoNEW; this overrides the Git Push Destination exception for main. Also rewriting a commit that pre-dates this session or was pushed earlier in this transcript (force-push, amend, rebase). Merging through scripts/agent-os/merge-gate.mjs is not this rule.",
+      "Guard files. Must name: the file and the edit. Any edit to config/agent-os/policy.json, scripts/agent-os/pretool.mjs, scripts/agent-os/lease-check.mjs, scripts/agent-os/merge-gate.mjs, config/agent-os/auto-mode-layer.json, or the hook entries of .claude/settings.json. Clears only when the user's own message names that edit."
+    ]
+  },
+  "ask": [
+    "Bash(railway variables --set*)",
+    "Bash(railway variable set*)",
+    "Bash(railway variable delete*)",
+    "Bash(railway up*)",
+    "Bash(railway redeploy*)",
+    "Bash(railway down*)",
+    "PowerShell(railway variables --set*)",
+    "PowerShell(railway variable set*)",
+    "PowerShell(railway variable delete*)",
+    "PowerShell(railway up*)",
+    "PowerShell(railway redeploy*)",
+    "PowerShell(railway down*)"
+  ]
+}
