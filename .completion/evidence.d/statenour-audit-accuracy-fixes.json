@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "PR #3562 touches apps/nickstire/server/services/nickIntelligence.ts only to change getShopPulse's thisWeek invoice bound from a rolling NOW()-7d instant to shiftDateKey(todayKey, -6), the 7-shop-day window revenue_range already reads (Nick audit A7, pinned by server/shopPulseWeekWindow.test.ts, red 1f before the fix). apps/nickstire/docs/operations/capability-ledger.json has no capability entry for shop pulse or nickIntelligence, so there is no state or evidence to update; no capability changes state and nothing is promoted live. If shop pulse is ever registered as a capability, its entry should cite this window."
+    }
+  }
+}

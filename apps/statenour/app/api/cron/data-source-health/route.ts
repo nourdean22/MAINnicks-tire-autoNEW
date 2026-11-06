@@ -62,7 +62,10 @@ export const GET = cronHandler(async () => {
   // the route's actual failure claim.
   return {
     ok: result.failed === 0,
-    ...(result.failed > 0 ? { reason: `${result.failed} of ${result.total} probes failing` } : {}),
+    // The cron row is what audits read: name the probe, not only the count (Nick audit 2026-11-06).
+    ...(result.failed > 0
+      ? { reason: `${result.failed} of ${result.total} probes failing: ${failures.map((f) => f.name).join(", ")}` }
+      : {}),
     status: result.failed > 0 ? "degraded" : "ok",
     total: result.total,
     okCount: result.ok,
