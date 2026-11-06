@@ -58,3 +58,10 @@ b5c9ab82ebaea69b029d001a0aa76b162d5807ef:apps/statenour/tests/ai/code-sandbox-es
 
 # 2026-11-05: a fake placeholder key in an upstream eval prompt (marketingskills, skill video), vendored verbatim; not a credential.
 829c243654e5e8fd715cc34664cf4751adac75f8:.claude/skills/video/evals/evals.json:generic-api-key:104
+
+# 2026-11-06 · PR 3563 (job 2026-11-06-harness-control-nick-node): synthetic wrong-key and snapshot-key
+# fixtures in the harness control tests (made-up strings for the refusal and env-strip tests); never credentials.
+# Already pushed, so pinned per commit/line instead of rewriting history.
+2a908630eb7f9450dab3cf0e1ce64ad9416638bb:apps/statenour/tests/api/devices-harness-actions-route.test.ts:generic-api-key:96
+807d3ee2849cad80f649c31d9648f5cb82191675:scripts/agent-os/harnessPoll.test.mjs:generic-api-key:96
+828ce24f9cdd2300e92bb375b08c1f06b423f0fc:scripts/agent-os/harnessPoll.test.mjs:generic-api-key:159
