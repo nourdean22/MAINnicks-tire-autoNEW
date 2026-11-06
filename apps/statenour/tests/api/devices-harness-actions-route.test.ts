@@ -32,12 +32,14 @@ vi.mock("@/lib/prisma", () => {
       return { count: hit.length };
     },
   };
-  return {
-    prisma: {
+  const prisma: Record<string, unknown> = {
       harnessAction,
       auditEvent: { create: async ({ data }: { data: { eventType: string } }) => store.audits.push(data.eventType) },
       apiRequestLog: { create: async () => ({}) },
-    },
+  };
+  prisma.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(prisma);
+  return {
+    prisma,
     resetQueryCount: () => {},
     getQueryCount: () => 0,
   };
@@ -51,7 +53,7 @@ import { resetHarnessHints } from "@/lib/services/harness-control";
 const CONTROL = "control-key-for-tests-0123456789abcdef";
 const SNAPSHOT = "device-key-for-tests-0123456789abcdef";
 let ip = 0;
-const req = (url: string, init: { method?: string; key?: string; header?: string; body?: unknown; raw?: string } = {}) =>
+const req = (url: string, init: { method?: string; key?: string; header?: string; body?: unknown; raw?: string; length?: number } = {}) =>
   new Request(`http://local.test${url}`, {
     method: init.method ?? "POST",
     headers: {
@@ -59,6 +61,7 @@ const req = (url: string, init: { method?: string; key?: string; header?: string
       // A fresh client address per call: the per-IP limiter is not what these tests probe.
       "x-forwarded-for": `10.0.0.${(ip += 1) % 250}`,
       ...(init.key ? { [init.header ?? "x-harness-control-key"]: init.key } : {}),
+      ...(init.length ? { "content-length": String(init.length) } : {}),
     },
     body: init.method === "GET" ? undefined : (init.raw ?? JSON.stringify(init.body ?? {})),
   }) as never;
@@ -126,6 +129,35 @@ describe("harness control doors", () => {
     const res = await enqueue(req("/api/devices/harness/actions", { key: CONTROL, raw: huge }), {} as never);
     expect(res.status).toBe(413);
     expect(store.rows).toHaveLength(0);
+  });
+
+  it("a declared oversized body is refused on every door before it is read", async () => {
+    for (const [handler, url, body] of [
+      [enqueue, "/api/devices/harness/actions", ok],
+      [claim, "/api/devices/harness/actions/claim", { pc: "nattynour" }],
+      [result, "/api/devices/harness/actions/result", { id: "x" }],
+    ] as const) {
+      expect((await handler(req(url, { key: CONTROL, body, length: 200_000 }), {} as never)).status, url).toBe(413);
+    }
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it("a full-size output that JSON-escapes large (newlines, control characters) is still accepted", async () => {
+    const id = (await (await enqueue(req("/api/devices/harness/actions", { key: CONTROL, body: ok }), {} as never)).json()).data.action.id;
+    await claim(req("/api/devices/harness/actions/claim", { key: CONTROL, body: { pc: "nattynour" } }), {} as never);
+    const now = new Date().toISOString();
+    const body = { id, pc: "nattynour", exitCode: 0, output: "".repeat(16_384), error: null, startedAt: now, finishedAt: now };
+    expect(JSON.stringify(body).length).toBeGreaterThan(32_768);
+    expect((await result(req("/api/devices/harness/actions/result", { key: CONTROL, body }), {} as never)).status).toBe(200);
+    expect(store.rows[0]).toMatchObject({ status: "DONE" });
+  });
+
+  it("an oversized result body is refused and the action stays claimed", async () => {
+    const id = (await (await enqueue(req("/api/devices/harness/actions", { key: CONTROL, body: ok }), {} as never)).json()).data.action.id;
+    await claim(req("/api/devices/harness/actions/claim", { key: CONTROL, body: { pc: "nattynour" } }), {} as never);
+    const raw = JSON.stringify({ id, pc: "nattynour", exitCode: 0, output: "x".repeat(150_000), error: null, startedAt: "x", finishedAt: "x" });
+    expect((await result(req("/api/devices/harness/actions/result", { key: CONTROL, raw }), {} as never)).status).toBe(413);
+    expect(store.rows[0]).toMatchObject({ status: "CLAIMED" });
   });
 
   it("a replayed request id returns the same action and queues no second run", async () => {

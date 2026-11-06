@@ -30,11 +30,14 @@ const ALL_PCS: readonly HarnessPcKey[] = PC_KEYS;
  * tests/services/harness-control.test.ts fails when the two drift.
  */
 export const HARNESS_ACTIONS = {
-  "pc-status": { pcs: ALL_PCS, needsGo: false, timeoutSec: 30, summary: "Free RAM, uptime, the heavy slot and the last harness-snapshot failure on this PC." },
-  "harness-snapshot-now": { pcs: ALL_PCS, needsGo: false, timeoutSec: 120, summary: "Send this PC's read-only harness snapshot now instead of waiting for the 5-minute tick." },
-  "bootstrap-check": { pcs: ALL_PCS, needsGo: false, timeoutSec: 120, summary: "Report what the machine bootstrap would change on this PC; changes nothing (--check)." },
-  "health-line": { pcs: ALL_PCS, needsGo: false, timeoutSec: 60, summary: "The [health] line: code graph and its server, scheduled tasks, hooks, CLIs. Read-only." },
-} as const satisfies Record<string, { pcs: readonly HarnessPcKey[]; needsGo: boolean; timeoutSec: number; summary: string }>;
+  "pc-status": { pcs: ALL_PCS, needsGo: false, timeoutSec: 30, findingsExitCodes: [], summary: "Free RAM, uptime, the heavy slot, the last harness-snapshot and harness-poll failures on this PC." },
+  "harness-snapshot-now": { pcs: ALL_PCS, needsGo: false, timeoutSec: 120, findingsExitCodes: [], summary: "Send this PC's read-only harness snapshot now instead of waiting for the 5-minute tick." },
+  "bootstrap-check": { pcs: ALL_PCS, needsGo: false, timeoutSec: 120, findingsExitCodes: [1], summary: "Report what the machine bootstrap would change on this PC; changes nothing (--check). Exit 1 means it found drift." },
+  "health-line": { pcs: ALL_PCS, needsGo: false, timeoutSec: 60, findingsExitCodes: [], summary: "The [health] line: code graph and its server, scheduled tasks, hooks, CLIs. Read-only; it exits 0 even when it lists problems, so read the output." },
+} as const satisfies Record<
+  string,
+  { pcs: readonly HarnessPcKey[]; needsGo: boolean; timeoutSec: number; findingsExitCodes: readonly number[]; summary: string }
+>;
 export type HarnessActionName = keyof typeof HARNESS_ACTIONS;
 
 /** A PC that is off when the action is queued: the request dies here instead of running hours later. */
@@ -45,6 +48,11 @@ const LOST_GRACE_MS = 2 * 60_000;
 export const HARNESS_OUTPUT_MAX = 16_384;
 /** Request bodies are small by construction; anything bigger is refused before it is parsed. */
 export const HARNESS_BODY_MAX = 32_768;
+/**
+ * The result door's cap: a full-size output JSON-escapes up to 6x (a control character becomes ),
+ * so a legitimate 16 KB answer can reach ~98 KB on the wire. Refusing it would lose the PC's real answer.
+ */
+export const HARNESS_RESULT_BODY_MAX = 6 * HARNESS_OUTPUT_MAX + 4_096;
 
 // ── The key ────────────────────────────────────────────────────────────
 
@@ -84,13 +92,13 @@ export function requireHarnessControl(req: Request): void {
 }
 
 /** Reads a body with a hard size cap: Next does not cap route-handler bodies. */
-export async function readCappedJson(req: Request): Promise<unknown> {
+export async function readCappedJson(req: Request, max: number = HARNESS_BODY_MAX): Promise<unknown> {
   const ct = req.headers.get("content-type") || "";
   if (!ct.includes("application/json")) throw new ServiceError("Content-Type must be application/json.", 415);
   const declared = Number(req.headers.get("content-length") ?? "0");
-  if (declared > HARNESS_BODY_MAX) throw new ServiceError("Body too large", 413);
+  if (declared > max) throw new ServiceError("Body too large", 413);
   const raw = await req.text();
-  if (raw.length > HARNESS_BODY_MAX) throw new ServiceError("Body too large", 413);
+  if (raw.length > max) throw new ServiceError("Body too large", 413);
   try {
     return JSON.parse(raw);
   } catch {
@@ -112,7 +120,8 @@ export const resultSchema = z
   .object({
     id: z.string().min(1).max(40),
     pc,
-    exitCode: z.number().int().min(-1).max(1_000_000).nullable(),
+    // int32, as Postgres INTEGER holds it; the poller folds a Windows NTSTATUS crash code (0xC0000005) into it.
+    exitCode: z.number().int().min(-2_147_483_648).max(2_147_483_647).nullable(),
     output: z.string().max(HARNESS_OUTPUT_MAX),
     error: z.string().max(400).nullable(),
     startedAt: z.string().datetime(),
@@ -142,8 +151,11 @@ export type HarnessActionView = {
   id: string;
   pc: string;
   action: string;
-  /** QUEUED, CLAIMED, DONE, FAILED, or computed: EXPIRED (never claimed in time), LOST (claimed, no result). */
-  state: "QUEUED" | "CLAIMED" | "DONE" | "FAILED" | "EXPIRED" | "LOST";
+  /**
+   * QUEUED, CLAIMED, DONE, FINDINGS (it ran and reported problems, by its own exit code), FAILED, or computed:
+   * EXPIRED (never claimed in time), LOST (claimed, no result).
+   */
+  state: "QUEUED" | "CLAIMED" | "DONE" | "FINDINGS" | "FAILED" | "EXPIRED" | "LOST";
   requestedBy: string;
   reason: string | null;
   createdAt: string;
@@ -195,6 +207,8 @@ export type HarnessDb = {
     updateMany(args: { where: Where; data: Record<string, unknown> }): Promise<{ count: number }>;
   };
   auditEvent: { create(args: { data: { actor: string; eventType: string; detail: string; payload?: object } }): Promise<unknown> };
+  /** A write and its audit row commit together, or neither does. */
+  $transaction<T>(fn: (tx: HarnessDb) => Promise<T>): Promise<T>;
 };
 
 async function defaultDb(): Promise<HarnessDb> {
@@ -242,38 +256,47 @@ export function resetHarnessHints() {
 export type EnqueueInput = z.infer<typeof enqueueSchema> & { requestedBy: string };
 
 /** The allowlist decision on identifying fields only: the name, the PC, the go flag. */
-export function checkHarnessRequest(action: string, pcKey: string): { ok: true; name: HarnessActionName } | { ok: false; status: number; reason: string } {
-  if (!Object.prototype.hasOwnProperty.call(HARNESS_ACTIONS, action)) {
+type ActionTable = Record<string, { pcs: readonly string[]; needsGo: boolean }>;
+export function checkHarnessRequest(
+  action: string,
+  pcKey: string,
+  table: ActionTable = HARNESS_ACTIONS,
+): { ok: true; name: HarnessActionName } | { ok: false; status: number; reason: string } {
+  if (!Object.prototype.hasOwnProperty.call(table, action)) {
     return { ok: false, status: 400, reason: `Unknown action "${action.slice(0, 40)}": only names in the allowlist run` };
   }
   const name = action as HarnessActionName;
-  const entry = HARNESS_ACTIONS[name];
-  if (!(entry.pcs as readonly string[]).includes(pcKey)) return { ok: false, status: 400, reason: `${name} is not allowed on ${pcKey}` };
-  if (entry.needsGo) return { ok: false, status: 403, reason: `${name} needs Nour's go, and v1 has no approval path` };
+  const entry = table[name];
+  if (!entry.pcs.includes(pcKey)) return { ok: false, status: 400, reason: `${name} is not allowed on ${pcKey}` };
+  // Anything but an explicit false needs the go: a missing flag never opens the door.
+  if (entry.needsGo !== false) return { ok: false, status: 403, reason: `${name} needs Nour's go, and v1 has no approval path` };
   return { ok: true, name };
 }
 
-export async function enqueueHarnessAction(input: EnqueueInput, db?: HarnessDb, now: Date = new Date()) {
+export async function enqueueHarnessAction(input: EnqueueInput, db?: HarnessDb, now: Date = new Date(), table?: ActionTable) {
   const d = db ?? (await defaultDb());
-  const check = checkHarnessRequest(input.action, input.pc);
+  const check = checkHarnessRequest(input.action, input.pc, table);
   if (!check.ok) {
     await guarded(() => audit(d, input.requestedBy, "harness.action.refused", check.reason, { pc: input.pc, action: input.action.slice(0, 40) }));
     throw new ServiceError(check.reason, check.status);
   }
   return guarded(async () => {
     try {
-      const row = await d.harnessAction.create({
-        data: {
-          requestKey: input.requestKey,
-          pc: input.pc,
-          action: check.name,
-          status: "QUEUED",
-          requestedBy: input.requestedBy.slice(0, 40),
-          reason: input.reason ?? null,
-          expiresAt: new Date(now.getTime() + HARNESS_ACTION_TTL_MS),
-        },
+      const row = await d.$transaction(async (tx) => {
+        const created = await tx.harnessAction.create({
+          data: {
+            requestKey: input.requestKey,
+            pc: input.pc,
+            action: check.name,
+            status: "QUEUED",
+            requestedBy: input.requestedBy.slice(0, 40),
+            reason: input.reason ?? null,
+            expiresAt: new Date(now.getTime() + HARNESS_ACTION_TTL_MS),
+          },
+        });
+        await audit(tx, input.requestedBy, "harness.action.queued", `${check.name} on ${input.pc}`, { id: created.id, pc: input.pc, action: check.name });
+        return created;
       });
-      await audit(d, input.requestedBy, "harness.action.queued", `${check.name} on ${input.pc}`, { id: row.id, pc: input.pc, action: check.name });
       queuedHint.set(input.pc, true);
       return { replayed: false, action: harnessActionView(row, now) };
     } catch (err) {
@@ -297,47 +320,62 @@ export async function claimHarnessAction(pcKey: HarnessPcKey, db?: HarnessDb, no
   if (!queuedHint.get(pcKey) && now.getTime() - last < HINT_RECHECK_MS) return null;
   const d = db ?? (await defaultDb());
   return guarded(async () => {
-    lastRead.set(pcKey, now.getTime());
     const row = await d.harnessAction.findFirst({
       where: { pc: pcKey, status: "QUEUED", expiresAt: { gt: now } },
       orderBy: { createdAt: "asc" },
     });
+    // Only after a read that worked: a failed read must not silence the next five minutes of polls.
+    lastRead.set(pcKey, now.getTime());
     if (!row) {
       queuedHint.set(pcKey, false);
       return null;
     }
-    const won = await d.harnessAction.updateMany({
-      where: { id: row.id, status: "QUEUED" },
-      data: { status: "CLAIMED", claimedAt: now },
+    const won = await d.$transaction(async (tx) => {
+      const res = await tx.harnessAction.updateMany({
+        where: { id: row.id, status: "QUEUED" },
+        data: { status: "CLAIMED", claimedAt: now },
+      });
+      if (res.count === 1) await audit(tx, `pc:${pcKey}`, "harness.action.claimed", `${row.action} on ${pcKey}`, { id: row.id });
+      return res.count === 1;
     });
-    if (won.count !== 1) return null; // Another poller took it; the hint stays set, so the next poll looks again.
-    await audit(d, `pc:${pcKey}`, "harness.action.claimed", `${row.action} on ${pcKey}`, { id: row.id });
+    if (!won) return null; // Another poller took it; the hint stays set, so the next poll looks again.
     return { id: row.id, action: row.action, timeoutSec: (HARNESS_ACTIONS as Record<string, { timeoutSec: number }>)[row.action]?.timeoutSec ?? 120 };
   });
 }
 
 export type ResultInput = z.infer<typeof resultSchema>;
 
+/** Exit 0 and no error is DONE; an exit code the action names as "found problems" is FINDINGS; else FAILED. */
+export function resultStatus(action: string, exitCode: number | null, error: string | null): "DONE" | "FINDINGS" | "FAILED" {
+  if (error || exitCode === null) return "FAILED";
+  if (exitCode === 0) return "DONE";
+  const findings = (HARNESS_ACTIONS as Record<string, { findingsExitCodes: readonly number[] }>)[action]?.findingsExitCodes ?? [];
+  return findings.includes(exitCode) ? "FINDINGS" : "FAILED";
+}
+
 /** Only the PC that claimed the row, only once: a replayed or forged result changes nothing. */
 export async function completeHarnessAction(input: ResultInput, db?: HarnessDb) {
   const d = db ?? (await defaultDb());
-  return guarded(async () => {
-    const status = input.exitCode === 0 && !input.error ? "DONE" : "FAILED";
-    const res = await d.harnessAction.updateMany({
-      where: { id: input.id, pc: input.pc, status: "CLAIMED" },
-      data: {
-        status,
-        exitCode: input.exitCode,
-        output: input.output.slice(0, HARNESS_OUTPUT_MAX),
-        error: input.error,
-        startedAt: new Date(input.startedAt),
-        finishedAt: new Date(input.finishedAt),
-      },
-    });
-    if (res.count !== 1) throw new ServiceError("No claimed action with that id for this PC", 409);
-    await audit(d, `pc:${input.pc}`, "harness.action.finished", `${status} exit ${input.exitCode ?? "none"}`, { id: input.id, status, exitCode: input.exitCode });
-    return { ok: true, status };
-  });
+  return guarded(() =>
+    d.$transaction(async (tx) => {
+      const claimed = await tx.harnessAction.findUnique({ where: { id: input.id } });
+      const status = resultStatus(claimed?.action ?? "", input.exitCode, input.error);
+      const res = await tx.harnessAction.updateMany({
+        where: { id: input.id, pc: input.pc, status: "CLAIMED" },
+        data: {
+          status,
+          exitCode: input.exitCode,
+          output: input.output.slice(0, HARNESS_OUTPUT_MAX),
+          error: input.error,
+          startedAt: new Date(input.startedAt),
+          finishedAt: new Date(input.finishedAt),
+        },
+      });
+      if (res.count !== 1) throw new ServiceError("No claimed action with that id for this PC", 409);
+      await audit(tx, `pc:${input.pc}`, "harness.action.finished", `${status} exit ${input.exitCode ?? "none"}`, { id: input.id, status, exitCode: input.exitCode });
+      return { ok: true, status };
+    }),
+  );
 }
 
 // ── The reads ──────────────────────────────────────────────────────────
@@ -387,6 +425,13 @@ export async function heartbeatNick(): Promise<"stamped" | string> {
     });
     return "stamped";
   } catch (err) {
-    return `failed: ${(err as Error)?.message?.slice(0, 120) ?? "unknown"}`;
+    const message = (err as Error)?.message?.slice(0, 120) ?? "unknown";
+    try {
+      const { logger } = await import("@/lib/logger");
+      logger.withSurface("services/harness-control").warn("nick_heartbeat_failed", { error: message, code: prismaCode(err) });
+    } catch {
+      // The log line is best-effort: the returned string still carries the failure to the cron result.
+    }
+    return `failed: ${message}`;
   }
 }

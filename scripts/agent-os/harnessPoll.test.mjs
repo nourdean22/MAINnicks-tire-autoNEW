@@ -10,8 +10,8 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { localDecision, loadAllowlist, trimOutput } from "./harness-poll.mjs";
-import { checkLocally, parseArgs, run } from "./harness-run.mjs";
+import { checkUrl, localDecision, loadAllowlist, pollOnce, runAction, toInt32, trimOutput } from "./harness-poll.mjs";
+import { checkLocally, exitFor, parseArgs, run } from "./harness-run.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const POLL = join(HERE, "harness-poll.mjs");
@@ -57,7 +57,7 @@ async function withStub(claim, fn, { key = KEY } = {}) {
 }
 
 test("POSITIVE CONTROL round trip: the poller claims pc-status, runs ITS argv, and posts the result", async () => {
-  await withStub({ id: "ha_1", action: "pc-status", argv: ["calc.exe"], command: "calc.exe" }, ({ r, calls }) => {
+  await withStub({ id: "ha_1", action: "pc-status", argv: ["calc.exe"], command: "calc.exe", timeoutSec: 99999, maxOutputBytes: 10 }, ({ r, calls }) => {
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(calls.map((c) => c.path), ["/api/devices/harness/actions/claim", "/api/devices/harness/actions/result"]);
     const result = calls[1].body;
@@ -66,6 +66,7 @@ test("POSITIVE CONTROL round trip: the poller claims pc-status, runs ITS argv, a
     assert.equal(result.exitCode, 0);
     assert.equal(result.error, null);
     assert.match(result.output, /free RAM: .*\nuptime: /);
+    assert.ok(Buffer.byteLength(result.output) > 10, "a server-sent output cap is ignored, like its argv");
     assert.ok(!JSON.stringify(result).includes(KEY), "the control key never leaves in a result");
     assert.equal(calls[0].key, KEY);
   });
@@ -134,10 +135,13 @@ test("harness-run: queues with the key and a fresh request id, then waits for th
     const state = states[Math.min(seen.length - 1, 2)];
     return { ok: true, status: 200, json: async () => ({ ok: true, data: { action: { id: "ha_9", pc: "nattynour", action: "pc-status", state, exitCode: state === "DONE" ? 0 : null, output: state === "DONE" ? "free RAM: 1 MB" : null, expiresAt: "x" } } }) };
   };
-  const text = await run(
+  const notes = [];
+  const { text, code } = await run(
     { pc: "nattynour", action: "pc-status", wait: 60 },
-    { config: { key: KEY, url: "http://stub", pc: "nattynour" }, allowlist, doFetch, sleep: async () => {} },
+    { config: { key: KEY, url: "https://stub.test", pc: "nattynour" }, allowlist, doFetch, sleep: async () => {}, note: (t) => notes.push(t) },
   );
+  assert.equal(code, 0);
+  assert.match(notes[0], /queued ha_9/);
   assert.equal(seen[0].method, "POST");
   assert.equal(seen[0].key, KEY);
   assert.match(seen[0].body.requestKey, /^rk_[0-9a-f]{32}$/);
@@ -145,4 +149,83 @@ test("harness-run: queues with the key and a fresh request id, then waits for th
   assert.ok(!("argv" in seen[0].body) && !("command" in seen[0].body));
   assert.match(text, /DONE/);
   assert.match(text, /free RAM: 1 MB/);
+});
+
+const runNode = (code, extra = {}) =>
+  runAction({ argv: ["node", "-e", code], timeoutSec: 10, maxOutputBytes: 4000, ...extra }, { secrets: [] });
+
+test("a child never inherits a harness key (redaction is off here, so only the env strip can pass this)", () => {
+  const saved = { ...process.env };
+  Object.assign(process.env, { HARNESS_CONTROL_KEY: KEY, HARNESS_KEY: "snap-key-0123456789abcdef", DEVICE_AGENT_KEY: "dev-key-0123456789abcdef" });
+  try {
+    const out = runNode("process.stdout.write([process.env.HARNESS_CONTROL_KEY, process.env.HARNESS_KEY, process.env.DEVICE_AGENT_KEY].join(','))");
+    assert.equal(out.output, ",,");
+    assert.equal(out.exitCode, 0);
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("a hung child is stopped at its timeout and reads as an error, not a result", () => {
+  const t0 = Date.now();
+  const out = runNode("setTimeout(() => {}, 20000)", { timeoutSec: 1 });
+  assert.match(out.error, /timed out after 1 s/);
+  assert.equal(out.exitCode, null);
+  assert.ok(Date.now() - t0 < 8000);
+});
+
+test("a Windows crash code folds into int32, so the result door accepts it", () => {
+  assert.equal(toInt32(3221225477), -1073741819);
+  assert.equal(toInt32(0), 0);
+  assert.equal(toInt32(1), 1);
+  assert.equal(toInt32(null), null);
+});
+
+test("the output cap holds in bytes for multi-byte text, and a worst-case escaped body fits the result door", () => {
+  assert.ok(Buffer.byteLength(trimOutput("\u00e9".repeat(20_000), 100)) <= 100);
+  const out = trimOutput("\u0001".repeat(20_000), 16_384);
+  const body = { id: "ha_1", pc: "nattynour", exitCode: 0, output: out, error: null, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+  // HARNESS_RESULT_BODY_MAX in apps/statenour/lib/services/harness-control.ts: 6 * 16384 + 4096.
+  assert.ok(JSON.stringify(body).length <= 6 * 16_384 + 4_096);
+});
+
+test("an entry with no needsGo flag is refused, here and in harness-run", () => {
+  const table = { ...allowlist, actions: { x: { argv: ["node", "a.mjs"], pcs: ["nattynour"] } } };
+  assert.match(localDecision(table, "nattynour", "x").reason, /needs Nour's go/);
+  assert.match(checkLocally(table, "nattynour", "x"), /needs Nour's go/);
+});
+
+test("the key never goes to a plain-http host; localhost is allowed for tests", () => {
+  assert.throws(() => checkUrl("http://bdnick.info"), /non-https/);
+  assert.equal(checkUrl("https://bdnick.info"), "https://bdnick.info");
+  assert.equal(checkUrl("http://127.0.0.1:9"), "http://127.0.0.1:9");
+});
+
+test("a result the PC could not post is kept and sent first on the next tick, so the row is not LOST", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "harness-spool-"));
+  const config = { pc: "nattynour", key: KEY, url: "https://stub.test" };
+  const posts = [];
+  let failResult = true;
+  let claims = 0;
+  const doFetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    posts.push({ path: new URL(url).pathname, body });
+    if (url.endsWith("/claim")) return { ok: true, status: 200, json: async () => ({ data: { action: claims++ === 0 ? { id: "ha_7", action: "pc-status" } : null } }) };
+    if (failResult) return { ok: false, status: 502, json: async () => ({ error: "bad gateway" }) };
+    return { ok: true, status: 200, json: async () => ({ data: { ok: true } }) };
+  };
+  const fakeRun = () => ({ exitCode: 0, output: "free RAM: 1 MB", error: null, startedAt: "a", finishedAt: "b" });
+  await assert.rejects(pollOnce(config, { allowlist, doFetch, run: fakeRun, dir }), /could not post the result \(kept/);
+  assert.ok(existsSync(join(dir, "harness-poll-unsent-result.json")));
+  failResult = false;
+  await pollOnce(config, { allowlist, doFetch, run: fakeRun, dir });
+  const resend = posts.filter((p) => p.path.endsWith("/result"));
+  assert.equal(resend.length, 2);
+  assert.deepEqual(resend[1].body, resend[0].body);
+  assert.equal(posts.at(-1).path, "/api/devices/harness/actions/claim", "the resend goes first, then the claim");
+  assert.ok(!existsSync(join(dir, "harness-poll-unsent-result.json")));
+});
+
+test("harness-run exit codes mean something to a caller that gates on them", () => {
+  assert.deepEqual(["DONE", "FINDINGS", "FAILED", "EXPIRED", "LOST", "QUEUED", "CLAIMED"].map(exitFor), [0, 3, 1, 1, 1, 2, 2]);
 });

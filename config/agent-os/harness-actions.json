@@ -1,39 +1,84 @@
 {
-  "$comment": "Harness control allowlist (job 2026-11-06-harness-control-nick-node). The ONLY things bdnick, Nick or a Claude session can ask a PC to run. Each action is a name plus the exact argv the PC runs from its own checkout; nothing in a request can add to or change argv. 'node' as argv[0] means the poller's own node binary. needsGo=true is refused by every door until an approval path ships. v1 holds read-only actions only: nothing writes outside the repo or restarts anything. Server mirror: apps/statenour/lib/services/harness-control.ts HARNESS_ACTIONS (tests/services/harness-control.test.ts fails if the two drift). Poller: scripts/agent-os/harness-poll.mjs.",
+  "$comment": "Harness control allowlist (job 2026-11-06-harness-control-nick-node). The ONLY things bdnick, Nick or a Claude session can ask a PC to run. Each action is a name plus the exact argv the PC runs from its own checkout; nothing in a request can add to or change argv. 'node' as argv[0] means the poller's own node binary. findingsExitCodes are exit codes meaning 'ran fine and reported problems' (FINDINGS, not FAILED). needsGo=true (or a missing needsGo) is refused by every door until an approval path ships. v1 holds read-only actions only: nothing writes outside the repo or restarts anything. Server mirror: apps/statenour/lib/services/harness-control.ts HARNESS_ACTIONS (tests/services/harness-control.test.ts fails if the two drift). Poller: scripts/agent-os/harness-poll.mjs.",
   "version": 1,
   "pcs": {
-    "nattynour": { "pollSeconds": 60, "maxOutputBytes": 16384 },
-    "mechanics": { "pollSeconds": 120, "maxOutputBytes": 8192 },
-    "nicksmax": { "pollSeconds": 120, "maxOutputBytes": 8192 }
+    "nattynour": {
+      "pollSeconds": 60,
+      "maxOutputBytes": 16384
+    },
+    "mechanics": {
+      "pollSeconds": 120,
+      "maxOutputBytes": 8192
+    },
+    "nicksmax": {
+      "pollSeconds": 120,
+      "maxOutputBytes": 8192
+    }
   },
   "actions": {
     "pc-status": {
-      "summary": "Free RAM, uptime, the heavy slot and the last harness-snapshot failure on this PC.",
-      "argv": ["node", "scripts/agent-os/harness-poll.mjs", "--pc-status"],
-      "pcs": ["nattynour", "mechanics", "nicksmax"],
+      "summary": "Free RAM, uptime, the heavy slot, the last harness-snapshot and harness-poll failures on this PC.",
+      "argv": [
+        "node",
+        "scripts/agent-os/harness-poll.mjs",
+        "--pc-status"
+      ],
+      "pcs": [
+        "nattynour",
+        "mechanics",
+        "nicksmax"
+      ],
       "needsGo": false,
-      "timeoutSec": 30
+      "timeoutSec": 30,
+      "findingsExitCodes": []
     },
     "harness-snapshot-now": {
       "summary": "Send this PC's read-only harness snapshot now instead of waiting for the 5-minute tick.",
-      "argv": ["node", "scripts/agent-os/harness-snapshot.mjs"],
-      "pcs": ["nattynour", "mechanics", "nicksmax"],
+      "argv": [
+        "node",
+        "scripts/agent-os/harness-snapshot.mjs"
+      ],
+      "pcs": [
+        "nattynour",
+        "mechanics",
+        "nicksmax"
+      ],
       "needsGo": false,
-      "timeoutSec": 120
+      "timeoutSec": 120,
+      "findingsExitCodes": []
     },
     "bootstrap-check": {
-      "summary": "Report what the machine bootstrap would change on this PC; changes nothing (--check).",
-      "argv": ["node", "scripts/agent-os/bootstrap-machine.mjs", "--check"],
-      "pcs": ["nattynour", "mechanics", "nicksmax"],
+      "summary": "Report what the machine bootstrap would change on this PC; changes nothing (--check). Exit 1 means it found drift.",
+      "argv": [
+        "node",
+        "scripts/agent-os/bootstrap-machine.mjs",
+        "--check"
+      ],
+      "pcs": [
+        "nattynour",
+        "mechanics",
+        "nicksmax"
+      ],
       "needsGo": false,
-      "timeoutSec": 120
+      "timeoutSec": 120,
+      "findingsExitCodes": [
+        1
+      ]
     },
     "health-line": {
-      "summary": "The [health] line: code graph and its server, scheduled tasks, hooks, CLIs. Read-only.",
-      "argv": ["node", "scripts/agent-os/session-health.mjs"],
-      "pcs": ["nattynour", "mechanics", "nicksmax"],
+      "summary": "The [health] line: code graph and its server, scheduled tasks, hooks, CLIs. Read-only; it exits 0 even when it lists problems, so read the output.",
+      "argv": [
+        "node",
+        "scripts/agent-os/session-health.mjs"
+      ],
+      "pcs": [
+        "nattynour",
+        "mechanics",
+        "nicksmax"
+      ],
       "needsGo": false,
-      "timeoutSec": 60
+      "timeoutSec": 60,
+      "findingsExitCodes": []
     }
   }
 }

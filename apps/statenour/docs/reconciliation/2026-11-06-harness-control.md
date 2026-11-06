@@ -20,4 +20,11 @@
 >   `runHarnessAction` (side-effecting, enum of the four names) and `getHarnessActionResult` (output fenced).
 >   The bridge `harness_status` sends nickstire action names and states only.
 > - GUARD: before the migration every control door answers 503 "not migrated" and the card shows the action list as
->   unread. Before `HARNESS_CONTROL_KEY` is set, PCs cannot claim, so a queued action expires.
+>   unread. Before `HARNESS_CONTROL_KEY` is set, PCs cannot claim, and Nick refuses to queue instead of leaving a row
+>   that can only expire.
+> - Second readers (silent-failure-hunter, pr-test-analyzer) found 11 defects before the PR opened, all fixed: a full
+>   16 KB output JSON-escaped past the door cap (result door now sized for 6x); Windows crash codes above int32; a
+>   failed result post dropped the answer (now spooled and resent); write and audit not atomic; `bootstrap-check`
+>   drift read FAILED (now FINDINGS); poller failures invisible (last-failure file); the key could go to plain http or
+>   follow a redirect; a failed read silenced polls for 5 min; the CLI exited 0 on failure; the sentinel could fail
+>   on an import error; `reason` reached Nick unfenced in one tool.

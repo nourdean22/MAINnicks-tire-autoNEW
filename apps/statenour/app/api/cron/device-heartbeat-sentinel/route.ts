@@ -303,6 +303,12 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
 // Neon-waking cadence, so a second waker is never added. Its own failure never fails the sentinel.
 export const GET = cronHandler(async () => {
   const result = await runHeartbeatSentinel();
-  const { heartbeatNick } = await import("@/lib/services/harness-control");
-  return { ...result, nickHarness: await heartbeatNick() };
+  let nickHarness: string;
+  try {
+    const { heartbeatNick } = await import("@/lib/services/harness-control");
+    nickHarness = await heartbeatNick();
+  } catch (err) {
+    nickHarness = `failed: ${(err as Error)?.message?.slice(0, 120) ?? "unknown"}`;
+  }
+  return { ...result, nickHarness };
 });

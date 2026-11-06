@@ -73,6 +73,12 @@ task, an action queued for that PC expires after 10 minutes and never runs late.
 `local-services.json` `tasks`: that list makes `session-health` report MISSING on every PC, and control is opt-in.
 Remove it with `Unregister-ScheduledTask -TaskName 'NOURCITY-Harness-Poll' -Confirm:$false`.
 
+When something looks wrong on a PC: `%LOCALAPPDATA%\nourcity\harness-poll-last-failure.txt` holds the last failed tick
+(a refused key, "not migrated", a dead network; `pc-status` prints it too), and `harness-poll-unsent-result.json` is a
+result that ran but could not be posted, resent first on the next tick. States a reader sees: DONE, FINDINGS (it ran
+and reported problems, e.g. `bootstrap-check` exit 1), FAILED, EXPIRED (no PC took it in 10 min), LOST (taken, no
+answer). `harness-run.mjs` exits 0 DONE, 3 FINDINGS, 1 FAILED/EXPIRED/LOST, 2 not finished.
+
 Adding an action is one allowlist entry plus its line in `HARNESS_ACTIONS` (a test fails when the two drift) and in
 Nick's `runHarnessAction` enum. v1 holds read-only actions only; an action that writes or restarts anything gets
 `needsGo: true`, which every door refuses until an approval path exists.

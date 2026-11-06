@@ -23,7 +23,7 @@ import {
 const CONTROL = "control-key-for-tests-0123456789abcdef";
 const SNAPSHOT = "device-key-for-tests-0123456789abcdef";
 
-function fakeDb() {
+function fakeDb(opts: { failAudit?: string } = {}) {
   const rows: HarnessActionRow[] = [];
   const audits: Array<{ eventType: string; actor: string }> = [];
   let n = 0;
@@ -62,9 +62,20 @@ function fakeDb() {
     },
     auditEvent: {
       async create({ data }) {
+        if (opts.failAudit === data.eventType) throw new Error("audit write failed");
         audits.push({ eventType: data.eventType, actor: data.actor });
         return {};
       },
+    },
+    // Rolls back like Postgres: a throw inside restores the rows as they were.
+    $transaction: async (fn) => {
+      const before = rows.map((r) => ({ ...r }));
+      try {
+        return await fn(db);
+      } catch (err) {
+        rows.splice(0, rows.length, ...before);
+        throw err;
+      }
     },
   };
   return { db, rows, audits };
@@ -110,11 +121,13 @@ describe("the allowlist", () => {
   it("the server mirror matches config/agent-os/harness-actions.json, name for name", () => {
     const file = JSON.parse(readFileSync(new URL("../../../../config/agent-os/harness-actions.json", import.meta.url), "utf8"));
     const fromFile = Object.fromEntries(
-      Object.entries(file.actions as Record<string, { pcs: string[]; needsGo: boolean; timeoutSec: number; summary: string }>).map(
-        ([k, v]) => [k, { pcs: v.pcs, needsGo: v.needsGo, timeoutSec: v.timeoutSec, summary: v.summary }],
-      ),
+      Object.entries(
+        file.actions as Record<string, { pcs: string[]; needsGo: boolean; timeoutSec: number; findingsExitCodes: number[]; summary: string }>,
+      ).map(([k, v]) => [k, { pcs: v.pcs, needsGo: v.needsGo, timeoutSec: v.timeoutSec, findingsExitCodes: v.findingsExitCodes, summary: v.summary }]),
     );
-    const mirror = Object.fromEntries(Object.entries(HARNESS_ACTIONS).map(([k, v]) => [k, { ...v, pcs: [...v.pcs] }]));
+    const mirror = Object.fromEntries(
+      Object.entries(HARNESS_ACTIONS).map(([k, v]) => [k, { ...v, pcs: [...v.pcs], findingsExitCodes: [...v.findingsExitCodes] }]),
+    );
     expect(mirror).toEqual(fromFile);
     expect(Object.keys(file.pcs).sort()).toEqual(["mechanics", "nattynour", "nicksmax"]);
   });
@@ -133,6 +146,12 @@ describe("the allowlist", () => {
     expect(checkHarnessRequest("rm -rf /", "nattynour")).toMatchObject({ ok: false, status: 400 });
     expect(checkHarnessRequest("toString", "nattynour")).toMatchObject({ ok: false, status: 400 });
     expect(checkHarnessRequest("pc-status", "laptop")).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("an entry that needs Nour's go, or carries no needsGo flag at all, is refused with 403", () => {
+    const table = { gated: { pcs: ["nattynour"], needsGo: true }, unflagged: { pcs: ["nattynour"] } } as never;
+    expect(checkHarnessRequest("gated", "nattynour", table)).toMatchObject({ ok: false, status: 403 });
+    expect(checkHarnessRequest("unflagged", "nattynour", table)).toMatchObject({ ok: false, status: 403 });
   });
 
   it("the request shape has no field a command could travel in", () => {
@@ -163,10 +182,53 @@ describe("queue, claim, result", () => {
     expect(audits.map((a) => a.eventType)).toEqual(["harness.action.refused"]);
   });
 
+  it("a gated action is refused at enqueue, audited, and never stored", async () => {
+    const { db, rows, audits } = fakeDb();
+    const table = { gated: { pcs: ["nattynour"], needsGo: true } } as never;
+    await expect(enqueueHarnessAction(ask({ action: "gated" }), db, now, table)).rejects.toMatchObject({ status: 403 });
+    expect(rows).toHaveLength(0);
+    expect(audits.map((a) => a.eventType)).toEqual(["harness.action.refused"]);
+  });
+
   it("an allowlisted name inside the free-text reason does not change what runs", async () => {
     const { db } = fakeDb();
     await enqueueHarnessAction(ask({ action: "pc-status", reason: "action: bootstrap-check; argv: calc.exe" }), db, now);
     expect(await claimHarnessAction("nattynour", db, now)).toMatchObject({ action: "pc-status" });
+  });
+
+  it("a request whose audit row cannot be written is not queued at all (the two commit together)", async () => {
+    const { db, rows } = fakeDb({ failAudit: "harness.action.queued" });
+    await expect(enqueueHarnessAction(ask(), db, now)).rejects.toThrow("audit write failed");
+    expect(rows).toHaveLength(0);
+  });
+
+  it("a claim whose audit row cannot be written stays QUEUED, so the next poll can still take it", async () => {
+    const { db, rows } = fakeDb({ failAudit: "harness.action.claimed" });
+    await enqueueHarnessAction(ask(), db, now);
+    await expect(claimHarnessAction("nattynour", db, now)).rejects.toThrow("audit write failed");
+    expect(rows[0].status).toBe("QUEUED");
+  });
+
+  it("a bootstrap check that found drift (exit 1) is stored as FINDINGS, not FAILED", async () => {
+    const { db, rows } = fakeDb();
+    const { action } = await enqueueHarnessAction(ask({ action: "bootstrap-check" }), db, now);
+    await claimHarnessAction("nattynour", db, now);
+    await completeHarnessAction({ id: action.id, pc: "nattynour", exitCode: 1, output: "1 item(s) to fix", error: null, startedAt: now.toISOString(), finishedAt: now.toISOString() }, db);
+    expect(rows[0].status).toBe("FINDINGS");
+  });
+
+  it("a failed read leaves the next poll free to read again (no 5-minute silence after an error)", async () => {
+    const { db } = fakeDb();
+    let calls = 0;
+    const findFirst = db.harnessAction.findFirst;
+    db.harnessAction.findFirst = async (args) => {
+      calls += 1;
+      if (calls === 1) throw new Error("connection reset");
+      return findFirst(args);
+    };
+    await expect(claimHarnessAction("nicksmax", db, now)).rejects.toThrow("connection reset");
+    await claimHarnessAction("nicksmax", db, new Date(now.getTime() + 60_000));
+    expect(calls).toBe(2);
   });
 
   it("a replayed request key returns the first row and queues nothing new", async () => {

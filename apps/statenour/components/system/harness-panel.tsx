@@ -80,6 +80,7 @@ const ACTION_TONE: Record<HarnessActionView["state"], string> = {
   QUEUED: "text-fg-tertiary",
   CLAIMED: "text-fg-tertiary",
   DONE: "text-fg-tertiary",
+  FINDINGS: "text-amber-200",
   FAILED: "text-rose-300",
   EXPIRED: "text-amber-200",
   LOST: "text-amber-200",

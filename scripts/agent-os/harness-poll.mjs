@@ -16,7 +16,7 @@
  * Canary: harnessPoll.test.mjs (a child-process stub of the door, not in-process).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, uptime } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,14 +61,23 @@ export function trimOutput(text, maxBytes, secrets = []) {
   if (buf.length <= maxBytes) return out;
   // The end of a run (the summary line, the error) matters more than its start.
   const marker = "[...cut to fit...]\n";
-  return marker + buf.subarray(buf.length - (maxBytes - marker.length)).toString("utf8");
+  let tail = buf.subarray(buf.length - (maxBytes - marker.length)).toString("utf8");
+  // A cut inside a multi-byte character decodes to U+FFFD (3 bytes): drop leading characters until it fits.
+  while (Buffer.byteLength(marker + tail, "utf8") > maxBytes) tail = tail.slice(1);
+  return marker + tail;
 }
 
-/** Runs argv with no shell, from this checkout, without the control key in its environment. */
+// Keys a child never inherits: the control key, and the snapshot keys that sit in the same config file.
+const KEY_ENV = ["HARNESS_CONTROL_KEY", "HARNESS_KEY", "DEVICE_AGENT_KEY", "STATENOUR_SYNC_KEY"];
+
+/** A Windows crash exits with an NTSTATUS code above int32 (0xC0000005 = 3221225477); fold it so it fits. */
+export const toInt32 = (status) => (typeof status === "number" ? (status > 0x7fffffff ? status - 2 ** 32 : status) : null);
+
+/** Runs argv with no shell, from this checkout, without any harness key in its environment. */
 export function runAction(decision, { secrets = [], cwd = REPO } = {}) {
   const [cmd, ...args] = decision.argv;
   const env = { ...process.env };
-  delete env.HARNESS_CONTROL_KEY;
+  for (const k of KEY_ENV) delete env[k];
   const startedAt = new Date().toISOString();
   const r = spawnSync(cmd === "node" ? process.execPath : cmd, args, {
     cwd,
@@ -83,7 +92,7 @@ export function runAction(decision, { secrets = [], cwd = REPO } = {}) {
   const timedOut = r.error?.code === "ETIMEDOUT" || r.signal === "SIGTERM";
   const error = r.error ? (timedOut ? `timed out after ${decision.timeoutSec} s` : scrub(r.error.message, 400)) : null;
   return {
-    exitCode: typeof r.status === "number" ? r.status : null,
+    exitCode: toInt32(r.status),
     output: trimOutput(`${r.stdout ?? ""}${r.stderr ? `\n[stderr]\n${r.stderr}` : ""}`, decision.maxOutputBytes, secrets),
     error,
     startedAt,
@@ -91,11 +100,20 @@ export function runAction(decision, { secrets = [], cwd = REPO } = {}) {
   };
 }
 
+/** The key only travels over https (or to this machine), and never follows a redirect to another host. */
+export function checkUrl(url) {
+  const u = new URL(url);
+  const local = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+  if (u.protocol !== "https:" && !local) throw new Error(`refusing to send the control key to a non-https URL (${u.protocol}//${u.hostname})`);
+  return url;
+}
+
 async function call(config, path, body, doFetch) {
-  const res = await doFetch(`${config.url}${path}`, {
+  const res = await doFetch(`${checkUrl(config.url)}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-control-key": config.key },
     body: JSON.stringify(body),
+    redirect: "error",
     signal: AbortSignal.timeout(15_000),
   });
   const json = await res.json().catch(() => null);
@@ -103,8 +121,31 @@ async function call(config, path, body, doFetch) {
   return json?.data ?? json;
 }
 
-/** One tick: claim at most one action, run it or refuse it, post the result. Returns what happened. */
-export async function pollOnce(config, { allowlist = loadAllowlist(), doFetch = fetch, run = runAction } = {}) {
+const stateDir = () => join(process.env.LOCALAPPDATA || join(homedir(), ".local", "state"), "nourcity");
+const spoolFile = (dir) => join(dir, "harness-poll-unsent-result.json");
+
+/** The last failed tick, kept on the PC (the task window is hidden). Null clears it. pc-status shows it. */
+export function recordPollFailure(dir, err, now = new Date()) {
+  const file = join(dir, "harness-poll-last-failure.txt");
+  if (!err) return rmSync(file, { force: true });
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, `${now.toISOString()} ${scrub(err?.message ?? err)}\n`);
+}
+
+/** One tick: resend a result a past tick could not post, then claim at most one action, run or refuse it, post. */
+export async function pollOnce(config, { allowlist = loadAllowlist(), doFetch = fetch, run = runAction, dir = stateDir() } = {}) {
+  // An action that ran but whose result post failed: send that first, so the row reads its real answer, not LOST.
+  const spooled = spoolFile(dir);
+  if (existsSync(spooled)) {
+    const body = JSON.parse(readFileSync(spooled, "utf8"));
+    try {
+      await call(config, "/api/devices/harness/actions/result", body, doFetch);
+    } catch (err) {
+      // 409 = bdnick already has a result for it (or it was never ours): nothing left to deliver.
+      if (!/HTTP 409/.test(String(err?.message))) throw err;
+    }
+    rmSync(spooled, { force: true });
+  }
   const claimed = (await call(config, "/api/devices/harness/actions/claim", { pc: config.pc }, doFetch))?.action;
   if (!claimed) return { ran: null };
   // Only the name and id are read from the reply: anything else bdnick sent is ignored.
@@ -112,13 +153,18 @@ export async function pollOnce(config, { allowlist = loadAllowlist(), doFetch = 
   const decision = localDecision(allowlist, config.pc, name);
   const now = new Date().toISOString();
   const outcome = decision.ok
-    ? run(decision, { secrets: [config.key] })
+    ? run(decision, { secrets: [config.key, ...(config.otherSecrets ?? [])] })
     : { exitCode: null, output: "", error: decision.reason, startedAt: now, finishedAt: now };
-  await call(config, "/api/devices/harness/actions/result", { id: String(claimed.id), pc: config.pc, ...outcome }, doFetch);
+  const result = { id: String(claimed.id), pc: config.pc, ...outcome };
+  try {
+    await call(config, "/api/devices/harness/actions/result", result, doFetch);
+  } catch (err) {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(spooled, JSON.stringify(result));
+    throw new Error(`ran ${name} but could not post the result (kept, resent next tick): ${err?.message ?? err}`);
+  }
   return { ran: decision.ok ? name : null, refused: decision.ok ? null : decision.reason, id: claimed.id, exitCode: outcome.exitCode };
 }
-
-const stateDir = () => join(process.env.LOCALAPPDATA || join(homedir(), ".local", "state"), "nourcity");
 
 export function readConfig() {
   const file = join(stateDir(), "harness-snapshot.json");
@@ -127,6 +173,8 @@ export function readConfig() {
     pc: process.env.HARNESS_PC || saved.pc,
     key: process.env.HARNESS_CONTROL_KEY || saved.controlKey,
     url: (process.env.HARNESS_URL || saved.url || DEFAULT_URL).replace(/\/+$/, ""),
+    // The snapshot key shares the file: it is redacted from outputs like the control key.
+    otherSecrets: [saved.key, process.env.HARNESS_KEY, process.env.DEVICE_AGENT_KEY].filter(Boolean),
   };
 }
 
@@ -146,6 +194,8 @@ export function pcStatus() {
   lines.push(`heavy slot: ${rec && !staleReason(rec, "heavy") ? "busy" : "free"}`);
   const fail = join(stateDir(), "harness-snapshot-last-failure.txt");
   lines.push(`last snapshot failure: ${existsSync(fail) ? scrub(readFileSync(fail, "utf8").trim(), 200) : "none recorded"}`);
+  const pollFail = join(stateDir(), "harness-poll-last-failure.txt");
+  lines.push(`last poll failure: ${existsSync(pollFail) ? scrub(readFileSync(pollFail, "utf8").trim(), 200) : "none recorded"}`);
   lines.push(`node: ${process.version}`);
   return lines.join("\n");
 }
@@ -164,6 +214,7 @@ async function main(args) {
   }
   if (!config.key) throw new Error("no control key: set controlKey in nourcity/harness-snapshot.json or HARNESS_CONTROL_KEY");
   const r = await pollOnce(config);
+  recordPollFailure(stateDir(), null);
   if (r.ran || r.refused) console.log(`[harness-poll] ${config.pc} ${r.id}: ${r.ran ? `ran ${r.ran}, exit ${r.exitCode}` : r.refused}`);
 }
 
@@ -171,5 +222,6 @@ if (process.argv[1] && basename(process.argv[1]) === "harness-poll.mjs") {
   main(process.argv.slice(2)).catch((err) => {
     console.error(`[harness-poll] ${scrub(err?.message ?? err)}`);
     process.exitCode = 1;
+    if (!process.argv.includes("--pc-status") && !process.argv.includes("--allowed")) recordPollFailure(stateDir(), err);
   });
 }

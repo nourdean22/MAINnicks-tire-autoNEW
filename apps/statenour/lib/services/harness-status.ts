@@ -266,6 +266,10 @@ async function readActions(): Promise<HarnessActionsRead> {
     return { items: await listRecentHarnessActions(8) };
   } catch (err) {
     const status = (err as { status?: number } | null)?.status;
+    if (status !== 503) {
+      const { logger } = await import("@/lib/logger");
+      logger.withSurface("services/harness-status").warn("harness_actions_read_failed", { error: (err as Error)?.message?.slice(0, 200) });
+    }
     return { items: null, reason: status === 503 ? "Harness control is not migrated yet" : "The action list could not be read" };
   }
 }

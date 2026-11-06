@@ -7,6 +7,8 @@
  *   node scripts/agent-os/harness-run.mjs --pc nattynour --action pc-status [--reason "why"] [--wait [seconds]]
  *   node scripts/agent-os/harness-run.mjs --result <id>
  *
+ * Exit code: 0 DONE, 3 FINDINGS (ran and reported problems), 1 FAILED / EXPIRED / LOST, 2 not finished yet.
+ *
  * Only names in config/agent-os/harness-actions.json exist; there is no way to pass a command. The PC's
  * poller (harness-poll.mjs) runs it on its next check-in, 1-2 minutes, and an action no PC picks up in
  * 10 minutes expires instead of running late. Key: controlKey in %LOCALAPPDATA%/nourcity/harness-snapshot.json
@@ -14,9 +16,11 @@
  */
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { loadAllowlist, readConfig } from "./harness-poll.mjs";
+import { checkUrl, loadAllowlist, readConfig } from "./harness-poll.mjs";
 
-const TERMINAL = new Set(["DONE", "FAILED", "EXPIRED", "LOST"]);
+const TERMINAL = new Set(["DONE", "FINDINGS", "FAILED", "EXPIRED", "LOST"]);
+/** Exit code for a caller that gates on $?: 0 DONE, 3 FINDINGS, 1 FAILED/EXPIRED/LOST, 2 not finished yet. */
+export const exitFor = (state) => (state === "DONE" ? 0 : state === "FINDINGS" ? 3 : TERMINAL.has(state) ? 1 : 2);
 
 export function parseArgs(argv) {
   const out = {};
@@ -43,10 +47,11 @@ export function checkLocally(allowlist, pc, action) {
 }
 
 async function api(config, method, path, body, doFetch) {
-  const res = await doFetch(`${config.url}${path}`, {
+  const res = await doFetch(`${checkUrl(config.url)}${path}`, {
     method,
     headers: { "content-type": "application/json", "x-harness-control-key": config.key },
     body: body ? JSON.stringify(body) : undefined,
+    redirect: "error",
     signal: AbortSignal.timeout(15_000),
   });
   const json = await res.json().catch(() => null);
@@ -65,14 +70,22 @@ export const describeAction = (a) =>
     .filter(Boolean)
     .join("\n");
 
-export async function run(opts, { config = readConfig(), allowlist = loadAllowlist(), doFetch = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+/** Returns { text, code }: code is the exit status a caller can gate on (exitFor). */
+export async function run(
+  opts,
+  { config = readConfig(), allowlist = loadAllowlist(), doFetch = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), note = (t) => console.error(t) } = {},
+) {
   if (opts.list) {
-    return Object.entries(allowlist.actions)
-      .map(([name, a]) => `${name}  [${a.pcs.join(", ")}]${a.needsGo ? " needs Nour's go" : ""}\n  ${a.summary}`)
+    const text = Object.entries(allowlist.actions)
+      .map(([name, a]) => `${name}  [${a.pcs.join(", ")}]${a.needsGo !== false ? " needs Nour's go" : ""}\n  ${a.summary}`)
       .join("\n");
+    return { text, code: 0 };
   }
   if (!config.key) throw new Error("no control key: set controlKey in nourcity/harness-snapshot.json or HARNESS_CONTROL_KEY");
-  if (opts.result) return describeAction((await api(config, "GET", `/api/devices/harness/actions?id=${encodeURIComponent(opts.result)}`, null, doFetch)).action);
+  if (opts.result) {
+    const a = (await api(config, "GET", `/api/devices/harness/actions?id=${encodeURIComponent(opts.result)}`, null, doFetch)).action;
+    return { text: describeAction(a), code: exitFor(a.state) };
+  }
   if (!opts.pc || !opts.action) throw new Error("need --pc and --action (or --list, or --result <id>)");
   const bad = checkLocally(allowlist, opts.pc, opts.action);
   if (bad) throw new Error(bad);
@@ -84,17 +97,23 @@ export async function run(opts, { config = readConfig(), allowlist = loadAllowli
     doFetch,
   );
   let action = queued.action;
+  // Printed at once, so a wait that dies on a network error still leaves the id to read later.
+  note(`[harness-run] queued ${action.id} (${action.action} on ${action.pc}); read it with --result ${action.id}`);
   const deadline = Date.now() + (opts.wait ?? 0) * 1000;
   while (opts.wait && !TERMINAL.has(action.state) && Date.now() < deadline) {
     await sleep(5_000);
     action = (await api(config, "GET", `/api/devices/harness/actions?id=${encodeURIComponent(action.id)}`, null, doFetch)).action;
   }
-  return describeAction(action) + (TERMINAL.has(action.state) ? "" : `\nstill ${action.state}: read it later with --result ${action.id}`);
+  const text = describeAction(action) + (TERMINAL.has(action.state) ? "" : `\nstill ${action.state}: read it later with --result ${action.id}`);
+  return { text, code: exitFor(action.state) };
 }
 
 if (process.argv[1] && basename(process.argv[1]) === "harness-run.mjs") {
   run(parseArgs(process.argv.slice(2)))
-    .then((text) => console.log(text))
+    .then(({ text, code }) => {
+      console.log(text);
+      process.exitCode = code;
+    })
     .catch((err) => {
       console.error(`[harness-run] ${err?.message ?? err}`);
       process.exitCode = 1;
