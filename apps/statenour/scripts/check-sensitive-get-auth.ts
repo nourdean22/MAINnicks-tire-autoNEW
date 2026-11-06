@@ -123,9 +123,10 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
 // bearer gate (app/api/brain/by-url). `await auth()` is deliberately NOT a
 // signal: routes use requireSession so one grep-able idiom guards them all.
 // assertRunnerRequest / requireBridgeAuth are the runner and bridge guards
-// (lib/internal/runner-auth.ts, lib/bridge-auth.ts; red team F04/F05).
+// (lib/internal/runner-auth.ts, lib/bridge-auth.ts; red team F04/F05). requireHarnessControl is the
+// harness control doors' HARNESS_CONTROL_KEY check (lib/services/harness-control.ts, 2026-11-06).
 const GUARD_IDENT =
-  /^(?:requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|requireDeviceAgentAuth|validateToken|assertRunnerRequest|requireBridgeAuth)$/;
+  /^(?:requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|requireDeviceAgentAuth|requireHarnessControl|validateToken|assertRunnerRequest|requireBridgeAuth)$/;
 // An inline Bearer/x-sync-key check counts by its constant-time COMPARE, and only
 // when an argument reaches a secret: app/api/version reads `Boolean(env.CRON_SECRET)`
 // and is open, and an ETag compare is not auth (red team B14).

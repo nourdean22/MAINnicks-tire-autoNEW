@@ -878,6 +878,12 @@ export async function pruneTools(
     addMatching(/getHarnessStatus/i);
   }
 
+  // Harness control (2026-11-06): asking a PC for a check, and reading what it said. A PC name alone is a
+  // status read ("is nicksmax up"), so this needs a run/check/refresh verb next to it, or an action name.
+  if (/\b(pc[- ]status|harness[- ]snapshot[- ]now|snapshot now|bootstrap[- ]check|health[- ]line|harness actions?|(run|check|refresh|kick|ping|ask)\b.{0,40}\b(nattynour|nicksmax|mechanics|my laptop|(shop|lot|front.?desk) pc)|(nattynour|nicksmax|mechanics|my laptop|(shop|lot|front.?desk) pc)\b.{0,30}\b(run|check|refresh)|(did|what did) (it|the pc|that pc|nicksmax|mechanics|nattynour) (say|answer|return|finish))\b/.test(text)) {
+    addMatching(/^(runHarnessAction|getHarnessActionResult|getHarnessStatus)$/);
+  }
+
   // #11 · Competitive intelligence. "competitive analysis", "where are we
   // weak", "market position". No family covered competitive intent.
   if (/\b(competitive (analysis|intel|intelligence)|competitors?|where are we weak|our (weakness|vulnerabilit)|market position|how do we (compare|stack up)|benchmark)\b/.test(text)) {

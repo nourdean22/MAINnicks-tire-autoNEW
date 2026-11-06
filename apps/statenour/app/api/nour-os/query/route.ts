@@ -287,7 +287,10 @@ async function handleQuery(
 
     case "harness_status": {
       const { readHarnessStatus } = await import("@/lib/services/harness-status");
-      return readHarnessStatus();
+      // Harness actions cross to nickstire as names and states only: a PC's output and a requester's
+      // free-text reason stay on bdnick (job 2026-11-06-harness-control-nick-node).
+      const { actions, ...rest } = await readHarnessStatus();
+      return { ...rest, actions: actions?.map(({ output: _o, reason: _r, error: _e, ...a }) => a) ?? null };
     }
 
     default:

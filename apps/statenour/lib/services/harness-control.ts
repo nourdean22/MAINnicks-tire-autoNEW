@@ -61,6 +61,16 @@ export function harnessControlAccepts(presented: string, env: HarnessControlEnv)
   return same(presented.trim(), key);
 }
 
+/** Whether bdnick holds a usable control key, so a PC could claim what is queued. */
+export function harnessControlKeyReady(): boolean {
+  const key = process.env.HARNESS_CONTROL_KEY ?? "";
+  return harnessControlAccepts(key, {
+    HARNESS_CONTROL_KEY: key,
+    DEVICE_AGENT_KEY: process.env.DEVICE_AGENT_KEY,
+    STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY,
+  });
+}
+
 /** Its own header, never x-sync-key: a snapshot sender that sends its usual header presents nothing here. */
 export function requireHarnessControl(req: Request): void {
   const env = {
@@ -350,3 +360,33 @@ export async function listRecentHarnessActions(limit = 8, db?: HarnessDb, now: D
 }
 
 export const newRequestKey = () => `rk_${randomUUID().replace(/-/g, "")}`;
+
+// ── Nick as a harness node ─────────────────────────────────────────────
+
+/** The tools Nick reaches the harness with; shown on his node row. */
+export const NICK_HARNESS_TOOLS = ["getHarnessStatus", "runHarnessAction", "getHarnessActionResult"] as const;
+
+/**
+ * Stamps RunnerNode harness:nick (label, deploy commit, whether the control key is usable). Called from the
+ * 15-minute device-sentinel tick. Never throws: it returns what happened, so the tick reports it.
+ */
+export async function heartbeatNick(): Promise<"stamped" | string> {
+  try {
+    const [{ heartbeatRunner }, { getDeployMeta }, { NICK_NODE_KEY }] = await Promise.all([
+      import("@/lib/services/runner-state"),
+      import("@/lib/services/deploy-identity"),
+      import("@/lib/services/harness-status"),
+    ]);
+    const controlKeyReady = harnessControlKeyReady();
+    await heartbeatRunner({
+      nodeKey: NICK_NODE_KEY,
+      label: "Nick",
+      status: "READY",
+      version: getDeployMeta().sha,
+      metadata: { harnessAgent: { tools: [...NICK_HARNESS_TOOLS], controlKeyReady } },
+    });
+    return "stamped";
+  } catch (err) {
+    return `failed: ${(err as Error)?.message?.slice(0, 120) ?? "unknown"}`;
+  }
+}

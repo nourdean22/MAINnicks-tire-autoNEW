@@ -120,6 +120,24 @@ describe("HarnessCard", () => {
     state.q = { data: status() };
     const { container } = render(<HarnessCard />);
     expect(container.querySelector("button, form, a")).toBeNull();
-    expect(screen.getByText(/Read-only/)).toBeTruthy();
+    expect(screen.getByText(/This card has no buttons/)).toBeTruthy();
+  });
+
+  it("Nick shows as a node: reporting with his commit, silent as UNKNOWN, missing as unknown (never fine)", () => {
+    const nick = { state: "reporting", lastSeenAt: "2026-11-05T14:50:00.000Z", reason: null, version: "10f7860c70aa", controlKeyReady: true };
+    state.q = { data: status({ nick }) };
+    const first = render(<HarnessCard />);
+    expect(screen.getByText(/Agent on bdnick · 10f7860 · PCs can take actions/)).toBeTruthy();
+    first.unmount();
+
+    state.q = { data: status({ nick: { ...nick, state: "unknown", reason: "Silent 50 min" } }) };
+    const second = render(<HarnessCard />);
+    expect(screen.getByText(/Silent 50 min/)).toBeTruthy();
+    expect(screen.queryByText(/Agent on bdnick/)).toBeNull();
+    second.unmount();
+
+    state.q = { data: status() };
+    render(<HarnessCard />);
+    expect(screen.getByText(/does not report Nick yet/)).toBeTruthy();
   });
 });

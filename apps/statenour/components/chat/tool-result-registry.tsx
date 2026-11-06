@@ -1119,6 +1119,30 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return o?.ok && o.pcs ? `${o.reporting} of ${o.pcs.length} PCs reporting` : null;
     },
   },
+  runHarnessAction: {
+    label: "Asking a PC",
+    doneLabel: "Asked the PC",
+    runningLabel: "Queueing the check…",
+    icon: HeartPulse,
+    color: "sky",
+    subtitle: (out) => {
+      const o = out as { ok?: boolean; action?: string; pc?: string; error?: string } | null;
+      if (!o) return null;
+      return o.ok ? `${o.action} queued for ${o.pc}, runs on its next check-in` : (o.error ?? "not queued");
+    },
+  },
+  getHarnessActionResult: {
+    label: "Reading the PC's answer",
+    doneLabel: "PC answer read",
+    runningLabel: "Reading the PC's answer…",
+    icon: HeartPulse,
+    color: "sky",
+    subtitle: (out) => {
+      const o = out as { ok?: boolean; action?: string; pc?: string; state?: string; exitCode?: number | null } | null;
+      if (!o?.ok) return null;
+      return `${o.action} on ${o.pc}: ${o.state}${typeof o.exitCode === "number" ? `, exit ${o.exitCode}` : ""}`;
+    },
+  },
   // Typed cards (W6 PR 1): bodies and schemas in typed-cards.tsx.
   getFleetTruth: {
     label: "Checking the fleet",

@@ -53,6 +53,30 @@ NicksMax (always-on camera and recovery edge, 2 cores, 8 GB, 40 GB C:), MECHANIC
    signed in). Left there: restart the Claude app once so new sessions' hooks find `node`; re-run
    `node scripts/agent-os/bootstrap-machine.mjs` after each `git pull --ff-only origin main`.
 
+## Harness control (2026-11-06)
+
+Agents can ask a PC to run a NAMED read-only check and read the answer; nothing else. Job
+2026-11-06-harness-control-nick-node. Pull only: bdnick holds a queue, the PC fetches from it, bdnick never reaches a PC.
+
+| Piece | Where |
+|---|---|
+| What can run (names, exact argv, which PCs, poll interval and output cap per PC class) | `config/agent-os/harness-actions.json` |
+| The doors (`HARNESS_CONTROL_KEY` only; the snapshot keys never open them) | `apps/statenour/app/api/devices/harness/actions/` (enqueue + read, `claim/`, `result/`) |
+| Queue, audit rows, Nick's node | `apps/statenour/lib/services/harness-control.ts`, table `harness_actions`, `AuditEvent` `harness.action.*` |
+| The PC side (one action per tick, no shell, argv from its own checkout) | `scripts/agent-os/harness-poll.mjs`, task `NOURCITY-Harness-Poll` via `scripts/register-harness-poll-task.ps1` |
+| Claude sessions | `node scripts/agent-os/harness-run.mjs --list`, `--pc <pc> --action <name> --wait`, `--result <id>` |
+| Nick | `getHarnessStatus` (nodes, Nick included, and the last actions), `runHarnessAction`, `getHarnessActionResult` |
+
+Turning it on is per PC and is Nour's step: add `"controlKey": "<HARNESS_CONTROL_KEY>"` to
+`%LOCALAPPDATA%\nourcity\harness-snapshot.json`, then run the register script from the primary checkout. Without the
+task, an action queued for that PC expires after 10 minutes and never runs late. The task is deliberately NOT in
+`local-services.json` `tasks`: that list makes `session-health` report MISSING on every PC, and control is opt-in.
+Remove it with `Unregister-ScheduledTask -TaskName 'NOURCITY-Harness-Poll' -Confirm:$false`.
+
+Adding an action is one allowlist entry plus its line in `HARNESS_ACTIONS` (a test fails when the two drift) and in
+Nick's `runHarnessAction` enum. v1 holds read-only actions only; an action that writes or restarts anything gets
+`needsGo: true`, which every door refuses until an approval path exists.
+
 ## Follow-ups in the repo
 
 1. Per-host client URL for graphify: `local-services.json` grows a hosts map (keyed on NATTYNOUR's tailnet node name,

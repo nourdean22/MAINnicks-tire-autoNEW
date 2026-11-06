@@ -1,7 +1,7 @@
 /** The bdnick Harness card. A silent PC never reads healthy; a failed read never reads empty. Red first. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { harnessStatusFromRows, harnessNodeKey, HARNESS_STALE_MS } from "@/lib/services/harness-status";
+import { harnessStatusFromRows, harnessNodeKey, HARNESS_STALE_MS, NICK_NODE_KEY, NICK_STALE_MS } from "@/lib/services/harness-status";
 
 type Q = { data?: unknown; isError?: boolean; isLoading?: boolean; isFetching?: boolean; error?: { message: string } | null };
 const state = vi.hoisted(() => ({ q: {} as Q }));
@@ -131,6 +131,48 @@ describe("HarnessPanel", () => {
     const html = render({ data: harnessStatusFromRows([row("nattynour", 1000)], NOW) });
     expect(html).not.toContain("<button");
     expect(html).not.toContain("<form");
-    expect(html).toContain("Read-only");
+    expect(html).toContain("This card has no buttons");
+  });
+
+  const nick = (ageMs: number, controlKeyReady: boolean | undefined = true) => ({
+    nodeKey: NICK_NODE_KEY,
+    lastHeartbeatAt: new Date(NOW.getTime() - ageMs),
+    version: "10f7860c70aa",
+    metadata: { harnessAgent: { tools: [], controlKeyReady } },
+  });
+
+  it("Nick shows as a node with his deploy commit and whether PCs can take actions", () => {
+    const html = render({ data: harnessStatusFromRows([nick(60_000)], NOW) });
+    expect(html).toContain('data-harness-pc="nick"');
+    expect(html).toContain("Agent on bdnick · 10f7860 · PCs can take actions");
+    expect(render({ data: harnessStatusFromRows([nick(60_000, false)], NOW) })).toContain("control key not set");
+  });
+
+  it("a silent Nick reads UNKNOWN; a Nick that never reported says so", () => {
+    const html = render({ data: harnessStatusFromRows([nick(NICK_STALE_MS + 60_000)], NOW) });
+    expect(html).toMatch(/Nick<\/span><span[^>]*>UNKNOWN/);
+    expect(html).toContain("Silent 46 min");
+    expect(html).not.toContain("Agent on bdnick");
+    expect(render({ data: harnessStatusFromRows([], NOW) })).toMatch(/data-harness-pc="nick"[\s\S]*Never reported/);
+  });
+
+  it("an action list that could not be read says unknown, never none", () => {
+    const html = render({ data: harnessStatusFromRows([], NOW, undefined, { items: null, reason: "Harness control is not migrated yet" }) });
+    expect(html).toContain("Recent actions unknown. Harness control is not migrated yet.");
+    expect(html).not.toContain("No actions asked");
+  });
+
+  it("a measured empty list says none yet; listed actions show their state and exit code", () => {
+    expect(render({ data: harnessStatusFromRows([], NOW, undefined, { items: [] }) })).toContain("No actions asked of the PCs yet");
+    const a = {
+      id: "ha_1", pc: "nattynour", action: "pc-status", state: "DONE" as const, requestedBy: "nick", reason: null,
+      createdAt: NOW.toISOString(), expiresAt: NOW.toISOString(), claimedAt: null, startedAt: null, finishedAt: null,
+      exitCode: 0, output: "free RAM: 1 MB", error: null,
+    };
+    const html = render({ data: harnessStatusFromRows([], NOW, undefined, { items: [a, { ...a, id: "ha_2", state: "EXPIRED", exitCode: null }] }) });
+    expect(html).toContain("pc-status on nattynour · nick");
+    expect(html).toContain("done · exit 0");
+    expect(html).toContain("expired");
+    expect(html).not.toContain("free RAM: 1 MB");
   });
 });

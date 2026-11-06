@@ -3,10 +3,13 @@
 /**
  * HarnessPanel: the three PCs, open PRs and what each site runs, on /system (job 2026-11-05-harness-apps-connect).
  *
- * Read-only: this card has no action, and nothing in the path behind it can reach a PC. A PC that
- * stopped reporting reads UNKNOWN with its last-seen time. A null reading says unknown, never zero.
+ * This card has no button. Agents (Nick, Claude sessions) can queue allowlisted read-only checks for a PC
+ * through the harness control channel (lib/services/harness-control.ts); the last few show here with their
+ * state. A PC or Nick that stopped reporting reads UNKNOWN with its last-seen time. A null reading says
+ * unknown, never zero, and an action list that could not be read says so, never "none".
  */
-import type { HarnessPcView, HarnessStatus } from "@/lib/services/harness-status";
+import type { HarnessActionView } from "@/lib/services/harness-control";
+import type { HarnessAgentView, HarnessPcView, HarnessStatus } from "@/lib/services/harness-status";
 import { ReadStateNote } from "@/components/ui/read-state-note";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { readState } from "@/lib/query-state";
@@ -53,6 +56,52 @@ function PcRow({ pc }: { pc: HarnessPcView }) {
       <span className="text-xs text-fg-secondary">{pcLine(pc)}</span>
       <span className={cn("text-xs", pc.health?.ok ? "text-fg-tertiary" : "text-amber-200")}>{health}</span>
     </li>
+  );
+}
+
+function NickRow({ nick }: { nick: HarnessAgentView }) {
+  const key = nick.controlKeyReady === null ? "control key not reported" : nick.controlKeyReady ? "PCs can take actions" : "control key not set";
+  return (
+    <li className="flex flex-col gap-0.5" data-harness-pc="nick">
+      <span className="flex items-baseline gap-2">
+        <span className="font-medium text-fg">Nick</span>
+        {nick.state === "unknown" && <span className="text-[11px] font-semibold tracking-wide text-amber-300">UNKNOWN</span>}
+      </span>
+      <span className="text-xs text-fg-secondary">
+        {nick.state === "unknown"
+          ? `${nick.lastSeenAt ? `Last seen ${lastSeen(nick.lastSeenAt)}. ` : ""}${nick.reason}`
+          : `Agent on bdnick · ${short(nick.version)} · ${key}`}
+      </span>
+    </li>
+  );
+}
+
+const ACTION_TONE: Record<HarnessActionView["state"], string> = {
+  QUEUED: "text-fg-tertiary",
+  CLAIMED: "text-fg-tertiary",
+  DONE: "text-fg-tertiary",
+  FAILED: "text-rose-300",
+  EXPIRED: "text-amber-200",
+  LOST: "text-amber-200",
+};
+
+function Actions({ status }: { status: HarnessStatus }) {
+  if (!status.actions) return <p className="text-xs text-amber-200">Recent actions unknown. {status.actionsReason}.</p>;
+  if (status.actions.length === 0) return <p className="text-xs text-fg-secondary">No actions asked of the PCs yet.</p>;
+  return (
+    <ul className="flex flex-col gap-1.5" data-harness-actions>
+      {status.actions.map((a) => (
+        <li key={a.id} className="flex items-baseline justify-between gap-3 text-xs">
+          <span className="min-w-0 truncate text-fg-secondary">
+            {a.action} on {a.pc} · {a.requestedBy} · {lastSeen(a.createdAt)}
+          </span>
+          <span className={cn("shrink-0", ACTION_TONE[a.state])}>
+            {a.state.toLowerCase()}
+            {a.exitCode !== null ? ` · exit ${a.exitCode}` : ""}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -131,12 +180,14 @@ export function HarnessView({ status }: { status: HarnessStatus }) {
         {status.pcs.map((pc) => (
           <PcRow key={pc.key} pc={pc} />
         ))}
+        <NickRow nick={status.nick} />
       </ul>
       <Sites status={status} />
       <GraphAndVault status={status} />
       <Prs status={status} />
+      <Actions status={status} />
       <p className="text-[11px] text-fg-tertiary">
-        Read {lastSeen(status.generatedAt)}. Read-only. Nothing here can merge, restart or run anything.
+        Read {lastSeen(status.generatedAt)}. This card has no buttons. Agents can only ask a PC for the allowlisted read-only checks listed above.
       </p>
     </>
   );
