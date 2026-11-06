@@ -12,7 +12,7 @@
  */
 
 /** Rank order, fastest first. `unknown` is never ranked for speed. */
-export const AVAILABILITY_TIERS = ["shelf", "transfer", "next_day", "ship", "unknown"] as const;
+const AVAILABILITY_TIERS = ["shelf", "transfer", "next_day", "ship", "unknown"] as const;
 export type AvailabilityTier = (typeof AVAILABILITY_TIERS)[number];
 
 export const TIER_LABEL: Record<AvailabilityTier, string> = {
@@ -27,7 +27,7 @@ export const TIER_LABEL: Record<AvailabilityTier, string> = {
 export const DEFAULT_RUN_MINUTES = { min: 30, max: 60 } as const;
 
 /** A shelf quantity older than this is not trusted as "on the shelf". */
-export const LIVE_STOCK_MAX_AGE_MINUTES = 15;
+const LIVE_STOCK_MAX_AGE_MINUTES = 15;
 
 export interface SupplierOffer {
   /** Unique within one comparison (supplier + sku + location). */

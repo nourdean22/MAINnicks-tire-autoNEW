@@ -16,7 +16,7 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("routers:sourcing");
 
 /** Suppliers audited in docs/plans/shop-os 22-29 that have no adapter yet, by what they sell. */
-export const NOT_CONNECTED = {
+const NOT_CONNECTED = {
   tires: ["ATD", "Capital Tire"],
   parts: ["Parts Authority", "O'Reilly", "Federated / Fisher", "AutoZone", "Amazon Business"],
 } as const;
