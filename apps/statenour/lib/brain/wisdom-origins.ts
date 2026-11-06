@@ -49,6 +49,7 @@ export type WisdomOrigin =
   | "bezos-letters"
   | "greene-laws"
   | "baltasar-gracian"
+  | "nour-brain-derived"
   | "distiller"
   | "consolidation"
   | "chat-scrape"
@@ -147,6 +148,14 @@ export const WISDOM_ORIGINS: Record<WisdomOrigin, WisdomOriginMeta> = {
     intro:
       "The Oráculo manual (1647), all 300 maxims, distilled from Joseph Jacobs' public-domain translation. Each entry gives what the maxim teaches and how it applies to the shop or NOUR OS; the manipulative ones are turned into their honest use. Wisdom shape: judge timing, guard your reputation, read people, and be good rather than only seem it.",
   },
+  "nour-brain-derived": {
+    label: "Nour (brain-derived)",
+    // Never bare "Nour": the cite rule names the badge, and these are derived from his notes, not his words.
+    badge: "Nour (derived)",
+    tradition: "Self-knowledge",
+    intro:
+      "Insights about Nour himself, drawn from his own brain notes, journal and patterns by scripts/derive-operator-wisdom.ts: traits, blind spots, recurring patterns, what helps and what derails him. Each one cites the brain rows it rests on. Wisdom shape: how Nick should work with Nour, in Nour's own record.",
+  },
   distiller: {
     label: "The Distiller",
     badge: "Distilled",
@@ -205,6 +214,7 @@ export const WISDOM_ORIGIN_KEY_PREFIXES: ReadonlyArray<readonly [string, WisdomO
   ["wisdom_bezos-letters_", "bezos-letters"],
   ["wisdom_baltasar-gracian_", "baltasar-gracian"],
   ["wisdom_greene_", "greene-laws"],
+  ["wisdom_nour-brain-derived_", "nour-brain-derived"],
   ["wisdom_distilled_", "distiller"],
   ["wisdom_from_", "consolidation"],
   ["nick_advice_", "chat-scrape"],
@@ -226,6 +236,7 @@ export const CURATED_WISDOM_ORIGINS: ReadonlySet<string> = new Set<WisdomOrigin>
   "bezos-letters",
   "baltasar-gracian",
   "greene-laws",
+  "nour-brain-derived",
 ]);
 
 /**

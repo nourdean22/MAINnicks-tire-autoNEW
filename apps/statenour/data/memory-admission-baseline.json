@@ -116,6 +116,7 @@
     "scripts/backfill-persona-judgments.ts",
     "scripts/cleanup-junk-wisdoms.ts",
     "scripts/continue-wave-2.ts",
+    "scripts/derive-operator-wisdom.ts",
     "scripts/ingest-greene-laws.ts",
     "scripts/ingest-persona-pack.ts",
     "scripts/ingest-wisdom-pack.ts",
