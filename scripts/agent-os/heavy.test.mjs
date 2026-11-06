@@ -26,8 +26,15 @@ function tmp() {
 }
 
 after(() => {
-  // force + retries: a child that just exited can still hold heavy.lock open for a moment on Windows.
-  for (const d of fixtures) rmSync(d, { recursive: true, force: true, maxRetries: 3 });
+  // force + retries: a child that just exited can still hold heavy.lock open for a moment on Windows. One dir that
+  // stays held must not stop the rest: each removal is tried on its own and the leftovers are asserted together.
+  for (const d of fixtures) {
+    try {
+      rmSync(d, { recursive: true, force: true, maxRetries: 3 });
+    } catch {
+      // reported by the existsSync check below
+    }
+  }
   const left = fixtures.filter((d) => existsSync(d));
   assert.deepEqual(left, [], `fixture dirs left behind in ${tmpdir()}: ${left.length}`);
   const raw = (readFileSync(fileURLToPath(import.meta.url), "utf8").match(/mkdtempSync\(/g) || []).length;
