@@ -97,7 +97,7 @@ tires,,, etc." This is a standing requirement on Shop OS's own ordering screen, 
 vendor - it must hold across every connected supplier (D&K/Gateway, AutoZone Pro, Parts Authority/IMC, ATD,
 and whichever others the first-cohort gate above eventually adds).
 
-**What the seven completed vendor passes actually show, concretely:**
+**What the eight completed vendor passes actually show, concretely:**
 
 - **ALG** (21-ALG-UX-AUDIT): no cross-vendor comparison of any kind - it is a labor/ticket system with a
   shop-configured vendor markup table (14-STOLEN-MECHANISMS row 3), not a live multi-supplier price/stock
@@ -130,6 +130,11 @@ and whichever others the first-cohort gate above eventually adds).
   four-step order tracker (placed, processed, out for delivery, delivered). It gives an ETA to the *store* with a
   cutoff, not the store-to-shop run times Parts Authority gives; in the one-job spot check it was the most
   expensive of the three parts vendors (chat only).
+- **Amazon** (29-AMAZON-UX-AUDIT sections 3-4, public signed-out pass): a named delivery date per offer plus an
+  "order within h:mm" countdown, different for Prime and non-Prime; the earliest promise seen was next day, so it
+  never helps a car on a lift. In the spot check it matched or beat the cheapest jobber on name-brand pads and
+  was dearer on rotors (chat only). Fit is shown as conditional ("fits only if Position Front"), but sponsored
+  results ignore the vehicle filter.
 
 No single vendor in this dataset shows price and speed ranked *against another vendor* - each one only ranks
 its own delivery tiers against itself. That is exactly the gap Nour is naming: his own suppliers are each

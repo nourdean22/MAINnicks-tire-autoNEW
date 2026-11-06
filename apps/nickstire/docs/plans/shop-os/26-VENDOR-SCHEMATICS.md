@@ -1,4 +1,4 @@
-# Shop OS 26: vendor schematics rollup - what the build must implement from audits 21-25
+# Shop OS 26: vendor schematics rollup - what the build must implement from audits 21-29
 
 Job 2026-11-06-shop-os-vendor-schematics. Status: CURRENT (update after every new vendor audit). This file turns
 the five screen-by-screen audits into the fields, objects and screens the CRM build needs, so a build session
@@ -48,6 +48,13 @@ substitutes and "Fit not Determined"; stock orders; **Manage Customers** (unused
 rate, split tax, pricing method, PO mask, bay and fleet IDs, labor-guide integration; employees and an exportable
 activity log; 1% electronic-order earn-back.
 
+**Amazon (29), retail marketplace, signed-out pass:** Your Garage by plate+state or Y/M/M with a second step that
+asks only the missing attributes (single-option fields pre-selected); a **conditional fit badge** ("fits only if
+Position Front"); a **named delivery date plus an "order within" countdown** per offer, different by membership;
+a "Get It by Tomorrow" facet; seller and shipper as separate fields; new and used offers side by side; a
+**return-by date** on the offer; low-stock text. Fitment filtering is opt-in and sponsored items ignore it. Account
+features (Amazon Business pricing, approvals, invoices) UNKNOWN until a signed-in pass.
+
 ## 2. Supplier offer: fields to add to 18's contract
 
 18 already carries supplier/branch IDs, SKU, fitment, quantity or UNKNOWN, price/core/fees/total, location and
@@ -72,6 +79,9 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `arrival.orderBy` with `arrival.at` for network stock | 28 "In Store By: Tomorrow 7:30 AM - If Ordered By: 5:25 PM" | Show the order-by time beside the ETA (row 45) |
 | `priceStatus` adds `call_for_price` | 28 "Call for Pricing and Availability" | Shown, never wins Best Price |
 | Supplier order fields: `ticketRef`, `bayId`, `fleetId`, `returnsAttached[]`, `status: placed / processed / out_for_delivery / delivered` | 28 Shop Preferences, Return Type, Delivery Details | Every order maps back to a ticket; pending returns ride with the next order (rows 46-48) |
+| `fitConfidence: confirmed / conditional / not_confirmed` with `fitConditions[]` (e.g. position front) | 29 "fits only if following criteria are met: Position Front"; 29 sponsored misfit | A conditional fit shows its condition; a not-confirmed fit is never the default pick (rows 52, 56) |
+| `arrival.range {from, to}` and `arrival.byMembership[]` | 29 "FREE delivery Nov 10 - 12"; Prime vs non-Prime dates | Rank on the latest date of the range; use the date for the shop's actual membership (row 54) |
+| `returnBy: date` per order line; `soldBy`, `shipsFrom`, `condition: new / reman / used`; `restocking` | 29 buy box and results | Returns queue warns before expiry; used safety parts hidden by default (rows 57-59) |
 
 Per-vendor static fallback until an API says otherwise: a hand-entered table of route runs and cutoffs per
 supplier branch (from the rep questions in 24 and 25), clearly labeled "schedule, not live".
@@ -142,3 +152,6 @@ row 24); bulk entry by paste in comma or pipe with three formats (25), or keyboa
 Until answered, those suppliers compete on price only and show "ETA unknown - call".
 - Parts Authority: drive time from branch 29 to the shop after "My Branch Departure", how Saturday delivery and
   DoorDash are chosen, and whether IMC will enable the Mitchell 1/ALLDATA-style punchout for Shop OS. (27)
+- Amazon: ETA is shown (date + countdown) but the earliest seen was next day with Prime; whether Nour has Amazon
+  Business and what it changes is UNKNOWN. Treat as `ship` with a named date; never a Quickest Arrival winner for
+  a car on a lift. (29)

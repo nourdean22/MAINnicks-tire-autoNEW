@@ -46,6 +46,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata read identify 38 bar entries, 3 synced entries, and two screenshot-only clipped labels across labor, parts, tires, used parts, financing, payments, communications and shop operations. Section 18 is the complete shortcut register and routes each item to a CRM decision. REA has only verified selected public login/landing surfaces; authenticated workflows and saved-login behavior remain UNKNOWN until a loopback browser connection is available.
 
 ## Current status update (2026-11-06)
+| [29-AMAZON-UX-AUDIT](29-AMAZON-UX-AUDIT.md) | Amazon automotive UX audit (public, signed-out, 2026-11-06): Your Garage with plate or Y/M/M and only-missing-attribute questions, conditional fit badge, per-offer delivery date with "order within" countdown, arrives-by facet, seller/shipper and new/used offers, return-by date, and sponsored results that ignore fitment; account and Amazon Business features UNKNOWN |
 The new Shop OS remains planning work. Source search found no /system product routes in the nickstire client. Current D&K tire search/order code and existing customer/estimate tools are reuse candidates, not proof that the new screens or supplier adapters exist. The front-desk local-model handoff has no completion receipt in the reviewed memory; re-check before installation. The updated design is in [18](18-SUPPLIER-DESKTOP-OFFLINE-AI.md); the build sequence is in [the implementation plan](../../../../../docs/superpowers/plans/2026-11-06-shop-os-sourcing-desktop-offline-ai.md).
 
 A full ALG reverse-engineering pass (Nour's own Real-Time Pro login, 2026-11-06, read-only) is now in
@@ -118,3 +119,9 @@ which Shop OS keeps for itself (14-STOLEN-MECHANISMS rows 45-51).
 ## Labels used everywhere
 FACT = read this session from code, production or the primary page. CLAIM = a research report cites a source we did not
 open. INFERENCE = reasoning. UNKNOWN = not known yet; never treated as zero.
+
+An Amazon pass (public pages, signed out, 2026-11-06, read-only) is in [29-AMAZON-UX-AUDIT](29-AMAZON-UX-AUDIT.md).
+Amazon gives the clearest delivery promise of any source (a date plus an "order within" clock) and a conditional
+fit badge, but its earliest promise was next day and sponsored results ignore the vehicle filter; Shop OS takes
+the promise wording, the arrives-by filter and return-by dates (14-STOLEN-MECHANISMS rows 52-60). Amazon Business
+features need a signed-in pass.
