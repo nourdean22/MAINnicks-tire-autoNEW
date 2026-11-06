@@ -358,6 +358,34 @@ const MIGRATIONS: Record<string, string[]> = {
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "outcome_lesson" TEXT;`
   ],
 
+  // 2026-11-06 · Harness control queue (job 2026-11-06-harness-control-nick-node). One new table and
+  // its indexes, nothing else touched. Mirrors, statement for statement,
+  // prisma/migrations/20261106180000_harness_actions/migration.sql. Until it runs, the control doors
+  // answer 503 "not migrated" and the harness card shows the action list as unread.
+  "20261106180000_harness_actions": [
+    `CREATE TABLE IF NOT EXISTS "harness_actions" (
+  "id" TEXT NOT NULL,
+  "request_key" VARCHAR(80) NOT NULL,
+  "pc" VARCHAR(20) NOT NULL,
+  "action" VARCHAR(40) NOT NULL,
+  "status" VARCHAR(12) NOT NULL DEFAULT 'QUEUED',
+  "requested_by" VARCHAR(40) NOT NULL,
+  "reason" VARCHAR(200),
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "claimed_at" TIMESTAMP(3),
+  "started_at" TIMESTAMP(3),
+  "finished_at" TIMESTAMP(3),
+  "exit_code" INTEGER,
+  "output" TEXT,
+  "error" VARCHAR(400),
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "harness_actions_pkey" PRIMARY KEY ("id")
+)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "harness_actions_request_key_key" ON "harness_actions"("request_key")`,
+    `CREATE INDEX IF NOT EXISTS "harness_actions_pc_status_created_at_idx" ON "harness_actions"("pc", "status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "harness_actions_created_at_idx" ON "harness_actions"("created_at")`,
+  ],
+
   // ADR-0019 phase 0b · the receiver's dedupe table for keyed nickstire writes.
   // One new table + one index, nothing else touched. Full reasoning and the
   // promote/resolve steps: prisma/migrations/20260929090000_bridge_receipts/migration.sql (promoted 2026-10-23)

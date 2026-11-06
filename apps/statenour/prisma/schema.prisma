@@ -1447,6 +1447,36 @@ model DeviceEvent {
   @@map("device_events")
 }
 
+/// 2026-11-06 · Harness control (job 2026-11-06-harness-control-nick-node). One row per named action a
+/// caller asked one of Nour's PCs to run. The PC pulls it (scripts/agent-os/harness-poll.mjs), runs only
+/// names in config/agent-os/harness-actions.json with the command written there, and posts the result.
+/// `action` is a name, never a command: there is no column a command could travel in.
+/// Writer and reader: lib/services/harness-control.ts. Migration: 20261106180000_harness_actions.
+model HarnessAction {
+  id          String    @id @default(cuid())
+  /// The caller's own id for this request: a replay returns the first row, never a second run.
+  requestKey  String    @unique @map("request_key") @db.VarChar(80)
+  pc          String    @db.VarChar(20)
+  action      String    @db.VarChar(40)
+  /// QUEUED, CLAIMED, DONE or FAILED. EXPIRED and LOST are computed on read, never stored.
+  status      String    @default("QUEUED") @db.VarChar(12)
+  requestedBy String    @map("requested_by") @db.VarChar(40)
+  /// Free text for the audit trail. Never parsed, never run.
+  reason      String?   @db.VarChar(200)
+  expiresAt   DateTime  @map("expires_at")
+  claimedAt   DateTime? @map("claimed_at")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  exitCode    Int?      @map("exit_code")
+  output      String?   @db.Text
+  error       String?   @db.VarChar(400)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([pc, status, createdAt])
+  @@index([createdAt])
+  @@map("harness_actions")
+}
+
 model DeviceCommand {
   id        String      @id @default(cuid())
   deviceId  String      @map("device_id")
