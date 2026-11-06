@@ -9,6 +9,7 @@
 import { createHash } from "node:crypto";
 
 import { isContactRow } from "./contact-rows";
+import { nicknameOwners, type NicknamedPerson } from "@/lib/people/nicknames";
 
 export interface PersonRef {
   id: string;
@@ -70,6 +71,11 @@ export function nameMatcher(name: string, flags = "iu"): RegExp {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${esc}(?![\\p{L}\\p{N}_])`, flags);
 }
 
+/** One matcher per nickname that points at exactly one of these people, for a reader that already matches by name. */
+export function nicknameMatchers<T extends NicknamedPerson>(people: readonly T[]): Array<{ person: T; re: RegExp }> {
+  return [...nicknameOwners(people)].flatMap(([key, group]) => (group.length === 1 ? [{ person: group[0], re: nameMatcher(key) }] : []));
+}
+
 /** The text before a match when the match opens a sentence: nothing, or a stop or newline, then quotes and spaces. */
 const SENTENCE_START = /(?:^|[.!?\n])["'\u201C\u2018(\s]*$/;
 
@@ -93,22 +99,27 @@ export function nameIndexIn(text: string, name: string): number {
  *   · a name more than one live profile answers to (any case) links nobody, counted in `ambiguous`;
  *   · longest names first, and a matched full name is blanked: "Sam Jones" is not also Sam.
  * The cost: "Dania called." alone links no one here; the model pass still can.
+ * A nickname is his own word for one person, so it matches in any case, sentence start included ("mom called"), and
+ * shares the rest: a nickname two people use links nobody, longest first, a two-word one is blanked.
  */
-export function namedInText(text: string, people: readonly PersonRef[]): { people: PersonRef[]; ambiguous: number } {
-  const byName = new Map<string, PersonRef[]>();
+export function namedInText<T extends PersonRef & { metadata?: unknown }>(text: string, people: readonly T[]): { people: T[]; ambiguous: number } {
+  const byName = new Map<string, T[]>();
   for (const p of people) {
     const key = p.name.trim().toLowerCase();
     if (key.length >= 2) byName.set(key, [...(byName.get(key) ?? []), p]);
   }
+  const nicknames = nicknameOwners(people);
   const named = new Set<string>();
   let ambiguous = 0;
   let rest = text;
-  for (const [key, group] of [...byName].sort(([a], [b]) => b.length - a.length)) {
+  for (const [key, group] of [...byName, ...nicknames].sort(([a], [b]) => b.length - a.length)) {
+    const nickname = nicknames.has(key);
     const fullName = /\s/.test(key);
-    const hit = group.some((p) =>
-      [...rest.matchAll(nameMatcher(p.name, "gu"))].some((m) => fullName || !opensSentence(rest, m.index)),
-    );
-    if (fullName) for (const p of group) rest = rest.replace(nameMatcher(p.name, "gu"), (m) => "_".repeat(m.length));
+    const hit = nickname
+      ? nameMatcher(key).test(rest)
+      : group.some((p) => [...rest.matchAll(nameMatcher(p.name, "gu"))].some((m) => fullName || !opensSentence(rest, m.index)));
+    if (fullName && nickname) rest = rest.replace(nameMatcher(key, "giu"), (m) => "_".repeat(m.length));
+    else if (fullName) for (const p of group) rest = rest.replace(nameMatcher(p.name, "gu"), (m) => "_".repeat(m.length));
     if (!hit) continue;
     if (group.length > 1) ambiguous++;
     else named.add(group[0].id);

@@ -7,6 +7,7 @@
  * PersonProfile's basic fields:
  *
  *   · name (typo fix or formal change)
+ *   · nicknames (saved on their own, at once · PersonNicknamesField)
  *   · role (the curated dropdown)
  *   · relationship (free text · 1-2 sentences)
  *   · leverageNotes (strategic positioning · operator-facing only)
@@ -27,6 +28,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { PersonNicknamesField } from "@/components/relationships/person-nicknames-field";
+import { readNicknames } from "@/lib/people/nicknames";
 import {
   PERSON_ROLES,
   PERSON_ROLE_OPTIONS,
@@ -63,6 +66,7 @@ type FullPersonHydration = {
   phone?: string | null;
   email?: string | null;
   source?: string | null;
+  metadata?: unknown;
 };
 
 const PERSON_DIALOG_CLASS =
@@ -76,7 +80,7 @@ export function PersonEditDrawer(props: PersonEditDrawerProps) {
   // anniversary, cadence, phone/email) cannot open blank and then be
   // accidentally overwritten with null on Save.
   if (!props.personId) {
-    return <PersonEditDrawerBody {...props} source={null} />;
+    return <PersonEditDrawerBody {...props} source={null} nicknames={[]} />;
   }
   return <PersonEditProfileGate {...props} personId={props.personId} />;
 }
@@ -158,6 +162,7 @@ function PersonEditProfileGate(props: PersonEditDrawerProps & { personId: string
       {...props}
       initial={mergedInitial}
       source={p.source ?? null}
+      nicknames={readNicknames(p.metadata)}
     />
   );
 }
@@ -168,7 +173,8 @@ function PersonEditDrawerBody({
   initial,
   onSaved,
   source,
-}: PersonEditDrawerProps & { source?: string | null }) {
+  nicknames,
+}: PersonEditDrawerProps & { source?: string | null; nicknames: string[] }) {
   const isCreate = personId === null;
   const [name, setName] = useState(() => initial?.name ?? "");
   const [role, setRole] = useState(() => initial?.role ?? "acquaintance");
@@ -336,6 +342,8 @@ function PersonEditDrawerBody({
               className={inputCls}
             />
           </Field>
+
+          {personId && <PersonNicknamesField personId={personId} initial={nicknames} />}
 
           <Field label="role">
             <select

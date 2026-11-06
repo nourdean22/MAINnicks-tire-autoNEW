@@ -30,10 +30,9 @@ describe("resolvePersonByName · fuzzy: false", () => {
     expect(h.findMany).toHaveBeenCalledTimes(1);
   });
 
-  it("fuzzy off: the same typo is no_match, the live-people scan never runs, no Auto-merged row", async () => {
+  it("fuzzy off: the same typo is no_match, no Auto-merged row (the scan runs for the nickname tier only)", async () => {
     const r = await resolvePersonByName("Danya", { createIfMissing: false, fuzzy: false });
     expect(r).toEqual({ person: null, matched: false, matchTier: "no_match" });
-    expect(h.findMany).not.toHaveBeenCalled();
     expect(h.memCreate).not.toHaveBeenCalled();
     expect(h.create).not.toHaveBeenCalled();
   });

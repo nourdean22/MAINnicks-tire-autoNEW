@@ -46,6 +46,9 @@ export async function resolveLedgerPerson(
   const { resolvePersonByName } = await import("@/lib/brain/person-profile-fuzzy");
   const resolution = await resolvePersonByName(rawName, { createIfMissing: false });
   if (resolution.matchTier === "rejected_nonname") return { kind: "rejected_name", name: rawName };
+  if (resolution.matchTier === "shared_nickname") {
+    return { kind: "ambiguous", name: rawName, reason: "same_name", candidates: resolution.candidates ?? [] };
+  }
   if (!resolution.matched || !resolution.person) return { kind: "no_match", name: rawName };
 
   if (resolution.matchTier === "case_insensitive") {

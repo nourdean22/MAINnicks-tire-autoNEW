@@ -22,6 +22,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 import { isSparsePerson } from "@/lib/people/needs-info";
+import { readNicknames } from "@/lib/people/nicknames";
 import { contactRowsOnly, GENERIC_NOTE } from "@/lib/services/people/contact-rows";
 import { journalExcerpt, type LatestJournal } from "@/lib/services/people/journal-link";
 import { PEOPLE_RUN_EVENT, PEOPLE_RUN_STALE_MS, type PeopleRunState } from "@/lib/brain/people-intelligence-run";
@@ -61,6 +62,7 @@ export const dynamic = "force-dynamic";
 interface PersonRow {
   id: string;
   name: string;
+  nicknames: string[];
   role: string;
   relationship: string;
   trustScore: number;
@@ -110,6 +112,7 @@ export const GET = apiHandler(
         interactionCount: true,
         cadenceDays: true,
         pendingClassification: true,
+        metadata: true,
         // shortcut: a person whose newest NOTE_LOOKBACK rows are all status flips or mentions reads null; widen if that shows up.
         ledger: {
           orderBy: { createdAt: "desc" },
@@ -141,14 +144,14 @@ export const GET = apiHandler(
           ) d CROSS JOIN LATERAL unnest(d.person_ids) AS pid
           WHERE pid = ANY(${rows.map((r) => r.id)}::text[])
           ORDER BY pid, d.created_at DESC`;
-        const nameOf = new Map(rows.map((r) => [r.id, r.name]));
+        const rowOf = new Map(rows.map((r) => [r.id, r]));
         journal = new Map(
           latest.map((l) => [
             l.person_id,
             // Windowed around the person's name (W8b), so the line is the sentence about them.
             {
               at: new Date(l.created_at).toISOString(),
-              excerpt: journalExcerpt(l.raw_thoughts, nameOf.get(l.person_id)),
+              excerpt: journalExcerpt(l.raw_thoughts, rowOf.get(l.person_id)?.name, readNicknames(rowOf.get(l.person_id)?.metadata)),
               dumpId: l.id,
               kind: l.kind === "reflection" ? ("reflection" as const) : ("journal" as const),
             },
@@ -180,6 +183,7 @@ export const GET = apiHandler(
       return {
         id: r.id,
         name: r.name,
+        nicknames: readNicknames(r.metadata),
         role: r.role,
         relationship: r.relationship,
         trustScore: r.trustScore,
