@@ -24,7 +24,7 @@
 
 - Benchmarked against: AI Playground's existing Companion/native media workflows (local app UI) + OpenCode V2's official config/MCP merge model (https://opencode.ai/docs/en/config/, https://opencode.ai/docs/en/mcp-servers/) + the repo `/harness` explicit-action/read-only timer pattern (`.claude/mods/nourcity-harness/hooks/register.tsx`) · adopted: local generated provider config, per-task MCP activation, existing app media paths, and the shared health CLI · rejected: every MCP on for every request because the live full-set request exceeded context.
 - Static OpenCode example vs generated user-local override: choose generated override so the configured tools and private vault value stay synchronized without entering Git.
-- All MCP schemas and full skill texts in every request vs on-demand activation: keep all 11 mappings available, enable only `skills` by default, and load the relevant skill when needed. The complete 11-server set and four servers plus all three full skill texts exceeded the model context. Let each invocation opt in to additional named servers such as `desktop-commander` or `browser`. Do not write an assumed token limit into model metadata.
+- All MCP schemas and full skill texts in every request vs on-demand activation: keep all 11 mappings available, enable none by default, and load relevant skills directly from local folders. The `skills` MCP timed out during OpenCode startup on this PC. The complete 11-server set and four servers plus all three full skill texts exceeded the model context. Let each invocation opt in to named servers such as `desktop-commander` or `browser`. Do not write an assumed token limit into model metadata.
 - Add a second media server vs retain AI Playground's native media workflows: retain native image/audio/video tools; OpenCode receives all configured MCP tools and its explicit Desktop Commander config.
 - Enable backends by editing settings vs use the app's setup manager: use the vendor UI because its readiness and consent logic must remain authoritative.
 - 10x option: one versioned local bridge contract serves both coding and `/harness`, preventing duplicated health logic; avoid a new background daemon.
@@ -50,7 +50,8 @@
 - [x] Run the focused tests and confirm the new profile tests failed before implementation.
 - [x] Implement using Node built-ins only; follow official config merge rules.
 - [x] Run the bridge tests and load the generated V2 config through OpenCode. Live health reports the app/model endpoint OK and all 11 MCP names.
-- [ ] Full OpenCode request with all 11 MCP schemas exceeded 32,768 tokens. A later coding-profile inference was attempted but remained pending during the battery warning; do not claim end-to-end inference success.
+- [x] Follow-up regression: pin the selected Companion alias in both generated and inline config so the default abliterated profile does not revert to the slower reasoning alias; keep the explicit Deep Think choice.
+- [ ] OpenCode with 11 MCPs exceeded 32,768 tokens; the skills-only profile later timed out connecting to the skills MCP and did not return a reply within about 85 seconds. Default profile now starts no MCPs; validate it against the local model before claiming live coding inference.
 
 ### Task 2: `/harness` health and actions
 
@@ -77,6 +78,6 @@
 **Files:** spec, `docs/agent-os/ledger/2026-11-05-ai-playground-harness.md`, `.completion/evidence.d/chore-ai-playground-harness.json`.
 
 - [ ] Hostile-review combined diff; ensure no secrets, machine paths, model files, or generated configs appear.
-- [ ] Run current bridge tests, `/harness` tests, plugin validation, whitespace check, and live bridge health. Full 11-server inference is over context; coding-profile inference did not produce a verified completion during this turn.
+- [ ] Run current bridge tests, `/harness` tests, plugin validation, whitespace check, and live bridge health. Full 11-server inference is over context; OpenCode inference remains unverified after the skills MCP startup timeout.
 - [ ] Push this branch once, wait for green checks, merge through the repo merge gate, sync this machine to `origin/main`, and verify the tip.
 - [ ] Add the ledger and evidence receipt to the PR and record the post-merge revision after sync.
