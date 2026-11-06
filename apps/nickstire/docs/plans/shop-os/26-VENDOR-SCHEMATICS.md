@@ -83,8 +83,30 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `arrival.range {from, to}` and `arrival.byMembership[]` | 29 "FREE delivery Nov 10 - 12"; Prime vs non-Prime dates | Rank on the latest date of the range; use the date for the shop's actual membership (row 54) |
 | `returnBy: date` per order line; `soldBy`, `shipsFrom`, `condition: new / reman / used`; `restocking` | 29 buy box and results | Returns queue warns before expiry; used safety parts hidden by default (rows 57-59) |
 
-Per-vendor static fallback until an API says otherwise: a hand-entered table of route runs and cutoffs per
-supplier branch (from the rep questions in 24 and 25), clearly labeled "schedule, not live".
+**Delivery reality (Nour, 2026-11-06):** the route suppliers "are all usually about 30 min to an hour unless held
+up", but "the availability is what differs a lot of the time". So for local route deliveries the run time is
+close to a constant and the real ranking variable is **where the part is right now**:
+
+| Availability tier (rank order) | Example on screen | Arrival used for ranking |
+|---|---|---|
+| 1. On the shelf at the supplier's servicing store/branch, orderable | O'Reilly "Available Now"; PA home-branch qty; Federated home store qty | now + that supplier's run time (default 30-60 min, "schedule, not live") |
+| 2. At another branch/warehouse the account can order from (transfer) | PA other plants with a departure time; Federated alt locations if orderable | the vendor's stated departure/transfer time + run time; UNKNOWN until shown |
+| 3. Network/next-day | O'Reilly "In Store By: Tomorrow 7:30 AM - If Ordered By ..." | the stated time + run time |
+| 4. Shipped | Amazon dated delivery; far PA plants "Shipping" | the stated date |
+| 5. Unknown / call / not orderable | Federated non-home stock; "Call for Pricing" | never ranked; shown as "call to confirm" |
+
+Rules that follow:
+- Quickest Arrival = best availability tier first, then the earliest known time inside that tier. Two tier-1
+  offers are a tie on speed (within one 30-60 min run) and fall back to price; the UI says "same run window"
+  instead of pretending one is 5 minutes faster.
+- Live stock is the expensive, valuable data: every comparison re-checks qty at lookup time and shows the
+  last-verified time; a cached qty older than the lookup never ranks as tier 1.
+- "Unless held up" is measured, not guessed: each supplier order records `orderedAt` and `deliveredAt` (from the
+  vendor tracker where it exists - PA run tracker, O'Reilly delivery steps - or the counter's "received" tap),
+  and Shop OS replaces the 30-60 min default per supplier with the observed median and 90th percentile once it
+  has ~20 deliveries. A supplier whose 90th percentile drifts past 90 min is flagged on the owner screen.
+- Per-supplier static table until an API says otherwise: run-time default, cutoffs, and which branches are
+  orderable, clearly labeled "schedule, not live".
 
 ## 3. Shop-owned objects the audits justify
 
@@ -144,6 +166,9 @@ row 24); bulk entry by paste in comma or pipe with three formats (25), or keyboa
    counter users, require PO. (24, 25)
 
 ## 5. Open questions that block "Quickest Arrival"
+
+Run time is no longer the open question for route suppliers (30-60 min, Nour, 2026-11-06 - see section 2). What
+is still open is **which locations each account can actually order from and how long a transfer adds**:
 
 - Capital Tire: ROUTE schedule, cutoff, how non-Macedonia stock reaches Cleveland. (24)
 - Fisher/Federated: delivery runs and cutoffs from C185OH, transfer time from other Fisher stores and

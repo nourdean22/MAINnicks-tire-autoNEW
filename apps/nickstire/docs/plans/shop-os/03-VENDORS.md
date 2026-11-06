@@ -174,6 +174,12 @@ explicitly labeled, always-visible picks - **Best Price** and **Quickest Arrival
    holds stock but is not orderable by this account never wins Quickest Arrival on its own. Cheapest first
    fix for Capital Tire: ask the rep for the ROUTE schedule, the order cutoff, and how regional stock reaches
    Cleveland, then encode that as a static ETA rule until an API says otherwise.
+7. **Correction from Nour (2026-11-06):** route deliveries from the parts suppliers are "usually about 30 min to
+   an hour unless held up"; what differs a lot is **availability**. Quickest Arrival therefore ranks by
+   availability tier first (on the shelf at the servicing store > orderable transfer > next-day network >
+   shipped > unknown) and only then by time; offers in the same tier and run window are a speed tie and fall
+   back to price. Actual run times are measured per supplier from order and delivery timestamps and replace the
+   30-60 min default once there is enough data. Detail in 26-VENDOR-SCHEMATICS section 2.
 
 See [23-ATD-UX-AUDIT](23-ATD-UX-AUDIT.md) section 4 and [14-STOLEN-MECHANISMS](14-STOLEN-MECHANISMS.md) row 12
 for the concrete six-tier reference depth, and [22-GATEWAY-DK-UX-AUDIT](22-GATEWAY-DK-UX-AUDIT.md) section 4a /
