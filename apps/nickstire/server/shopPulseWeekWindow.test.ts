@@ -53,4 +53,17 @@ describe("getShopPulse week window", () => {
     expect(params[1]).toContain("2026-10-31");
     expect(params[1].some((p) => p instanceof Date || /\d{2}:\d{2}:\d{2}/.test(String(p)))).toBe(false);
   });
+
+  it("the week's estimate leads start at the same shop day, Eastern midnight as an instant (Codex P2, PR 3562)", async () => {
+    const { getShopPulse } = await import("./services/nickIntelligence");
+    await getShopPulse();
+    const leadReads = h.wheres
+      .map((w) => new MySqlDialect().sqlToQuery(w as SQL))
+      .filter((r) => /recommendedService/.test(r.sql));
+    // CONTROL: today's and the week's estimate reads were both seen.
+    expect(leadReads).toHaveLength(2);
+    // createdAt is a real instant: Oct 31 2026 00:00 EDT = 04:00Z. walkRate divides the week's jobs by these leads.
+    const weekBound = leadReads[1].params.find((p) => p instanceof Date) as Date | undefined;
+    expect(weekBound?.toISOString()).toBe("2026-10-31T04:00:00.000Z");
+  });
 });

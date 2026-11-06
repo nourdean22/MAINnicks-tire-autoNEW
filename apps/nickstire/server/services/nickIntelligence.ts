@@ -22,6 +22,7 @@ import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
 import { getBusinessDateKey, shiftDateKey } from "../lib/timezoneAssert";
+import { shopDayRange } from "./autonomyControl";
 const log = createLogger("nick-intelligence");
 
 // ─── CROSS-PIPELINE ANALYTICS ─────────────────────────
@@ -642,7 +643,6 @@ export async function getShopPulse(): Promise<{
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   // Invoice dates are the shop's wall clock: today's invoices are compared as the shop's day key.
   const todayKey = getBusinessDateKey(now);
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
 
   const [
@@ -672,10 +672,11 @@ export async function getShopPulse(): Promise<{
       sql`${invoices.invoiceDate} >= ${shiftDateKey(todayKey, -6)}`,
       eq(invoices.paymentStatus, "paid")
     )),
-    // This week's estimates
+    // This week's estimates: the same 7 shop days as the jobs above (walkRate divides one by the other).
+    // createdAt is a real instant, so the bound is Eastern midnight of that shop day.
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
       sql`${leads.recommendedService} IS NOT NULL`,
-      sql`${leads.createdAt} >= ${weekAgo}`
+      sql`${leads.createdAt} >= ${shopDayRange(shiftDateKey(todayKey, -6)).start}`
     )),
   ]);
 
