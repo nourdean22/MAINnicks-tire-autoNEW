@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,11 @@ test("gate: a list without $defaults, an allow rule, a mode or a broad ask rule 
     "classifyAllShell off": { autoMode: { ...LAYER.autoMode, classifyAllShell: false } },
     "blanket ask": { ...LAYER, ask: ["Bash(*)"] },
     "non-shell ask": { ...LAYER, ask: ["Edit(**)"] },
+    // Second reader 2026-11-06: RegExp.test stringifies, so a nested list passed and then duplicated on every merge.
+    "nested ask": { ...LAYER, ask: [["Bash(railway up*)"]] },
+    "ask not a list": { ...LAYER, ask: "Bash(railway up*)" },
+    "blank entry": { autoMode: { allow: ["$defaults", "  "] } },
+    "non-string entry": { autoMode: { allow: ["$defaults", 7] } },
   };
   for (const [label, layer] of Object.entries(cases)) assert.notDeepEqual(layerProblems(layer), [], label);
 });
@@ -52,6 +57,30 @@ test("merge: machine entries stay, ours are added once, an entry we installed an
   const shrunk = { ...LAYER, autoMode: { ...LAYER.autoMode, allow: ["$defaults"] } };
   const after = merge(once, shrunk, LAYER);
   assert.deepEqual(after.autoMode.allow, ["$defaults", "my own rule"]);
+  // A whole list or the ask list dropped from the layer takes our old entries with it; machine entries stay.
+  const { soft_deny: _gone, ...rest } = LAYER.autoMode;
+  const dropped = merge(once, { autoMode: rest }, LAYER);
+  assert.deepEqual(dropped.autoMode.soft_deny, ["$defaults"]);
+  assert.deepEqual(dropped.permissions.ask, ["Bash(mine *)"]);
+});
+
+test("cli: a corrupt install ledger refuses with a REFUSE line and writes nothing", () => {
+  const f = fixture("bad-ledger");
+  write(join(f.home, ".claude", "auto-mode-layer.installed.json"), "{ broken");
+  const before = f.settings();
+  const r = f.run();
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /REFUSE\s+.*installed\.json/);
+  assert.equal(f.settings(), before);
+});
+
+test("cli: run through a junction or symlink, the script still runs (a plain path compare skipped main and exited 0)", (t) => {
+  const f = fixture("linked");
+  const link = join(SCRATCH, "linked-via");
+  try { symlinkSync(join(SCRATCH, "linked"), link, "junction"); } catch (err) { t.skip(`no link support: ${err.code}`); return; }
+  const r = spawnSync(process.execPath, [join(link, "scripts", "agent-os", "auto-mode-layer.mjs"), "--home", f.home, "--check"], { encoding: "utf8" });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /DRIFT/);
 });
 
 test("cli: --check on a fresh home reports DRIFT and writes nothing; apply merges; --check is then clean", () => {
@@ -78,4 +107,5 @@ test("cli: a refused layer writes nothing", () => {
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /REFUSE\s+autoMode\.allow/);
   assert.equal(f.settings(), before);
+  assert.ok(!existsSync(join(f.home, ".claude", "auto-mode-layer.installed.json")), "a refusal wrote the ledger");
 });
