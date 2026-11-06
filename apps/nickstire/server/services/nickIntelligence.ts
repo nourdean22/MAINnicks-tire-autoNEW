@@ -15,6 +15,7 @@
 import { createLogger } from "../lib/logger";
 import { countActionableLeads } from "@shared/leadSource";
 import { eq, gte, sql, and, lte } from "drizzle-orm";
+import { notReceptionistCallbackSql } from "../lib/receptionistCallbacks";
 import { invokeLLM } from "../_core/llm";
 
 import { db } from "../lib/db-helper";
@@ -245,7 +246,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads)
       .where(and(eq(leads.status, "new"), sql`${leads.urgencyScore} >= 4`)),
     d.select({ count: sql<number>`count(*)` }).from(callbackRequests)
-      .where(eq(callbackRequests.status, "new")),
+      .where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
     d.select({ count: sql<number>`count(*)` }).from(bookings)
       .where(gte(bookings.createdAt, new Date(now.getFullYear(), now.getMonth(), now.getDate()))),
   ]);
@@ -664,9 +665,7 @@ export async function getShopPulse(): Promise<{
       sql`${bookings.createdAt} >= ${todayStart}`
     ),
     // Pending callbacks
-    d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(
-      eq(callbackRequests.status, "new")
-    ),
+    d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(and(eq(callbackRequests.status, "new"), notReceptionistCallbackSql())),
     // This week's closed jobs
     d.select().from(invoices).where(and(
       sql`${invoices.invoiceDate} >= ${weekAgo}`,

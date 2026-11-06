@@ -22,7 +22,7 @@ import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
 import { QueueRow } from "./today/QueueRow";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem } from "./today/types";
-import { FOLLOW_UPS_ON_BOARD, LISTED_ELSEWHERE_ON_TODAY, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, worklistOrder } from "./today/followUpsRead";
+import { FOLLOW_UPS_ON_BOARD, LIST_INPUT as FOLLOW_UPS_INPUT, followUpTypeLabel, hiddenOnToday, worklistOrder } from "./today/followUpsRead";
 
 // status=waiting is LeadsSection's bucket filter; contacted leads sit in Waiting, not the default Needs.
 const LEADS_LIST_HREF = "/admin?tab=leads&leadsTab=leads&status=waiting";
@@ -196,10 +196,11 @@ export default function OverviewSection() {
     [followUpData, followUpsFailed, canOpenPipeline],
   );
   // The open count leaves out rows the board already lists as callbacks and owed texts.
-  const followUps = useMemo(() => worklist.filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)), [worklist]);
-  // The rows shown are the Pipeline's first five cards minus those, so each one is on the Pipeline's
-  // first screen too; Today may show fewer than five.
-  const followUpsShown = useMemo(() => worklist.slice(0, FOLLOW_UPS_ON_BOARD).filter((row) => !LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)), [worklist]);
+  const followUps = useMemo(() => worklist.filter((row) => !hiddenOnToday(row)), [worklist]);
+  // The first five rows Today does not hide, in the Pipeline's worklist order. Hidden rows are removed
+  // BEFORE the cap (2026-11-06): Today hides whole classes now (missed-call cards, retired promises), and
+  // capping first let them use up every slot and hide a real obligation behind "Done for today".
+  const followUpsShown = useMemo(() => followUps.slice(0, FOLLOW_UPS_ON_BOARD), [followUps]);
   // The server sent its full window, so more rows may exist past it. Read from the UNFILTERED length:
   // the board's own filter can drop the count under the limit without making the window any less full.
   const followUpsSaturated = canOpenPipeline && (followUpData?.items.length ?? 0) >= FOLLOW_UPS_INPUT.limit;
@@ -270,8 +271,18 @@ export default function OverviewSection() {
         status: lead.status,
       });
     }
+    // One row per phone: a caller with two open callbacks is one person to call (2026-11-06).
+    const callbackRowByPhone = new Map<string, ActionItem>();
     for (const callback of callbacks) {
       if (callback.status !== "new" && callback.status !== "pending") continue;
+      const phoneKey = String(callback.phone ?? "").replace(/\D/g, "").slice(-10);
+      const sameCaller = phoneKey.length === 10 ? callbackRowByPhone.get(phoneKey) : undefined;
+      if (sameCaller) {
+        sameCaller.alsoIds = [...(sameCaller.alsoIds ?? []), callback.id];
+        const more = sameCaller.alsoIds.length;
+        sameCaller.detail = `${sameCaller.detail.replace(/ · \+\d+ more requests?$/, "")} · +${more} more request${more === 1 ? "" : "s"}`;
+        continue;
+      }
       items.push({
         id: `callback-${callback.id}`,
         entityId: callback.id,
@@ -285,6 +296,7 @@ export default function OverviewSection() {
         createdAt: callback.createdAt,
         status: callback.status,
       });
+      if (phoneKey.length === 10) callbackRowByPhone.set(phoneKey, items[items.length - 1]);
     }
     // Customers waiting on a human text reply: the ROS-058 obligation, so a
     // human reply or "No reply needed" clears it and an automated text does
@@ -406,8 +418,8 @@ export default function OverviewSection() {
       await leadUpdate.mutateAsync({ id: item.entityId, status: "contacted", contacted: 1 });
       await logReceipt(item, "admin.lead_contacted", { from: item.status, to: "contacted" });
     } else {
-      await callbackUpdate.mutateAsync({ id: item.entityId, status: "completed" });
-      await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed" });
+      for (const id of [item.entityId, ...(item.alsoIds ?? [])]) await callbackUpdate.mutateAsync({ id, status: "completed" });
+      await logReceipt(item, "admin.callback_completed", { from: item.status, to: "completed", ...(item.alsoIds?.length ? { alsoIds: item.alsoIds } : {}) });
     }
     await utils.adminDashboard.overviewMediumBundle.invalidate();
     return true;

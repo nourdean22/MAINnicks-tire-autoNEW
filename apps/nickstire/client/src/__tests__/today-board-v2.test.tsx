@@ -87,7 +87,7 @@ const BUNDLE = (extra: Record<string, unknown> = {}) => ({
 });
 const opp = (n: number, attempts: number) => ({
   id: `opp-${n}`,
-  sourceType: n % 2 ? "missed_call" : "unapproved_estimate",
+  sourceType: n % 2 ? "stale_lead" : "unapproved_estimate",
   recommendedAction: `Call back ${n}`,
   reason: `Reason ${n}`,
   customerPhone: `(216) 555-02${String(n).padStart(2, "0")}`,
@@ -208,7 +208,7 @@ describe("Pipeline follow-ups on the board", () => {
   it("shows five of seven, untouched first, with a line that opens Sales Pipeline", () => {
     standardDay();
     render(<OverviewSection />);
-    const follow = rows().filter((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""));
+    const follow = rows().filter((r) => /Stale lead|Unapproved estimate/.test(r.textContent ?? ""));
     expect(follow).toHaveLength(5);
     // Untouched rows come first inside the type, newest first: opp-1 then opp-2.
     expect(follow[0].textContent).toContain("Reason 1");
@@ -350,14 +350,14 @@ describe("manager rulings (2026-10-26)", () => {
 
   it("follow-ups the board already lists as callbacks or owed texts are not listed or counted twice", () => {
     h.queries.set("adminDashboard.overviewMediumBundle", ok(empty()));
-    h.queries.set("opportunityQueue.list", ok({ items: [as(opp(1, 0), "callback"), as(opp(2, 0), "human_pending_sms"), as(opp(3, 0), "missed_call")], queryable: true }));
+    h.queries.set("opportunityQueue.list", ok({ items: [as(opp(1, 0), "callback"), as(opp(2, 0), "human_pending_sms"), as(opp(3, 0), "stale_lead")], queryable: true }));
     const first = render(<OverviewSection />);
     expect(rows()).toHaveLength(1);
-    expect(rows()[0].textContent).toContain("Missed call");
+    expect(rows()[0].textContent).toContain("Stale lead");
     expect(within(tile("Needs action")).getByText("1")).toBeTruthy();
     first.unmount();
     // Past five, the open count leaves them out too: 6 missed calls and 2 callbacks are 6 open.
-    const many = [...Array.from({ length: 6 }, (_, i) => as(opp(i + 1, 0), "missed_call")), as(opp(7, 0), "callback"), as(opp(8, 0), "callback")];
+    const many = [...Array.from({ length: 6 }, (_, i) => as(opp(i + 1, 0), "stale_lead")), as(opp(7, 0), "callback"), as(opp(8, 0), "callback")];
     h.queries.set("opportunityQueue.list", ok({ items: many, queryable: true }));
     render(<OverviewSection />);
     expect(within(board()).getByRole("button", { name: "5 of 6 follow-ups open · Open Sales Pipeline" })).toBeTruthy();
@@ -402,7 +402,7 @@ describe("Codex review of PR 3316", () => {
 
   it("a full server window keeps the plus after the board's filter drops a row", () => {
     standardDay();
-    const items = [...Array.from({ length: 499 }, (_, i) => ({ ...opp(i + 1, 1), sourceType: "missed_call" })), { ...opp(500, 1), sourceType: "callback" }];
+    const items = [...Array.from({ length: 499 }, (_, i) => ({ ...opp(i + 1, 1), sourceType: "stale_lead" })), { ...opp(500, 1), sourceType: "callback" }];
     h.queries.set("opportunityQueue.list", ok({ items, queryable: true }));
     render(<OverviewSection />);
     expect(within(board()).getByRole("button", { name: "5 of 499+ follow-ups open · Open Sales Pipeline" })).toBeTruthy();
@@ -421,7 +421,7 @@ describe("Codex review of PR 3316", () => {
     h.queries.set("adminSecurity.status", ok({ adminRole: "viewer", permissions: [] }));
     render(<OverviewSection />);
     expect(h.calls.get("opportunityQueue.list")?.enabled).toBe(false);
-    expect(rows().some((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""))).toBe(false);
+    expect(rows().some((r) => /Stale lead|Unapproved estimate/.test(r.textContent ?? ""))).toBe(false);
     expect(within(board()).queryByRole("button", { name: "Open in Sales Pipeline" })).toBeNull();
     expect(within(board()).queryByText(/follow-ups open|follow-ups unknown/)).toBeNull();
     // The waiting count still shows, as text: the link would land on a section this role cannot open.
@@ -435,7 +435,7 @@ describe("Codex review of PR 3316", () => {
     standardDay();
     render(<OverviewSection />);
     expect(h.calls.get("opportunityQueue.list")).toMatchObject({ enabled: true, refetchInterval: 30_000, refetchIntervalInBackground: false });
-    expect(rows().filter((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""))).toHaveLength(5);
+    expect(rows().filter((r) => /Stale lead|Unapproved estimate/.test(r.textContent ?? ""))).toHaveLength(5);
   });
 
   it("Mark contacted also leaves the sidebar badge count: one predicate for board and badge", async () => {
@@ -489,17 +489,18 @@ describe("Codex review of PR 3316", () => {
     expect(within(board()).getByRole("button", { name: "Waiting on customer · unknown" })).toBeTruthy();
   });
 
-  it("every follow-up row Today shows is inside Sales Pipeline's first five; the open count still filters the whole list", () => {
+  it("Today shows the first five follow-ups it does not hide, in the Pipeline's worklist order; the open count still filters the whole list", () => {
+    // 2026-11-06 (Codex c=4494783556): hidden rows are removed BEFORE the five-row cap, or
+    // rows Today hides (callbacks, missed-call cards, retired promises) could use up every slot.
     standardDay();
     const items = [opp(1, 0), { ...opp(2, 0), sourceType: "callback" }, opp(3, 0), opp(4, 0), opp(5, 0), opp(6, 0), opp(7, 0)];
     h.queries.set("opportunityQueue.list", ok({ items, queryable: true }));
     render(<OverviewSection />);
-    const follow = rows().filter((r) => /Missed call|Unapproved estimate/.test(r.textContent ?? ""));
-    expect(follow).toHaveLength(4);
-    // The Pipeline's first five, unfiltered, in worklist order: opp-1 .. opp-5.
-    const pipelineTop = ["Reason 1", "Reason 2", "Reason 3", "Reason 4", "Reason 5"];
-    for (const r of follow) expect(pipelineTop.some((reason) => (r.textContent ?? "").includes(reason)), r.textContent ?? "").toBe(true);
-    expect(within(board()).getByRole("button", { name: "4 of 6 follow-ups open · Open Sales Pipeline" })).toBeTruthy();
+    const follow = rows().filter((r) => /Stale lead|Unapproved estimate/.test(r.textContent ?? ""));
+    expect(follow).toHaveLength(5);
+    const shown = ["Reason 1", "Reason 3", "Reason 4", "Reason 5", "Reason 6"];
+    follow.forEach((r, i) => expect(r.textContent ?? "").toContain(shown[i]));
+    expect(within(board()).getByRole("button", { name: "5 of 6 follow-ups open · Open Sales Pipeline" })).toBeTruthy();
   });
 
   it("a failing mirror with no usable last success says so, never null or a quiet no-sync line", () => {

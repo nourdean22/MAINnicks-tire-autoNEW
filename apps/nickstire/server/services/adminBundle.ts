@@ -31,6 +31,7 @@ import { getCallbackServedEvidence } from "./callbackServedEvidence";
 import { leads as leadsTable } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
+import { isReceptionistCallback } from "../lib/receptionistCallbacks";
 
 const log = createLogger("services:adminBundle");
 
@@ -117,7 +118,7 @@ export async function getOverviewMediumBundle() {
     getDashboardStats(),
     getBookings(),
     listLeads(),
-    getCallbackRequests(),
+    getCallbackRequests().then((rows) => rows.filter((row: Parameters<typeof isReceptionistCallback>[0]) => !isReceptionistCallback(row))),
     getSiteHealth(),
     // Customers waiting on a human text reply: the ROS-058 obligation, the
     // same reduction as the Outreach badge and the morning brief (audit I).

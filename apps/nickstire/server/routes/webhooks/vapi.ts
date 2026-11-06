@@ -290,6 +290,12 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   // bookSlot, escalate and tireInquiry: the connected caller ID, so the assistant
   // never has to ask for a number (Nour, 2026-10-21). Overwrites — the model never owns it.
   if (CALLER_ID_TOOLS.has(call.function.name) && customerNumber) args.callerNumber = customerNumber;
+  // escalate learns the call direction from Vapi, never from the model: an outbound
+  // follow-up call's complaint texts the on-duty manager (2026-11-06).
+  if (call.function.name === "escalate") {
+    if (callType === "outboundPhoneCall") args.outbound = true;
+    else delete args.outbound;
+  }
   // sendConfirmationSms texts the connected party only: call.customer.number is
   // the caller ID inbound and the number Vapi dialled outbound. A model-chosen
   // number would let a caller have the shop's line text anyone (security review

@@ -172,21 +172,12 @@ describe("both ends are actually wired", () => {
     expect(s).toMatch(/recordCallState\(\{[\s\S]{0,200}leadId: newLeadId/);
   });
 
-  it("the escalate tool records callbackId on the trail", async () => {
+  // 2026-11-06: escalate and scheduleCallback write no callback row (Nour: no callback
+  // obligations from the receptionist), so there is no callbackId for them to link.
+  // Behaviour is pinned in routers/voiceAgent.noCallbackObligation.test.ts.
+  it("neither receptionist tool inserts a callback row any more", async () => {
     const s = await read("./routers/voiceAgent.ts");
-    expect(s).toMatch(/recordCallState\(\{[\s\S]{0,240}callbackId: Number\(insertedCallback\.insertId\)/);
-  });
-
-  it("the scheduleCallback tool records callbackId on the trail too", async () => {
-    // scheduleCallback inserted callback_requests but never linked it: prod
-    // showed ~101 converted calls/week against ONE vapi_call_logs.callbackId.
-    const s = await read("./routers/voiceAgent.ts");
-    const start = s.indexOf("scheduleCallback: voiceAgentInternalProcedure");
-    expect(start).toBeGreaterThan(-1);
-    const block = s.slice(start, start + 4000);
-    expect(block).toMatch(
-      /recordCallState\(\{[\s\S]{0,240}tool: "scheduleCallback", callbackId: Number\(insertedCallback\.insertId\)/,
-    );
+    expect(s).not.toMatch(/insert\(callbackRequests\)|createCallbackRequest\(/);
   });
 
   it("the webhook extracts BOTH ids and writes them at INSERT", async () => {

@@ -228,13 +228,12 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
     re: /\b(?:nick|the\s+(?:owner|manager|tech|mechanic))\s+(?:will|'ll|is\s+going\s+to|can)\s+(?:look|check|take\s+care|handle|fix|see|do)\b/i,
   },
   {
-    // A callback promise is BACKED only when escalate() wrote the callback
-    // queue + Promise Ledger row. On a call whose messages show escalate ran,
-    // voiceClaimViolations skips this label (v2). The phrase exemption below
-    // is the transcript-only fallback for the scripted after-hours line, old
-    // ("first thing when we open") and new ("call you back when we're open").
+    // v3 (2026-11-06): nothing backs a callback promise. escalate() writes no
+    // callback row or promise since Nour's "no callback text" order, so the old
+    // escalate, after-hours and conditional ("if the tire arrives") exemptions
+    // would all pass false promises.
     label: "unbacked_callback_promise",
-    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:back\s+)?(?:if|when\s+we(?:'re|\s+are)?\s+open|first\s+thing))/i,
+    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b/i,
   },
 
   /* ── TIRE SAFETY · added 2026-09-18, sourced to primary documents ──
@@ -475,7 +474,7 @@ export interface VoiceClaimResult {
  * text, return labels. The difference is only that voice scores AFTER the fact,
  * because there is nothing to block.
  */
-export function voiceClaimViolations(turns: string[], ctx: { escalated?: boolean } = {}): string[] {
+export function voiceClaimViolations(turns: string[], _ctx: { escalated?: boolean } = {}): string[] {
   const found = new Set<string>();
   for (const turn of turns) {
     // Approved anchors are removed first, so any surviving money figure is
@@ -485,8 +484,6 @@ export function voiceClaimViolations(turns: string[], ctx: { escalated?: boolean
     if (MONEY_RE.test(stripped)) found.add("unapproved_price_quote");
 
     for (const claim of PROHIBITED_VOICE_CLAIMS) {
-      // escalate ran on this call: its callback is in the queue and the ledger.
-      if (claim.label === "unbacked_callback_promise" && ctx.escalated) continue;
       if (claim.re.test(turn)) found.add(claim.label);
     }
   }
@@ -506,8 +503,12 @@ export function voiceClaimViolations(turns: string[], ctx: { escalated?: boolean
  * lets the assistant promise through escalate — including CALLBACK CAPTURE
  * while open, after a transfer that did not connect — so v1 would flag those
  * backed promises. Compare v1 and v2 counts of this label with that in mind.
+ *
+ * v3 (2026-11-06): escalate no longer records a callback, so `escalated` (still
+ * stored) no longer exempts `unbacked_callback_promise`, and neither does the
+ * after-hours phrasing. Expect v3 counts of this label above v2's.
  */
-export const VOICE_CLAIM_GUARD_VERSION = 2;
+export const VOICE_CLAIM_GUARD_VERSION = 3;
 
 /**
  * Did escalate() run on this call? Vapi's artifact messages carry the model's

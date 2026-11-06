@@ -1135,6 +1135,7 @@ export async function collectMissedCalls(): Promise<CollectorStats & {
   const { vapiCallLogs } = await import("../../drizzle/schema");
   const { and, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
   const { isMissedCallEligible, proveCapturedNothing } = await import("../cron/jobs/missedCallRecovery");
+  const { notEscalatedSql } = await import("./alertClaim");
   const { askedForWords } = await import("../lib/attributionReviewWords");
   const { redactCallerText } = await import("./callerTextRedaction");
 
@@ -1174,6 +1175,8 @@ export async function collectMissedCalls(): Promise<CollectorStats & {
         isNull(vapiCallLogs.callbackId),
         gte(vapiCallLogs.createdAt, windowStart),
         lte(vapiCallLogs.createdAt, windowEnd),
+        // Every candidate: an escalated caller (2026-11-06) is not a missed call.
+        notEscalatedSql(vapiCallLogs.vapiCallId),
       ))
       .orderBy(desc(vapiCallLogs.createdAt))
       // 300, not 100: the window is 72 h now, and a newest-first cap must not cut the oldest, already-scored calls.

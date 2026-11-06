@@ -120,6 +120,23 @@ const NOT_A_CUSTOMER_RES: RegExp[] = [
   /\b(babe|bby)\b/i,
 ];
 
+/**
+ * 2026-11-06: a lender or funding broker about the owner's own account ("this is Zara at City
+ * Capital ... updated terms on your $44263 file"), shown on Today as an urgent customer text.
+ * Each rule needs a lender marker, never just a dollar figure: the shop's own financing customers
+ * write "$1200 application".
+ */
+const LENDER_RES: RegExp[] = [
+  /\b(?:updated|new|revised)\s+terms\s+on\s+your\b/i,
+  /\byour\s+\$\s?\d[\d,]*(?:\.\d{2})?\s+file\b/i,
+  /\bthis is \w+ (?:at|from|with) [a-z0-9&.' ]{1,40}?\b(?:capital|funding|lending|financial|advance)\b/i,
+];
+
+/** A lender's or funding broker's text (LENDER_RES). Today's waiting texts leave such a thread out. */
+export function isLenderText(body: string): boolean {
+  return LENDER_RES.some((re) => re.test(body));
+}
+
 /** A short thank-you or "all good so far" with no question or problem in it. */
 const THANKS_RE = /\b(thanks?|thank you|thx|appreciate it|good so far|ok so far|all good|got it (fixed|taken care of))\b/i;
 // Request words keep a thank-you text out of the silent skip (Codex review of #3393:
@@ -136,7 +153,7 @@ const RULES: Rule[] = [
     priority: -1,
     risk: "deterministic",
     catalogEvent: null,
-    test: (b) => NOT_A_CUSTOMER_RES.some((re) => re.test(b)),
+    test: (b) => NOT_A_CUSTOMER_RES.some((re) => re.test(b)) || isLenderText(b),
   },
   {
     intent: "no_reply_needed",

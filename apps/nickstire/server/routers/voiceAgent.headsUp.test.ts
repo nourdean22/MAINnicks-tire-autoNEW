@@ -5,7 +5,8 @@
  *     text to the on-duty manager and NO expected_arrivals row. A later day
  *     keeps the row. One text per call (persisted claim), handed back on a
  *     failed send so the visit is never lost.
- * (2) escalate takes the number from caller ID and never needs a name.
+ * (2) escalate's old caller-ID tests moved out: escalate writes nothing since
+ *     2026-11-06 (voiceAgent.noCallbackObligation.test.ts).
  *
  * DB-free: db-helper, the claim table and every outbound channel are fakes.
  */
@@ -103,7 +104,6 @@ vi.mock("../lib/logger", async (orig) => ({
   createLogger: () => ({ info: () => {}, debug: () => {}, error: () => {}, warn: (...a: unknown[]) => (h.warn as Fn)(...a) }),
 }));
 vi.mock("../services/voice-call-state", () => ({ recordCallState: async () => {} }));
-vi.mock("../services/promiseLedger", () => ({ createVoicePromise: async () => ({ skipped: true, reason: "test" }) }));
 vi.mock("../services/telegram", () => ({ sendTelegram: (...a: unknown[]) => (h.sendTelegram as Fn)(...a) }));
 vi.mock("../services/vapi", async (orig) => ({
   ...(await orig<typeof import("../services/vapi")>()),
@@ -316,49 +316,6 @@ describe("name ask before the shop text (2026-10-22)", () => {
   });
 });
 
-describe("Codex re-review: one callback event per call", () => {
-  // The emit is fire-and-forget behind a cold dynamic import, so wait on observed
-  // state (claim attempts, emits), never on a fixed number of ticks.
-  const until = (fn: () => void) => vi.waitFor(fn, { timeout: 15_000, interval: 20 });
-
-  it("two escalate calls with the same callId emit once", async () => {
-    const caller = await loadCaller();
-    await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    await caller.escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e9" });
-    // 4 claims: escalate 1 = row + alert; escalate 2 = row (lost, no second row) + alert (lost).
-    await until(() => expect(h.claimTries).toBe(4));
-    await new Promise((r) => setImmediate(r));
-    expect(h.callbackRequested).toHaveBeenCalledTimes(1);
-  });
-
-  it("different callIds emit twice", async () => {
-    const caller = await loadCaller();
-    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e10" });
-    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e11" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
-    expect(h.claimTries).toBe(4); // a row claim and an alert claim per call
-  });
-
-  it("no callId: each escalate emits", async () => {
-    const caller = await loadCaller();
-    await caller.escalate({ reason: "x", callerNumber: CALLER });
-    await caller.escalate({ reason: "x", callerNumber: CALLER });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
-    expect(h.claimTries).toBe(0);
-  });
-
-  it("an emit that throws hands the claim back, so a retry emits", async () => {
-    h.callbackRequested.mockRejectedValueOnce(new Error("bus down"));
-    const caller = await loadCaller();
-    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e12" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1));
-    await until(() => expect([...h.claims].some((k) => k.startsWith("voice-callback:call_e12|"))).toBe(false));
-    await caller.escalate({ reason: "x", callerNumber: CALLER, callId: "call_e12" });
-    await until(() => expect(h.callbackRequested).toHaveBeenCalledTimes(2));
-  });
-});
-
 describe("Codex review on PR 3212", () => {
   it("P1: a fallback from the heads-up never re-asks the name; the row files with no name", async () => {
     h.textOnDutyManager.mockResolvedValue({ status: "pending", reason: "queued" });
@@ -391,19 +348,6 @@ describe("Codex review on PR 3212", () => {
     expect(settled!.status).toBe("walk_in_guidance");
     expect(h.recordExpectedArrival).toHaveBeenCalledTimes(1);
     expect([...h.claims].some((k) => k.startsWith("voice-arrival:call_c2|"))).toBe(true);
-  });
-
-  it("P2: a high-urgency escalate sends no direct Telegram; the bus event carries HIGH URGENCY", async () => {
-    await (await loadCaller()).escalate({ reason: "brakes gone", urgency: "high", callerNumber: CALLER, callId: "call_c3" });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
-    expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "HIGH URGENCY: brakes gone" }));
-    expect(h.sendTelegram).not.toHaveBeenCalled();
-  });
-
-  it("P2: a medium escalate passes the reason as said", async () => {
-    await (await loadCaller()).escalate({ reason: "status check", callerNumber: CALLER });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
-    expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ reason: "status check" }));
   });
 
   it.each(["need a tow truck", "tow truck referral", "tow truck number"])("P2: %j on a later day is not a tow", async (service) => {
@@ -614,33 +558,3 @@ describe("the text goes to the on-duty number, never the caller", () => {
   });
 });
 
-describe("escalate uses caller ID", () => {
-  it("{ reason, callerNumber } only → saved under caller ID as 'Caller', callbackRequested once", async () => {
-    const res = await (await loadCaller()).escalate({ reason: "wants the manager", callerNumber: CALLER, callId: "call_e1" });
-    expect(res).toMatchObject({ success: true });
-    expect(h.inserted).toHaveLength(1);
-    expect(h.inserted[0]).toMatchObject({ name: "Caller", phone: "2165550123" });
-    await vi.waitFor(() => expect(h.callbackRequested).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 20 });
-    expect(h.callbackRequested).toHaveBeenCalledWith(expect.objectContaining({ id: 77, name: "Caller", phone: "2165550123" }));
-  });
-
-  it("caller ID on file → the record's name", async () => {
-    h.customerRows = [{ firstName: "Raymond", lastName: "Smith" }];
-    await (await loadCaller()).escalate({ reason: "status check", callerNumber: CALLER });
-    expect(h.inserted[0]).toMatchObject({ name: "Raymond S.", phone: "2165550123" });
-  });
-
-  it("no 10-digit number anywhere → needs_number, no insert, no throw", async () => {
-    const res = await (await loadCaller()).escalate({ reason: "callback", callerNumber: "anonymous" });
-    expect(res).toMatchObject({ success: false, needs_number: true });
-    expect(h.inserted).toHaveLength(0);
-  });
-
-  it("DB failure → success:false with the NOT saved message, no throw", async () => {
-    h.insertFails = true;
-    const res = await (await loadCaller()).escalate({ reason: "callback", callerNumber: CALLER });
-    expect(res.success).toBe(false);
-    expect(res.message).toMatch(/NOT saved/);
-    expect(h.callbackRequested).not.toHaveBeenCalled();
-  });
-});

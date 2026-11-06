@@ -92,32 +92,40 @@ describe("the code default plan (first deploy, or a live destination with no pla
     expect(first.length).toBeLessThanOrEqual(60);
   });
 
+  it("the counter is told, never asked (Nour 2026-11-06: no asking the manager to take the call)", () => {
+    const first = plan.transferAssistant?.firstMessage ?? "";
+    const ASKS = /\?|say yes|take it|want (it|this)|can you/i;
+    expect("Caller on the line for Nick's. Say yes to take it.").toMatch(ASKS); // positive control: the old line
+    expect(first).not.toMatch(ASKS);
+    const rules = plan.transferAssistant?.model?.messages?.[0]?.content ?? "";
+    // Any live person connects; only a machine, silence or an explicit "can't take it" cancels.
+    expect(rules).toMatch(/live person[^.]*transferSuccessful immediately/i);
+    expect(rules).not.toMatch(/anything that is not a no/i);
+  });
+
   it("the caller hears ringback, not hold music", () => {
     expect(plan.holdAudioUrl).toMatch(/\/ringback\.wav$/);
   });
 
-  it("(4) the fallback hands the caller back with exactly one line that offers the callback", () => {
+  it("(4) the fallback hands the caller back with one line and no callback offer (2026-11-06)", () => {
     expect(plan.fallbackPlan?.endCallEnabled).toBe(false);
     const line = plan.fallbackPlan?.message ?? "";
-    expect(line).toMatch(/call you back/i);
-    expect((line.match(/\?/g) ?? []).length).toBe(1);
+    expect(line).toMatch(/nobody could grab the phone/i);
+    expect(line).not.toMatch(/call you back|\?/i);
     // Caller ID has the number (Nour, 2026-10-21): the line never asks for it.
     expect(line).not.toMatch(/number|name/i);
   });
 });
 
-describe("CALLBACK CAPTURE takes a best time and records nothing on a decline", () => {
+describe("NO ANSWER UP FRONT offers no callback and asks no best time (2026-11-06)", () => {
   const prompt = (buildAssistantConfig(SERVER).model.messages[0] as { content: string }).content;
-  const capture = sliceBlock(prompt, "## CALLBACK CAPTURE", "\n\n", { label: "receptionist prompt" });
+  const capture = sliceBlock(prompt, "## NO ANSWER UP FRONT", "\n\n", { label: "receptionist prompt" });
 
-  it("(4) asks when is good and passes it to escalate as bestTime", () => {
-    expect(capture).toMatch(/bestTime/);
+  it("gives the caller a way in instead of a callback", () => {
+    expect(capture).toMatch(/come by/i);
+    expect(capture).not.toMatch(/bestTime|good time/i);
     const tools = buildAssistantConfig(SERVER).model.tools as Array<{ type?: string; function?: { name?: string; parameters?: { properties?: Record<string, unknown> } } }>;
     const escalate = tools.find((t) => t.function?.name === "escalate");
-    expect(escalate?.function?.parameters?.properties).toHaveProperty("bestTime");
-  });
-
-  it("(5) a caller who says no is not escalated", () => {
-    expect(capture).toMatch(/says no[^.]*do NOT escalate/i);
+    expect(escalate?.function?.parameters?.properties).not.toHaveProperty("bestTime");
   });
 });

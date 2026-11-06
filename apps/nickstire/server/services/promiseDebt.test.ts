@@ -55,7 +55,7 @@ describe("promiseDebt", () => {
     h.execute.mockResolvedValueOnce([[{ open: 0, overdue: 0, overdue4h: 0 }]]);
     await promiseDebt();
     const q = flat(h.execute.mock.calls[0][0]);
-    expect(q.text).toContain("source_kind NOT IN (?, ?, ?)");
+    expect(q.text).toContain("source_kind NOT IN (?, ?, ?, ?)");
     expect(q.params).toEqual(expect.arrayContaining(["callback_request", "owed_reply", "emergency"]));
   });
 

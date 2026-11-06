@@ -18,7 +18,21 @@ export const LIST_INPUT = { states: [...RELEVANT_STATES], limit: 500, order: "wo
  * on a human reply (as owed texts). Today leaves them out of its follow-up rows and count so one person
  * is not counted twice; Sales Pipeline still shows them. Names from server/services/opportunityQueue.ts.
  */
-export const LISTED_ELSEWHERE_ON_TODAY: readonly string[] = ["callback", "human_pending_sms"];
+const LISTED_ELSEWHERE_ON_TODAY: readonly string[] = ["callback", "human_pending_sms"];
+
+/**
+ * Rows Today leaves out: the sources it lists elsewhere, the evaluator missed-call cards, and the receptionist's callback promises
+ * (owner "Front Counter"), retired 2026-11-06 but escalated before that. Sales Pipeline still shows them.
+ * shortcut: owner + type, not source_kind (older rows lack it); a person typing "Front Counter" as an
+ * owner would be hidden too. Upgrade if the sweep's evidence ever carries source_kind.
+ */
+export function hiddenOnToday(row: Pick<FollowUpRow, "sourceType" | "evidence">): boolean {
+  if (LISTED_ELSEWHERE_ON_TODAY.includes(row.sourceType)) return true;
+  // The evaluator's "a human call-back beats any text" cards: off Today (Nour, 2026-11-06: "off").
+  if (row.sourceType === "missed_call") return true;
+  const evidence = (row.evidence ?? null) as Record<string, unknown> | null;
+  return row.sourceType === "promise_overdue" && evidence?.promiseType === "callback" && evidence?.owner === "Front Counter";
+}
 
 /** Follow-up rows Today shows; the Pipeline shows the same five before Show all. */
 export const FOLLOW_UPS_ON_BOARD = 5;

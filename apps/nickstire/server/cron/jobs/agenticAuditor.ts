@@ -243,8 +243,9 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
           }
         }
 
-        // RULE 4 · submitCallback fired · verify a callbacks row exists
-        if (name === "submitCallback" || name === "submit_callback" || name === "escalate") {
+        // RULE 4 · submitCallback fired · verify a callbacks row exists. Not escalate: it
+        // promises no callback and writes no row since 2026-11-06.
+        if (name === "submitCallback" || name === "submit_callback") {
           const phone = String(args.phone ?? args.callbackPhone ?? row.phoneNumber ?? "")
             .replace(/\D/g, "")
             .slice(-10);

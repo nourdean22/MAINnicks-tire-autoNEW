@@ -89,6 +89,8 @@ export interface ActionItem {
   /** Numeric entity ID — needed to call mutations (mark-done, delete) */
   entityId: number;
   type: "booking" | "lead" | "callback" | "text" | "followUp";
+  /** Other callback ids from the same phone, folded into this row; completing it completes them too. */
+  alsoIds?: number[];
   name: string;
   detail: string;
   phone?: string | null;

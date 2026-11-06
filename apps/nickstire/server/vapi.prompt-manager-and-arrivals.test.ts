@@ -31,15 +31,15 @@ describe("no questions before a transfer or a callback", () => {
     expect(ASSISTANT_SYSTEM_PROMPT).toContain("OPEN → transferCall right away, no questions");
   });
 
-  it("escalate requires only a reason and is told caller ID supplies the number", () => {
+  it("escalate requires only a reason and asks for no number (2026-11-06: it records no callback)", () => {
     const esc = tool("escalate");
     expect(esc.parameters?.required).toEqual(["reason"]);
-    expect(esc.description).toContain("needs_number:true");
-    expect(esc.parameters?.properties?.phone?.description).toMatch(/Caller ID is used otherwise/);
+    expect(esc.description).not.toContain("needs_number");
+    expect(esc.parameters?.properties?.phone).toBeUndefined();
   });
 
-  it("a callback is promised only on success:true", () => {
-    expect(section("## CALLBACK CAPTURE", "\n\n")).toContain("only when it returns success:true");
+  it("no answer up front never offers a callback", () => {
+    expect(section("## NO ANSWER UP FRONT", "\n\n")).toContain("Never offer or promise a callback");
   });
 });
 

@@ -78,6 +78,8 @@ export interface CallMeta {
   existingCallbackForCall?: boolean;
   /** bookSlot already recorded the walk-in commitment (expected_arrivals.sourceRef = callId). */
   hasExpectedArrival?: boolean;
+  /** escalate ran (its marker exists): the caller was told to come in or call back (2026-11-06). */
+  escalated?: boolean;
 }
 
 /**
@@ -220,7 +222,7 @@ export function parseExtraction(raw: string, today?: string): ExtractedAction[] 
  * would duplicate any of them.
  */
 function callbackOwned(meta: CallMeta): boolean {
-  return meta.callbackId != null || meta.leadId != null || meta.existingCallbackForCall === true;
+  return meta.callbackId != null || meta.leadId != null || meta.existingCallbackForCall === true || meta.escalated === true;
 }
 
 /**
@@ -369,10 +371,11 @@ export async function maybeProposeCallActions(meta: CallMeta): Promise<Extractio
  */
 export async function loadCallCaptureEvidence(
   callId: string,
-): Promise<Pick<CallMeta, "leadId" | "callbackId" | "reachedTool" | "existingCallbackForCall" | "hasExpectedArrival">> {
+): Promise<Pick<CallMeta, "leadId" | "callbackId" | "reachedTool" | "existingCallbackForCall" | "hasExpectedArrival" | "escalated">> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
+    const { escalatedMarkerKey } = await import("./alertClaim");
     const db = await getDb();
     if (!db) return {};
     const likeCallId = `%callId=${callId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -384,7 +387,8 @@ export async function loadCallCaptureEvidence(
         EXISTS (SELECT 1 FROM callback_requests
                 WHERE createdAt >= NOW() - INTERVAL 7 DAY AND context LIKE ${likeCallId}) AS hasCallback,
         (EXISTS (SELECT 1 FROM expected_arrivals WHERE sourceRef = ${callId})
-          OR EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${callId}`})) AS hasArrival`);
+          OR EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${`voice-arrival:${callId}`})) AS hasArrival,
+        EXISTS (SELECT 1 FROM cron_alerts_fired WHERE alert_key = ${escalatedMarkerKey(callId)}) AS escalated`);
     const r = (rows as unknown as Array<Record<string, unknown>>)[0] ?? {};
     const fk = (v: unknown): number | null => {
       const n = Number(v);
@@ -396,6 +400,8 @@ export async function loadCallCaptureEvidence(
       reachedTool: Number(r.convertedToLead) === 1,
       existingCallbackForCall: Number(r.hasCallback) === 1,
       hasExpectedArrival: Number(r.hasArrival) === 1,
+      // escalate ran (2026-11-06): the caller was told to come in or call back, so not a missed call.
+      escalated: Number(r.escalated) === 1,
     };
   } catch (err) {
     log.warn("capture-evidence read failed — gate runs without it", {

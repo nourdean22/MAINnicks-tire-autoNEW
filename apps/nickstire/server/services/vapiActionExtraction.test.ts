@@ -245,6 +245,8 @@ describe("capture-aware gate — no draft for a kind a tool already captured", (
     expect(shouldExtract(meta({ callbackId: 41 }))).toBeNull();
     expect(shouldExtract(meta({ leadId: 9 }))).toBeNull();
     expect(shouldExtract(meta({ existingCallbackForCall: true }))).toBeNull();
+    // 2026-11-06: an escalated call was told to come in or call back; no callback draft for it.
+    expect(shouldExtract(meta({ escalated: true }))).toBeNull();
   });
 
   it("a linked callbackId owns the callback kind exactly like a callback row naming the call", () => {
@@ -259,6 +261,10 @@ describe("capture-aware gate — no draft for a kind a tool already captured", (
   const both = parseExtraction(
     '{"actions":[{"kind":"create_callback","reason":"call me back","confidence":90},{"kind":"create_booking_request","reason":"bring it in Friday","service":"brakes","confidence":80}]}',
   );
+
+  it("an escalated call yields zero drafts (the noise must not return through Approvals)", () => {
+    expect(dropAlreadyOwned(both, meta({ escalated: true })).kept).toEqual([]);
+  });
 
   it("drops the callback draft when a callback row already names this call", () => {
     const { kept, dropped } = dropAlreadyOwned(both, meta({ existingCallbackForCall: true }));
@@ -349,6 +355,7 @@ describe("loadCallCaptureEvidence — one bounded read, fails open", () => {
       reachedTool: true,
       existingCallbackForCall: true,
       hasExpectedArrival: false,
+      escalated: false,
     });
   });
 
