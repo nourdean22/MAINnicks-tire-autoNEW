@@ -1,7 +1,7 @@
 {
   "evidence": {
     "bridge-tests": {
-      "ref": "node --test tools/sovereign-dev/ai-playground.test.mjs: 101 passed, 0 failed, including secret-redaction, Windows ACL, eleven-server mapping, additive and disabled MCP selection, safe local model-path receipts, preserving restrictive inherited OpenCode permissions, rejecting malformed inline config, no assumed alternate-model limits, Windows interrupt cleanup, selected Companion alias in both config layers, skill instructions, and simultaneous isolated launches."
+      "ref": "node --test tools/sovereign-dev/ai-playground.test.mjs: 102 passed, 0 failed, including secret-redaction, Windows ACL, eleven-server mapping, additive and disabled MCP selection, safe local model-path receipts, preserving restrictive inherited OpenCode permissions, rejecting malformed inline config, no assumed alternate-model limits, Windows interrupt cleanup, selected Companion alias in both config layers with and without the GGUF suffix, skill instructions, and simultaneous isolated launches."
     },
     "harness-tests": {
       "ref": "claude plugin test .claude/mods/nourcity-harness: 20 passed, 0 failed; scheduled health reads never start the app."

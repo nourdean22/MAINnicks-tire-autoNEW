@@ -134,7 +134,8 @@ optional servers in the installed catalog are skipped in the default profile.
 The generated config runs OpenCode with its own local standalone server and sets
 the selected model in both the override and inline config, so project or
 background-session settings cannot silently route work elsewhere. For the
-recognized abliterated Qwen3.5 9B file, the regular coding shortcut selects a
+recognized abliterated Qwen3.5 9B model basename (whether or not its ID includes
+the `.gguf` suffix), the regular coding shortcut selects a
 fast alias with hidden reasoning disabled in the request; the Deep Think
 shortcut selects the same model ID with its normal reasoning behavior. Other
 models use the normal Companion alias. This changes request mode, not the GGUF

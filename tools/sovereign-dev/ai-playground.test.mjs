@@ -122,6 +122,25 @@ test('abliterated Qwen gets a fast alias on the same model ID with thinking disa
   assert.equal(result.health.modelId, qwenId);
 });
 
+test('abliterated Qwen model IDs without the GGUF suffix still select the fast alias', async t => {
+  const qwenId = 'Huihui-Qwen3.5-9B-abliterated.Q4_K_M';
+  const f = await setup(t, fixture(), { data: [{ id: qwenId }] });
+  const { inspectHealth, configure } = await bridge();
+  const result = await inspectHealth({ env: { LOCALAPPDATA: f.dir }, endpoint: f.endpoint,
+    runtime: async () => ({ playground: 'OFF', ports: [] }) });
+  assert.equal(result.health.status, 'OK', JSON.stringify(result.health));
+  await configure(result, { LOCALAPPDATA: f.dir }, {
+    writePrivate: async (filePath, payload) => writeFile(filePath, payload),
+  });
+  const config = JSON.parse(await readFile(f.output, 'utf8'));
+  const models = config.providers['ai-playground'].models;
+  assert.equal(config.model, 'ai-playground/companion-fast');
+  assert.equal(models['companion-fast'].modelID, qwenId);
+  assert.deepEqual(models['companion-fast'].body, {
+    chat_template_kwargs: { enable_thinking: false },
+  });
+});
+
 test('default abliterated launch pins the fast alias in OpenCode inline config', async t => {
   const qwenId = 'Huihui-Qwen3.5-9B-abliterated.Q4_K_M.gguf';
   const f = await setup(t, fixture(), { data: [{ id: qwenId }] });

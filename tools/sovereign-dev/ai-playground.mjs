@@ -26,10 +26,11 @@ const decodedValue = value => { try { return decodeURIComponent(value); } catch 
 const CODING_MCP_SERVERS = new Set();
 const LOCAL_COMPANION_MODEL = 'ai-playground/companion';
 const LOCAL_COMPANION_FAST_MODEL = 'ai-playground/companion-fast';
-const QWEN_ABLITERATED_FILE = 'huihui-qwen3.5-9b-abliterated.q4_k_m.gguf';
+const QWEN_ABLITERATED_MODEL = 'huihui-qwen3.5-9b-abliterated.q4_k_m';
 
 function preferredModelAlias(modelId) {
-  return path.win32.basename(modelId ?? '').toLowerCase() === QWEN_ABLITERATED_FILE
+  const modelFile = path.win32.basename(modelId ?? '').replace(/\.gguf$/i, '').toLowerCase();
+  return modelFile === QWEN_ABLITERATED_MODEL
     ? LOCAL_COMPANION_FAST_MODEL : LOCAL_COMPANION_MODEL;
 }
 
