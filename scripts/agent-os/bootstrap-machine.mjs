@@ -222,6 +222,10 @@ export function plan(home) {
     copyFileSync(file, to);
   };
   const fileItem = (label, src, dest) => {
+    // Every folder between the config dir and a nested dest too: copyFileSync follows a linked parent (Codex 4494924419).
+    for (let d = dirname(dest); relative(claude, d) && !relative(claude, d).startsWith(".."); d = dirname(d)) {
+      if (linkRefused(d, `~/.claude/${fwd(relative(claude, d))}`)) return;
+    }
     if (linkRefused(dest, label)) return;
     const have = read(dest);
     const state = have === null ? "MISSING" : have.equals(readFileSync(src)) ? "ok" : "DRIFT";

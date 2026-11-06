@@ -845,6 +845,16 @@ test("finding 4: a link at the hooks or skills folder refuses: nothing is writte
   }
 });
 
+test("Codex 4494924419: a link at a nested destination's parent (~/.claude/output-styles) refuses: nothing is written through it", () => {
+  const home = makeHome("link-output-styles");
+  const target = join(SCRATCH, "link-target-output-styles");
+  mkdirSync(target, { recursive: true });
+  symlinkSync(target, join(home, ".claude", "output-styles"), "junction");
+  const before = mtimes(home);
+  assertRefused(runOn(home), home, before, /REFUSE.*~\/\.claude\/output-styles is a link/);
+  assert.deepEqual(readdirSync(target), [], "the install wrote through the link");
+});
+
 test("finding 5: rules already outside the block are dropped from it; the standing-orders block and his text stay byte for byte", () => {
   const home = makeHome("dupes");
   const orders = "<!-- nourcity-standing-orders:begin -->\n## Standing orders\n\nkeep\n<!-- nourcity-standing-orders:end -->\n";

@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFil
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { layerProblems, merge } from "./auto-mode-layer.mjs";
+import { installed, layerProblems, merge } from "./auto-mode-layer.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -29,6 +29,13 @@ function fixture(label, layer = LAYER) {
 test("positive control: the shipped layer passes the gate and keeps $defaults in every list it sets", () => {
   assert.deepEqual(layerProblems(LAYER), []);
   for (const k of ["environment", "allow", "soft_deny"]) assert.ok(LAYER.autoMode[k].includes("$defaults"), k);
+});
+
+test("merge allow (Codex 4494924444) covers merge-gate only without review-wait overrides, which need the user's own order", () => {
+  const rule = LAYER.autoMode.allow.find((e) => e.includes("merge-gate.mjs"));
+  assert.match(rule, /--codex-wait-minutes 0/);
+  assert.match(rule, /without (?:any )?review-wait override/i);
+  assert.match(rule, /override[^.]*user's own (?:message|order)/i);
 });
 
 test("gate: a list without $defaults, an allow rule, a mode or a broad ask rule refuses", () => {
@@ -62,6 +69,30 @@ test("merge: machine entries stay, ours are added once, an entry we installed an
   const dropped = merge(once, { autoMode: rest }, LAYER);
   assert.deepEqual(dropped.autoMode.soft_deny, ["$defaults"]);
   assert.deepEqual(dropped.permissions.ask, ["Bash(mine *)"]);
+});
+
+test("ledger (Codex 4494924397): a rule the machine had before the first run is not recorded as ours, so dropping it later keeps it", () => {
+  const ours = LAYER.autoMode.allow.find((e) => e !== "$defaults");
+  const machine = { autoMode: { allow: ["$defaults", ours] } };
+  const rec = installed(machine, LAYER);
+  assert.ok(!rec.autoMode.allow.includes(ours), "a pre-existing machine rule was recorded as installed");
+  const once = merge(machine, LAYER);
+  const shrunk = { ...LAYER, autoMode: { ...LAYER.autoMode, allow: ["$defaults"] } };
+  assert.ok(merge(once, shrunk, rec).autoMode.allow.includes(ours), "the machine's own rule was deleted");
+  // A rule we added is still recorded, and one we recorded before stays recorded.
+  assert.ok(installed({}, LAYER).autoMode.allow.includes(ours));
+  assert.ok(installed(once, LAYER, installed({}, LAYER)).autoMode.allow.includes(ours));
+});
+
+test("cli (Codex 4494924384): with no --home, CLAUDE_CONFIG_DIR picks the settings file, as Claude Code does", () => {
+  const f = fixture("config-dir");
+  const dir = join(SCRATCH, "config-dir-alt");
+  write(join(dir, "settings.json"), "{}");
+  const e = { ...process.env, CLAUDE_CONFIG_DIR: dir, HOME: f.home, USERPROFILE: f.home };
+  const r = spawnSync(process.execPath, [join(SCRATCH, "config-dir", "scripts", "agent-os", "auto-mode-layer.mjs")], { encoding: "utf8", env: e });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")).autoMode, "CLAUDE_CONFIG_DIR settings.json was not written");
+  assert.equal(JSON.parse(f.settings()).autoMode.soft_deny, undefined, "wrote ~/.claude/settings.json instead");
 });
 
 test("cli: a corrupt install ledger refuses with a REFUSE line and writes nothing", () => {

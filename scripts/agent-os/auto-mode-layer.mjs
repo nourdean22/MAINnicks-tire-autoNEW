@@ -49,10 +49,18 @@ export function merge(settings, layer, prev = { autoMode: {}, ask: [] }) {
   return s;
 }
 
+/** What this script owns after a merge: entries it owned before, plus entries the machine did not have (Codex 4494924397). */
+export function installed(settings, layer, prev = { autoMode: {}, ask: [] }) {
+  const own = (want = [], have = [], old = []) => want.filter((e) => e !== "$defaults" && (old.includes(e) || !have.includes(e)));
+  const autoMode = {};
+  for (const k of LISTS) if (layer.autoMode?.[k]) autoMode[k] = own(layer.autoMode[k], settings.autoMode?.[k], prev.autoMode?.[k]);
+  return { autoMode, ask: own(layer.ask, settings.permissions?.ask, prev.ask) };
+}
+
 function main() {
   const args = process.argv.slice(2);
-  const home = args.includes("--home") ? resolve(args[args.indexOf("--home") + 1]) : homedir();
-  const claude = join(home, ".claude");
+  // --home pins the fixture dir; otherwise the dir Claude Code loads: CLAUDE_CONFIG_DIR when set (Codex 4494924384).
+  const claude = args.includes("--home") ? join(resolve(args[args.indexOf("--home") + 1]), ".claude") : process.env.CLAUDE_CONFIG_DIR ? resolve(process.env.CLAUDE_CONFIG_DIR) : join(homedir(), ".claude");
   const layerFile = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "config", "agent-os", "auto-mode-layer.json");
   const layer = JSON.parse(readFileSync(layerFile, "utf8"));
   const problems = layerProblems(layer);
@@ -63,7 +71,7 @@ function main() {
   try { settings = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {}; } catch { console.log("REFUSE  ~/.claude/settings.json is not valid JSON: fix it by hand first"); process.exit(1); }
   let prev;
   try { prev = existsSync(ledger) ? JSON.parse(readFileSync(ledger, "utf8")) : undefined; } catch { console.log("REFUSE  ~/.claude/auto-mode-layer.installed.json is not valid JSON: delete it by hand, then run again"); process.exit(1); }
-  const record = `${JSON.stringify({ autoMode: layer.autoMode ?? {}, ask: layer.ask ?? [] }, null, 2)}\n`;
+  const record = `${JSON.stringify(installed(settings, layer, prev), null, 2)}\n`;
   // Write beside, then rename: a session starting now never reads half a settings file.
   const put = (f, text) => { writeFileSync(`${f}.tmp`, text); renameSync(`${f}.tmp`, f); };
   const next = merge(settings, layer, prev);
