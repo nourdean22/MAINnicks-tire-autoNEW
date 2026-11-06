@@ -154,12 +154,12 @@ estimate - the same job Shop OS is meant to own.
   Invoices & Statements** (keep accounting away from counter users), **Require PO**, **Identifix Access**
   (Username/Password or Dealer), **Landing Page** (choose any menu page as the start screen).
 
-## 9. Not reached this pass
+## 9. Not reached (after the gap-closing pass in section 11)
 
-Plate lookup (not submitted - plates are customer data), Item and Interchange search modes from the header,
-Help Center, Car Care Program, Product Knowledge, Sales and Promotions, VOC/EPA page, the Suite-Stakes details,
-what "VIC Orders" are, Start Quote, Place Order, the Discrepancy form, whether greyed Alt Location rows can be
-ordered, and the Identifix hand-off.
+Plate lookup (not submitted - plates are customer data); Start Quote and Place Order (would create records);
+whether greyed Alt Location rows can be ordered (would mean trying to order); the Identifix hand-off (needs a
+separate login); and what "VIC Orders" are - the Help Center returned **503 Service Temporarily Unavailable**
+during the pass and a web search found nothing, so it stays UNKNOWN (ask the Fisher branch).
 
 ## 10. What changes elsewhere in the plan
 
@@ -174,6 +174,61 @@ ordered, and the Identifix hand-off.
    build must implement.
 4. Ask the Fisher branch the same three questions as Capital Tire: delivery runs and cutoffs from C185OH, how
    fast a part moves from another Fisher store or a warehouse, and whether those can be ordered online.
+
+## 11. Gap-closing pass (same day, Nour's request: "Finish Federated gaps")
+
+**Interchange search mode (OBSERVED).** Searching the Advance Auto pad number `PXD2036H` returned every
+equivalent the catalog knows (ADVICS, PowerStop, Raybestos, SST, Wagner, plus pad-and-hardware kits), each graded
+primary or secondary, with the disclaimer banner - and a **live green stock dot only on the equivalent the home
+store has on hand** (SST D2036C). This is the "customer walks in with an AutoZone/Advance quote" flow: competitor
+number in, what-we-can-sell-today out.
+
+**Item Search mode.** Part number `D2036C` returns the single row with three provenance icons, all labeled in
+the page: a book icon **"Item found in Catalog data."**, a star **"This Brand is a Primary Brand"** (the store's
+preferred line), and on the stock figure **"Information supplied by Member's System"** (price and on-hand come
+from the Fisher store's own system, not Federated's catalog). The Part Type pane also has **"Report missing Part
+Type for selected vehicle"** (the speech-bubble icon), and By Popularity is a sort toggle.
+
+**Catalog Discrepancy Feedback form (opened, cancelled, nothing saved).** One dialog for both report types:
+Type (**Lost Sale** or **Catalog Discrepancy**) -> Reason -> Optional Information -> contact info + Comment,
+with **a screenshot of the part row auto-attached** as a thumbnail. Lost Sale reasons: Insufficient quantity on
+hand / Not on master inventory / Out of stock (no minimum set) / Price too high. Catalog Discrepancy reasons:
+Incorrect Image / Incorrect Part Application. Optional information for both: **Price** and **Competitor**
+(Advance Auto, AutoZone, eBay, NAPA, O'Reilly, Rock Auto, or Enter Other). Save stays disabled until a reason is
+picked.
+
+**Catalog selector (third icon).** Non-vehicle catalogs: **Commodities** (shop supplies - absorbents,
+additives, antifreeze, batteries, brake fluid, cleaners, DEF, oil by viscosity, refrigerant oil, transmission
+fluids...) and **Paint & Body Supplies**, in the same three-pane layout (Category | Sub-category with
+type-ahead | Selected Sub-Categories).
+
+**Suite-Stakes (public rules page, opened in a new tab, then closed).** Federated's Aug 1 - Oct 31 2026 trade
+promotion for registered installer customers: 1 entry for registering; **5 entries per $1,000 of "supporting
+vendor" purchases per month**; **5 more per $500 of "strategic vendor" purchases** once the $1,000 monthly
+threshold is met; **entries double in any month that is up 10% or more on the same month last year**. Drawing on
+or about Nov 6 2026; prizes range from gift cards and tools to trips. The header pill ("$X - N entries" against
+a $1,000 track) is this month's progress toward that threshold. Whether Nick's registered is not shown.
+
+**Car Care Program (installer view).** Federated's nationwide network of independent shops. Member benefits:
+**Nationwide Warranty** (12 month/12,000 mile and 24/24 terms, three coverage levels, enrollment required),
+**180-day roadside assistance** for the shop's customers, Tire and Road Hazard plans (incl. AWD), signage,
+on-hold messaging, business website, MechanicNet (Epicor) customer-retention marketing, AutoPass instant
+customer credit, lease financing, training (ASE reimbursement), Cintas, insurance. A document library lists
+each with start/end dates. Whether Nick's is enrolled is UNKNOWN.
+
+**Product Knowledge.** Manufacturer training videos and webinars (SMP monthly webinar, K-Seal Academy, AP
+Exhaust catalytic converter clinic, BBB/SilentStop, KYB) and sell sheets (oil API/ILSAC standards, 1234yf
+refrigerant facts, Littelfuse chart, product features and benefits).
+
+**Sales and Promotions.** Current flyers (Installer, Farm/Fleet/Marine, Paint & Body, Tools & Equipment), all
+valid through 12/30/2026, store-branded (Fisher Auto Parts).
+
+**VOC/EPA - Regulated Sales.** A static list, by manufacturer line code, of part numbers that **cannot be stocked
+or sold in listed states** (several CRC, 3M and Gunk chemicals list **OH**), lead wheel weights banned in IL,
+MD, NY and VT, plus links to each state's VOC rules. It is a page, not a flag on the catalog row - nothing stops
+an Ohio shop from adding a restricted item to the cart.
+
+**Help Center:** returned 503 during the pass (vendor outage).
 
 ## Redaction note
 

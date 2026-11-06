@@ -44,6 +44,8 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `priceStatus: priced / not_priced` | 25 rows with Cost N/A | Not-priced offers are shown but never win Best Price |
 | `promo?: {programId, name}` | 24 Spotlights, 23 programs, 25 tracker | Lets the counter filter to rebate-eligible items |
 | `rawDescription` | 24 unparsed strings like `225/65R17~NEX~N Priz S~B/4 BW 102V TL` | Parse as fallback when structured spec fields are missing |
+| `sourceTags[]` per figure: `catalog_fitment / supplier_live / cached / manual`, plus `preferredBrand` | 25 provenance icons ("Item found in Catalog data", "Primary Brand", "Information supplied by Member's System") | Every number on an offer card says where it came from (row 33) |
+| `restrictedStates[]` | 25 VOC/EPA page (several chemicals list OH) | Shown on the card; blocks the order line for the shop's state unless overridden with a reason (row 35) |
 
 Per-vendor static fallback until an API says otherwise: a hand-entered table of route runs and cutoffs per
 supplier branch (from the rep questions in 24 and 25), clearly labeled "schedule, not live".
@@ -65,8 +67,18 @@ and add-ons (flat or per-unit, taxable flag); fees from shop defaults: disposal 
 per-unit cap or flat each, sales tax; vehicle + mileage; notes; convert to ticket in one action.
 
 **DeclineReason** (lost sale) - `price | timing | not_needed_now | went_elsewhere | just_shopping | availability
-| specs`, optional `competitor`, `competitorPrice`; one tap on any declined estimate or quote line; feeds
-declined-work follow-up. (24 section 10, 25 section 5c)
+| specs`, optional `competitor` (pick list: Advance Auto, AutoZone, NAPA, O'Reilly, Rock Auto, eBay, other -
+as in Federated's form) and `competitorPrice`; one tap on any declined estimate or quote line; feeds
+declined-work follow-up. (24 section 10, 25 sections 5c and 11)
+
+**Warranty terms per line** - the quote and invoice carry the warranty that applies (shop's own, or a program
+such as Federated's Nationwide Warranty 12/12 or 24/24 if Nick's is enrolled - UNKNOWN) and any road-hazard
+plan, so the customer document states coverage. (25 section 11)
+
+**VendorProgram** - `{vendor, name, period, rules}` where rules can be spend thresholds, strategic-vendor
+bonuses and year-over-year growth multipliers (Federated Suite-Stakes: 5 entries per $1,000/month, +5 per $500
+of strategic vendors after the threshold, double if up 10%+ YoY); shows progress like 23's gauge. Programs
+inform, never decide, which offer wins. (23, 24, 25)
 
 **JobKit** - a named job (Brake Replacement) that pre-selects part types (hose, master cylinder, caliper, pin
 kit, pads, rotors) plus labor ops, each removable. (25 Total Job, 21 package jobs, 23 Create Package)
