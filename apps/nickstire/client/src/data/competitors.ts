@@ -426,7 +426,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Open 7 days. Its Cleveland store on W 117th St lists Sunday 9am to 5pm",
       "Full-service: tires, brakes, oil changes, alignment and check-engine diagnostics",
       "Free written estimate on repairs, with a minimum three-month/4,000-mile warranty on parts and service",
-      "Tire installs include mounting, balancing and an alignment check, plus a tire rotation offer",
+      "Tire installs include mounting, balancing and an alignment check, and free lifetime tire rotations",
     ],
     weaknesses: [
       "It is a multi-store chain, not a single owner-run shop",
