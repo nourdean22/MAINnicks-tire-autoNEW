@@ -4,7 +4,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,15 +25,15 @@ after(async () => {
 });
 const stub = (opts) => startMcpStub(opts).then((s) => { stubs.push(s); return s; });
 
-function config(hosts) {
-  const file = join(SCRATCH, `local-services-${hosts.join("-") || "none"}.json`);
-  writeFileSync(file, JSON.stringify({ version: 1, hosts, servers: [{ name: "graphify", port: 8765, path: "/mcp", kind: "graphify" }], clients: ["claude"] }));
+function config(hosts, remoteUrl) {
+  const file = join(SCRATCH, `local-services-${hosts.join("-") || "none"}${remoteUrl ? "-remote" : ""}.json`);
+  writeFileSync(file, JSON.stringify({ version: 1, hosts, servers: [{ name: "graphify", port: 8765, path: "/mcp", kind: "graphify", ...(remoteUrl && { remoteUrl }) }], clients: ["claude"] }));
   return file;
 }
 
-/** Run the script; resolves { port } once it prints its listening line, or { code, err } if it exits first. */
-function forward(upstream, { hosts = ["NOT-THIS-PC"], args = ["--upstream", upstream] } = {}) {
-  const child = spawn(process.execPath, [SCRIPT, "--config", config(hosts), "--port", "0", ...args], { stdio: ["ignore", "pipe", "pipe"] });
+/** Run the script; resolves { port } once it prints its listening line, or { code, err } if it exits first. `remoteUrl` goes in the config instead of the flag. */
+function forward(upstream, { hosts = ["NOT-THIS-PC"], args = ["--upstream", upstream], remoteUrl } = {}) {
+  const child = spawn(process.execPath, [SCRIPT, "--config", config(hosts, remoteUrl), "--port", "0", ...args], { stdio: ["ignore", "pipe", "pipe"] });
   children.push(child);
   return new Promise((resolve) => {
     let out = "";
@@ -109,6 +109,19 @@ test("a PC that serves the graph itself refuses to forward, and nothing listens"
   const r = await forward("http://127.0.0.1:1/mcp", { hosts: [HOST] });
   assert.equal(r.code, 1);
   assert.match(r.err, /serves the graph itself/);
+});
+
+test("consumer: with no flag the upstream is the remoteUrl of local-services.json, and the committed one is a real https address", async () => {
+  const up = await stub();
+  const f = await forward(null, { args: [], remoteUrl: `http://127.0.0.1:${up.port}/mcp` });
+  assert.equal(await mcpProbe(f.port, "/mcp", "graphify"), "up", "remoteUrl in the config must be what the forwarder talks to");
+
+  const shipped = JSON.parse(readFileSync(join(dirname(SCRIPT), "..", "..", "config", "agent-os", "local-services.json"), "utf8"));
+  const graphify = shipped.servers.find((s) => s.kind === "graphify");
+  const u = new URL(graphify.remoteUrl);
+  assert.equal(u.protocol, "https:");
+  assert.equal(u.pathname, graphify.path, "the served path must match the path every program asks for");
+  assert.ok(!shipped.hosts.includes("NICKSMAX") && !shipped.hosts.includes("MECHANICS"), "a client PC must not be listed as a serving host");
 });
 
 test("no upstream anywhere is a stated error, not a silent default", async () => {
