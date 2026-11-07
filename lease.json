@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/fast-replies",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\gsc-messaging-receptionist-audit-8884c1\\.worktrees\\fast-replies",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-11-07T15:26:12.679Z",
+  "expiresAt": "2026-11-08T03:26:12.679Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
