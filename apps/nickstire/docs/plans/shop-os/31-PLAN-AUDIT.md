@@ -15,7 +15,9 @@ Method stolen from doc 30: one receipt per claim, the label says how far the evi
    tools", "PartsTech covers everything", "Ctrl+K is new", "only PA gives cutoffs", two stale lines in 13,
    a count of 28.
 3. The biggest truth: the repair-order skeleton is built but has no screen. Work orders, estimates and the staff side
-   of inspections have 0 client callers; dispatch has 3 of 32 procedures wired. /system does not exist.
+   of inspections have 0 client callers for their writers; the only client read of work orders is the read-only
+   open-work-orders table on Customer360 (`customers.history`, `Customer360Panel.tsx:586`), reusable, not a
+   repair-order screen. Dispatch has 3 of 34 procedures wired. /system does not exist.
 4. Two code defaults contradict Ohio's rule and must flip before any screen ships: work orders start `approved`, and
    every line defaults to approved with no pending state and no 10% re-approval gate.
 5. The ALG mirror is headers only, by design (SHOP-PROTECT), and every probe logs the counter out.
@@ -60,7 +62,9 @@ Labels: F FACT, H HISTORICAL, C CLAIM, S STRONG INFERENCE, U UNKNOWN, R REFUTED.
 | 27 | Per-location Submit By / Departure table: H. IMC punchout for Mitchell 1: C (public page, 20:136); ALLDATA C; R.O. Writer unread. "IMC will connect to Shop OS": S at best. |
 | 28 | Per-SKU "In Store By / If Ordered By": H, matched by 30's JSON. 1% e-sales earn-back: H, terms U. Direct API to single shops: C, a request path only (20:26). |
 | 29 | Ohio reseller exemption on the account, PO on the label, per-line receiving: H. "No Shop OS tax feature needed": loose; 14 row 63 and 26:88 keep a `purchaseUse` field. |
-| 30 | ALG labor-time endpoint: U, no labor-guide code in repo (grep exit 1). Mirror stops at summary endpoints: F (`shopDriverMirror.ts:378-384,563-571`). Gateway cutoff body U: partly R, code parses `cutofftime[]` (`gatewaySupplierOrder.ts:209-215`). Ticket field names: H. |
+| 30 | ALG labor-time endpoint: U for a live vehicle-specific ShopDriver/ALG endpoint; the repo has its own built-in
+labor guide (`server/routers/autoLabor.ts`: categories, searchJobs, calculateLabor) wired at `IntegrationsSection.tsx:173-186`,
+so a plan extends that fallback rather than rebuilding it. Mirror stops at summary endpoints: F (`shopDriverMirror.ts:378-384,563-571`). Gateway cutoff body U: partly R, code parses `cutofftime[]` (`gatewaySupplierOrder.ts:209-215`). Ticket field names: H. |
 | Plan file | Tasks 1-3 target `server/services/sourcing/*`: F that nothing exists there; the drafts use other paths. Task 5 order preview: partly built for D&K only (`gatewayOrder.ts:141,219`). Tasks 4, 6-10: not started. |
 
 ## 3. Contradictions, settled by the newest evidence
@@ -102,7 +106,7 @@ Wiring test: router key in `server/routers.ts` plus `git grep -lE "trpc\.<router
 |---|---|---|
 | Work orders (20 procedures) | `routers.ts:188`; 0 client callers | BUILT+UNWIRED |
 | Estimate -> work order | `server/routers/estimates.ts` generate, convertToWorkOrder; 0 callers | BUILT+UNWIRED |
-| Dispatch (bays, assign, clock, QC, comebacks) | `routers.ts:189`; client uses 3 of 32 procedures | 3 WIRED, 29 UNWIRED |
+| Dispatch (bays, assign, clock, QC, comebacks) | `routers.ts:189`; `dispatch.ts` exposes 34 procedures, client calls track, expectedArrivals, phoneTireDemandToday | 3 WIRED, 31 UNWIRED |
 | Staff inspection side (create, addItem, publish, photo) | `server/routers/services.ts`; no client caller | BUILT+UNWIRED |
 | Customer inspection link | `App.tsx:382`; `InspectionReport.tsx` byToken, decideItem | BUILT+WIRED |
 | Line defaults: order `approved`, line approved true | `workOrderService.ts:141,179`; `schema.ts:2321` | BUILT, wrong for Ohio |
@@ -111,7 +115,8 @@ Wiring test: router key in `server/routers.ts` plus `git grep -lE "trpc\.<router
 | D&K supplier order, cutoff read | `routers.ts:179`; `GatewayOrderPanel.tsx`; writes env-gated | BUILT+WIRED |
 | Text me this quote | `routers.ts:183`; no status lifecycle | BUILT+WIRED |
 | Ask assistant, approval queue | `routers.ts:194`; `server/services/proposals.ts:116` | BUILT+WIRED |
-| Customer360, Ctrl+K search, /pay, /portal | `pages/admin/customers/Customer360Panel.tsx`; `CommandSearch.tsx:742`; `App.tsx:414,390` | BUILT+WIRED |
+| Customer360, Ctrl+K search, /portal | `pages/admin/customers/Customer360Panel.tsx`; `CommandSearch.tsx:742`; `App.tsx:414,390` | BUILT+WIRED |
+| /pay | lookup and call-to-pay wired (`PayInvoice.tsx:36,41`); online checkout unwired: `createPaymentIntent` and `confirmPayment` (`payments.ts:92`) have no client caller, the page says "Online payment coming soon" (`PayInvoice.tsx:186`) | WIRED lookup, UNWIRED checkout |
 | Roles, MFA gate, audit_log | `shared/adminPermissions.ts`; `adminSecurity.ts:26`; `schema.ts:2768` | BUILT+WIRED (MFA off by default) |
 | Declined-work recovery lane | `server/cron/index.ts:665`; `RevenueSection.tsx:15` | BUILT+WIRED (ALG estimates only) |
 | Counter decline tap | `server/routers/advanced/invoices.ts:838`; no reason field | BUILT+WIRED (0132 applied, `truth_os.md:350`; row use U) |
@@ -122,7 +127,7 @@ Wiring test: router key in `server/routers.ts` plus `git grep -lE "trpc\.<router
 | Supplier-offer contract, sourcing router | drafts PR 3568, 3571; not on main | MISSING on main |
 | Quote entity, ShopIdentity, scoped price rules, JobKit | docs-only grep hits | MISSING |
 | /system routes, settings history, ALG labor client | client grep exit 1; `schema.ts:1186` updatedBy only | MISSING |
-| Tables with no screen (technicians, bays, time clock, payments, inventory, customer_vehicles) | `schema.ts:966-3020` | BUILT schema; rows U |
+| Tables with no screen (technicians, bays, time clock, payments, inventory) | `schema.ts:966-3020`; customer_vehicles is surfaced at /my-garage (`MyGaragePage.tsx:215`, add/delete wired) and is not in this list | BUILT schema; rows U |
 
 ## 5. Open owner decisions
 
