@@ -7,16 +7,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { normalizeTireSize } from "@shared/sourcing";
 import { adminProcedure, router } from "../_core/trpc";
-import { GATEWAY_PORTAL_BASE, getLastGatewayFailure, searchTiresBySize } from "../services/gatewayClient";
+import { GATEWAY_PORTAL_BASE, searchTiresWithReason } from "../services/gatewayClient";
 import { gatewayItemsToOffers } from "../services/sourcingGateway";
 
 /** Tire suppliers the shop buys from that have no connection here yet: named on screen so a blank is not read as "none". */
 const NOT_CONNECTED = ["ATD", "Capital Tire"];
-
-function failureSince(iso: string): string {
-  const f = getLastGatewayFailure();
-  return f && new Date(f.at).getTime() >= Date.parse(iso) ? f.reason : "no_answer";
-}
 
 export const sourcingRouter = router({
   compareTires: adminProcedure.input(z.object({ size: z.string().max(40) })).query(async ({ input }) => {
@@ -25,9 +20,11 @@ export const sourcingRouter = router({
       throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a size like 225/65R17. LT sizes are not supported yet." });
     }
     const lookedUpAt = new Date().toISOString();
-    const rows = await searchTiresBySize(size);
+    const { rows, reason } = await searchTiresWithReason(size);
     const portalUrl = `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(size)}`;
-    const status = rows === null ? "unavailable" : rows.length === 0 ? "no_results" : "live";
+    const offers = rows ? gatewayItemsToOffers(rows, { size, verifiedAt: lookedUpAt }) : [];
+    // Rows that were all malformed are a failed answer, not an empty one.
+    const status = rows === null || (rows.length > 0 && offers.length === 0) ? "unavailable" : rows.length === 0 ? "no_results" : "live";
     return {
       size,
       lookedUpAt,
@@ -36,14 +33,13 @@ export const sourcingRouter = router({
           id: "gateway_dk",
           name: "Gateway Tire (D&K)",
           status: status as "live" | "no_results" | "unavailable",
-          // The reason code only: the failure detail can carry account text. Only a failure recorded during this
-          // call counts; most search failures record none, and an older one would name the wrong cause.
-          reason: rows === null ? failureSince(lookedUpAt) : null,
+          // This call's own short code: the shared last-failure slot can hold another caller's failure.
+          reason: status !== "unavailable" ? null : (reason ?? "bad_rows"),
           portalUrl,
         },
       ],
       notConnected: NOT_CONNECTED,
-      offers: rows ? gatewayItemsToOffers(rows, { size, verifiedAt: lookedUpAt }) : [],
+      offers,
     };
   }),
 });

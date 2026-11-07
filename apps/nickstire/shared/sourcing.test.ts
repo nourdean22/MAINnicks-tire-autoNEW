@@ -116,6 +116,17 @@ describe("compareOffers: Quickest arrival ranks where the part is first", () => 
     expect(byKey(r, "a:1:local").reasons.join(" ")).toMatch(/16 min ago.*call to confirm/i);
   });
 
+  it("15 minutes and 10 seconds old is past the limit, even though it rounds to 15", () => {
+    const r = run([offer("a", "1", { lastVerifiedAt: new Date(NOW.getTime() - 15 * 60_000 - 10_000).toISOString() })]);
+    expect(r.quickest).toBeNull();
+    expect(byKey(r, "a:1:local").reasons.join(" ")).toMatch(/15 min ago.*call to confirm/i);
+  });
+
+  it("two rows with one part number at one branch get different keys", () => {
+    const r = run([offer("a", "DUP", { unitPrice: 90 }), offer("a", "DUP", { unitPrice: 70 })]);
+    expect(new Set(r.candidates.map((c) => c.key)).size).toBe(2);
+  });
+
   it("exactly 15 minutes old still counts as live", () => {
     expect(run([offer("a", "1", { lastVerifiedAt: min(-15) })]).quickest?.key).toBe("a:1:local");
   });

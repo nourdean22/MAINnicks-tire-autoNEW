@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { pickWholesaleCost } from "./gatewayClient";
 
 /**
@@ -35,5 +35,55 @@ describe("pickWholesaleCost — D&K inverted pricing fields", () => {
     expect(pickWholesaleCost({})).toBe(0);
     expect(pickWholesaleCost({ pricing_data: [] })).toBe(0);
     expect(pickWholesaleCost(item([{ cost_price: "n/a", selling_price: "call" }]))).toBe(0);
+  });
+});
+
+/**
+ * searchTiresWithReason gives back THIS call's failure reason (a short code, never account text), so a caller
+ * does not read the shared last-failure slot that another Gateway call may have written meanwhile.
+ */
+describe("searchTiresWithReason — the reason belongs to this call", () => {
+  const KEYS = ["GATEWAY_TIRE_USERNAME", "GATEWAY_TIRE_PASSWORD", "GATEWAY_TIRE_SHIP_TO"] as const;
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+  async function search(route: (path: string) => Response, shipTo: string | null = "SHIP-TO") {
+    process.env.GATEWAY_TIRE_USERNAME = "u";
+    process.env.GATEWAY_TIRE_PASSWORD = "p";
+    if (shipTo) process.env.GATEWAY_TIRE_SHIP_TO = shipTo;
+    else delete process.env.GATEWAY_TIRE_SHIP_TO;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => route(new URL(String(input)).pathname)));
+    vi.resetModules();
+    const { searchTiresWithReason } = await import("./gatewayClient");
+    return searchTiresWithReason("225/65R17");
+  }
+  const tokenThen = (search: () => Response) => (path: string) => (path === "/token" ? reply({ access_token: "t" }) : search());
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("rows and no reason when the search answers with a list", async () => {
+    expect(await search(tokenThen(() => reply([{ dk_part_number: "A" }])))).toEqual({ rows: [{ dk_part_number: "A" }], reason: null });
+  });
+
+  it("no ship-to set", async () => {
+    expect(await search(() => reply({}), null)).toEqual({ rows: null, reason: "ship_to_not_set" });
+  });
+
+  it("login refused", async () => {
+    expect(await search(() => reply({ detail: "account 12345 rejected" }, 500))).toEqual({ rows: null, reason: "login_failed" });
+  });
+
+  it("search refused, with its status", async () => {
+    expect(await search(tokenThen(() => reply({}, 503)))).toEqual({ rows: null, reason: "search_http_503" });
+  });
+
+  it("an answer that is not a list", async () => {
+    expect(await search(tokenThen(() => reply({ items: [] })))).toEqual({ rows: null, reason: "bad_shape" });
   });
 });

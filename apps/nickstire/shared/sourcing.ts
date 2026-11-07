@@ -138,6 +138,7 @@ function rankOne(
   nowMs: number,
   schedules: Readonly<Record<string, SupplierSchedule>>,
   offerIndex: number,
+  skuIsUnique: boolean,
 ): Candidate {
   const reasons: string[] = [];
   let speed = true;
@@ -172,7 +173,8 @@ function rankOne(
   else if (landed === UNKNOWN) reasons.push("Fees not stated - call for the total");
   if (landed === UNKNOWN) price = false;
 
-  const ageMin = Math.round((nowMs - Date.parse(o.lastVerifiedAt)) / MINUTE);
+  const ageMs = nowMs - Date.parse(o.lastVerifiedAt);
+  const ageMin = Math.round(ageMs / MINUTE); // shown only; the limit is checked on the unrounded age
   const sched = schedules[o.supplierId];
   let window: Candidate["window"] = UNKNOWN;
   const { tier, at, orderBy, atIs } = l.arrival;
@@ -181,7 +183,7 @@ function rankOne(
   const orderByMs = orderBy === UNKNOWN ? NaN : Date.parse(orderBy);
   if (!sched && !stated) {
     reasons.push("No delivery schedule on file for this supplier");
-  } else if (!Number.isFinite(ageMin) || ageMin > (sched?.shelfMaxAgeMinutes ?? DEFAULT_SHELF_MAX_AGE_MINUTES)) {
+  } else if (!Number.isFinite(ageMs) || ageMs > (sched?.shelfMaxAgeMinutes ?? DEFAULT_SHELF_MAX_AGE_MINUTES) * MINUTE) {
     reasons.push(`Stock checked ${Number.isFinite(ageMin) ? `${ageMin} min ago` : "at an unknown time"} - call to confirm`);
   } else if (tier === "unknown") {
     reasons.push("No arrival information - call to confirm");
@@ -204,8 +206,8 @@ function rankOne(
   if (window === UNKNOWN) speed = false;
 
   return {
-    // A row with no part number gets its position, so two of them stay apart.
-    key: `${o.supplierId}:${o.sku || `#${offerIndex}`}:${l.branchCode}`,
+    // A row with no part number, or one that shares it with another row, gets its position, so they stay apart.
+    key: `${o.supplierId}:${skuIsUnique ? o.sku : `${o.sku}#${offerIndex}`}:${l.branchCode}`,
     offer: o,
     location: l,
     landedUnit: landed,
@@ -246,7 +248,10 @@ export function compareOffers(
 ): Comparison {
   const need = Math.max(1, Math.floor(qtyNeeded));
   const nowMs = now.getTime();
-  const all = offers.flatMap((o, i) => o.locations.map((l) => rankOne(o, l, need, nowMs, schedules, i)));
+  const skuRows = new Map<string, number>();
+  for (const o of offers) skuRows.set(`${o.supplierId}:${o.sku}`, (skuRows.get(`${o.supplierId}:${o.sku}`) ?? 0) + 1);
+  const unique = (o: SupplierOffer) => !!o.sku && skuRows.get(`${o.supplierId}:${o.sku}`) === 1;
+  const all = offers.flatMap((o, i) => o.locations.map((l) => rankOne(o, l, need, nowMs, schedules, i, unique(o))));
 
   const fast = all.filter((c) => c.canWinQuickest).sort(bySpeed);
   // Doc 26: offers in one tier whose run windows overlap are a speed tie; price decides between them.

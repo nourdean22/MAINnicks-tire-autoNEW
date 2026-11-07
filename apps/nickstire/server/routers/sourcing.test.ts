@@ -6,9 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   rows: null as Record<string, unknown>[] | null,
-  failure: null as { at: string; reason: string; detail?: string } | null,
-  /** Set by the search itself, as gatewayClient does when this call fails. */
-  failDuring: null as { reason: string; detail?: string } | null,
+  /** The reason this call's search gives back when it fails. */
+  reason: "no_answer" as string,
   searched: [] as string[],
 }));
 
@@ -18,13 +17,15 @@ vi.mock("../services/gatewayClient", () => ({
     const p = (item.pricing_data as Record<string, number>[] | undefined)?.[0];
     return p && p.selling_price > 0 ? p.selling_price : 0;
   },
-  searchTiresBySize: async (size: string) => {
+  searchTiresWithReason: async (size: string) => {
     h.searched.push(size);
-    if (h.failDuring) h.failure = { at: new Date().toISOString(), ...h.failDuring };
-    return h.rows;
+    return { rows: h.rows, reason: h.rows === null ? h.reason : null };
   },
-  getLastGatewayFailure: () => h.failure,
+  // Another Gateway caller (fitment, a health probe) failing while this search runs.
+  getLastGatewayFailure: () => ({ at: new Date().toISOString(), reason: "Search 401 - someone else's call" }),
 }));
+
+import { hasAdminPermission, permissionForAdminProcedure, ADMIN_ROLES } from "@shared/adminPermissions";
 
 import { sourcingRouter } from "./sourcing";
 
@@ -49,8 +50,7 @@ const ROW = {
 
 beforeEach(() => {
   h.rows = null;
-  h.failure = null;
-  h.failDuring = null;
+  h.reason = "no_answer";
   h.searched = [];
 });
 
@@ -67,17 +67,23 @@ describe("sourcing.compareTires", () => {
   });
 
   it("a failed lookup is 'unavailable' with the reason and the portal link, not an empty list", async () => {
-    h.failDuring = { reason: "login_failed", detail: "account 12345 rejected" };
+    h.reason = "login_failed";
     const r = await compare("225/65R17");
     expect(r.suppliers[0]).toMatchObject({ status: "unavailable", reason: "login_failed" });
     expect(r.suppliers[0].portalUrl).toContain("b2b.dktire.com");
-    expect(JSON.stringify(r)).not.toContain("12345");
   });
 
-  it("a failure left over from an earlier call is not given as this call's reason", async () => {
-    h.failure = { at: new Date(Date.now() - 60_000).toISOString(), reason: "Search 401 - token expired/revoked" };
+  it("a failure another Gateway caller records meanwhile is not given as this call's reason", async () => {
     const r = await compare("225/65R17");
     expect(r.suppliers[0]).toMatchObject({ status: "unavailable", reason: "no_answer" });
+    expect(JSON.stringify(r)).not.toContain("someone else");
+  });
+
+  it("an answer whose every row is malformed is 'unavailable', not a live empty list", async () => {
+    h.rows = [null, 7, "x"] as unknown as Record<string, unknown>[];
+    const r = await compare("225/65R17");
+    expect(r.suppliers[0]).toMatchObject({ status: "unavailable", reason: "bad_rows" });
+    expect(r.offers).toEqual([]);
   });
 
   it("an empty answer is 'no_results'", async () => {
@@ -90,6 +96,12 @@ describe("sourcing.compareTires", () => {
   it("a size it cannot read is refused before any supplier call", async () => {
     await expect(compare("LT265/70R17")).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(h.searched).toEqual([]);
+  });
+
+  it("dealer cost: only owner and manager may call it, whatever the client shows", () => {
+    const need = permissionForAdminProcedure("sourcing.compareTires", "query");
+    const allowed = ADMIN_ROLES.filter((role) => hasAdminPermission(role, need));
+    expect(allowed).toEqual(["owner", "manager"]);
   });
 
   it("is admin-only", async () => {
