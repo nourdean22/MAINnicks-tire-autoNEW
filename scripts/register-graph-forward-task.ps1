@@ -38,7 +38,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAM
 # time would stay dead until the next logon. A start while it runs is ignored twice over (IgnoreNew below, and the port
 # is taken), so the repeat costs nothing while it is healthy.
 $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10) `
-    -RepetitionDuration ([TimeSpan]::MaxValue)).Repetition
+    -RepetitionDuration (New-TimeSpan -Days 3650)).Repetition  # MaxValue serialises out of range (HRESULT 0x80041318)
 
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
