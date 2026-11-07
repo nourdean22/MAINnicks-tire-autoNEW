@@ -29,7 +29,7 @@ ticket system beside ALG (double entry), DOM scraping of supplier portals (doc 0
 | Layer | Owner | What it is | State today |
 |---|---|---|---|
 | Ticket of record, labor book | ALG (Real-Time Labor Guide PRO) | tickets, customers, vehicles, lines, payments, labor hours | LIVE; mirrored read-only (`shopDriverMirror.ts`) |
-| Counter, quote, sourcing, approval | ours, `apps/nickstire` | six screens under `/system`, supplier adapters, shop-owned objects | Backend BUILT+UNWIRED: work orders, estimate-to-work-order, dispatch and the staff side of inspections exist with 0 client callers (`workOrderService.ts`, `dispatch.ts`; doc 31 item 3). `/inspection/:token` BUILT+WIRED (`App.tsx:382`). `/system` MISSING (routes and look fixed in doc 10) |
+| Counter, quote, sourcing, approval | ours, `apps/nickstire` | six screens under `/system`, supplier adapters, shop-owned objects | Backend BUILT+UNWIRED: work orders, estimate-to-work-order and the staff side of inspections have 0 client callers; dispatch has 3 of 34 procedures wired; Customer360 shows open work orders read-only (`workOrderService.ts`, `dispatch.ts`, `Customer360Panel.tsx:586`; doc 31 item 3). `/inspection/:token` BUILT+WIRED (`App.tsx:382`). `/system` MISSING (routes and look fixed in doc 10) |
 | Texts, calls, reviews, admin | ours, already live | SMS lane with daily cap and opt-out, receptionist, callbacks, `/admin` | LIVE on nickstire.org |
 
 Doc 01 says "option A, build"; doc 05 says "buy the core, build the brain". They agree once ALG is the core being
@@ -94,7 +94,7 @@ the flag off and the next phase waits.
 | Tire finder, fitment, online orders | LIVE | quick quote reuses fitment and sell rules so web and counter price the same |
 | Supplier adapters | SCHEMATIC (doc 30) | one offer contract (doc 26 s.3, amended by 30): `qty` may be `{atLeast: n}`, `availabilityTiers[]` for ATD and PA, `orderableByThisAccount` UNKNOWN until an order response is captured, `arrival.at` UNKNOWN for Gateway and PA; today's adapter returns 0 when unpriced (`gatewayClient.ts:251`), fixed in phase 0 |
 | Shop-owned objects | DESIGNED (doc 26 s.3) | `ShopIdentity`, `SellPriceRule`, `Quote`, `DeclineReason`, `JobKit`, `PartCrossRef`, `CatalogIssue`, `SupplierOrderDraft`; `DeclineReason` extends the existing decline table (`schema.ts:1553`, no reason column today) and `Quote` extends the existing decline tap and Text-me-this-quote path (doc 31 row 08); new TiDB tables via `nickstire-tidb-ddl` only where no table fits |
-| Repair-order backend (work orders, estimate-to-WO, dispatch, staff inspection) | BUILT+UNWIRED (0 client callers) | the board, tech phone and approval page sit on these, no second model |
+| Repair-order backend (work orders, estimate-to-WO, dispatch, staff inspection) | BUILT+UNWIRED (dispatch 3 of 34 wired; Customer360 open-work-orders table is the one read-only view) | the board, tech phone and approval page sit on these, no second model |
 | Six screens | MISSING | this plan |
 | Supplier-compare builds (PR 3568, PR 3571 v2) | PARKED, draft | neither merges until phase 3's adapters are proven against doc 30 fixtures; the better one is adopted then |
 
