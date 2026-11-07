@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "docs/supplier-gap-gate",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "58620067-8522-4b8f-bfd2-2c5658484796",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\supplier-gap-gate",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-11-07T12:41:57.213Z",
+  "expiresAt": "2026-11-08T00:41:57.213Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
