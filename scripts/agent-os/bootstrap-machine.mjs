@@ -386,6 +386,20 @@ export function missingPlugins(home, routing) {
   return { missing: (routing.required ?? []).filter((p) => !have.has(p.name)), warnings: readErrors };
 }
 
+/** node, git and claude versions as short strings; a tool not on PATH is null. claude is a .cmd shim on Windows, hence cmd.exe. */
+export function toolVersions() {
+  const WIN = process.platform === "win32";
+  const first = (cmd) => {
+    const r = WIN
+      ? execFileSync(join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe"), ["/d", "/c", cmd, "--version"], { encoding: "utf8", timeout: 15_000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] })
+      : execFileSync(cmd, ["--version"], { encoding: "utf8", timeout: 15_000, stdio: ["ignore", "pipe", "ignore"] });
+    // "git version 2.55.0.windows.5" -> "2.55.0.windows.5"; "2.1.317 (Claude Code)" -> "2.1.317".
+    return r.trim().split("\n")[0].replace(/^git version /, "").split(/\s/)[0] || null;
+  };
+  const tool = (cmd) => { try { return first(cmd); } catch { return null; } };
+  return { node: process.version, git: tool("git"), claude: tool("claude") };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const i = argv.indexOf("--home");
@@ -414,6 +428,9 @@ function main() {
   }
   if (check) {
     for (const x of items) process.stdout.write(`[bootstrap] ${x.state.padEnd(7)} ${x.label}\n`);
+    // Two PCs can both read clean and still run different tools (Nour, 2026-11-07): the versions ride the same output.
+    const v = toolVersions();
+    process.stdout.write(`[bootstrap] versions node ${v.node} | git ${v.git ?? "not on PATH"} | claude ${v.claude ?? "not on PATH"}\n`);
     process.stdout.write(`[bootstrap] ${bad.length ? `${bad.length} item(s) to fix: run without --check` : "clean"}\n`);
     return bad.length ? 1 : 0;
   }
