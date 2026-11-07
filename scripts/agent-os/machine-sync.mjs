@@ -50,7 +50,7 @@ const git = (cwd, args, timeout = 20_000) => {
 export function pullMain(repo) {
   const branch = git(repo, ["rev-parse", "--abbrev-ref", "HEAD"]);
   if (branch !== "main") return { pulled: false, pullSkipped: `on ${branch}, not main` };
-  if (git(repo, ["status", "--porcelain"])) return { pulled: false, pullSkipped: "uncommitted changes in the checkout" };
+  if (git(repo, ["status", "--porcelain", "--untracked-files=no"])) return { pulled: false, pullSkipped: "uncommitted changes in the checkout" };
   const before = git(repo, ["rev-parse", "HEAD"]);
   git(repo, ["pull", "--ff-only", "origin", "main"], 120_000);
   return { pulled: git(repo, ["rev-parse", "HEAD"]) !== before, pullSkipped: null };

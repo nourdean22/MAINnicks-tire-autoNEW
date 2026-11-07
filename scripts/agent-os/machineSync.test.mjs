@@ -144,3 +144,12 @@ test("the task is wired: local-services.json lists NOURCITY-Machine-Sync, its re
   assert.match(ps1, /RepetitionInterval \(New-TimeSpan -Hours 1\)/, "and every hour");
   assert.match(ps1, /MultipleInstances IgnoreNew/);
 });
+
+test("an untracked file in the checkout does not block the pull (ff-only already refuses to clobber one)", () => {
+  const f = fixture("untracked");
+  writeFileSync(join(f.clone, "scratch.log"), "stray\n");
+  const r = run(f);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(git(f.clone, "rev-parse", "HEAD"), f.originHead, "a stray untracked file must not stop the sync");
+  assert.equal(receipt(f).pulled, true);
+});
