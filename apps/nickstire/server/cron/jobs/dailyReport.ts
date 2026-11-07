@@ -35,6 +35,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     // text used to say "$0 revenue" on a failed read — unknown is not $0.
     let revenue: number | null = null;
     let leadCount = 0;
+    let leadsRead = false;
     let reviewCount = 0;
     try {
       const { getShopPulse } = await import("../../services/nickIntelligence");
@@ -48,6 +49,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
       const rawLeads = await db.execute(sql`SELECT source, callbackId FROM leads WHERE DATE(createdAt) = ${today}`);
       const leadRows = (Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads) as unknown as Array<{ source?: string | null; callbackId?: number | null }>;
       leadCount = countActionableLeads(leadRows);
+      leadsRead = true;
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
 
     // Send rich Telegram summary instead of thin SMS
@@ -60,6 +62,13 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
         reviews: reviewCount,
       });
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
+
+    // A confirmed 0/0 day is noise on the owner's phone (2026-11-07 audit); Telegram above
+    // and the log keep the record. A failed lead read is unknown, so it still texts.
+    if (Number(bookingCount) === 0 && leadsRead && leadCount === 0) {
+      log.info("Daily report SMS muted (0 bookings, 0 leads)", { revenue });
+      return { recordsProcessed: 0, details: `sms muted (0 bookings, 0 leads) · Revenue: ${revenue === null ? "unknown (read failed)" : `$${revenue}`}` };
+    }
 
     // Still send SMS as backup
     const revenueText = revenue === null ? "revenue unknown (read failed)" : `$${revenue} revenue`;

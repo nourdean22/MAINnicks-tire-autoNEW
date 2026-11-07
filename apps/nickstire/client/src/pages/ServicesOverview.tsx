@@ -68,7 +68,7 @@ const QUICK_PATHS = [
   { href: "/oil-change", title: "OIL CHANGES", detail: "Walk in" },
   { href: "/emissions", title: "E-CHECK", detail: "Failure repair" },
   { href: "/auto-repair-near-me", title: "SUSPENSION", detail: "Struts & shocks" },
-  { href: "/wheel-alignment-cleveland", title: "STEERING", detail: "Alignment" },
+  { href: "/wheel-alignment-cleveland", title: "STEERING", detail: "Alignment near me" },
   {
     href: "/financing",
     title: "PAYMENT OPTIONS",

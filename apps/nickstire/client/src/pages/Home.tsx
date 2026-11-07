@@ -948,8 +948,8 @@ export default function Home() {
           and the old "pay only when satisfied" overpromise is replaced with
           the site's real approval-gate wording. */}
       <SEOHead
-        title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description={`Used tires ${BUSINESS.usedTires.priceDisplay} (select 12-inch; ${BUSINESS.usedTires.typicalBand.replace(/ installed$/, "")}), brakes & repairs, Euclid Ave. Open ${BUSINESS.hours.sunday}, walk in 7 days, written quote first. ${BUSINESS.phone.display}`}
+        title="Nick's Tire & Auto · Tires Near Me Cleveland · Open 7 Days"
+        description={`Used tires ${BUSINESS.usedTires.priceDisplay} (select 12-inch; ${BUSINESS.usedTires.typicalBand.replace(/ installed$/, "")}), new tires ${BUSINESS.newTires.priceDisplay}. Euclid Ave, Cleveland. Walk in 7 days, written quote first. ${BUSINESS.phone.display}`}
         canonicalPath="/"
       />
       <LocalBusinessSchema includeReviews />
@@ -1069,7 +1069,7 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
             <a href="/brakes" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
-            <a href="/wheel-alignment-cleveland" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
+            <a href="/wheel-alignment-cleveland" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment Near Me</a>
             <a href="/oil-change" className="text-foreground/70 hover:text-primary transition-colors">Oil Change</a>
             <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Check Engine Light Diagnostics</a>
             <a href="/tires" className="text-foreground/70 hover:text-primary transition-colors">Tire Finder</a>

@@ -36,14 +36,14 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/",
     priority: 1.0,
     changefreq: "weekly",
-    title: "Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid",
-    // 2026-08-19 · unified with Home.tsx SEOHead (the two strings had drifted —
-    // prerender overwrites meta description from HERE while og:description came
-    // from the component, so the SERP snippet and social card disagreed).
-    // Adds the Sunday differentiator (market check 2026-08-19: Conrad's
-    // Downtown, Best Buy/Confident and AutoCheck are all CLOSED Sunday).
-    // Title deliberately untouched: 2x-GSC-tuned and it matches SEOHead.
-    description: "Used tires from $25 installed (select 12-inch; most $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005",
+    // 2026-11-07 audit (docs/audits/gsc-sms-receptionist-audit-2026-11-07.md): the homepage
+    // serves "tire shop(s) near me" and "used tires near me" (2,376 impressions, 0.3-0.7% CTR).
+    // Brand stays first (the previous title was GSC-tuned twice); "near me" and "Open 7 Days"
+    // are the test. Kill read 2026-12-05: those CTRs double or this reverts.
+    title: "Nick's Tire & Auto · Tires Near Me Cleveland · Open 7 Days",
+    // Must match Home.tsx SEOHead exactly: prerender overwrites meta description from HERE
+    // while og:description comes from the component (drift witnessed 2026-08-19).
+    description: "Used tires from $25 installed (select 12-inch; most sizes $40-80), new tires from $89 installed. Euclid Ave, Cleveland. Walk in 7 days, written quote first. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -234,8 +234,8 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/wheel-alignment-cleveland",
     priority: 0.85,
     changefreq: "monthly",
-    title: "Wheel Alignment Cleveland · Same-Day · Free Pull-Check | Nick's",
-    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. ★4.9 · 1,710+ reviews. (216) 862-0005",
+    title: "Wheel Alignment Near Me · Cleveland · Free Check | Nick's",
+    description: "Wheel alignment near me in Cleveland: 4 wheel alignment, same-day, walk-in 7 days. Free alignment check before any work. ★4.9 · 1,710+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -477,7 +477,7 @@ const SERVICE_PAGES: RouteEntry[] = [
   { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's", description: "Cleveland car AC repair, leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland · We Try Fluid First | Nick's", description: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Cleveland · Trace, Don't Swap | Nick's", description: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Car Battery Cleveland · Free Test, 5-Minute Install | Nick's", description: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Battery Replacement Cleveland · Free Test | Nick's", description: "Battery replacement in Cleveland, installed on the spot. Free load and alternator test first, so you know which one failed. Walk in 7 days. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's", description: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/cooling", priority: 0.8, changefreq: "monthly", title: "Radiator Repair Cleveland · Stop The Steam Cloud | Nick's", description: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Used Car Inspection Cleveland · Before You Sign | Nick's", description: "Cleveland pre-purchase inspection. The 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },

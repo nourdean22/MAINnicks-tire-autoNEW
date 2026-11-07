@@ -42,10 +42,10 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // 2026-10-07 · from the registry, not a literal: the literal here matched
   // AlignmentPage's exactly, so /alignment and this page shared one <title>.
   title: getRouteByPath("/wheel-alignment-cleveland")?.title ?? "",
-  description: `Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any wrench moves. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
-  eyebrow: "WHEEL ALIGNMENT CLEVELAND · WALK-IN 7 DAYS",
-  h1: "WHEEL ALIGNMENT CLEVELAND.\nFREE PULL-CHECK · YOU DON'T PAY UNTIL YOU SAY YES.",
-  sub: "Car pulling left like it has somewhere to be? Steering wheel crooked when you're going straight? Tires wearing on the inside edge? Nick's Tire & Auto on Euclid Ave — Hunter rack, computerized four-wheel alignment, 45 minutes start to finish, walk-in 7 days. We pull-check free first so you know whether the car actually needs alignment or whether it's something else (tire pressure, suspension, balance). Serving Cleveland, Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and the surrounding metro — pull up any day we're open.",
+  description: `Wheel alignment near me in Cleveland: four-wheel alignment on Euclid Ave, free alignment check first, walk in 7 days. Written quote before any work, you don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
+  eyebrow: "WHEEL ALIGNMENT NEAR ME · CLEVELAND · WALK-IN 7 DAYS",
+  h1: "WHEEL ALIGNMENT NEAR ME IN CLEVELAND.\nFREE PULL-CHECK · YOU DON'T PAY UNTIL YOU SAY YES.",
+  sub: `Looking for a wheel alignment near me in Cleveland? Nick's Tire & Auto is at ${BUSINESS.address.street}. ${BUSINESS.model.walkIns}, no appointment needed. Pulling to one side, a crooked steering wheel or tires wearing on the inside edge? Start with the free alignment check, our pull-check, so you know whether the car needs an alignment or something else (tire pressure, suspension, balance). Computerized four-wheel alignment takes about 45 minutes, and drop-offs get same-day service. We serve ${BUSINESS.serviceAreas.slice(0, 8).join(", ")} and nearby.`,
   startingPrice: "Free pull-check · written quote · walk-in 7 days",
   pricingTitle: "ALIGNMENT PRICING — STRAIGHTFORWARD",
   pricingSub: "Pull-check is free. If alignment is needed, you get the price in writing before we touch the wheels — you don't pay until you say yes.",
@@ -84,8 +84,16 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   ],
   faqs: [
     {
-      q: "How much does a wheel alignment cost in Cleveland?",
-      a: "Two-wheel alignment from $69. Four-wheel alignment from $89 — the right call for ~90% of Cleveland vehicles. Post-collision or specialty alignments (camber kits, rear shims) from $129. The pull-check before alignment is free — we tell you whether the car actually needs alignment before charging for it.",
+      q: "Where can I get a car alignment near me in Cleveland?",
+      a: `Nick's Tire & Auto, ${BUSINESS.address.full}. ${BUSINESS.model.walkIns}, no appointment needed (${BUSINESS.hours.display}). Drop-offs get same-day service. We serve ${BUSINESS.serviceAreas.slice(0, 8).join(", ")} and nearby.`,
+    },
+    {
+      q: "Do you do a 4 wheel alignment?",
+      a: "Yes. A 4 wheel alignment sets all four wheels to the manufacturer spec with a computerized laser rack. It is the standard for SUVs, trucks and any car with independent rear suspension. Some older front-wheel-drive cars only need the front axle done, and we will tell you which one yours is at the free alignment check.",
+    },
+    {
+      q: "What is the alignment cost in Cleveland?",
+      a: "Two-wheel alignment from $69. Four-wheel alignment from $89, the right call for ~90% of Cleveland vehicles. Post-collision or specialty alignments (camber kits, rear shims) from $129. The alignment check before any work is free, and you get the price in writing before we touch the wheels.",
     },
     {
       q: "How long does a wheel alignment take?",
@@ -96,7 +104,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
       a: "Cleveland's potholes + winter freeze-thaw cycle mean most local drivers benefit from a check every 12 months OR after any pothole-induced impact, any suspension work, any tire purchase, or any visible uneven tread wear. Twice yearly (spring + fall) is normal for cars that see a lot of city driving.",
     },
     {
-      q: "How do I know if my car needs an alignment?",
+      q: "How do I know if I need an alignment check?",
       a: "Three primary signs: (1) the car pulls left or right when you let go of the wheel on a straight road; (2) the steering wheel is crooked when the car is going straight; (3) the tires wear unevenly — usually on the inside or outside shoulder. Other signs include vibration in the steering wheel, fuel economy drop, and the steering wheel feeling \"loose.\" The pull-check is free — drive in and we'll tell you.",
     },
     {

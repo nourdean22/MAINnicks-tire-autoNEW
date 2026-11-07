@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
+import { promptDialog } from "@/components/admin/ConfirmDialog";
 import {
   Cpu,
   ChevronLeft,
@@ -145,7 +147,20 @@ export default function SmsOrchestratorSection() {
   const handleActionReview = async (id: number, action: "send" | "edit_and_send" | "resolve" | "bad_suggestion") => {
     try {
       const editedMessage = reviewEdits[id];
-      await actionHumanReviewMutation.mutateAsync({ id, action, editedMessage });
+      try {
+        await actionHumanReviewMutation.mutateAsync({ id, action, editedMessage });
+      } catch (error) {
+        // "resolve" on a real customer ask is refused without a reason: ask for one and retry.
+        if (action !== "resolve" || !(error instanceof TRPCClientError) || error.data?.code !== "BAD_REQUEST") throw error;
+        const reason = await promptDialog({
+          title: "Why does this text need no reply?",
+          message: error.message,
+          input: { label: "Reason", placeholder: "Spoke on the phone, came in, wrong number" },
+          confirmLabel: "Dismiss without replying",
+        });
+        if (reason === null) return;
+        await actionHumanReviewMutation.mutateAsync({ id, action, editedMessage, reason });
+      }
       // clear edit text state
       setReviewEdits(prev => {
         const copy = { ...prev };

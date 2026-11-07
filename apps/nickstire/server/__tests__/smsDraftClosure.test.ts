@@ -38,6 +38,8 @@ vi.mock("../sms", () => ({ sendSms: (...a: unknown[]) => h.sendSms(...a) }));
 
 vi.mock("../services/smsResponseJobs", () => ({
   resolveHumanPendingForConversation: (...a: unknown[]) => h.resolveHumanPending(...a),
+  // No open real ask in these rows: the no-silent-close rule is covered in smsNoReplyReason.test.ts.
+  planNoReplyClose: async () => ({ ok: true, jobIds: [9001] }),
 }));
 
 vi.mock("../db", () => ({
@@ -288,7 +290,7 @@ describe("actionHumanReview", () => {
     await caller().actionHumanReview({ id: 77, action: "resolve" });
     expect(h.updates).toHaveLength(1);
     expect(whereOf(h.updates[0].where).params).toEqual([77, "received"]);
-    expect(h.resolveHumanPending).toHaveBeenCalledWith(501, "no_reply_required");
+    expect(h.resolveHumanPending).toHaveBeenCalledWith(501, "no_reply_required", { reason: undefined, jobIds: [9001] });
   });
 
   it("bad_suggestion rejects the wording but leaves the customer's obligation open", async () => {

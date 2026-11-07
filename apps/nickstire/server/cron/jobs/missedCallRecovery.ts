@@ -374,6 +374,9 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
     // C5.5 round 2: a pause set mid-run stops the loop before the next claim.
     let heldMidRun: string | null = null;
     let notAttempted = 0;
+    // 14-day per-phone cooldown + awaiting-reply hold (2026-11-07 audit), counted by reason.
+    const { loadForwardedFollowupHold } = await import("../../services/forwardedFollowupHold");
+    const followupHolds: Record<string, number> = {};
     const batch = eligible.slice(0, RUN_CAP);
     for (const [i, row] of batch.entries()) {
       // Re-read the pause before every claim (a fresh read: the start gate's cached answer may be stale).
@@ -383,6 +386,11 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         notAttempted = batch.length - i;
         log.info("Missed-call recovery held mid-run", { reason: midRunHold, notAttempted });
         break;
+      }
+      const followupHold = await loadForwardedFollowupHold(db, row.phoneNumber!, new Date(now));
+      if (followupHold) {
+        followupHolds[followupHold] = (followupHolds[followupHold] ?? 0) + 1;
+        continue; // unclaimed: the next run re-checks, the hold decides again
       }
       // Claim BEFORE send: stamp metadata.recoverySmsAt only if still null.
       // A crash after the send leaves it stamped → no re-text next run.
@@ -413,10 +421,12 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
         "receipt",
       );
     }
+    const heldText = Object.entries(followupHolds).map(([reason, n]) => `${reason}=${n}`).join(" · ");
+    if (heldText) log.info("Missed-call recovery held by the follow-up cooldown", followupHolds);
     if (heldMidRun) {
-      return { recordsProcessed: processed, shadow: false, candidates, callbackRows, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · sent=${processed}` };
+      return { recordsProcessed: processed, shadow: false, candidates, callbackRows, details: `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · sent=${processed}${heldText ? ` · held · ${heldText}` : ""}` };
     }
-    return { recordsProcessed: processed, shadow: false, candidates, callbackRows };
+    return { recordsProcessed: processed, shadow: false, candidates, callbackRows, ...(heldText ? { details: `held · ${heldText}` } : {}) };
   } catch (err) {
     // Re-throw (2026-10-02): this used to return { recordsProcessed: 0, shadow: true }, so a
     // broken run on a LIVE customer-texting lane was filed in cron_log as a completed shadow
