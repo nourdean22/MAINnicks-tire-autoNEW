@@ -920,3 +920,9 @@ test("finding 7: a malformed layer is a REFUSE on every path, never a crash or a
   const before = mtimes(home);
   assertRefused(runOn(home, { script }), home, before, /REFUSE.*user-layer\.json/);
 });
+
+test("--check prints the tool versions on one line (node, git, claude), so two clean PCs can still be told apart", () => {
+  const home = makeHome("versions");
+  const r = run(home, "--check");
+  assert.match(r.out, /^\[bootstrap\] versions node v\d+\.\d+\.\d+ \| git \S+ \| claude \S+$/m);
+});

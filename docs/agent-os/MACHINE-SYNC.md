@@ -83,6 +83,41 @@ Adding an action is one allowlist entry plus its line in `HARNESS_ACTIONS` (a te
 Nick's `runHarnessAction` enum. v1 holds read-only actions only; an action that writes or restarts anything gets
 `needsGo: true`, which every door refuses until an approval path exists.
 
+## Automatic sync (2026-11-07)
+
+Nour, 2026-11-07: "make sync automatic instead of asked ... a Windows scheduled task on every machine that pulls main and
+runs the machine check at login and every hour". Job `2026-11-07-machine-sync-task`. Nobody types "are we in sync" again:
+the PC does it and leaves a receipt.
+
+| Piece | Where |
+|---|---|
+| The run: pull `origin/main` (ff-only, only on a clean `main`), then `bootstrap-machine.mjs` in REPAIR mode (not `--check`), then node / git / claude versions | `scripts/agent-os/machine-sync.mjs` (`--check` = dry run, `--status` = print the last receipt) |
+| The task: `NOURCITY-Machine-Sync`, at logon (1 min delay) and every hour, one instance at a time, 10 min limit | `scripts/register-machine-sync-task.ps1` (primary checkout only, refuses a worktree) |
+| The receipt: `{at, host, sha, pulled, pullSkipped, bootstrap: {mode, exit, state}, versions, ok}` | `%LOCALAPPDATA%\nourcity\machine-sync.json` |
+| Health: listed in `local-services.json` `tasks`, so `session-health` reports it MISSING or `FAILED <last result>` on NATTYNOUR | `config/agent-os/local-services.json` |
+| The versions line in every check, so two "clean" PCs on different tools can be told apart | `bootstrap-machine.mjs --check` prints `[bootstrap] versions node vX \| git Y \| claude Z` |
+
+Register it on a PC, from the primary checkout:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-machine-sync-task.ps1
+node scripts/agent-os/machine-sync.mjs --status
+```
+
+Rules the run keeps: a checkout with uncommitted changes or on another branch is never pulled over; the receipt records
+why and the run exits 1 (the task's Last Result shows it). Drift that bootstrap can repair is repaired, with backups,
+the same as running it by hand. Exit 1 means NOT IN SYNC: the pull was skipped or bootstrap still has an item to fix.
+
+Not on the board yet (follow-up B, a second PR where `apps/` exists): `harness-snapshot.mjs` sends the receipt as a `sync`
+field, `harness-status.ts` accepts it (the `.strict()` schema refuses unknown fields today), and both harness cards show
+one line per PC: `main abc1234 (pulled) | bootstrap clean | node v26 ... | 12 min ago`. Until then a client PC's sync
+state is visible only in its receipt file and in the task's Last Result; NATTYNOUR's shows in `session-health`.
+
+Nour's steps for the 2026-11-07 list: (2) reach every PC from one session: save SSH between the three PCs, or turn on
+Remote Control folders in the Claude app on each (Settings > Claude Code > Remote Control); (5) open shop-PC sessions
+with the saved preset "NOURCITY on this comp" so they start in the repo folder, not `C:\NOURCITY`; MECHANICS still needs
+`%LOCALAPPDATA%\nourcity\harness-snapshot.json` with its `DEVICE_AGENT_KEY` before it appears on the board at all.
+
 ## Follow-ups in the repo
 
 1. Graphify on client PCs (2026-11-07, Nour: "interconnected between all 3 comps"): NOT a per-host URL (it would have to be
