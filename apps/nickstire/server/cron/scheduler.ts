@@ -1249,6 +1249,18 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-11-07: the receptionist took 0 calls for 25.1 h on Fri 2026-10-31 while callers
+        // retried and nobody was told. 0 calls in 120 min, window wholly inside 09:00 to 17:00 ET:
+        // one Telegram incident per ET day. Flag-gated (quiet_line_alarm, OFF by default);
+        // alerts the OPERATOR only.
+        name: "quiet-line-alarm",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { checkQuietLine } = await import("../services/quietLineAlarm");
+          return checkQuietLine();
+        },
+      },
+      {
         // ADR-0020 phase 1 (Q-22): index every open callback, owed text and
         // emergency request in customer_promises, and close each row on its
         // source's outcome. Shadow: no alert, no inbox item, no customer send;
