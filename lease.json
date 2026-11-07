@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/shift-rules",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\shift-rules",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T18:02:43.627Z",
   "expiresAt": "2026-11-08T06:02:43.627Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T18:25:53.363Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "83a974094eaf880902220e507d0be928b0cc39b0",
+  "releasedBy": "f842366e-4011-4295-b071-702fca9ecce3",
+  "foreignReleaseReason": null
 }
