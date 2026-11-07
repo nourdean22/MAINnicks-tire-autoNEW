@@ -109,12 +109,12 @@ the flag off and the next phase waits.
 5. Every customer send is a protected operation: preview first, live only on Nour's go, inside the daily cap.
 6. Written estimate on file before work (Ohio rule, doc 07); the approval page is that record.
 7. Customer data stays on the ticket; no phone numbers, names or VINs in logs, PRs or docs.
-8. When copy mentions warranty, storage or refunds it uses the printed invoice values with their qualifiers (doc 30
-   s.2 "Printed documents": 1 year on shop-installed parts, 90 days on shop labor, used tires 7 days against a
-   defect at sale only, new tires manufacturer only, lug recheck 24 h / 25-50 mi, storage $25/day) and never a
-   shortened form. Routine quotes, approvals, pickups and receptionist replies do not raise terms unasked: the
-   quote-only-if-asked rule in `server/services/businessFacts.ts` (`buildWarrantyFactsPreamble`) stands, and its
-   seed facts are to be checked against the printed invoice. The copy source is doc 33 (verbatim), not this rule.
+8. When copy mentions warranty, storage or refunds it reads the fact keys in `server/services/businessFacts.ts`
+   (the runtime source; SHOP-SOUL rule 1: linked, never retyped) with their qualifiers, never a shortened form,
+   and only on the channels each fact allows: `refund.policy` and `storage.policy` are voice and web only, so no
+   text message quotes them. Routine quotes, approvals, pickups and receptionist replies do not raise terms
+   unasked (`buildWarrantyFactsPreamble`, quote-only-if-asked). Doc 33 is the dated verbatim capture of the
+   printed forms; the seeds are checked against it, and a term that differs is fixed in ALG first, then the seed.
 
 ## 7. The six decisions only Nour can make
 
@@ -125,9 +125,10 @@ the flag off and the next phase waits.
 2. CAPTURED 2026-11-07, not yet usable: the lookup is three GETs (doc 30 s.2 "Labor lookup": typeahead -> job id
    -> low / average / high hours plus suggested parts, keyed by year, model, engine, job id), but the only path seen
    runs them after the editor's `PUT ticket/updateTicketSession`, which rule 1 forbids. Whether the GETs answer on
-   their own is UNKNOWN until a standalone call is proven (doc 30 s.10 item 1). Until then the repo's built-in labor
-   guide (`server/routers/autoLabor.ts`, wired at `IntegrationsSection.tsx:173-186`) stays the board's primary
-   source, and any path through the editor is an ALG write that needs its own decision, not this one.
+   their own is UNKNOWN until a standalone call is proven (doc 30 s.10 item 1). Until then the board promises no hours:
+   a line's hours are UNKNOWN and non-promissory, and the repo's built-in guide (`server/routers/autoLabor.ts`,
+   wired at `IntegrationsSection.tsx:173-186`) is a hard-coded range per repair category with no year, model or
+   engine, a rough aid and not a source. Any path through the editor is an ALG write that needs its own decision.
    1b. Daytime mirror probes: allow them (the counter gets logged out of ALG on each one) or keep the board on the
    3 AM / 8 PM mirror. Blocks a live board.
    2b. Is the D&K login-based client (and O'Reilly's JSON behind the shop login) an approved vendor path, or a

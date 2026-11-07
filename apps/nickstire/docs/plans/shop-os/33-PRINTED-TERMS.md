@@ -2,10 +2,10 @@
 
 Answer first: this is the exact text ALG prints on every estimate and invoice today, copied from two PDFs Nour
 pulled on 2026-11-07 (an estimate from 2026-11-06 and an invoice from 2025-01-28; customer, vehicle and amounts
-are not reproduced). Doc 32 s.6 rule 8 and doc 30 s.2 "Printed documents" paraphrase these; the build copies from
-here, never from the paraphrase. Where the CRM prints, texts or reads a term aloud, it uses this text or the
-`businessFacts.ts` seed that is checked against it. Change the terms in ALG first, then here, never the other
-way round.
+are not reproduced). This file is a dated capture and the provenance for the
+warranty and policy seeds in `server/services/businessFacts.ts`, which are the runtime copy source (SHOP-SOUL
+rule 1: numbers are linked, never copied). The build reads the fact keys and their `channels`; it never retypes
+this file. Check the seeds against s.2 below; a difference is fixed in ALG first, then the seed, then this file.
 
 Source of each block: ALG `settings/getInvoiceSettings` fields `estimateDisclaimers` and `invoiceDisclaimers`
 (doc 30 s.2). The invoice text prints in two columns at the foot of the page; the order below is reading order.
@@ -113,12 +113,12 @@ Signer block: `MOE'S EUCLID TIRE N AUTO LLC DBA NICK'S TIRE & AUTO`, `17625 EUCL
 
 | Surface (doc 32 screen) | Copies | Not copied |
 |---|---|---|
-| Customer approval page `/approve/:token` (screen 6) | the seven invoice paragraphs, in full, under the frozen lines; the estimate "known problem" box when a line is declined | nothing shortened; no summary bullets in place of the text |
-| Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck line only, when a wheel or tire line is on the ticket; the storage line only when a car is left after notice | the warranty paragraphs (on the printed invoice already) |
-| Quick tire quote (screen 3) | "new tires: manufacturer warranty only" and "used tires: 7 day, defect at sale only", one line each on the card, from this file | road hazard or mileage wording of any kind |
-| Receptionist (`businessFacts.ts` warranty facts) | its seed facts are checked against s.2 above; quote-only-if-asked stands (doc 32 rule 8) | volunteering terms on a routine call |
+| Customer approval page `/approve/:token` (screen 6) | the seven invoice paragraphs in full under the frozen lines, from one `web`-channel constant added to `businessFacts.ts` (seeded from s.2, one place in code); the estimate "known problem" box when a line is declined | nothing shortened; no summary bullets in place of the text |
+| Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck line (`alignment.warranty`, all channels) when a wheel or tire line is on the ticket | the storage line: `storage.policy` is voice and web only, so it is said on the phone or shown on the page, never texted; the warranty paragraphs (on the printed invoice already) |
+| Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store | road hazard or mileage wording of any kind |
+| Receptionist (`businessFacts.ts` warranty and policy facts) | its seed facts are checked against s.2 above; quote-only-if-asked stands (doc 32 rule 8); `refund.policy` and `storage.policy` answer on voice and web only | volunteering terms on a routine call; refund or storage terms by SMS |
 | Printed estimate and invoice | stay ALG's; the CRM never prints its own ledger document | a second invoice format |
 
 Open: both forms still print the MOE'S logo and the `MOESEUCLID@GMAIL.COM` address; whether that stays is Nour's
-call (brand, not code). Labor lines print a price and no hours on both forms; the board's hours come from the
-labor lookup (doc 30 s.2), not from the printed document.
+call (brand, not code). Labor lines print a price and no hours on both forms; the board's hours stay UNKNOWN until
+the labor lookup has a read-only path (doc 30 s.10 item 1), and never come from the printed document.

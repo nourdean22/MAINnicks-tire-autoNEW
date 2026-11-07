@@ -114,7 +114,9 @@ field}}` (`smtp/settings`, `smtp/verify`, `signature/get`), so the client has tw
   board that promises hours must carry the job id per line or re-search by name; suggested parts ride with the job.
   Whether the three GETs answer without the wizard's `updateTicketSession` PUT is UNKNOWN: they were only seen
   after it. Until a standalone GET is proven, this is a captured shape, not a read-only path, and the no-write rule
-  (doc 32 s.6 rule 1) keeps the built-in labor guide as the board's primary source.
+  (doc 32 s.6 rule 1) means the board shows no ALG hours: a line's hours stay UNKNOWN and non-promissory. The
+  repo's `server/routers/autoLabor.ts` is a hard-coded range per repair category (no year, model or engine), a
+  rough aid and not a vehicle-specific source.
 - Trap: a full page load of `/recent` in the logged-in tab ended the session (06:33 ET); the in-app buttons
   (View/Manage, Edit, the wizard steps) are client-side routing and keep it. Every probe from code is the former.
 
@@ -127,9 +129,11 @@ alignment is a setting service, lug torque recheck within 24 hours or 25-50 mile
 pickup, no liability for theft, weather or consequential costs, storage $25.00 per day on unclaimed vehicles,
 payment equals acceptance. Signer "Moe's Euclid Tire N Auto LLC dba Nick's Tire & Auto"; the logo on both forms
 is still the Moe's one. Labor lines print a price with no hours on both forms. Any receptionist, quote, approval
-or pickup copy that mentions them uses these values with their qualifiers (shop-installed parts, defect-only used
-tires); routine sends do not raise terms unasked (`businessFacts.ts` quote-only-if-asked rule). The verbatim text of
-both footers is doc 33; this paragraph is the summary, never the copy source.
+or pickup copy that mentions them reads the warranty and policy fact keys in `server/services/businessFacts.ts`
+(the runtime source; SHOP-SOUL rule 1: linked, never retyped), each on the channels its `channels` list allows:
+`refund.policy` and `storage.policy` are voice and web only, so no text message quotes them. Routine sends do not
+raise terms unasked (quote-only-if-asked rule). Doc 33 is the dated verbatim capture the seeds are checked
+against; this paragraph is the summary.
 
 **What the mirror is missing and where it is (FACT):** doc 17 s.2 says line items, hours, margin and declined
 lines are not in our database. `ticketItems[]` has unit price, markup, quantity, rate and tech per line;
@@ -169,11 +173,13 @@ decision with a price, not a mapper-only change.
   server job exists or is enabled for this account is UNKNOWN until a schedule, request or run is observed);
   integrations named: QuickBooks Online (`syncQuickbooks`, `qboId` on ticket and customer), Authorize.Net
   (`authorizeNetRegistry`, `getAuthorizeNetReport`), "Motor" (the labor-data source, INFERRED from the name).
-- Labor guide (names only, FACT; endpoint path UNKNOWN): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
+- Labor guide (bundle names, FACT): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
   `laborTimeLowIsActive / laborTimeAverageIsActive / laborTimeHighIsActive`, `getLaborItem`, `laborGuideDetail`,
-  `laborGuideMessage`, `getLaborReport`. The three `...IsActive` names may be shop configuration flags rather
-  than three values per lookup; the response shape is UNKNOWN until a labor lookup is captured (s.10 item 1). The
-  CRM's labor line contract waits for that capture.
+  `laborGuideMessage`, `getLaborReport`. The endpoints and the response shape were captured 2026-11-07 (s.2
+  "Labor lookup": `job/searchDsiJobs`, `jobLabor/getJobLabor`, `Parts/getSuggestedParts`; low, average and high
+  hours per job); the three `...IsActive` names most likely mark which of the three time cards is selected
+  (INFERRED, not verified). Still UNKNOWN: whether those GETs answer without the editor's PUT (s.10 item 1), so the
+  CRM's labor line contract is shaped but has no read-only path yet.
 
 **For the CRM (INFERRED from the above):** model the ticket exactly as `getTicket` does (one `ticketItems[]`
 with a type enum, totals on the header, tax split, history rows with staff), keep ALG's `estimate -> invoice`
