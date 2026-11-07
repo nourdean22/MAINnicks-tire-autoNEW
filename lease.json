@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "docs/research-gate-34",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "fd1a6c4c-6776-4627-bc27-d176ac289715",
   "worktree": "C:\\Users\\nourd\\AppData\\Local\\Temp\\claude\\adca73648931d6d3\\fd1a6c4c-6776-4627-bc27-d176ac289715\\scratchpad\\docs34-wt",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T12:46:55.941Z",
   "expiresAt": "2026-11-08T00:46:55.941Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T14:45:53.318Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "4d6d115fb20942e605fa8d5c3bfe7be95c127b94",
+  "releasedBy": "fd1a6c4c-6776-4627-bc27-d176ac289715",
+  "foreignReleaseReason": null
 }
