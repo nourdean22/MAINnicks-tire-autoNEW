@@ -127,7 +127,9 @@ re-auth (row 13). Single source for every retail price. (24 section 7, 22 +100% 
 **Quote** - status `open -> contacted -> converted | closed` with owner (23); options tagged `good | better |
 best` (24); qty default 4 for tires; lines for parts, labor (rate x units from the shop labor rate, as in 25)
 and add-ons (flat or per-unit, taxable flag); fees from shop defaults: disposal each, road hazard percent with
-per-unit cap or flat each, sales tax; vehicle + mileage; notes; convert to ticket in one action.
+per-unit cap or flat each, sales tax; vehicle + mileage; `deposit` (amount, taken at) and `partsEta` (date) as
+fields, because the counter writes both into the free-text notes line today (doc 33 s.1); notes; convert to
+ticket in one action.
 Doc 35 section 5 adds `offerSnapshot` and `promiseValidUntil` to a Quote option and `fitStatus` to the Candidate;
 no separate "sellable offer" object.
 
