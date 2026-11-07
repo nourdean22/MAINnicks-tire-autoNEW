@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "scheduler.ts and declinedWorkRecovery.ts changed only the Telegram send class and the once-per-state claim around the declined-work lines and the IDLE reminder; the cron bodies, their rethrow and their fail-closed branches are untouched. server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts green on this tree (manager re-run 2026-11-07 15:58Z, 2 files passed). The IDLE reminder's failed-delivery arm in server/cron/jobs/declinedWorkRecovery.idleReminder.test.ts pins that a failed send does not consume the once-per-state claim."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json gains capabilityId telegram-noise-receipt-classes (in_progress / unit_verified / disabled by the ladder, P3 live-count check after 2026-11-08) and REALITY-LEDGER.md is re-rendered in the same diff."
+    }
+  }
+}

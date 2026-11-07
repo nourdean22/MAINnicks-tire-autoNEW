@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   memAlerts: [] as string[],
   atRisk: [] as Array<{ name: string; phone: string; lastVisit: string; daysSince: number }>,
   load: { techs: [] as Array<Record<string, unknown>>, bays: [] as Array<Record<string, unknown>> },
+  declined: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("./services/telegram", async (importOriginal) => {
@@ -55,6 +56,10 @@ vi.mock("./services/workOrderAutomation", async (importOriginal) => ({
 vi.mock("./services/dispatch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/dispatch")>()),
   getDispatchLoad: vi.fn(async () => h.load),
+}));
+vi.mock("./services/declinedWorkRecovery", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/declinedWorkRecovery")>()),
+  getDeclinedWorkLedger: vi.fn(async () => h.declined),
 }));
 vi.mock("./services/intelligenceEngines", async (importOriginal) => {
   const off = async () => {
@@ -155,6 +160,7 @@ beforeEach(() => {
   h.selectThrows = false;
   h.memAlerts = [];
   h.atRisk = [];
+  h.declined = [];
   h.load = { techs: [], bays: [] };
   vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
 });
@@ -286,6 +292,47 @@ describe("DAILY CHURN CHECK (#52): once per set of at-risk customers, ever", () 
     h.atRisk = [...h.atRisk, { name: "Eve", phone: "2165550198", lastVisit: "2026-05-02", daysSince: 169 }];
     await runTierJobHandlerUnlocked("churn-detection");
     expect(sent("DAILY CHURN CHECK")).toHaveLength(2);
+  });
+});
+
+describe("DECLINED WORK lines (declined-work-recovery, 2026-11-07): once per set of declined customers, ever", () => {
+  const declined = (phone: string, value: number, safety: boolean) => ({
+    customerName: "Cy", phone, vehicle: "2015 Civic", totalDeclinedValue: value, hasSafetyItems: safety,
+    declinedItems: [{ description: "front brakes", recovered: false }],
+  });
+
+  it("the same safety list does not page every day; a changed list does (KEEP: the first one still fires)", async () => {
+    h.declined = [declined("2165550111", 300, true)];
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED SAFETY WORK")).toHaveLength(1);
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    at(WED_1030_ET);
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED SAFETY WORK")).toHaveLength(1);
+    h.declined = [...h.declined, declined("2165550112", 450, true)];
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED SAFETY WORK")).toHaveLength(2);
+  });
+
+  it("the same recoverable-dollars line does not repeat daily; a changed set sends once", async () => {
+    h.declined = [declined("2165550113", 600, false)];
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    at(WED_1030_ET);
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED WORK: $")).toHaveLength(1);
+    h.declined = [...h.declined, declined("2165550114", 700, false)];
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED WORK: $")).toHaveLength(2);
+  });
+
+  it("a failed delivery gives the claim back so the next run tries again", async () => {
+    h.declined = [declined("2165550115", 900, false)];
+    const { sendTelegramResult } = await import("./services/telegram");
+    vi.mocked(sendTelegramResult).mockResolvedValueOnce({ status: "failed" });
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    await runTierJobHandlerUnlocked("declined-work-recovery");
+    expect(sent("DECLINED WORK: $")).toHaveLength(1); // run 1 failed (never recorded), run 2 delivered, run 3 was deduped
   });
 });
 

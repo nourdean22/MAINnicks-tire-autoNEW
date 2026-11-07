@@ -2432,23 +2432,34 @@ function buildTiers(): void {
 
           if (unrecovered.length > 0) {
             try {
-              const { sendTelegram } = await import("../services/telegram");
+              const { sendTelegramResult } = await import("../services/telegram");
+              const { sendOncePerStateEver, stateFingerprint } = await import("../services/alertClaim");
               const { remember } = await import("../services/nickMemory");
+
+              // Once per SET of declined customers, for good (2026-11-07): this daily job re-sent the same list every
+              // morning. The key is a hash of who is on the list; no customer data is stored in it.
+              const who = (e: { phone?: string | null; customerName?: string | null; vehicle?: string | null }) => e.phone || e.customerName || e.vehicle || "?";
 
               // Alert on safety-related declined work (highest priority)
               if (safetyItems.length > 0) {
                 const topSafety = safetyItems.slice(0, 3);
-                await sendTelegram(
-                  `⚠️ DECLINED SAFETY WORK — ${safetyItems.length} customers\n\n` +
-                  topSafety.map(e =>
-                    `${e.customerName || "Customer"} (${e.phone || "no phone"}) — $${e.totalDeclinedValue} — ${e.vehicle}`
-                  ).join("\n") +
-                  `\n\nTotal recoverable: $${totalRecoverableValue}. Call them back.`
+                await sendOncePerStateEver(`declined-work-safety:${stateFingerprint(safetyItems.map(who))}`, () =>
+                  sendTelegramResult(
+                    `⚠️ DECLINED SAFETY WORK — ${safetyItems.length} customers\n\n` +
+                    topSafety.map(e =>
+                      `${e.customerName || "Customer"} (${e.phone || "no phone"}) — $${e.totalDeclinedValue} — ${e.vehicle}`
+                    ).join("\n") +
+                    `\n\nTotal recoverable: $${totalRecoverableValue}. Call them back.`,
+                    "digest",
+                  ),
                 );
               } else if (totalRecoverableValue > 500) {
-                await sendTelegram(
-                  `💰 DECLINED WORK: $${totalRecoverableValue} recoverable from ${unrecovered.length} customers.\n` +
-                  `Top: ${unrecovered.slice(0, 2).map(e => `${e.customerName || "?"} ($${e.totalDeclinedValue})`).join(", ")}`
+                await sendOncePerStateEver(`declined-work-value:${stateFingerprint(unrecovered.map(who))}`, () =>
+                  sendTelegramResult(
+                    `💰 DECLINED WORK: $${totalRecoverableValue} recoverable from ${unrecovered.length} customers.\n` +
+                    `Top: ${unrecovered.slice(0, 2).map(e => `${e.customerName || "?"} ($${e.totalDeclinedValue})`).join(", ")}`,
+                    "digest",
+                  ),
                 );
               }
 

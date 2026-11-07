@@ -24,11 +24,12 @@ import { listOverdueHumanPending, type WaitingCustomer } from "./smsResponseJobs
 const log = createLogger("human-pending-alerts");
 
 /**
- * Don't re-alert the same obligation more often than this. A customer who is still
- * waiting an hour later genuinely warrants a second nudge; one every 15 minutes
- * trains the operator to ignore the channel, which costs more than it buys.
+ * Don't re-alert the same obligation more often than this. The text is a digest of the
+ * whole overdue backlog, so an hourly repeat only re-sends the same list (2026-11-07);
+ * one every 15 minutes trains the operator to ignore the channel, which costs more than
+ * it buys. A customer still waiting four hours later still gets the nudge.
  */
-const RE_ALERT_MS = 60 * 60_000;
+const RE_ALERT_MS = 4 * 60 * 60_000;
 
 /** How many waiting customers to name before collapsing the rest into a count. */
 const MAX_LISTED = 5;
@@ -130,7 +131,7 @@ export async function alertOverdueObligations(): Promise<OverdueAlertResult> {
 
   const text = composeOverdueAlert(fresh, overdueRows.length);
   const { sendTelegram } = await import("./telegram");
-  const delivered = await sendTelegram(text);
+  const delivered = await sendTelegram(text, "incident");
 
   if (delivered) {
     // Only mark on confirmed delivery. Marking optimistically would let a Telegram

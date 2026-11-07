@@ -5980,6 +5980,34 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "telegram-noise-receipt-classes",
+      "name": "Telegram noise: five chatty sources carry a class (receipt, digest, incident) so the receipt flag mutes them, the overdue-reply re-alert is 4 h, the declined-work and idle-pool lines fire once per state, and a census test refuses any new classless Telegram send",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "2026-11-07 branch nickstire/telegram-cleanup (job 5 of the GSC + texting + receptionist audit follow-ups, Nour: 'im getting tooo many'): services/eventBus.ts non-urgent NEW LEAD (score 3 or lower) is receipt, web NEW BOOKING and high-urgency leads stay incident, recordLeadTelegram records the class the send carried; services/shopDriverSync.ts invoice and estimate SYNCED TO ADMIN are receipt, the online tire order sync (Create work order in ShopDriver NOW) stays incident; services/igAutopost.ts PREVIEW and the daily-cap HELD lines are receipt, BLOCKED and STOPPED are incident, LIVE is receipt only when both networks posted; services/humanPendingAlerts.ts re-alert window 4 h (was 1 h); cron/scheduler.ts DECLINED SAFETY WORK and DECLINED WORK $ lines once per state (ever), class digest; cron/jobs/declinedWorkRecovery.ts IDLE-while-env-off reminder once per $1,000 of pool, class digest. server/telegramClassCensus.test.ts is a per-file allowlist that only goes down: 70 classless senders in 36 files before, 54 in 33 after.",
+        "tests": [
+          "server/telegramClassCensus.test.ts (planted classless call counted; an injected classless call in a real file goes red naming services/injectedByTest.ts:2), server/telegramSingleSender.test.ts, server/__tests__/telegramCallSiteClasses.test.ts, server/telegramAlertDedupe.test.ts, server/humanPendingAlerts.test.ts, server/cron/jobs/declinedWorkRecovery.idleReminder.test.ts; red first on the unfixed code 25 failed | 99 passed over 6 files, the booking/order ruling pins 3 failed | 72 passed before the source change",
+          "combined tree 2026-11-07 (manager re-run on nickstire/telegram-cleanup at origin/main ddf307201a): 5 files passed, check exit 0, lint:source exit 0, cronNoSwallowedFailure + cronRethrow2026 2 files passed; lane: every test importing eventBus.ts or shopDriverSync.ts 216 files passed, 2693 tests, lint:orphans 0 NEW"
+        ],
+        "verifiedAgainst": "Unit tests only. Production Telegram volume per day was not read before or after (UNKNOWN); the receipt is the classless census 70 to 54, not a message count. No Telegram message was sent from the lane.",
+        "limits": "Receipt-class lines stop only while telegram_receipt is off (its default); digest-class lines stop only if telegram_digest_muted is turned on. A manual admin dry-run of the declined-recovery cron consumes the IDLE claim for the current $1,000 band (read from the code, not tested). 54 classless senders remain and default to incident; the census only stops the count growing. Exposure reads disabled only because the ledger ladder ties internal to a merged codeState; the code ships live on merge with no flag."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Live check after 2026-11-08: count Telegram messages per day for one week against the 14-day mean before this PR (manager read, Chrome or the bot log); move the row to internal in that PR."
+        }
+      ],
+      "deferredScope": [
+        "the 54 remaining classless Telegram senders (default incident) get a class only as each file is touched",
+        "docs that still say the overdue-reply alert is hourly"
+      ],
+      "lastVerifiedAt": "2026-11-07",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

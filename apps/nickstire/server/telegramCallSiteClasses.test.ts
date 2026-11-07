@@ -59,6 +59,19 @@ const TABLE: Row[] = [
   ["routers/booking.ts", "UPSELL added", "receipt"],
   ["routers/gatewayTire.ts", "TIRES SHIPPING", "receipt"],
   ["routers/gatewayTire.ts", "INSTALLED —", "receipt"],
+  // 2026-11-07 clean-up: "this happened" messages that asked nothing of Nour
+  ["services/eventBus.ts", "Source: ${source}${message}", "receipt"], // the non-urgent NEW LEAD (web leads also surface on the Today board)
+  ["services/shopDriverSync.ts", "Create in ShopDriver NOW", "receipt"], // invoice mirrored to admin
+  ["services/shopDriverSync.ts", "Create estimate in ShopDriver", "receipt"], // estimate mirrored to admin
+  ["services/igAutopost.ts", "DRYRUN, not posted", "receipt"], // PREVIEW
+  ["services/igAutopost.ts", "Nothing was generated, so nothing was spent", "receipt"], // HELD by the daily cap, before generating
+  ["services/igAutopost.ts", "The draft cleared its eval gate and was NOT posted", "receipt"], // HELD by the daily cap
+  // ...and the ones that stay incidents, pinned explicitly so the clean-up cannot swallow them
+  ["services/eventBus.ts", "HIGH-URGENCY LEAD", "incident"],
+  ["services/eventBus.ts", "NEW BOOKING from", "incident"], // manager ruling 2026-11-07: rare, a customer waits
+  ["services/shopDriverSync.ts", "Create work order in ShopDriver NOW", "incident"], // manager ruling: a paid online order needs a work order
+  ["services/igAutopost.ts", "BLOCKED BY THE INDEPENDENT JUDGE", "incident"],
+  ["services/igAutopost.ts", "deliberately NOT posted", "incident"], // STOPPED
   // approvals: a draft that needs Nour's yes must never be held by default
   ["services/gbpAutoPost.ts", "GBP POST", "approval"],
   ["_core/bridge-routes.ts", "Win-back campaign DRAFTED", "approval"],
@@ -93,6 +106,27 @@ function classArgOf(file: string, anchor: string): string | null {
 describe("classified Telegram senders", () => {
   it.each(TABLE)("%s · %s is %s", (file, anchor, cls) => {
     expect(classArgOf(file, anchor)).toBe(cls);
+  });
+});
+
+describe("IG AUTOPOST LIVE message", () => {
+  // notifyPosted runs after a post that failed on a network too, so a flat "receipt" would hide a failed post.
+  // The class is a condition, which the table above (string literals) cannot pin: read the argument itself.
+  it("is a receipt only when both networks posted, an incident when either failed", () => {
+    const src = readFileSync(ROOT + "services/igAutopost.ts", "utf8");
+    const sf = ts.createSourceFile("igAutopost.ts", src, ts.ScriptTarget.Latest, true);
+    const hits: ts.CallExpression[] = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "sendTelegram" && n.getText(sf).includes("posted ${meta.ig.postId")) hits.push(n);
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    expect(hits).toHaveLength(1);
+    const arg = hits[0].arguments[1];
+    expect(arg && ts.isConditionalExpression(arg)).toBe(true);
+    const cond = arg as ts.ConditionalExpression;
+    expect(cond.condition.getText(sf)).toBe("meta.ig.success && meta.fb.success");
+    expect([cond.whenTrue, cond.whenFalse].map((e) => (ts.isStringLiteral(e) ? e.text : null))).toEqual(["receipt", "incident"]);
   });
 });
 

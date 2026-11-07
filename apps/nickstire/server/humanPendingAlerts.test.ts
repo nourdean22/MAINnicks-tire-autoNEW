@@ -12,7 +12,7 @@
  *   - the message must name who is waiting and what they asked, since a bare count
  *     cannot be acted on from a phone.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const h = vi.hoisted(() => ({ listOverdue: vi.fn(), sendTelegram: vi.fn() }));
 
@@ -168,5 +168,31 @@ describe("review #1099 — paging and markup safety", () => {
     h.listOverdue.mockResolvedValue([]);
     await alertOverdueObligations();
     expect(h.listOverdue).toHaveBeenCalledWith(200);
+  });
+});
+
+describe("re-alert window (2026-11-07): the overdue text is a digest of the same backlog, so it repeats every 4 h, not hourly", () => {
+  const START = new Date("2026-11-07T14:00:00Z").getTime();
+  const sendsAfter = async (minutes: number) => {
+    vi.setSystemTime(START + minutes * 60_000);
+    await alertOverdueObligations();
+    return h.sendTelegram.mock.calls.length;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("a customer still waiting 3 h 59 min later is not alerted again; at 4 h 1 min they are", async () => {
+    h.listOverdue.mockResolvedValue([waiting()]);
+    h.sendTelegram.mockResolvedValue(true);
+
+    expect(await sendsAfter(0)).toBe(1);
+    expect(await sendsAfter(61)).toBe(1); // the old hourly window would have re-sent here
+    expect(await sendsAfter(239)).toBe(1);
+    expect(await sendsAfter(241)).toBe(2); // control: the reminder still fires, only less often
   });
 });

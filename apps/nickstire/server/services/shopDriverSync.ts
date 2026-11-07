@@ -78,7 +78,8 @@ export async function pushTireOrder(order: {
       `Install: ${order.installPreference}\n` +
       `Total: $${order.totalAmount.toFixed(2)}\n\n` +
       `⚡ Create work order in ShopDriver NOW\n` +
-      `Status: PENDING — waiting for customer`
+      `Status: PENDING — waiting for customer`,
+      "incident",
     );
     return { success: true, method: "telegram" };
   } catch (err) {
@@ -116,7 +117,8 @@ export async function pushInvoice(invoice: {
       `Service: ${invoice.serviceDescription || "N/A"}\n` +
       `Labor: $${invoice.laborCost.toFixed(2)} | Parts: $${invoice.partsCost.toFixed(2)} | Tax: $${invoice.taxAmount.toFixed(2)}\n` +
       `Total: $${invoice.totalAmount.toFixed(2)}\n\n` +
-      `⚡ Create in ShopDriver NOW`
+      `⚡ Create in ShopDriver NOW`,
+      "receipt",
     );
     return { success: true, method: "telegram" };
   } catch (e) {
@@ -153,7 +155,8 @@ export async function pushEstimate(estimate: {
       `Repair: ${estimate.repairTitle}\n\n` +
       `Line Items:\n${lines}\n\n` +
       `Range: $${estimate.grandTotalLow} — $${estimate.grandTotalHigh}\n\n` +
-      `⚡ Create estimate in ShopDriver + email to customer`
+      `⚡ Create estimate in ShopDriver + email to customer`,
+      "receipt",
     );
     return { success: true, method: "telegram" };
   } catch (e) {
