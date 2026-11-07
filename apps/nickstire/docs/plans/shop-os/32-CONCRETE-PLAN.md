@@ -62,6 +62,8 @@ open) is pinned on screens 1 to 4 and is the owner's read; no report to open.
 | 3 source | sourcing drawer; live JSON behind the shop login (Gateway, O'Reilly) only if decision 2b says yes; ATD, PA, Capital and Federated are handoffs until a feed or vendor-approved export exists; PO draft | doc 30 captures re-run against fixtures; decisions 2b and 3 | depends on captures |
 | 4 yes | tech phone, approval link, pickup text, decline reasons into follow-up | decision 5 (approval and pickup templates) | about a week |
 
+Phase 3 gap order (P0 truthful arrival, spec gate, cost leak, retail-as-cost) is in doc 35 section 3.
+
 Why this order and not doc 10's: the board needs no vendor capture, but on day one it shows the 3 AM / 8 PM mirror,
 not live ALG: the mirror is headers only and every daytime probe logs the counter out (SHOP-PROTECT,
 `shopDriverMirror.ts:579`), so the board is up to about 12 hours stale until decision 1b; the quote is

@@ -130,6 +130,8 @@ and add-ons (flat or per-unit, taxable flag); fees from shop defaults: disposal 
 per-unit cap or flat each, sales tax; vehicle + mileage; `deposit` (amount, taken at) and `partsEta` (date) as
 fields, because the counter writes both into the free-text notes line today (doc 33 s.1); notes; convert to
 ticket in one action.
+Doc 35 section 5 adds `offerSnapshot` and `promiseValidUntil` to a Quote option and `fitStatus` to the Candidate;
+no separate "sellable offer" object.
 
 **DeclineReason** (lost sale) - `price | timing | not_needed_now | went_elsewhere | just_shopping | availability
 | specs`, optional `competitor` (pick list: Advance Auto, AutoZone, NAPA, O'Reilly, Rock Auto, eBay, other -
