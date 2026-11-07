@@ -474,7 +474,7 @@ const HERO_SERVICES = [
   {
     title: "Tires",
     slug: "/tires",
-    desc: "Every tire we install, new or used, gets a free mount, balance, valve stems, TPMS reset, and an alignment check.",
+    desc: "Every tire we install, new or used, gets a free mount, balance, valve stems, TPMS reset, and an alignment check. Flat tire repair: plug or patch while you wait.",
     img: TIRES_IMG,
     alt: "New tires stacked outside the service bays at Nick's Tire & Auto",
     imgPos: "center 50%",

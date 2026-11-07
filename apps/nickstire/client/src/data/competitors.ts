@@ -23,10 +23,10 @@ export interface CompetitorProfile {
   website: string;
   /** Tagline / what they say about themselves */
   tagline: string;
-  /** Year founded */
-  founded: number;
-  /** Headquarters city/state */
-  headquarters: string;
+  /** Year founded (omit when not verified) */
+  founded?: number;
+  /** Headquarters city/state (omit when not verified) */
+  headquarters?: string;
   /** Owner/parent company if relevant */
   ownership?: string;
 
@@ -60,6 +60,10 @@ export interface CompetitorProfile {
   pricingNotes: string;
   /** Approximate used tire $ if they sell them, else null */
   usedTireFloor: number | null;
+  /** Table text when the profile has no used tires and the new-only claim is not verified, e.g. "Not listed on its store page" */
+  usedTiresLabel?: string;
+  /** Table text when the drop-off + rideshare answer is not verified */
+  dropoffLabel?: string;
 }
 
 export const COMPETITORS: Record<string, CompetitorProfile> = {
@@ -401,6 +405,46 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     ],
     pricingNotes:
       "Effectively Mavis pricing. Tire prices look low and the full ticket lands higher.",
+    usedTireFloor: null,
+  },
+  "tire-choice": {
+    slug: "tire-choice",
+    name: "Tire Choice Auto Service Centers",
+    shortName: "Tire Choice",
+    website: "thetirechoice.com",
+    tagline: "Tires, brakes, oil changes and auto repair",
+    tier: "regional-chain",
+    clevelandLocations: "many",
+    openSunday: true,
+    walkInPolicy: "appointment-preferred",
+    usedTires: false,
+    usedTiresLabel: "Not listed on its Cleveland store page",
+    fullServiceMechanical: true,
+    dropoffWithRideshare: false,
+    dropoffLabel: "Not listed",
+    strengths: [
+      "Open 7 days. Its Cleveland store on W 117th St lists Sunday 9am to 5pm",
+      "Full-service: tires, brakes, oil changes, alignment and check-engine diagnostics",
+      "Free written estimate on repairs, with a minimum three-month/4,000-mile warranty on parts and service",
+      "Tire installs include mounting, balancing and an alignment check, plus a tire rotation offer",
+    ],
+    weaknesses: [
+      "It is a multi-store chain, not a single owner-run shop",
+      "The services on its Cleveland store page show new tires; used tires are not listed",
+      "Its store pages lead with online scheduling",
+    ],
+    bestFor: [
+      "Drivers who want a chain with online scheduling and Sunday hours",
+      "Customers who want a warranty that follows them to other Tire Choice stores",
+      "Anyone near its Cleveland, Parma Heights, North Olmsted or Berea stores",
+    ],
+    notIdealFor: [
+      "Shoppers looking for used tires from $25 installed (select 12-inch; most $40-80)",
+      "Drivers who want to deal with one local shop and one crew",
+    ],
+    commonComplaints: [],
+    pricingNotes:
+      "New-tire pricing with a 30-day price guarantee and rotating coupons. Read the final written estimate before you approve the work.",
     usedTireFloor: null,
   },
 };

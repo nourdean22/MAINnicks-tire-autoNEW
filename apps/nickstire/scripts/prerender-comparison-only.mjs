@@ -38,6 +38,7 @@ const FINAL_PRERENDER_DIR = path.join(ROOT, "prerendered");
 // need fresh HTML to ship the SERP fix.
 const ROUTES = [
   "/conrads-tire-alternative-cleveland",
+  "/tire-choice-alternative-cleveland",
   "/mavis-tire-alternative-cleveland",
   "/discount-tire-alternative-cleveland",
   "/firestone-alternative-cleveland",

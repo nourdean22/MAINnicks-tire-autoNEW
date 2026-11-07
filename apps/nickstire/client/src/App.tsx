@@ -133,6 +133,7 @@ const HybridEvRepair = lazy(() => import("./pages/HybridEvRepair"));
 // on every page for AI-search citation.
 const ConradsAlternative = lazy(() => import("./pages/compare/ConradsAlternative"));
 const MavisAlternative = lazy(() => import("./pages/compare/MavisAlternative"));
+const TireChoiceAlternative = lazy(() => import("./pages/compare/TireChoiceAlternative"));
 const DiscountTireAlternative = lazy(() => import("./pages/compare/DiscountTireAlternative"));
 const FirestoneAlternative = lazy(() => import("./pages/compare/FirestoneAlternative"));
 const MonroAlternative = lazy(() => import("./pages/compare/MonroAlternative"));
@@ -439,6 +440,7 @@ function Router() {
             <Route path={"/terms"} component={Terms} />
             {/* 2026-05-06 wave-33 · 14 competitor comparison pages */}
             <Route path={"/conrads-tire-alternative-cleveland"} component={ConradsAlternative} />
+            <Route path={"/tire-choice-alternative-cleveland"} component={TireChoiceAlternative} />
             <Route path={"/mavis-tire-alternative-cleveland"} component={MavisAlternative} />
             <Route path={"/discount-tire-alternative-cleveland"} component={DiscountTireAlternative} />
             <Route path={"/firestone-alternative-cleveland"} component={FirestoneAlternative} />
