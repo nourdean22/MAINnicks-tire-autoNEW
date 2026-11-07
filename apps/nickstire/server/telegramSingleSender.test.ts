@@ -277,10 +277,10 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     expect(h.sends[0].text).toContain("NEW BOOKING");
   });
 
-  it("the NEW BOOKING alert is a receipt (held unless telegram_receipt is ON)", async () => {
+  it("the NEW BOOKING alert stays an incident: a customer is waiting for confirmation, so the receipt flag never holds it", async () => {
     await emit.bookingCreated({ id: 9, name: "Ann Test", phone: "2165550142", service: "Brakes" });
     await settle();
-    expect(h.sends).toEqual([expect.objectContaining({ cls: "receipt", text: expect.stringContaining("NEW BOOKING") })]);
+    expect(h.sends).toEqual([expect.objectContaining({ cls: "incident", text: expect.stringContaining("NEW BOOKING") })]);
   });
 });
 

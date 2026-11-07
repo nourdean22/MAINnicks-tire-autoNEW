@@ -394,7 +394,7 @@ async function ensureInitialized(): Promise<void> {
           `🆕 NEW BOOKING from nickstire.org\n` +
           `${event.data.name} — ${event.data.phone}\n` +
           `Service: ${service}${vehicle}${urgency}${ref}\n` +
-          `⚡ Customer is waiting for confirmation`, "receipt"
+          `⚡ Customer is waiting for confirmation`, "incident"
         );
       }
       // High-urgency lead = immediate alert with context

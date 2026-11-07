@@ -60,9 +60,7 @@ const TABLE: Row[] = [
   ["routers/gatewayTire.ts", "TIRES SHIPPING", "receipt"],
   ["routers/gatewayTire.ts", "INSTALLED —", "receipt"],
   // 2026-11-07 clean-up: "this happened" messages that asked nothing of Nour
-  ["services/eventBus.ts", "NEW BOOKING from", "receipt"],
-  ["services/eventBus.ts", "Source: ${source}${message}", "receipt"], // the non-urgent NEW LEAD
-  ["services/shopDriverSync.ts", "Create work order in ShopDriver NOW", "receipt"], // order mirrored to admin
+  ["services/eventBus.ts", "Source: ${source}${message}", "receipt"], // the non-urgent NEW LEAD (web leads also surface on the Today board)
   ["services/shopDriverSync.ts", "Create in ShopDriver NOW", "receipt"], // invoice mirrored to admin
   ["services/shopDriverSync.ts", "Create estimate in ShopDriver", "receipt"], // estimate mirrored to admin
   ["services/igAutopost.ts", "DRYRUN, not posted", "receipt"], // PREVIEW
@@ -70,6 +68,8 @@ const TABLE: Row[] = [
   ["services/igAutopost.ts", "The draft cleared its eval gate and was NOT posted", "receipt"], // HELD by the daily cap
   // ...and the ones that stay incidents, pinned explicitly so the clean-up cannot swallow them
   ["services/eventBus.ts", "HIGH-URGENCY LEAD", "incident"],
+  ["services/eventBus.ts", "NEW BOOKING from", "incident"], // manager ruling 2026-11-07: rare, a customer waits
+  ["services/shopDriverSync.ts", "Create work order in ShopDriver NOW", "incident"], // manager ruling: a paid online order needs a work order
   ["services/igAutopost.ts", "BLOCKED BY THE INDEPENDENT JUDGE", "incident"],
   ["services/igAutopost.ts", "deliberately NOT posted", "incident"], // STOPPED
   // approvals: a draft that needs Nour's yes must never be held by default

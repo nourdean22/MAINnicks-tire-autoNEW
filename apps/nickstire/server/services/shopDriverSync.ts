@@ -79,7 +79,7 @@ export async function pushTireOrder(order: {
       `Total: $${order.totalAmount.toFixed(2)}\n\n` +
       `⚡ Create work order in ShopDriver NOW\n` +
       `Status: PENDING — waiting for customer`,
-      "receipt",
+      "incident",
     );
     return { success: true, method: "telegram" };
   } catch (err) {
