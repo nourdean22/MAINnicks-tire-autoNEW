@@ -26,6 +26,8 @@ ticket system beside ALG (double entry), DOM scraping of supplier portals (doc 0
 
 ## 1. The shape: buy the ledger, build the brain
 
+Superseded 2026-11-07 (Nour 13:30Z): the ledger is built, not bought; s.1 and s.3 are replaced by doc 37.
+
 | Layer | Owner | What it is | State today |
 |---|---|---|---|
 | Ticket of record, labor book | ALG (Real-Time Labor Guide PRO) | tickets, customers, vehicles, lines, payments, labor hours | LIVE; mirrored read-only (`shopDriverMirror.ts`) |

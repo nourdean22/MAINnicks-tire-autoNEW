@@ -54,6 +54,8 @@ Rule for every new leg: one PR, the auth named in its body, a canary that breaks
 
 ## 2. Lanes per phase
 
+Replaced by doc 37 s.9 (lanes per phase P0-P4, server first, plus the legs doc 37 adds); this table is the first cut.
+
 Lane roster and paths are the manager skill's. Every lane gets one brief file (template
 `.agents/core/templates/subagent-brief.md`), model and effort set, the SKILLS TO INVOKE FIRST lines from
 `skill-recall.mjs --file`, and the three lines LOOP RULE, STANDARD, SIBLINGS. Two writers at once, never on the same
