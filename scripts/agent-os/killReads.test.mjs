@@ -158,6 +158,48 @@ test("the cue by counts only with the date right after it, and one source on one
   assert.deepEqual(collect({ root, today: TODAY, prs: { state: "ok", list: [] } }).reads.map((r) => r.source), ["ledger 2026-11-01-by-date", "ledger 2026-11-01-twice"]);
 });
 
+// Not-a-read shapes (2026-11-07 sweep: 11 of 21 old "due" items were these). Each shape carries a real read beside it so a rule that
+// drops the whole line fails (positive-control-first).
+const REAL = "Live check 2026-11-14: count the rows";
+test("a date followed by a clock time is a recorded result, not a read", async () => {
+  const { prReads } = await lib();
+  const body = BAR(`${REAL}. Live check 2026-10-15 17:56Z: steps 1-6 PASS.\nLive check 2026-10-16T21:07:52Z passed.`);
+  assert.deepEqual(prReads(prs([201, body])).map((r) => r.date), ["2026-11-14"]);
+});
+
+test("a date led by deploy, deployed, merged, landed, posted, since or the is a past reference, not a read", async () => {
+  const { prReads } = await lib();
+  for (const lead of ["if it deploys", "once deployed", "after it merged", "which landed", "it posted", "unchanged since", "same rule as the"]) {
+    assert.deepEqual(prReads(prs([202, BAR(`${REAL}, ${lead} 2026-10-31.`)])).map((r) => r.date), ["2026-11-14"], lead);
+  }
+});
+
+test("a date followed by merge, merged or deploy is a past reference, not a read", async () => {
+  const { prReads } = await lib();
+  for (const tail of ["merge", "merged", "deploy"]) {
+    assert.deepEqual(prReads(prs([203, BAR(`${REAL}; 2026-09-16 ${tail} date.`)])).map((r) => r.date), ["2026-11-14"], tail);
+  }
+});
+
+test("positive control: 'read on 2026-11-14 if it deploys 2026-10-31' still yields 2026-11-14, and a ledger cell follows the same rule", async () => {
+  const { prReads, ledgerReads } = await lib();
+  assert.deepEqual(prReads(prs([204, BAR("Live check: read on 2026-11-14 if it deploys 2026-10-31.")])).map((r) => r.date), ["2026-11-14"]);
+  const root = fixtureRoot({
+    ledger: [
+      ["2026-11-01-clock", "MERGED", "Live check 2026-10-15 17:56Z: step 7 FAIL"],
+      ["2026-11-01-lead", "MERGED", "kill read owed 2026-11-09 if it deploys 2026-10-31"],
+    ],
+  });
+  assert.deepEqual(ledgerReads(root).map((r) => [r.date, r.source]), [["2026-11-09", "ledger 2026-11-01-lead"]]);
+});
+
+test("a deadline 'by <date> <time>' is still a read (PRs 3458..3470 wrote 'by 2026-11-01 12:00Z'), a recorded 'read <date> <time>' is not", async () => {
+  const { prReads } = await lib();
+  const dates = (kill) => prReads(prs([205, BAR(kill)])).map((r) => r.date);
+  assert.deepEqual(dates("Kill: if no PR by 2026-11-01 12:00Z, escalate."), ["2026-11-01"]);
+  assert.deepEqual(dates("Live check, read 2026-11-07 15:23Z on main."), []);
+});
+
 test("--due counts a read dated yesterday or today and not tomorrow, and counts today's apart", async () => {
   const { dueCount, dueToday } = await lib();
   const reads = [{ date: "2026-11-02" }, { date: "2026-11-03" }, { date: "2026-11-04" }];
@@ -295,4 +337,12 @@ test("the agent-os README carries a registry row for kill-reads.mjs", () => {
   assert.match(readme, /kill-reads\.mjs/);
   assert.match(readme, /merged PR bodies since 2026-10-29/);
   assert.doesNotMatch(readme, /merged PR bodies since 2026-11-01/);
+});
+
+test("a date led by 'the' is a past reference, but 'before/by/until/due the <date>' is still a deadline", async () => {
+  const { prReads } = await lib();
+  const dates = (kill) => prReads(prs([206, BAR(kill)])).map((r) => r.date);
+  assert.deepEqual(dates("Kill: the 2026-09-16 baseline was 19 clicks."), []);
+  assert.deepEqual(dates("Kill: revert if no lift before the 2026-11-16 cutover."), ["2026-11-16"]);
+  assert.deepEqual(dates("Kill: drop it if unused by the 2026-12-01 review."), ["2026-12-01"]);
 });
