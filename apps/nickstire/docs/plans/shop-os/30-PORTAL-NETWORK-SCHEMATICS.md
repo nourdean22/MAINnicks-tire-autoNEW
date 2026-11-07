@@ -33,7 +33,7 @@ customer names, phones, VINs or ticket ids. Field NAMES and shapes only; example
    warehouse and `trade_region_splitup = true` on every row (FACT). Whether this account may ORDER regional stock
    stays UNKNOWN: no cart or order response was captured and the flag's meaning is not documented. Ranking logic
    must not present regional rows as actionable until an order flow or vendor documentation says so.
-5. CLOSED 2026-11-07: the ALG **labor-time lookup** is three calls in the ticket editor (s.2 "Labor lookup"):
+5. SHAPE CAPTURED 2026-11-07, read-only path still UNKNOWN: the ALG **labor-time lookup** is three calls in the ticket editor (s.2 "Labor lookup"):
    `job/searchDsiJobs` (typeahead, returns job ids), then `jobLabor/getJobLabor?Year&model&jobId&engine`
    (`lowTime`, `averageTime`, `highTime`) and `Parts/getSuggestedParts/<jobId>`. Keyed by year, model, engine and
    job id; no VIN needed. Picking a job PUTs the editing session (`ticket/updateTicketSession/<ticketId>`) before
@@ -112,6 +112,9 @@ field}}` (`smtp/settings`, `smtp/verify`, `signature/get`), so the client has tw
   button each; on a 2007 3.5L sedan, intermediate exhaust pipe: 0.9 / 0.7 / 0.6 h at the shop's primary rate.
 - For the CRM: the labor key is (year, model, engine, jobId) and the job id comes only from the typeahead, so a
   board that promises hours must carry the job id per line or re-search by name; suggested parts ride with the job.
+  Whether the three GETs answer without the wizard's `updateTicketSession` PUT is UNKNOWN: they were only seen
+  after it. Until a standalone GET is proven, this is a captured shape, not a read-only path, and the no-write rule
+  (doc 32 s.6 rule 1) keeps the built-in labor guide as the board's primary source.
 - Trap: a full page load of `/recent` in the logged-in tab ended the session (06:33 ET); the in-app buttons
   (View/Manage, Edit, the wizard steps) are client-side routing and keep it. Every probe from code is the former.
 
@@ -124,7 +127,8 @@ alignment is a setting service, lug torque recheck within 24 hours or 25-50 mile
 pickup, no liability for theft, weather or consequential costs, storage $25.00 per day on unclaimed vehicles,
 payment equals acceptance. Signer "Moe's Euclid Tire N Auto LLC dba Nick's Tire & Auto"; the logo on both forms
 is still the Moe's one. Labor lines print a price with no hours on both forms. Any receptionist, quote, approval
-or pickup copy must quote these numbers, not paraphrase them.
+or pickup copy that mentions them uses these values with their qualifiers (shop-installed parts, defect-only used
+tires); routine sends do not raise terms unasked (`businessFacts.ts` quote-only-if-asked rule).
 
 **What the mirror is missing and where it is (FACT):** doc 17 s.2 says line items, hours, margin and declined
 lines are not in our database. `ticketItems[]` has unit price, markup, quantity, rate and tech per line;
@@ -326,9 +330,11 @@ to High" as a sort, so the counter will recognise the rule; (2) O'Reilly's `allR
 
 ## 10. UNKNOWN, with the route to close each
 
-1. CLOSED 2026-11-07 (s.2 "Labor lookup"): `job/searchDsiJobs` + `jobLabor/getJobLabor` + `Parts/getSuggestedParts`.
-   Still UNKNOWN: what `laborHash`, `shopTimeId` and `jobAddons[]` hold on a job with add-ons, and whether
-   `updateTicketSession` leaves a visible draft on the counter's screen (it was left un-added; check the ticket).
+1. SHAPE CAPTURED 2026-11-07 (s.2 "Labor lookup"): `job/searchDsiJobs` + `jobLabor/getJobLabor` +
+   `Parts/getSuggestedParts`. Still UNKNOWN: whether those GETs answer standalone (they were only seen after the
+   wizard's `updateTicketSession` PUT, so no read-only path is proven yet; route: one GET replayed with the
+   session's headers and no PUT, on Nour's go), what `laborHash`, `shopTimeId` and `jobAddons[]` hold on a job
+   with add-ons, and whether the PUT left a visible draft on the counter's screen (un-added; check the ticket).
 2. ALG `jobLabors[]`, `labors[]`, `ticketPayments[]` shapes (empty on the viewed estimate). Route: view one
    closed invoice with a payment.
 3. Gateway `get-cut-off-time`: the response shape is known from `gatewaySupplierOrder.ts` `readCutoff` (s.3); what
