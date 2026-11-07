@@ -14,6 +14,7 @@ import GatewayPill from "@/components/admin/GatewayPill";
 import GatewayOrderPanel from "@/components/admin/GatewayOrderPanel";
 import KafeneLeasePanel from "@/components/admin/KafeneLeasePanel";
 import TireMarkupCard from "@/components/admin/TireMarkupCard";
+import SupplierComparePanel from "@/components/admin/SupplierComparePanel";
 // 2026-06-10 cockpit consolidation · in-DOM confirm (window.confirm is
 // silently suppressed in the iOS PWA) for the cancel-with-refund guard
 // ported from the retired Money → Tire Orders tab.
@@ -476,6 +477,8 @@ export default function TireOrdersSection() {
         </div>
       }
     >
+      <SupplierComparePanel />
+
       <TireActivityStrip activity={activity} ordersLine={ordersLine} />
 
       <section aria-labelledby="tire-orders-title" className="space-y-3">

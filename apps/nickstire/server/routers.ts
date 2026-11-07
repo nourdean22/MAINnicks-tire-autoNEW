@@ -43,6 +43,7 @@ import {
   gatewayTireRouter,
   fitmentRouter,
   gatewayOrderRouter,
+  sourcingRouter,
   kafeneRouter,
   tireQuoteRouter,
   autoLaborRouter,
@@ -177,6 +178,7 @@ export const appRouter = router({
   fitment: fitmentRouter,
   /** 2026-10-18 · admin D&K supplier order for a paid tire order; writes need GATEWAY_ORDERING_ENABLED=true. */
   gatewayOrder: gatewayOrderRouter,
+  sourcing: sourcingRouter,
   /** 2026-10-18 · Kafene lease checkout (public) + activate/cancel (admin); off until KAFENE_* env is set. */
   kafene: kafeneRouter,
   /** 2026-10-18 · "Text me this quote" on the /tires top-pick cards (public; one customer text per quote). */
