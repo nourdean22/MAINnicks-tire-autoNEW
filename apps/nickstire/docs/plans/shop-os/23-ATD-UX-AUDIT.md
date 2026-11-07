@@ -17,7 +17,7 @@ clicking through Nour's own paying/ordering account; no cart, quote, order, or p
 - Location# [redacted], ship-to **17625 Euclid Ave, Cleveland, OH** - the same address Gateway/D&K uses, confirming
   this is the same real shop account across both tire vendors.
 - Distribution center: **DC #225** ("View DC #225 Details" link in the header).
-- Sales/account context: not captured this pass (no rep-name equivalent to Gateway's Steve Starosta was surfaced
+- Sales/account context: not captured this pass (no rep-name equivalent to Gateway's account rep was surfaced
   in the header; may exist inside a gated account page - see section 9).
 
 ## 1. Global structure

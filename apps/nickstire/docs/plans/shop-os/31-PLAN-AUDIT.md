@@ -1,8 +1,9 @@
 # 31 - Plan audit: every load-bearing claim in 01-30, re-checked
 
 Date: 2026-11-06 ET (2026-11-07 UTC). Code: origin/main 9aa61c8019. Production read 03:20Z: /api/version ok on main,
-/api/health healthy, database up. Doc 30 is read from PR 3570 (open, not on main). No database rows, no vendor portal,
-no customer data were read. Row counts need the database, so every count below is UNKNOWN or HISTORICAL.
+/api/health healthy, database up. Doc 30 is read from PR 3570 at head 81fb305f83 (open); this PR merges only after
+3570 lands. No database rows, no vendor portal, no customer data were read. Row counts need the database, so every
+count below is UNKNOWN or HISTORICAL.
 Method stolen from doc 30: one receipt per claim, the label says how far the evidence reaches, nothing rounds up.
 
 ## 1. Answer first
@@ -13,8 +14,8 @@ Method stolen from doc 30: one receipt per claim, the label says how far the evi
 2. Nothing refuted breaks the direction. The refuted lines are fossils: wrong tier name and price for ALG, "12 read
    tools", "PartsTech covers everything", "Ctrl+K is new", "only PA gives cutoffs", two stale lines in 13,
    a count of 28.
-3. The biggest truth: the repair-order skeleton is built but has no screen. Work orders, estimates, dispatch and the
-   staff side of inspections have 0 client callers. /system does not exist.
+3. The biggest truth: the repair-order skeleton is built but has no screen. Work orders, estimates and the staff side
+   of inspections have 0 client callers; dispatch has 3 of 32 procedures wired. /system does not exist.
 4. Two code defaults contradict Ohio's rule and must flip before any screen ships: work orders start `approved`, and
    every line defaults to approved with no pending state and no 10% re-approval gate.
 5. The ALG mirror is headers only, by design (SHOP-PROTECT), and every probe logs the counter out.
@@ -49,7 +50,7 @@ Labels: F FACT, H HISTORICAL, C CLAIM, S STRONG INFERENCE, U UNKNOWN, R REFUTED.
 | 17 | Tickets and estimates are mirrored: F (`shopDriverMirror.ts:1083`, `server/services/shopDriverEstimateSync.ts:802`). Split died spring 2026: F (`server/services/shopSales.ts:30-32`). Match rules 10%/30 d, 25%/45 d: F. Figures: U here (private study). Rule 9 "move syncs to 3 AM/8 PM": stale, they already run there. |
 | 18 | Supplier-offer contract not on main: F. Built on drafts PR 3568 and rival 3571: F. Local model makes nothing offline: S. "Never turn missing data into zero price": R against code (`gatewayClient.ts:251` returns 0). PartsTech first in the architecture: R by 20/06. Signed-in flows unobserved (18:43): stale. |
 | 19 | Reuse PWA, tRPC, roles, D&K, proposals first: F that each exists. "If browser policy blocks access, stop": superseded in practice by 21-30. Bookmark inventory 38 + 3: H. |
-| 20 | D&K routers and services exist and are wired: F. Order shapes come from the portal bundle: F (`gatewaySupplierOrder.ts:6`). Writes need `GATEWAY_ORDERING_ENABLED`: F, prod value U. PartsTech terms: C. AutoZone My Zone API shape: H. "No private endpoints" (20:48): F as a rule, and D&K breaks it. |
+| 20 | D&K routers and services exist and are wired: F. Order shapes come from the portal bundle: F (`gatewaySupplierOrder.ts:6`). Writes need `GATEWAY_ORDERING_ENABLED`: F; it is ON in prod since 2026-10-19 (`truth_os.md:241`), first real order still unproven. PartsTech terms: C. AutoZone My Zone API shape: H. "No private endpoints" (20:48): F as a rule, and D&K breaks it. |
 | 21 | Shop is on Real-Time Pro at $35/mo, 1 user: H (screen). "$35+/seat": R (21:34-36, seat price not captured). No MFA, 3 roles: H. No scheduling board: H. No self-serve export: H, but the ALG API exists (13:21, 30:17). Labor $125: H; our fallback is $115 (`gatewayTire.ts:732`). |
 | 22 | D&K = Gateway: S (`dk_part_number` in code). Retail = 2.00x via a 100% rule: H portal, F ours (`server/lib/tireMarkup.ts:13`). "28 fields": R, the list has 31. $1 "install" placeholder: U (could be Ohio's $1 tire fee, 07:36). Public tire search fakes delivery text: F (`gatewayTire.ts:299-300`). |
 | 23 | Six-tier delivery model: H. Quotes Open/Contacted/Converted/Closed: H. "Global rename sweep" for Moe's: R (both trade names current, 23:3, 26:117). Recall feed match: U (`tire_registrations` exists, no feed). |
@@ -113,8 +114,9 @@ Wiring test: router key in `server/routers.ts` plus `git grep -lE "trpc\.<router
 | Customer360, Ctrl+K search, /pay, /portal | `pages/admin/customers/Customer360Panel.tsx`; `CommandSearch.tsx:742`; `App.tsx:414,390` | BUILT+WIRED |
 | Roles, MFA gate, audit_log | `shared/adminPermissions.ts`; `adminSecurity.ts:26`; `schema.ts:2768` | BUILT+WIRED (MFA off by default) |
 | Declined-work recovery lane | `server/cron/index.ts:665`; `RevenueSection.tsx:15` | BUILT+WIRED (ALG estimates only) |
-| Counter decline tap | `server/routers/advanced/invoices.ts:838`; no reason field | BUILT+WIRED (0132 applied: U) |
-| Tire registrations, reminders, lot plate visits | `schema.ts:2358,765,4726` | BUILT+WIRED |
+| Counter decline tap | `server/routers/advanced/invoices.ts:838`; no reason field | BUILT+WIRED (0132 applied, `truth_os.md:350`; row use U) |
+| Tire registrations (TIN capture) | `schema.ts:2358`; `server/services/tireRegistration.ts`; client grep empty | BUILT+UNWIRED |
+| Service reminders, lot plate visits | `schema.ts:765,4726`; `retentionSequences.ts`, `admin/lot/plainWords.ts` | BUILT+WIRED |
 | ALG mirror (headers; parts, labor, tax written 0) | `shopDriverMirror.ts:579-584`; probes `algProbeBudget.ts:12-18` | BUILT+WIRED, lossy by design |
 | Google Sheet push on work-order create | `workOrderService.ts:171` | BUILT; must be off for /system |
 | Supplier-offer contract, sourcing router | drafts PR 3568, 3571; not on main | MISSING on main |

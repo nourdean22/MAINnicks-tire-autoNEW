@@ -82,7 +82,7 @@ Four tabs, each with its own filter set and its own results schema:
   Action, only Add-to-Cart - the per-row "get a customer quote" action (section 4) is tires-only on this portal.
 - **Specials**: returned **"Unable to reach server"** and 0 results on two separate attempts (initial load and a
   manual retry). FACT: this is a confirmed broken-or-empty state on this account as of 2026-11-06, not a
-  one-off glitch I mis-clicked past - worth flagging to the rep (Steve Starosta) if Nour wants to use whatever
+  one-off glitch I mis-clicked past - worth flagging to the D&K sales rep if Nour wants to use whatever
   rebate/promo program this tab is meant to surface. It's plausibly related to the "Program Items Only" checkbox
   in Tire Search (section 3) and a "Program Dashboard"/rebate mechanic referenced in earlier exploration of this
   account but not reached this pass - still UNKNOWN pending a working Specials tab or a question to the rep.
