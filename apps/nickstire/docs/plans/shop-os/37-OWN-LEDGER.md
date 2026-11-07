@@ -140,7 +140,7 @@ ALG's hours come from a licensed guide (doc 30 s.2 "Labor lookup"); the license 
 
 | Option | What it is | Cost | Covers | Weak spot |
 |---|---|---|---|---|
-| A. License a labor guide | MOTOR data through PartsTech or direct, or Mitchell 1 / ALLDATA (doc 04 row 54, doc 03) | monthly fee, price CLAIM until a written quote (spend: Nour's go) | every job on every vehicle, by year, model, engine | a second vendor login and terms; hours are the book's, not the shop's |
+| A. License a labor guide | MOTOR "Estimated Work Times", licensed data over REST web services (motor.com product page and PDF, read 2026-11-07), or Mitchell 1 / ALLDATA (doc 03). Correction to doc 04 row 54: PartsTech's public plans ($0, $45, $85 a month, read 2026-11-07) list no labor times, so "MOTOR via PartsTech" is NOT CHECKED, not a path | MOTOR shows no public price: a written quote is the first step (spend: Nour's go) | every job on every vehicle, by year, model, engine | a second vendor login and terms; hours are the book's, not the shop's |
 | B. Build ranges from our own closed invoices | per job family and vehicle class, low / typical / high from labor lines the shop actually billed, imported (s.5 item 3) and then our own | $0 | the jobs the shop does often; a few tickets a day means rare jobs have no range | rare jobs show UNKNOWN and the counter enters hours by hand (`laborSource = manual`) |
 
 Default: B, because the shop prices flat-rate by job family (doc 05 days 4-7, top 15 jobs), both printed forms show
