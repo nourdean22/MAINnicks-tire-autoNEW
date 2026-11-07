@@ -19,16 +19,19 @@ customer names, phones, VINs or ticket ids. Field NAMES and shapes only; example
    already carries every line item (labor, part, misc) with unit price, markup, quantity, rate, tax and core
    fields. The nickstire mirror holds none of that (doc 17 s.2): the split is recoverable per ticket from this
    endpoint, read-only.
-2. Every supplier portal exposes availability as **structured JSON** behind the page, not just rendered text.
-   The richest two are O'Reilly (`products/availability`: servicing DC vs linked DC vs surrounding store, with
+2. Two supplier portals expose availability as **structured JSON** behind the page: O'Reilly and Gateway (FACT,
+   captured). Federated exposes only its vehicle selector as JSON (s.6); ATD, Capital and Parts Authority were
+   observed as rendered DOM only (item 3). The richest two are O'Reilly (`products/availability`: servicing DC
+   vs linked DC vs surrounding store, with
    `nextRoute.cutoffTime` and `estimatedArrivalTime` per supplier location) and Gateway (`quicksearch/cache`:
    local, regional and national on-hand with a stated `est_delivery_days` per regional warehouse).
 3. ATD, Capital, Federated and Parts Authority render availability server-side (full page loads); their tiers
    are read from the DOM, not JSON. ATD's six tiers and Capital's `Available` / `Regional` pair are exact counts
    capped at `99+` / `50+`.
-4. Doc 26 s.5's Gateway question is answered: the Regional bucket shows 3-4 `est_delivery_days` per warehouse
-   and `trade_region_splitup = true` on every row (STRONG INFERENCE: regional stock is orderable and the order
-   splits by site; not tested, no cart action).
+4. Doc 26 s.5's Gateway question is half answered: the Regional bucket shows 3-4 `est_delivery_days` per
+   warehouse and `trade_region_splitup = true` on every row (FACT). Whether this account may ORDER regional stock
+   stays UNKNOWN: no cart or order response was captured and the flag's meaning is not documented. Ranking logic
+   must not present regional rows as actionable until an order flow or vendor documentation says so.
 5. The one thing still UNKNOWN that the CRM needs most: the ALG **labor-time lookup endpoint** (the bundle names
    `laborTimes` with low/average/high, `getLaborItem`, `laborGuideDetail`; the path lives in the ticket editor's
    lazy chunk, which only loads on Edit). Route to close: Nour opens one ticket's Edit, the hook captures one
@@ -90,13 +93,19 @@ field}}` (`smtp/settings`, `smtp/verify`, `signature/get`), so the client has tw
 **What the mirror is missing and where it is (FACT):** doc 17 s.2 says line items, hours, margin and declined
 lines are not in our database. `ticketItems[]` has unit price, markup, quantity, rate and tech per line;
 `showLaborHours` and `rate` give hours = `subTotal / rate` on labor lines (INFERRED); `taxItems` gives the tax
-split. `customer.ticketCount` and `recentTicket` are the vendor's own repeat-customer counters. The historical
-import era's parts/labor split (2024-01 to 2026-03) came from this same object; the live summary mirror simply
-stopped reading it.
+split. `customer.ticketCount` and `recentTicket` are the vendor's own repeat-customer counters. Where the
+historical import era's parts/labor split (2024-01 to 2026-03) came from is UNKNOWN (doc 17 calls it a historical
+import; `docs/CURRENT-TRUTH.md` names `listTicketSessions` as the line-item endpoint Wave 99 found). The live
+mirror reads the summary endpoint `listRecentTickets` first and stops there (`shopDriverMirror.ts:377-384`).
+Restoring the split means one extra `getTicket` call per ticket per import, and `CURRENT-TRUTH.md` records that
+such probes collide with SHOP-PROTECT (they can kick the shop's browser login out of ALG). That is an operator
+decision with a price, not a mapper-only change.
 
 **Client routes (FACT, from the bundle's route table; the SPA has 216 lazy chunks):**
 - Ticket: `ticket` (new), `ticket/view/<id>`, `abandoned` (In Progress), `recent`, `dataRecovery/ticketSession`,
-  `dataRecovery/customer` (auto-saved drafts and deleted-record recovery exist server-side).
+  `dataRecovery/customer`. Those two names are FACT from the route table only; whether recovery is server-backed,
+  enabled for this tenant, or whether ticket and customer drafts are auto-saved is UNKNOWN (no recovery request
+  was observed). The CRM designs its own draft durability regardless.
 - Customer and vehicle chunks: `CustomerIndex, CustomerSearch, CustomerDetails, CustomerForm,
   EditCustomerDetails, MergeCustomers, CustomerExportSelection, CustomerVehicleSelection, CustomerVehicleForm,
   DeletedVehicle, CustomVehicles, PickCustomVehicleYear, VinDisplay, CustomerReminder, AutomaticReminders,
@@ -120,8 +129,9 @@ stopped reading it.
   (`authorizeNetRegistry`, `getAuthorizeNetReport`), "Motor" (the labor-data source, INFERRED from the name).
 - Labor guide (names only, FACT; endpoint path UNKNOWN): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
   `laborTimeLowIsActive / laborTimeAverageIsActive / laborTimeHighIsActive`, `getLaborItem`, `laborGuideDetail`,
-  `laborGuideMessage`, `getLaborReport`. So a labor lookup returns three times (low, average, high) and the shop
-  picks which one is active - the CRM's labor line should carry all three plus the chosen one.
+  `laborGuideMessage`, `getLaborReport`. The three `...IsActive` names may be shop configuration flags rather
+  than three values per lookup; the response shape is UNKNOWN until a labor lookup is captured (s.10 item 1). The
+  CRM's labor line contract waits for that capture.
 
 **For the CRM (INFERRED from the above):** model the ticket exactly as `getTicket` does (one `ticketItems[]`
 with a type enum, totals on the header, tax split, history rows with staff), keep ALG's `estimate -> invoice`
@@ -281,9 +291,11 @@ to High" as a sort, so the counter will recognise the rule; (2) O'Reilly's `allR
    context). Route: hook installed before the dashboard loads, then a reload.
 4. Federated results grid transport (JSON vs HTML). Route: pick a model whose `eng[]` is non-empty, proceed, hook
    first.
-5. Capital and PA: no JSON feed from the catalog pages; an adapter scrapes the DOM or uses the price-list download
-   (`Download Price List` exists on Capital). Whether either vendor offers an API or punchout is UNKNOWN (doc 20
-   covers PA's documented punchout for Mitchell 1/ALLDATA).
+5. Capital and PA: no JSON feed from the catalog pages. Per the plan's portal boundary (doc 03 s."For every
+   supplier", doc 10 "Portal handoff"), the adapter does NOT scrape these authenticated pages: PA goes through its
+   documented punchout (doc 20) and Capital through a visible operator handoff or a vendor-approved export (the
+   `Download Price List` control exists on Capital; its terms are unread). Whether either vendor offers an API is
+   UNKNOWN.
 
 ## 11. For the supplier-compare build (fixture list)
 
