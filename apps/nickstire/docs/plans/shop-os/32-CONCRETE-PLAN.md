@@ -114,7 +114,7 @@ the flag off and the next phase waits.
    defect at sale only, new tires manufacturer only, lug recheck 24 h / 25-50 mi, storage $25/day) and never a
    shortened form. Routine quotes, approvals, pickups and receptionist replies do not raise terms unasked: the
    quote-only-if-asked rule in `server/services/businessFacts.ts` (`buildWarrantyFactsPreamble`) stands, and its
-   seed facts are to be checked against the printed invoice.
+   seed facts are to be checked against the printed invoice. The copy source is doc 33 (verbatim), not this rule.
 
 ## 7. The six decisions only Nour can make
 

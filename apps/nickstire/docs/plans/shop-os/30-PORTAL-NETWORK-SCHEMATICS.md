@@ -128,7 +128,8 @@ pickup, no liability for theft, weather or consequential costs, storage $25.00 p
 payment equals acceptance. Signer "Moe's Euclid Tire N Auto LLC dba Nick's Tire & Auto"; the logo on both forms
 is still the Moe's one. Labor lines print a price with no hours on both forms. Any receptionist, quote, approval
 or pickup copy that mentions them uses these values with their qualifiers (shop-installed parts, defect-only used
-tires); routine sends do not raise terms unasked (`businessFacts.ts` quote-only-if-asked rule).
+tires); routine sends do not raise terms unasked (`businessFacts.ts` quote-only-if-asked rule). The verbatim text of
+both footers is doc 33; this paragraph is the summary, never the copy source.
 
 **What the mirror is missing and where it is (FACT):** doc 17 s.2 says line items, hours, margin and declined
 lines are not in our database. `ticketItems[]` has unit price, markup, quantity, rate and tech per line;
