@@ -5964,7 +5964,7 @@
           "combined tree 2026-11-07: server 11 files 129 passed; client 7 files 225 passed; full verify 1305 files passed, 6 red that pass alone (order-dependent on this PC, one exit 134); build exit 0"
         ],
         "verifiedAgainst": "Unit and route tests only. Not read against live TiDB: the hold query assumes mysql2 returns MAX(timestamp) as a Date (a string is also handled). No production send happened; every new text goes to the on-duty manager, none to a customer.",
-        "limits": "claimAlertOnce fails open on a DB error (a duplicate page in a blip); a skipped page (no on-duty number) keeps the claim; any outbound counts as a reply; spam regexes are English only. The FLOW 4 prompt line is code only until Push Latest Config. Daily text stays muted on 0/0 even when revenue is non-zero."
+        "limits": "claimAlertOnce fails open on a DB error (a duplicate page in a blip); a skipped page (no on-duty number) keeps the claim; any outbound counts as a reply; spam regexes are English only. The FLOW 4 prompt line is code only until Push Latest Config. Daily text stays muted on 0/0 even when revenue is non-zero. Exposure reads disabled only because the ledger ladder ties internal to a merged codeState; the code ships live on merge with no flag, and the row moves to internal in the live-check PR after 2026-11-08."
       },
       "blockers": [
         {
@@ -5979,7 +5979,7 @@
       "lastVerifiedAt": "2026-11-07",
       "codeState": "in_progress",
       "operationalState": "unit_verified",
-      "exposure": "internal"
+      "exposure": "disabled"
     }
   ],
   "axes": {
