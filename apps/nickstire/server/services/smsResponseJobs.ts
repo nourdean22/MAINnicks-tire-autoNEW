@@ -590,6 +590,9 @@ export interface HumanPendingRow {
   texts?: number;
   /** Age of the latest open text. Default waitingMinutes. */
   newestMinutes?: number;
+  /** The latest open text's stored draft (sms_orchestrations.id), when one is live. */
+  draftId?: number | null;
+  draftText?: string | null;
 }
 
 /** A customer waiting on a human reply: one per conversation. */
@@ -604,6 +607,12 @@ export interface WaitingConversation {
   overdue: boolean;
   /** Open texts in the thread. */
   texts: number;
+  /**
+   * The stored draft answering the LATEST waiting text (null: none, stale, or
+   * closed). Sent as-is by smsOrchestrator.actionHumanReview({ id: draftId, action: "send" }).
+   */
+  draftId: number | null;
+  draftText: string | null;
 }
 
 /**
@@ -642,6 +651,7 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
           waitingMinutes: r.waitingMinutes,
           overdue: r.overdue,
           texts,
+          ...draftOf(r),
         },
       });
       continue;
@@ -652,6 +662,8 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
     if (newest < seen.newest) {
       seen.newest = newest;
       seen.item.preview = previewOf(r.body);
+      // The draft answers the latest text or nothing: an older text's draft is not offered.
+      Object.assign(seen.item, draftOf(r));
     }
   }
   return Array.from(byThread.values(), (t) => t.item).sort((a, b) => b.waitingMinutes - a.waitingMinutes);
@@ -659,6 +671,10 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
 
 function previewOf(body: string): string {
   return String(body ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function draftOf(r: HumanPendingRow): { draftId: number | null; draftText: string | null } {
+  return r.draftId && r.draftText ? { draftId: r.draftId, draftText: r.draftText } : { draftId: null, draftText: null };
 }
 
 /** Pure: the counts, from the same reduction as the list. */
@@ -683,6 +699,11 @@ async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) throw new Error("database unavailable — human-pending count is UNKNOWN, not zero");
+  const { STALE_DRAFT_MAX_AGE_DAYS } = await import("../cron/jobs/orchestrationStatusReconcile");
+  // The newest job's own draft rides the row (draftId/draftText/draftLength, first in
+  // the same DESC order as body): only one actionHumanReview would still send
+  // (drafted/received, operator review, younger than the stale cutoff). One row per
+  // job (o.id is the key), so COUNT(*) is unchanged; no live draft aggregates as 0 / ''.
   // Ages come from the DB's own NOW(): driver-parsed TiDB timestamps shift on an ET host.
   // The latest body is the first of an ordered GROUP_CONCAT (createdAt, then id:
   // TiDB ids are not time-ordered); truncation at group_concat_max_len only
@@ -698,15 +719,28 @@ async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
            COUNT(*) AS texts,
            TIMESTAMPDIFF(MINUTE, MIN(j.createdAt), NOW()) AS waitingMinutes,
            TIMESTAMPDIFF(MINUTE, MAX(j.createdAt), NOW()) AS newestMinutes,
-           MAX(CASE WHEN j.dueAt < NOW() THEN 1 ELSE 0 END) AS overdue
+           MAX(CASE WHEN j.dueAt < NOW() THEN 1 ELSE 0 END) AS overdue,
+           SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(o.id, 0) ORDER BY j.createdAt DESC, j.id DESC), ',', 1) AS draftId,
+           SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(o.message_body, '') ORDER BY j.createdAt DESC, j.id DESC SEPARATOR '~|~'), '~|~', 1) AS draftText,
+           SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(CHAR_LENGTH(o.message_body), 0) ORDER BY j.createdAt DESC, j.id DESC), ',', 1) AS draftLength
     FROM sms_response_jobs j
     LEFT JOIN sms_conversations c ON c.id = j.conversationId
+    LEFT JOIN sms_orchestrations o ON o.id = j.orchestrationId
+      AND o.status IN ('drafted', 'received')
+      AND o.requires_human_approval = 1
+      AND o.createdAt >= NOW() - INTERVAL ${STALE_DRAFT_MAX_AGE_DAYS} DAY
     WHERE j.status = 'human_pending'
     GROUP BY j.conversationId
   `);
   return (rows as Array<Record<string, unknown>>).map((r) => {
     const waitingMinutes = Number(r.waitingMinutes ?? 0);
+    const draftId = Number(r.draftId ?? 0);
+    const draftText = r.draftText == null ? "" : String(r.draftText);
+    // A cut aggregate (group_concat_max_len, or '~|~' inside the draft) is never shown cut.
+    const draftWhole = draftId > 0 && draftText !== "" && [...draftText].length === Number(r.draftLength);
     return {
+      draftId: draftWhole ? draftId : null,
+      draftText: draftWhole ? draftText : null,
       jobId: Number(r.jobId),
       conversationId: Number(r.conversationId),
       phone: String(r.phone ?? ""),

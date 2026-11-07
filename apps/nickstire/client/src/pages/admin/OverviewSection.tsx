@@ -84,6 +84,9 @@ interface OwedTextItem {
   waitingMinutes: number;
   /** Past the ROS-058 30-min human-reply SLA. */
   overdue: boolean;
+  /** The stored draft for the newest text; null when none is fresh or it was cut. Sent as-is by actionHumanReview. */
+  draftId: number | null;
+  draftText: string | null;
 }
 
 export default function OverviewSection() {
@@ -169,6 +172,11 @@ export default function OverviewSection() {
   const callbackUpdate = trpc.callback.updateStatus.useMutation();
   const recordAction = trpc.adminSecurity.recordAction.useMutation();
   const markNoReplyNeeded = trpc.smsConversations.markNoReplyNeeded.useMutation();
+  // Sends the stored draft exactly, claiming it first (a second tap gets CONFLICT), and closes the wait as
+  // human_replied. Not smsConversations.send: that leaves the draft cancelled and loses the approval.
+  const sendDraftMutation = trpc.smsOrchestrator.actionHumanReview.useMutation();
+  // The server's refusal for a draft, by draftId: shown on that row until its draft changes.
+  const [draftErrors, setDraftErrors] = useState<ReadonlyMap<number, string>>(() => new Map());
 
   const stats = bundle?.stats ?? null;
   const bookings = (bundle?.bookings ?? []) as BookingItem[];
@@ -314,6 +322,8 @@ export default function OverviewSection() {
         urgency: text.overdue ? 4 : 3,
         createdAt: new Date(now - text.waitingMinutes * 60_000).toISOString(),
         status: "awaiting_reply",
+        draftId: text.draftId ?? null,
+        draftText: text.draftText ?? null,
       });
     }
     items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -485,6 +495,32 @@ export default function OverviewSection() {
     return true;
   }
 
+  /**
+   * One tap sends the stored draft. A refusal (CONFLICT: sent elsewhere, closed, stale) stays on the row in
+   * the server's words. The server answers success even when the gateway refused the text, so the row only
+   * counts as done when the refreshed board no longer lists the customer as waiting.
+   */
+  async function sendDraft(item: ActionItem): Promise<boolean> {
+    const draftId = item.draftId;
+    if (!draftId) return false;
+    setDraftErrors((prev) => (prev.has(draftId) ? new Map([...prev].filter(([id]) => id !== draftId)) : prev));
+    try {
+      await sendDraftMutation.mutateAsync({ id: draftId, action: "send" });
+    } catch (sendError) {
+      const message = sendError instanceof Error && sendError.message ? sendError.message : "The draft was not sent. Open the thread to reply.";
+      setDraftErrors((prev) => new Map(prev).set(draftId, message));
+      return false;
+    }
+    await utils.adminDashboard.overviewMediumBundle.invalidate();
+    const refreshed = (utils.adminDashboard.overviewMediumBundle.getData()?.owedTexts ?? []) as OwedTextItem[];
+    if (refreshed.some((text) => text.conversationId === item.entityId)) {
+      toast.error(`${item.name} still shows as waiting. Open the thread to check the text went out.`);
+      return false;
+    }
+    toast.success(`Draft sent to ${item.name}`);
+    return true;
+  }
+
   /** A row's action never rejects: a failure keeps the row and says why. */
   const guarded = (run: (item: ActionItem) => Promise<boolean>, item: ActionItem) => () =>
     run(item).catch((actionError: unknown) => {
@@ -492,7 +528,7 @@ export default function OverviewSection() {
       return false;
     });
 
-  const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || markNoReplyNeeded.isPending || recordAction.isPending;
+  const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || markNoReplyNeeded.isPending || recordAction.isPending || sendDraftMutation.isPending;
 
   // The verdict's "N urgent leads" reads the board's own predicate: new, uncontacted, urgent.
   const urgentLeadCount = useMemo(() => leads.filter((lead) => isOpenLead(lead) && (lead.urgencyScore ?? 0) >= 4).length, [leads]);
@@ -688,6 +724,16 @@ export default function OverviewSection() {
                   disabled={mutationPending}
                   onPrimary={guarded(performPrimary, item)}
                   onSecondary={guarded(performSecondary, item)}
+                  draft={
+                    item.draftId && item.draftText
+                      ? {
+                          text: item.draftText,
+                          sending: sendDraftMutation.isPending && sendDraftMutation.variables?.id === item.draftId,
+                          error: draftErrors.get(item.draftId) ?? null,
+                          onSend: guarded(sendDraft, item),
+                        }
+                      : undefined
+                  }
                   onGone={() => {
                     setDoneRows((prev) => new Map(prev).set(item.id, item.detail));
                     setAnnouncement(`Done: ${item.name}`);

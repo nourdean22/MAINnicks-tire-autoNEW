@@ -34,14 +34,25 @@ interface QueueRowProps {
   onPrimary: () => Promise<boolean>;
   onSecondary: () => Promise<boolean>;
   onGone: () => void;
+  /** A waiting text's stored draft: shown under the row with one Send draft tap. Absent for every other row. */
+  draft?: {
+    text: string;
+    /** This row's send is in flight. */
+    sending: boolean;
+    /** The server's refusal, in its words. */
+    error: string | null;
+    /** Resolves true when the customer has left the queue. Never rejects. */
+    onSend: () => Promise<boolean>;
+  };
 }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 // Named, not default: the admin render matrix (admin.test.tsx) mounts every default export with no props.
-export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onGone }: QueueRowProps) {
+export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryLabel, body, disabled, onPrimary, onSecondary, onGone, draft }: QueueRowProps) {
   const [leaving, setLeaving] = useState(false);
   const [more, setMore] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
   const urgent = item.urgency >= 4;
 
   async function run(action: () => Promise<boolean>) {
@@ -52,7 +63,7 @@ export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryL
   }
 
   return (
-    <article className={`py-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4 transition-opacity duration-150 ${leaving ? "opacity-0" : ""}`}>
+    <article className={`py-3 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4 transition-opacity duration-150 ${leaving ? "opacity-0" : ""}`}>
       <div className="flex items-start gap-3 flex-1 min-w-0">
         <span aria-hidden className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${urgent ? "bg-red-400" : "bg-muted-foreground/50"}`} />
         <div className="min-w-0 flex-1">
@@ -85,6 +96,19 @@ export function QueueRow({ item, typeLabel, primaryLabel, shortLabel, secondaryL
           <span className="hidden lg:inline">{primaryLabel}</span>
         </button>
       </div>
+      {draft && (
+        <div className="pl-[18px] lg:basis-full">
+          <p className="text-[13px] text-muted-foreground">Suggested reply</p>
+          {/* 16 px: the counter reads this on a phone before sending it. Tap opens the whole draft. */}
+          <button type="button" onClick={() => setDraftOpen((v) => !v)} aria-expanded={draftOpen} className={`mt-0.5 w-full min-h-12 text-left text-[16px] leading-snug text-foreground/90 ${draftOpen ? "" : "line-clamp-3"}`}>
+            {draft.text}
+          </button>
+          <button type="button" disabled={disabled || leaving} aria-busy={draft.sending} onClick={() => void run(draft.onSend)} className="mt-2 min-h-12 min-w-12 px-4 whitespace-nowrap rounded-md bg-primary text-primary-foreground text-[14px] font-semibold disabled:opacity-50">
+            {draft.sending ? "Sending" : "Send draft"}
+          </button>
+          {draft.error && <p role="alert" className="mt-1 text-[14px] text-amber-600">{draft.error}</p>}
+        </div>
+      )}
       {more && secondaryLabel && (
         <div className="flex flex-wrap justify-end gap-2 lg:order-last">
           {(
