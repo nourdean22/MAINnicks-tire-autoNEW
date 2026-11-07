@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/tire-choice-site",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\tire-choice-site",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T16:33:51.323Z",
   "expiresAt": "2026-11-08T04:33:51.323Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T18:15:31.126Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "507b5530c80e856e72ed070196f815b3adf422d3",
+  "releasedBy": "f842366e-4011-4295-b071-702fca9ecce3",
+  "foreignReleaseReason": null
 }
