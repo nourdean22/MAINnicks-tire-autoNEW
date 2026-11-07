@@ -1676,6 +1676,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         await sendTelegram(
           `IG AUTOPOST — HELD BY THE DAILY CAP (before generating)\n${errMsg(err)}\n` +
           `Nothing was generated, so nothing was spent. Raise the policy limit if this is wrong.`,
+          "receipt",
         );
       } catch (e) {
         log.warn("cap-preflight notify failed", { error: errMsg(e) });
@@ -1811,6 +1812,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         await sendTelegram(
           `IG AUTOPOST — BLOCKED BY THE INDEPENDENT JUDGE (${post.archetype}/${post.conceptKey})\n` +
           `${reason}\nNothing was posted and no image was generated for the rejected concept; every attempt this run was spent. The slot retries with fresh content on a later tick.`,
+          "incident",
         );
       } catch (e) {
         log.warn("judge-gate notify failed (block stands)", { error: errMsg(e) });
@@ -1971,6 +1973,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         await sendTelegram(
           `IG AUTOPOST — HELD BY THE DAILY CAP\n${errMsg(err)}\n` +
           `The draft cleared its eval gate and was NOT posted. Raise the policy limit if this is wrong.`,
+          "receipt",
         );
       } catch (e) {
         log.warn("cap-hold notify failed", { error: errMsg(e) });
@@ -1998,6 +2001,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         await sendTelegram(
           `IG AUTOPOST — STOPPED\n${KILL_SWITCH_ERROR}\n` +
           `The draft cleared its eval gate and was deliberately NOT posted.`,
+          "incident",
         );
       } catch (err) {
         log.warn("kill-switch abort notify failed", { error: errMsg(err) });
@@ -2167,6 +2171,7 @@ async function notifyPreview(post: GeneratedPost, imageUrl: string, scores: IgEv
       `Image prompt: ${post.imagePrompt}\n` +
       `─────────────────\n` +
       `${scoreLines(scores)}`,
+      "receipt",
     );
   } catch (err) {
     log.warn("preview telegram failed", { err: errMsg(err) });
@@ -2188,6 +2193,8 @@ async function notifyPosted(
       `FB: ${meta.fb.success ? `posted ${meta.fb.postId ?? ""}` : `FAILED ${meta.fb.error ?? ""}`}\n` +
       `Image: ${imageUrl}\n` +
       `${scoreLines(scores)}`,
+      // A clean post is a receipt; a post that failed on either network is still an incident (this message is also how a failure reaches Nour).
+      meta.ig.success && meta.fb.success ? "receipt" : "incident",
     );
   } catch (err) {
     log.warn("posted telegram failed", { err: errMsg(err) });

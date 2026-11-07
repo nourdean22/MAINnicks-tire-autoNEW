@@ -314,7 +314,11 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       // hits with money-on-the-table framing so the operator sees the
       // pipeline value at a glance from their phone.
       const { sendTelegramMessage } = await import("../../services/telegram");
-      await sendTelegramMessage(
+      const { sendOncePerStateEver } = await import("../../services/alertClaim");
+      // Once per $1,000 of recoverable pool, for good (2026-11-07): this cron ran daily and re-sent the same
+      // reminder with the same figure. It speaks again when the money on the table has grown a band.
+      const idleKey = `declined-recovery-idle:${Math.floor(totalRecoverableCents / 100_000)}`;
+      const sendIdle = async () => (await sendTelegramMessage(
         `🔴 <b>${formatMoney(totalRecoverableCents)} IDLE — recovery cron is DRY-RUN</b>\n\n` +
           `${unmatched.length} walked-away estimates have NEVER received a follow-up.\n\n` +
           `<b>1 click on Railway to unleash:</b>\n` +
@@ -322,7 +326,9 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           `Once set: 7d + 30d SMS auto-fires daily at 20/run cap.\n` +
           `Safety: at-most-once claim (wave-181.59) · TCPA opt-out (wave-181.60) · durable rate-limit (wave-181.68).`,
         "critical",
-      );
+        "digest",
+      )) ? "delivered" as const : "failed" as const;
+      await sendOncePerStateEver(idleKey, async () => ({ status: await sendIdle() }));
     } catch (e) {
       log.warn("[declined-recovery] telegram notify failed:", e);
     }

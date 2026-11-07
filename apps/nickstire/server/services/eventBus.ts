@@ -339,21 +339,22 @@ async function ensureInitialized(): Promise<void> {
 
       // The bus is the one Telegram sender for a captured lead, so it also owns the
       // delivery ledger row: "sent" only when the transport accepted the message.
-      const recordLeadTelegram = async (accepted: boolean) => {
+      const recordLeadTelegram = async (cls: "incident" | "receipt", accepted: boolean) => {
         const leadId = Number(event.data.id);
         if (event.type !== "lead_captured" || !Number.isFinite(leadId)) return;
         const { recordLeadDelivery } = await import("../lead-delivery");
         // A muted class returns true without sending: that is "skipped", never "sent". The status
         // column is an enum, so this reuses an existing value instead of adding a "held" one.
+        // `cls` is the class the send carried: checking a different one would record the wrong flag.
         const { isTelegramClassMuted } = await import("./telegram");
-        const held = accepted && (await isTelegramClassMuted("incident"));
+        const held = accepted && (await isTelegramClassMuted(cls));
         await recordLeadDelivery({
           leadId,
           channel: "telegram",
           status: held ? "skipped" : accepted ? "sent" : "failed",
           provider: "telegram",
           detail: held
-            ? "Held: telegram_incident_muted is ON"
+            ? cls === "receipt" ? "Held: telegram_receipt is OFF (receipts are held)" : "Held: telegram_incident_muted is ON"
             : accepted ? null : "Telegram transport did not accept the alert",
         });
       };
@@ -393,7 +394,7 @@ async function ensureInitialized(): Promise<void> {
           `🆕 NEW BOOKING from nickstire.org\n` +
           `${event.data.name} — ${event.data.phone}\n` +
           `Service: ${service}${vehicle}${urgency}${ref}\n` +
-          `⚡ Customer is waiting for confirmation`
+          `⚡ Customer is waiting for confirmation`, "receipt"
         );
       }
       // High-urgency lead = immediate alert with context
@@ -412,10 +413,10 @@ async function ensureInitialized(): Promise<void> {
             if (prior.length > 1) returnNote = "\n🔄 RETURNING CUSTOMER — they've contacted before";
           }
         } catch (e) { log.warn("[eventBus:telegram] returning customer check failed:", e); }
-        await recordLeadTelegram(await sendTelegram(
+        await recordLeadTelegram("incident", await sendTelegram(
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
           `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
-          `⚡ Call within 5 minutes — conversion drops 50% after 30 min`
+          `⚡ Call within 5 minutes — conversion drops 50% after 30 min`, "incident"
         ));
       }
       // Wave-105: every regular lead from nickstire.org → Telegram alert
@@ -423,10 +424,10 @@ async function ensureInitialized(): Promise<void> {
       if (event.type === "lead_captured" && event.data.urgencyScore < 4 && event.data.source !== "emergency") {
         const source = event.data.source || "site";
         const message = event.data.message ? `\nMsg: ${String(event.data.message).slice(0, 100)}` : "";
-        await recordLeadTelegram(await sendTelegram(
+        await recordLeadTelegram("receipt", await sendTelegram(
           `🟡 NEW LEAD\n` +
           `${event.data.name || "Unknown"} — ${event.data.phone || "no phone"}\n` +
-          `Source: ${source}${message}`
+          `Source: ${source}${message}`, "receipt"
         ));
       }
       // Callback = someone is waiting

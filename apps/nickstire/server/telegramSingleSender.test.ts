@@ -182,15 +182,43 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
   const telegramRows = () =>
     h.recordLeadDelivery.mock.calls.map((c) => c[0] as { leadId: number; channel: string; status: string }).filter((r) => r.channel === "telegram");
 
+  // A non-urgent lead (score 3 here) is a receipt since 2026-11-07: held unless telegram_receipt is ON.
+  // A high-urgency lead stays an incident. The ledger row must record the class the send really carried.
+  const highUrgencyLead = { id: 42, name: "Ann Test", phone: "2165550142", source: "popup", urgencyScore: 5 };
+
   it("records the lead's telegram delivery as sent only when the transport accepted the alert", async () => {
+    h.flags.telegram_receipt = true; // receipts are delivered only while this flag is ON
     await submitLead();
     await settle();
     expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "sent" })]);
   });
 
-  it("records the lead's telegram delivery as skipped, never sent, when the incident class is muted", async () => {
-    h.flags.telegram_incident_muted = true; // the real transport returns true for a held send
+  it("a non-urgent lead's alert is a receipt, and its ledger row says skipped by telegram_receipt while receipts are held", async () => {
+    await submitLead(); // flags: telegram_receipt OFF (the production default)
+    await settle();
+    expect(h.sends).toEqual([expect.objectContaining({ via: "sendTelegram", cls: "receipt" })]);
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "skipped", detail: expect.stringContaining("receipt") })]);
+  });
+
+  it("a non-urgent lead is not skipped because the INCIDENT class is muted (the ledger checks the class the send carried)", async () => {
+    h.flags.telegram_incident_muted = true;
+    h.flags.telegram_receipt = true;
     await submitLead();
+    await settle();
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "sent" })]);
+  });
+
+  it("a high-urgency lead stays an incident: sent with no receipt class, never held by the receipt flag", async () => {
+    await emit.leadCaptured(highUrgencyLead);
+    await settle();
+    expect(h.sends).toEqual([expect.objectContaining({ via: "sendTelegram", text: expect.stringContaining("HIGH-URGENCY") })]);
+    expect(h.sends[0].cls).not.toBe("receipt");
+    expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "sent" })]);
+  });
+
+  it("records a high-urgency lead's telegram delivery as skipped, never sent, when the incident class is muted", async () => {
+    h.flags.telegram_incident_muted = true; // the real transport returns true for a held send
+    await emit.leadCaptured(highUrgencyLead);
     await settle();
     expect(telegramRows()).toEqual([expect.objectContaining({ leadId: 42, status: "skipped", detail: expect.stringContaining("telegram_incident_muted") })]);
   });
@@ -247,6 +275,12 @@ describe("one Telegram message per lead, callback, chat lead and booking", () =>
     await settle();
     expect(h.sends).toHaveLength(1);
     expect(h.sends[0].text).toContain("NEW BOOKING");
+  });
+
+  it("the NEW BOOKING alert is a receipt (held unless telegram_receipt is ON)", async () => {
+    await emit.bookingCreated({ id: 9, name: "Ann Test", phone: "2165550142", service: "Brakes" });
+    await settle();
+    expect(h.sends).toEqual([expect.objectContaining({ cls: "receipt", text: expect.stringContaining("NEW BOOKING") })]);
   });
 });
 
