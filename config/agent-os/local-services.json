@@ -3,7 +3,7 @@
   "about": "Local code-intelligence services and the machine inventory. Read by scripts/local-mcp-servers.ps1, scripts/agent-os/session-health.mjs and scripts/graphify-session-context.ps1. Nothing else hardcodes a port.",
   "hosts": ["NATTYNOUR"],
   "servers": [
-    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify", "remoteUrl": "https://nattynour-1.tailae7855.ts.net/mcp" }
+    { "name": "graphify", "port": 8765, "path": "/mcp", "kind": "graphify", "remoteUrl": "https://nattynour-1.tailae7855.ts.net/mcp", "remoteHost": "127.0.0.1:8765" }
   ],
   "clients": ["claude", "codex", "vscode"],
   "tasks": [

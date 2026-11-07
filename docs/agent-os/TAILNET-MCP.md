@@ -64,6 +64,10 @@ PC listens on that same loopback address and passes the bytes on:
 - At logon: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-graph-forward-task.ps1 -RepoRoot <primary>`
   creates the task `NOURCITY-Graph-Forward`; remove it with `Unregister-ScheduledTask -TaskName NOURCITY-Graph-Forward -Confirm:$false`.
 - It adds no auth and hides no error: an upstream that is down answers 502. Canary: `graphForward.test.mjs`.
+- One header is rewritten, `Host` -> `remoteHost` (`127.0.0.1:8765`). Measured 2026-11-07: with `serve` pointing at 8765 the
+  graph server still answered 421 "Invalid Host header" to its tailnet name (its DNS-rebinding guard accepts loopback Host
+  values only), and 200 with a real initialize reply to `Host: 127.0.0.1:8765` over the same tailnet address. The browser
+  protection that guard gives is kept by the forwarder's own Host/Origin check on the client PC.
 - The `remoteUrl` host is NATTYNOUR's tailnet node name (`nattynour-1` today; an older `nattynour` node is offline). If the
   node is renamed, change `remoteUrl`.
 
