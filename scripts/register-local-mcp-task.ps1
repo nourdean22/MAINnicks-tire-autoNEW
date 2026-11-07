@@ -32,7 +32,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAM
 # otherwise stays DOWN until the next logon, and every other PC that reads this graph sees a 502 meanwhile. -Start is a
 # no-op while the server is UP and never starts a second one while it loads, so repeating it is the whole watchdog.
 $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10) `
-    -RepetitionDuration ([TimeSpan]::MaxValue)).Repetition
+    -RepetitionDuration (New-TimeSpan -Days 3650)).Repetition  # MaxValue serialises out of range (HRESULT 0x80041318)
 
 # The servers are long-lived children started by the script; the task itself finishes in seconds.
 $settings = New-ScheduledTaskSettingsSet `
