@@ -126,7 +126,8 @@ decision with a price, not a mapper-only change.
   technician, vendor, cardTransaction, inventoryTransaction, inventorySalesSummary, inventoryRecommended,
   inventoryPurchases, inventoryOrderList, currentInventoryValue, inventoryPhysicalCountSheet, coreTracking`.
 - Texting: route `texting/inbox` and settings `settings/texting`; the bundle's QuickVIN store names
-  `quickVinLookup, quickVinEnabled, quickVinApproved, QuickVinNightlyLog` (a nightly VIN job exists);
+  `quickVinLookup, quickVinEnabled, quickVinApproved, QuickVinNightlyLog` (client names only; whether a nightly
+  server job exists or is enabled for this account is UNKNOWN until a schedule, request or run is observed);
   integrations named: QuickBooks Online (`syncQuickbooks`, `qboId` on ticket and customer), Authorize.Net
   (`authorizeNetRegistry`, `getAuthorizeNetReport`), "Motor" (the labor-data source, INFERRED from the name).
 - Labor guide (names only, FACT; endpoint path UNKNOWN): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
@@ -268,9 +269,10 @@ attached to a line (`vendorId` + `partCode` are the hooks), decline reasons per 
 
 | Doc 26 field | Vendor field that feeds it (OBSERVED) |
 |---|---|
-| `locations[].qty` and `orderableByThisAccount` | Gateway `on_hand` / `trade_region[].on_hand` / `other_warehouse_quantity`; O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (route present = orderable, INFERRED); PA `29 Cleveland / Transfers / Shipping`; Capital `Available` / `Regional` and ATD six tiers, where a capped `99+` / `50+` maps to `qty: {atLeast: n}` (doc 26 s.3, amended), never to the bare number |
+| `locations[].qty` and `orderableByThisAccount` | Only per-location data feeds `locations[]`: Gateway `on_hand` / `trade_region[].on_hand` / `other_warehouse_quantity` (named warehouses); O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (named supplier locations); PA `29 Cleveland` (home branch); Capital `Available` / `Regional`. `orderableByThisAccount` stays UNKNOWN for every vendor until a cart or order response is captured: an O'Reilly route proves a scheduled route exists, not that this account may order from it (`autoSourceBlocked` can be set on a routed source). A capped `99+` / `50+` maps to `qty: {atLeast: n}` (doc 26 s.3, amended), never to the bare number |
+| `availabilityTiers` (new, doc 26 s.3 amended) | ATD's six delivery-time counts and PA `Transfers` / `Shipping` are aggregate fulfillment buckets with no branch code, name, kind or per-location orderability; they are kept as typed tier totals here and never turned into invented `locations[]` rows |
 | `arrival.tier` | ATD tier label; O'Reilly `relationshipToStore` + route presence; Gateway local vs `trade_region[]` vs national; PA tier word |
-| `arrival.at`, `arrival.orderBy` | O'Reilly `nextRoute.estimatedArrivalTime`, `nextRoute.cutoffTime` (ISO); ATD named date; PA departure times. Gateway: UNKNOWN. `est_delivery_days` is a relative integer whose base instant, business-day and timezone rules were not captured, and the `get-cut-off-time` body is UNKNOWN (s.10 item 3), so the adapter keeps `arrival.relativeDays` and leaves `at` / `orderBy` UNKNOWN rather than fabricate a promise for Quickest Arrival |
+| `arrival.at`, `arrival.orderBy` | O'Reilly `nextRoute.estimatedArrivalTime`, `nextRoute.cutoffTime` (ISO); ATD named date. PA: `Submit By` is the `orderBy` cutoff and `My Branch Departure` is when the truck leaves the branch, so it feeds a `departureAt` field and `arrival.at` stays UNKNOWN until the branch-to-shop route time is known (doc 27 s.3a). Gateway: UNKNOWN. `est_delivery_days` is a relative integer whose base instant, business-day and timezone rules were not captured, and the `get-cut-off-time` body is UNKNOWN (s.10 item 3), so the adapter keeps `arrival.relativeDays` and leaves `at` / `orderBy` UNKNOWN rather than fabricate a promise for Quickest Arrival |
 | `orderCutoff` per branch | Gateway `/master/get-cut-off-time`; ATD `fetch-cutofftimes`; PA `Order Cut Off`; O'Reilly `nextRoute.cutoffTime` |
 | `priceStatus` | Gateway `disable_call_for_price`; O'Reilly basket `error`/`errorMessage` keys; Capital/PA DOM |
 | `core` | O'Reilly `corePrice`; PA `core:`; ALG line `coreValue` + `coreTrackingEnabled` |
