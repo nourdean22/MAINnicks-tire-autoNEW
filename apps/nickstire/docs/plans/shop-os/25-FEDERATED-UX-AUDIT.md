@@ -13,7 +13,7 @@ current page's own text and element labels; unlike 24, no background requests to
 
 - Platform: **FederatedLink**, the e-commerce catalog of Federated Auto Parts (a distributor cooperative). The
   shop's store is **Fisher Auto Parts**, branch **C185OH** (a Federated member), shown co-branded in the header.
-- Account **587756**, account name **"Moe's Tire & Auto - Euclid"**, 17625 Euclid Ave, Cleveland OH 44112-1215.
+- Account **[redacted]**, account name **"Moe's Tire & Auto - Euclid"**, 17625 Euclid Ave, Cleveland OH 44112-1215.
   Moe's is a current trade name of the shop (Nour, 2026-11-06), not stale.
 - Branch information is shown on User Settings: branch code, branch manager name, branch phone and branch
   manager email (contact details not copied here).

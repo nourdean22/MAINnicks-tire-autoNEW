@@ -14,6 +14,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 
 | File | What it answers |
 |---|---|
+| [31-PLAN-AUDIT](31-PLAN-AUDIT.md) | start here: every load-bearing claim in 01-30 re-checked with a receipt (2026-11-06), what is refuted, what is already built, the open decisions, and a recommended order for the one plan |
 | [11-REVIEW](11-REVIEW.md) | what ChatGPT and Perplexity said (both 4/10), what we changed, where we disagree |
 | [06-OPEN-QUESTIONS](06-OPEN-QUESTIONS.md) | the decisions waiting on Nour, the unknowns, and the vendor email to send |
 | [01-DESIGN](01-DESIGN.md) | what we build, the three options and what each costs, the counter screen, parts, copilot |
@@ -47,6 +48,7 @@ The 2026-11-05 counter screenshot and matching shop-profile bookmark metadata re
 
 ## Current status update (2026-11-06)
 | [29-AMAZON-UX-AUDIT](29-AMAZON-UX-AUDIT.md) | Amazon automotive UX audit (public, signed-out, 2026-11-06): Your Garage with plate or Y/M/M and only-missing-attribute questions, conditional fit badge, per-offer delivery date with "order within" countdown, arrives-by facet, seller/shipper and new/used offers, return-by date, and sponsored results that ignore fitment; signed-in Amazon Business pass: PO printed on the box, per-line receiving, account-wide Ohio reseller exemption, punchout/e-invoicing options |
+| [30-PORTAL-NETWORK-SCHEMATICS](30-PORTAL-NETWORK-SCHEMATICS.md) | wire-level pass under audits 21-29 (Nour's own logged-in tabs, fetch/XHR hook + bundle reads, 2026-11-07, read-only): ALG = Real-Time Labor Guide PRO, its tenant API and full `ticket/getTicket` line-item schema (the split the mirror lost), Gateway stock/price/regional-days fields, O'Reilly availability and pricing JSON with per-location routes and cutoffs, ATD six-tier DOM, Capital and Parts Authority DOM tiers, Federated vehicle JSON; doc 26 field-to-vendor map; UNKNOWN list with routes |
 The new Shop OS remains planning work. Source search found no /system product routes in the nickstire client. Current D&K tire search/order code and existing customer/estimate tools are reuse candidates, not proof that the new screens or supplier adapters exist. The front-desk local-model handoff has no completion receipt in the reviewed memory; re-check before installation. The updated design is in [18](18-SUPPLIER-DESKTOP-OFFLINE-AI.md); the build sequence is in [the implementation plan](../../../../../docs/superpowers/plans/2026-11-06-shop-os-sourcing-desktop-offline-ai.md).
 
 A full ALG reverse-engineering pass (Nour's own Real-Time Pro login, 2026-11-06, read-only) is now in
