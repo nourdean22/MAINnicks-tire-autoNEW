@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Today board: tapping No reply needed on a real customer ask now opens a reason box (ASKED text box, confirm disabled under 4 chars, cancel/Escape leaves the text open); SMS review DISMISS does the same. Pinned by client/src/__tests__/no-reply-reason-dialog.test.tsx (3 arms, red 3/3 before the dialog existed) and server/__tests__/smsNoReplyReason.test.ts. Public pages: /wheel-alignment-cleveland H1, intro and FAQ, homepage and /battery titles, pinned by client/src/__tests__/alignment-near-me-copy.test.ts (11 arms, red 9/11 before the copy). Live admin tap-through on the deployed PWA owed 2026-11-08 by the manager; recorded in the PR body."
+    }
+  }
+}

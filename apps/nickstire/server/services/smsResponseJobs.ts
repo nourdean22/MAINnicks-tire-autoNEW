@@ -31,7 +31,7 @@ import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isMissingTableError } from "../lib/dbErrors";
 import { isNonCustomer } from "./nonCustomerFilter";
-import { isLenderText } from "./smsIntentRouter";
+import { isLenderText, isSpamInbound } from "./smsIntentRouter";
 
 /** Threads already logged as hidden from Today (log once per process, not per 30 s bundle read). */
 const loggedLenderThreads = new Set<number>();
@@ -122,12 +122,22 @@ export async function enqueueResponseJob(input: EnqueueInput): Promise<{ jobId: 
 
   // INSERT IGNORE: affectedRows === 1 → inserted (new obligation); 0 → the
   // unique idempotency key already existed (redelivery) — dedupe to one job.
-  const insertRes = await db.execute(sql`
+  // Bulk spam (audit 2026-11-07) is born terminal: never claimed, drafted or
+  // counted as a customer waiting. A text-to-apply token always stays pending.
+  const spam = isSpamInbound(input.body) && !(await import("./smsHiringIntake")).classifyHiringSms(input.body);
+  const insertRes = spam
+    ? await db.execute(sql`
+    INSERT IGNORE INTO sms_response_jobs
+      (conversationId, customerPhone, providerMsgId, idempotencyKey, body, status, lastError)
+    VALUES (${input.conversationId}, ${input.phone}, ${input.providerMsgId ?? null}, ${key}, ${input.body}, 'suppressed', 'spam_inbound')
+  `)
+    : await db.execute(sql`
     INSERT IGNORE INTO sms_response_jobs
       (conversationId, customerPhone, providerMsgId, idempotencyKey, body, status)
     VALUES (${input.conversationId}, ${input.phone}, ${input.providerMsgId ?? null}, ${key}, ${input.body}, 'pending')
   `);
   const created = affectedRowCount(insertRes) === 1;
+  if (spam && created) log.info("inbound written suppressed: bulk spam", { conversationId: input.conversationId });
 
   const [rows] = await db.execute(sql`SELECT id FROM sms_response_jobs WHERE idempotencyKey = ${key} LIMIT 1`);
   const row = (rows as Array<{ id: number }>)[0];
@@ -470,6 +480,41 @@ async function claimJobById(jobId: number): Promise<ResponseJob | null> {
 
 // ─── Human-pending resolution (ROS-058) ────────────────────────────────────
 
+/** Prefix on sms_response_jobs.lastError for a no-reply close's typed reason (the kill-read probe greps it). */
+const NO_REPLY_REASON_PREFIX = "no_reply_reason: ";
+/** A text longer than this, and not spam, is an ask: closing it with no reply needs a typed reason. */
+const NO_REPLY_REASON_MIN_CHARS = 25;
+
+/**
+ * No silent close (audit 2026-11-07: 12+ real requests closed "no reply needed"). Reads the
+ * conversation's open human_pending texts; if any is longer than 25 characters and not spam,
+ * a typed reason is required. On ok, `jobIds` are the rows checked: pass them to
+ * resolveHumanPendingForConversation so only those close. Throws on DB unavailability:
+ * an unreadable queue must not pass the check.
+ */
+export async function planNoReplyClose(
+  conversationId: number,
+  reason: string | undefined,
+): Promise<{ ok: true; jobIds: number[] } | { ok: false; message: string }> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) throw new Error("database unavailable — the open texts could not be checked");
+  const [rows] = await db.execute(sql`SELECT id, body FROM sms_response_jobs WHERE conversationId = ${conversationId} AND status = 'human_pending'`);
+  const open = rows as Array<{ id: number; body: string }>;
+  const asks = open.filter((r) => {
+    const body = String(r.body ?? "").replace(/\s+/g, " ").trim();
+    return body.length > NO_REPLY_REASON_MIN_CHARS && !isSpamInbound(body);
+  });
+  if (asks.length > 0 && !reason?.trim()) {
+    return {
+      ok: false,
+      message: "This customer asked for something. Reply to them, or type why no reply is needed.",
+    };
+  }
+  return { ok: true, jobIds: open.map((r) => Number(r.id)) };
+}
+
 /**
  * Close open human_pending obligations for a conversation. Called by the
  * operator paths that PROVE a human acted: the manual/approved-draft send
@@ -479,17 +524,26 @@ async function claimJobById(jobId: number): Promise<ResponseJob | null> {
 export async function resolveHumanPendingForConversation(
   conversationId: number,
   resolution: "human_replied" | "no_reply_required",
+  opts: { reason?: string; jobIds?: number[] } = {},
 ): Promise<number> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) return 0;
-  const res = await db.execute(sql`
+  // No opts: the same SQL as before. jobIds (from planNoReplyClose) is the CAS: only
+  // the rows whose bodies were checked close; a text that lands after the check stays open.
+  // The reason reuses lastError (NULL on a human_pending row), capped to its 1000 chars.
+  let closed = 0;
+  if (!opts.jobIds || opts.jobIds.length > 0) {
+    const reasonSet = opts.reason ? sql`, lastError = ${`${NO_REPLY_REASON_PREFIX}${opts.reason}`.slice(0, 1000)}` : sql``;
+    const idGuard = opts.jobIds ? sql` AND id IN (${sql.join(opts.jobIds.map((id) => sql`${id}`), sql`, `)})` : sql``;
+    const res = await db.execute(sql`
     UPDATE sms_response_jobs
-    SET status = ${resolution}
-    WHERE conversationId = ${conversationId} AND status = 'human_pending'
+    SET status = ${resolution}${reasonSet}
+    WHERE conversationId = ${conversationId} AND status = 'human_pending'${idGuard}
   `);
-  const closed = affectedRowCount(res);
+    closed = affectedRowCount(res);
+  }
   if (closed > 0) log.info("human-pending obligations resolved", { conversationId, resolution, closed });
   // The obligation's DRAFTS close with it, or the review queue keeps offering
   // an answer to a question a human already handled. CAS on 'drafted' so an
@@ -756,6 +810,13 @@ export function startResponseJobProcessor(): void {
       for (const job of jobs) await runResponseJob(job);
     } catch (err) {
       log.warn("response-job sweep failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+    // A real text unanswered 15 min in open hours pages the counter once (audit 2026-11-07).
+    try {
+      const { pageWaitingTexts } = await import("./smsWaitPage");
+      await pageWaitingTexts();
+    } catch (err) {
+      log.warn("counter wait-page check failed", { error: err instanceof Error ? err.message : String(err), errorId: "SMS_WAIT_PAGE_CHECK_FAILED" });
     }
   };
   void sweep(); // boot rehydrate

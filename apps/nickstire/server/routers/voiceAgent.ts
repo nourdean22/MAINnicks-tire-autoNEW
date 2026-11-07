@@ -250,6 +250,33 @@ async function sendArrivalHeadsUp(
   return false;
 }
 
+/**
+ * End-of-call safety net (2026-11-07 audit): a caller showed come-in, quote or tire
+ * intent and the assistant called neither bookSlot nor sendConfirmationSms. Same
+ * text shape as bookSlot (header ASKED, NOT BOOKED) and the same per-call claim, so a call gets one text at most.
+ */
+export async function sendNotBookedHeadsUp(input: { callId: string; callerNumber?: string; givenName?: string; service: string }): Promise<"sent" | "paused" | "already_sent" | "not_sent"> {
+  try {
+    const { isEnabled } = await import("../services/featureFlags");
+    if (await isEnabled("vapi_arrival_text_paused")) return "paused";
+    const name = await resolveCallerName(input.givenName, input.callerNumber);
+    // The caller asked; nobody confirmed they are coming. "COMING IN" stays with bookSlot.
+    const headsUp = arrivalHeadsUpText({ callerNumber: input.callerNumber, service: input.service }, name).replace(/^COMING IN \(phone\)/, "ASKED, NOT BOOKED (phone)");
+    const body = `${headsUp}\nNot booked by the assistant`;
+    const { textOnDutyManager } = await import("../services/eventBus");
+    const { sendOncePerState } = await import("../services/alertClaim");
+    const result = await sendOncePerState(`voice-arrival:${input.callId}`, async (): Promise<TelegramSendResult> => {
+      const r = await textOnDutyManager(body);
+      return { status: r.status === "sent" ? "delivered" : r.status === "pending" ? "held" : "failed" };
+    });
+    if (result === null) return "already_sent";
+    return result.status === "delivered" ? "sent" : "not_sent";
+  } catch (err) {
+    log.debug("not-booked heads-up failed", { err: err instanceof Error ? err.message.replace(/\d{4,}/g, "#") : String(err) });
+    return "not_sent";
+  }
+}
+
 function spokenClock(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
   const hour = h % 12 || 12;

@@ -174,6 +174,8 @@ export const smsOrchestratorRouter = router({
       id: z.number().int(),
       action: z.enum(["send", "edit_and_send", "resolve", "bad_suggestion"]),
       editedMessage: z.string().optional(),
+      /** resolve only: why no reply is owed. Required server-side for a real ask (planNoReplyClose). */
+      reason: z.string().trim().min(4).max(500).optional(),
     }))
     .mutation(async ({ input }) => {
       // ROS-083 dead-handle guard, in the shape the fabricated-read gate recognises:
@@ -221,6 +223,7 @@ export const smsOrchestratorRouter = router({
       const stillAt = (status: string) => and(eq(smsOrchestrations.id, input.id), eq(smsOrchestrations.status, status));
       const lostRace = () => new TRPCError({ code: "CONFLICT", message: "This draft was just actioned elsewhere — refresh the queue." });
       let obligationClosedAs: "human_replied" | "no_reply_required" | null = null;
+      let noReplyJobIds: number[] | undefined;
 
       if (input.action === "send" || input.action === "edit_and_send") {
         const messageToSend = input.action === "send" ? row.messageBody : (input.editedMessage || "");
@@ -284,10 +287,18 @@ export const smsOrchestratorRouter = router({
           }
         }
       } else if (input.action === "resolve") {
+        // No silent close (audit 2026-11-07): checked BEFORE the draft CAS, so a refusal changes nothing.
+        if (row.relatedConversationId) {
+          const { planNoReplyClose } = await import("../services/smsResponseJobs");
+          const plan = await planNoReplyClose(row.relatedConversationId, input.reason);
+          if (!plan.ok) throw new TRPCError({ code: "BAD_REQUEST", message: plan.message });
+          noReplyJobIds = plan.jobIds;
+        }
         const res = await db.update(smsOrchestrations)
           .set({
             status: "skipped",
             statusReason: "resolved_by_operator",
+            ...(input.reason ? { noSendReason: input.reason } : {}),
           })
           .where(stillAt(row.status));
         if (affectedRowCount(res) !== 1) throw lostRace();
@@ -320,7 +331,11 @@ export const smsOrchestratorRouter = router({
       if (obligationClosedAs && row.relatedConversationId) {
         try {
           const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
-          await resolveHumanPendingForConversation(row.relatedConversationId, obligationClosedAs);
+          if (obligationClosedAs === "no_reply_required") {
+            await resolveHumanPendingForConversation(row.relatedConversationId, obligationClosedAs, { reason: input.reason, jobIds: noReplyJobIds });
+          } else {
+            await resolveHumanPendingForConversation(row.relatedConversationId, obligationClosedAs);
+          }
         } catch (err) {
           log.warn("human-pending resolution failed after review action", {
             orchestrationId: input.id,

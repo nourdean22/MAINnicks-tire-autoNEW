@@ -30,6 +30,8 @@ const h = vi.hoisted(() => ({
   index: null as null | Record<string, unknown>, // sms.ts loadSuppressionIndex() answer
   warns: [] as Array<{ msg: string; ctx: unknown }>,
   telegrams: [] as string[],
+  // forwardedFollowupHold read: phone10 -> the SMS history row the hold query returns
+  smsHistory: {} as Record<string, Record<string, unknown>>,
 }));
 
 const dialect = new MySqlDialect();
@@ -69,6 +71,9 @@ vi.mock("../db", () => ({
     // the at-most-once claims: $.recoverySmsAt (text lane) or $.recoveryCallbackAt (callback lane)
     execute: async (q: unknown) => {
       const rendered = dialect.sqlToQuery(q as never);
+      if (rendered.sql.includes("FROM sms_conversations")) {
+        return [[h.smsHistory[String(rendered.params[0])] ?? {}], []];
+      }
       if (/JSON_REMOVE\(metadata, '\$\.recoveryCallbackAt'\)/.test(rendered.sql)) {
         h.callbackWrites.push({ kind: "release", ...rendered });
         if (h.releaseThrows) throw new Error("ER_LOCK_WAIT_TIMEOUT");
@@ -205,6 +210,7 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     h.index = { ok: true, phones: new Set(), carrierBlocked: new Set(), voiceOnly: new Set(), stale: false };
     h.warns = [];
     h.telegrams = [];
+    h.smsHistory = {};
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -255,6 +261,15 @@ describe("processMissedCallRecovery · tool-reaching callers", () => {
     expect(new Set(h.holdLanes)).toEqual(new Set(["missed_call_recovery"]));
     expect(h.sent).toEqual(["plain"]);
     expect(out).toMatchObject({ shadow: false, recordsProcessed: 1 });
+  });
+
+  it("14-day cooldown: a phone texted 3 days ago is neither claimed nor texted; a fresh phone is", async () => {
+    h.callRows = [call("plain", 0), call("repeatcaller", 0)];
+    h.smsHistory = { [call("repeatcaller", 0).phoneNumber.slice(-10)]: { lastSendAt: new Date(NOW.getTime() - 3 * 86_400_000), anyOpen: 0 } };
+    const out = await processMissedCallRecovery();
+    expect(h.sent).toEqual(["plain"]);
+    expect(h.claims).toBe(1);
+    expect(out).toMatchObject({ shadow: false, recordsProcessed: 1, details: "held · cooldown_14d=1" });
   });
 
   it("C5.5 round 2: pause set mid-run -> the next caller is neither claimed nor texted; Skipped with the count", async () => {

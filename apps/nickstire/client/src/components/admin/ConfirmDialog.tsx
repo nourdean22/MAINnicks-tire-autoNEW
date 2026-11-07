@@ -27,8 +27,20 @@ interface ConfirmOptions {
   tone?: Tone;
 }
 
+interface PromptInput {
+  label: string;
+  placeholder?: string;
+  /** Confirm stays disabled under this many trimmed characters. Default 4 (the server's floor). */
+  minLength?: number;
+}
+
+interface PromptOptions extends ConfirmOptions {
+  input: PromptInput;
+}
+
 interface InternalRequest extends ConfirmOptions {
-  resolve: (ok: boolean) => void;
+  input?: PromptInput;
+  resolve: (ok: boolean, text?: string) => void;
 }
 
 const EVENT = "admin:confirm-dialog";
@@ -40,24 +52,44 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   });
 }
 
+/**
+ * Same modal with a text box. Resolves the trimmed text, or null on cancel/Escape.
+ * window.prompt is suppressed in the iOS home-screen PWA, so every reason the
+ * server demands (a no-reply close on a real customer text) is typed here.
+ */
+export function promptDialog(options: PromptOptions): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const detail: InternalRequest = {
+      ...options,
+      resolve: (ok, text) => resolve(ok ? (text ?? "").trim() : null),
+    };
+    window.dispatchEvent(new CustomEvent(EVENT, { detail }));
+  });
+}
+
 export default function ConfirmDialog() {
   const [request, setRequest] = useState<InternalRequest | null>(null);
+  const [text, setText] = useState("");
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<InternalRequest>).detail;
       if (!detail) return;
+      setText("");
       setRequest(detail);
     };
     window.addEventListener(EVENT, handler as EventListener);
     return () => window.removeEventListener(EVENT, handler as EventListener);
   }, []);
 
-  // Focus confirm button on open + handle Escape
+  // Focus the text box when there is one, else the confirm button; handle Escape
   useEffect(() => {
     if (!request) return;
-    confirmBtnRef.current?.focus();
+    if (request.input) inputRef.current?.focus();
+    else confirmBtnRef.current?.focus();
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") cancel();
     };
@@ -72,9 +104,12 @@ export default function ConfirmDialog() {
     setRequest(null);
   }
 
+  const minLength = request?.input?.minLength ?? 4;
+  const textTooShort = Boolean(request?.input) && text.trim().length < minLength;
+
   function confirm() {
-    if (!request) return;
-    request.resolve(true);
+    if (!request || textTooShort) return;
+    request.resolve(true, text);
     setRequest(null);
   }
 
@@ -122,6 +157,20 @@ export default function ConfirmDialog() {
                     {request.message}
                   </p>
                 )}
+                {request.input && (
+                  <label className="block mt-3">
+                    <span className="block text-[12px] font-medium text-foreground/70 mb-1">{request.input.label}</span>
+                    <textarea
+                      ref={inputRef}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder={request.input.placeholder}
+                      rows={2}
+                      maxLength={500}
+                      className="w-full rounded-md border border-border/50 bg-background px-3 py-2 text-base text-foreground placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </label>
+                )}
               </div>
               <button
                 onClick={cancel}
@@ -141,7 +190,8 @@ export default function ConfirmDialog() {
               <button
                 ref={confirmBtnRef}
                 onClick={confirm}
-                className={`px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-md text-[14px] sm:text-[13px] font-semibold transition-colors ${
+                disabled={textTooShort}
+                className={`px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-md text-[14px] sm:text-[13px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none ${
                   tone === "danger"
                     ? "bg-red-500/90 text-white hover:bg-red-500"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"

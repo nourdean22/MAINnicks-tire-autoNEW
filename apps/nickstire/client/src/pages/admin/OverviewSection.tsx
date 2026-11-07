@@ -1,7 +1,8 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
-import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import { confirmDialog, promptDialog } from "@/components/admin/ConfirmDialog";
+import { TRPCClientError } from "@trpc/client";
 import { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
 import { getAdminActionableCounts, isOpenLead, isWaitingLead } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
@@ -425,6 +426,27 @@ export default function OverviewSection() {
     return true;
   }
 
+  /**
+   * The server refuses to close a real customer text (a long, non-spam ask) with no
+   * reason. A thank-you text closes on the first tap; a real ask gets one more
+   * dialog asking why, and the close is retried with that reason.
+   */
+  async function closeTextWithReasonIfAsked(conversationId: number): Promise<{ closed: number }> {
+    try {
+      return await markNoReplyNeeded.mutateAsync({ conversationId });
+    } catch (error) {
+      if (!(error instanceof TRPCClientError) || error.data?.code !== "BAD_REQUEST") throw error;
+      const reason = await promptDialog({
+        title: "Why does this text need no reply?",
+        message: error.message,
+        input: { label: "Reason", placeholder: "Spoke on the phone, came in, wrong number" },
+        confirmLabel: "Close without replying",
+      });
+      if (reason === null) return { closed: 0 };
+      return await markNoReplyNeeded.mutateAsync({ conversationId, reason });
+    }
+  }
+
   async function performSecondary(item: ActionItem): Promise<boolean> {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
@@ -434,7 +456,7 @@ export default function OverviewSection() {
         confirmLabel: definition.secondaryLabel,
       });
       if (!confirmed) return false;
-      const { closed } = await markNoReplyNeeded.mutateAsync({ conversationId: item.entityId });
+      const { closed } = await closeTextWithReasonIfAsked(item.entityId);
       await logReceipt(item, "admin.text_no_reply_needed", { closed });
       await utils.adminDashboard.overviewMediumBundle.invalidate();
       return Boolean(closed);

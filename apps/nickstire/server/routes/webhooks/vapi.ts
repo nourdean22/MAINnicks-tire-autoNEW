@@ -631,10 +631,12 @@ async function processCallEndReport(
         // one. Exact, not heuristic: the tool records the id it just created.
         let trailLeadId: number | null = null;
         let trailCallbackId: number | null = null;
+        let callTrail: Array<{ metadata?: unknown }> = [];
         try {
           const { getCallStateHistory } = await import("../../services/voice-call-state");
           const { trailReachedTool } = await import("../../services/vapiConversionSignals");
           const history = await getCallStateHistory(String(callId));
+          callTrail = history;
           convertedToLead = trailReachedTool(history) ? 1 : 0;
           // A positive integer or nothing — 0, negatives and floats are rejected
           // rather than written as a corrupt foreign key. Null means "no such
@@ -944,6 +946,36 @@ async function processCallEndReport(
           });
         }
 
+        // Close-on-intent safety net (2026-11-07 audit): intent shown, no bookSlot and no
+        // sendConfirmationSms -> the counter gets the COMING IN text, once per call.
+        if (firstLog) {
+          try {
+            const { decideIntentHeadsUp, shopOpenNow } = await import("../../services/voiceIntentSafetyNet");
+            const decision = decideIntentHeadsUp({
+              event: event as Parameters<typeof decideIntentHeadsUp>[0]["event"],
+              trail: callTrail,
+              leadId: trailLeadId,
+              callbackId: trailCallbackId,
+              open: shopOpenNow(),
+              durationSeconds: durationSec,
+            });
+            if (decision.send) {
+              const { sendNotBookedHeadsUp } = await import("../../routers/voiceAgent");
+              const sent = await sendNotBookedHeadsUp({
+                callId: String(callId),
+                callerNumber: customer?.number,
+                givenName: customer?.name,
+                service: summary ?? decision.intents.join(", "),
+              });
+              log.info("[vapi webhook] intent safety net", { callId, outcome: decision.outcome, result: sent });
+            } else {
+              log.debug("[vapi webhook] intent safety net skipped", { callId, reason: decision.reason, outcome: decision.outcome });
+            }
+          } catch (netErr) {
+            log.warn("[vapi webhook] intent safety net failed (non-blocking)", { error: logSafeErrorMessage(netErr) });
+          }
+        }
+
         // Narrow the number ONCE and pass the same value to both the decision
         // and the send. Reaching back for `customer!.number` after the predicate
         // returned true would re-assert a fact the compiler can't follow across
@@ -957,16 +989,23 @@ async function processCallEndReport(
           customerNumber: followupPhone,
           paused: followupPaused,
         })) {
-          const { orchestrateSms } = await import("../../services/smsOrchestrator");
-          await orchestrateSms({
-            type: "vapi_forwarded_call_followup",
-            phone: followupPhone,
-            vapiCallId: event.call?.id,
-          }).catch((err: unknown) => {
-            log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
-              error: logSafeErrorMessage(err),
+          // One follow-up per phone per 14 days, and never over the customer's own unanswered text.
+          const { loadForwardedFollowupHold } = await import("../../services/forwardedFollowupHold");
+          const followupHold = await loadForwardedFollowupHold(d, followupPhone);
+          if (followupHold) {
+            log.info("[vapi webhook] forwarded-call SMS not sent", { skippedReason: followupHold, callId });
+          } else {
+            const { orchestrateSms } = await import("../../services/smsOrchestrator");
+            await orchestrateSms({
+              type: "vapi_forwarded_call_followup",
+              phone: followupPhone,
+              vapiCallId: event.call?.id,
+            }).catch((err: unknown) => {
+              log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
+                error: logSafeErrorMessage(err),
+              });
             });
-          });
+          }
         } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
           log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
         }

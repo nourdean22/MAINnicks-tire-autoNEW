@@ -109,15 +109,27 @@ const FINANCING_EVERYDAY_RE =
  * text, so each needs a bulk-sender marker, not a topic word.
  */
 const NOT_A_CUSTOMER_RES: RegExp[] = [
-  /you have been blocked from originating messages/i,
   /\bsent from my car\b/i,
   /\b(reply|text|send)\s+(stop|end|quit|remove|yes)\b[^.!?]{0,40}\b(opt[- ]?out|to (stop|end)|unsubscribe|for (a )?(demo|quote|pricing))\b/i,
-  /\b(health (plans?|coverage|insurance|quote)|open enrollment|payroll software)\b/i,
+  /\bpayroll software\b/i,
   /\bi buy (vacant )?(land|houses|property|junk cars)\b/i,
   /\b(tracking number|has been moved into approved status)\b/i,
   /\b(no cost to join|pick up (and drop off )?packages at your (store|shop|business))\b/i,
-  /^\s*https?:\/\/\S+\s*$/i,
   /\b(babe|bby)\b/i,
+];
+
+/**
+ * 2026-11-07 (audit section 2): BULK-sender shapes only, so they are safe to drop at job
+ * creation (isSpamInbound): carrier bounces, health-plan robo texts, URL-only bodies and
+ * opt-out marketing footers. Each needs a marker no customer writes, never a topic word.
+ * Pinned by server/__tests__/smsSpamInbound.test.ts.
+ */
+const SPAM_RES: RegExp[] = [
+  /\bblocked from originating\b/i,
+  /\b(health (plans?|coverage|insurance|quote)|open enrollment|medicare (advantage|supplement)|obamacare|final expense)\b/i,
+  /^\s*(?:(?:https?:\/\/|www\.)\S+\s*)+$/i,
+  /\b(?:reply|txt)\s+stop\b/i,
+  /\bmsg\s*(?:&|and)\s*data rates may apply\b/i,
 ];
 
 /**
@@ -130,11 +142,18 @@ const LENDER_RES: RegExp[] = [
   /\b(?:updated|new|revised)\s+terms\s+on\s+your\b/i,
   /\byour\s+\$\s?\d[\d,]*(?:\.\d{2})?\s+file\b/i,
   /\bthis is \w+ (?:at|from|with) [a-z0-9&.' ]{1,40}?\b(?:capital|funding|lending|financial|advance)\b/i,
+  // 2026-11-07: funding-broker words no repair customer uses ("financing" stays a customer word).
+  /\b(working capital|merchant cash advance|business (?:funding|loans?|line of credit))\b/i,
 ];
 
 /** A lender's or funding broker's text (LENDER_RES). Today's waiting texts leave such a thread out. */
 export function isLenderText(body: string): boolean {
   return LENDER_RES.some((re) => re.test(body));
+}
+
+/** Bulk spam or a lender's text: written `suppressed` at job creation, so never in the human queue. */
+export function isSpamInbound(body: string): boolean {
+  return SPAM_RES.some((re) => re.test(body)) || isLenderText(body);
 }
 
 /** A short thank-you or "all good so far" with no question or problem in it. */
@@ -153,7 +172,7 @@ const RULES: Rule[] = [
     priority: -1,
     risk: "deterministic",
     catalogEvent: null,
-    test: (b) => NOT_A_CUSTOMER_RES.some((re) => re.test(b)) || isLenderText(b),
+    test: (b) => NOT_A_CUSTOMER_RES.some((re) => re.test(b)) || isSpamInbound(b),
   },
   {
     intent: "no_reply_needed",

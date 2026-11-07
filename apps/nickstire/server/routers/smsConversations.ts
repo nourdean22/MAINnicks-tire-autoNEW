@@ -391,15 +391,22 @@ export const smsConversationsRouter = router({
   /** ROS-058: an operator explicitly closes a waiting conversation as needing
    *  no reply — the ONLY way an obligation ends without a human answer. */
   markNoReplyNeeded: dbAdminProcedure
-    .input(z.object({ conversationId: z.number().int() }))
+    // reason: optional so the shipped client keeps working; planNoReplyClose requires it
+    // when an open text is a real ask (> 25 chars, not spam). Audit 2026-11-07.
+    .input(z.object({ conversationId: z.number().int(), reason: z.string().trim().min(4).max(500).optional() }))
     .mutation(async ({ input, ctx }) => {
-      const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
-      const closed = await resolveHumanPendingForConversation(input.conversationId, "no_reply_required");
+      const { planNoReplyClose, resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
+      const plan = await planNoReplyClose(input.conversationId, input.reason);
+      if (!plan.ok) throw new TRPCError({ code: "BAD_REQUEST", message: plan.message });
+      const closed = await resolveHumanPendingForConversation(input.conversationId, "no_reply_required", {
+        reason: input.reason,
+        jobIds: plan.jobIds,
+      });
       logAdminAction({
         action: "customer.sms_no_reply_needed",
         entityType: "sms_conversation",
         entityId: input.conversationId,
-        details: `Marked no-reply-needed (${closed} obligation${closed === 1 ? "" : "s"} closed)`,
+        details: `Marked no-reply-needed (${closed} obligation${closed === 1 ? "" : "s"} closed)${input.reason ? `: ${input.reason}` : ""}`,
         newValue: "no_reply_required",
         actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
       }).catch(() => { /* audit must never block */ });

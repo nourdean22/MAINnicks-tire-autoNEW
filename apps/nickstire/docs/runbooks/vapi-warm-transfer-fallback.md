@@ -21,29 +21,29 @@ live `warm-transfer-experimental` plan on every Push Latest Config:
     "sipVerb": "dial",                            (live, kept)
     "dialTimeout": 25,                            (live, kept)
 +   "transferAssistant": {
-+     "firstMessage": "Caller on the line for Nick's. Say yes to take it.",
++     "firstMessage": "Nick's customer on the line. Connecting you now.",
 +     "firstMessageMode": "assistant-speaks-first",
 +     "maxDurationSeconds": 45, "silenceTimeoutSeconds": 10,
 +     "model": { "provider": "openai", "model": "gpt-4o", "messages": [ <connect / cancel rules> ] }
 +   },
 +   "holdAudioUrl": "https://nickstire.org/api/webhooks/vapi/ringback.wav",
 ~   "fallbackPlan": {
-+     "message": "Sorry, nobody could grab the phone up front. Want the shop to call you back?",
++     "message": "Sorry, nobody could grab the phone up front.",
       "endCallEnabled": false
     }
   }
 ```
 
-- **What the counter hears when they answer:** "Caller on the line for Nick's. Say yes to take
-  it." Any answer that is not a no (yes, ok, go ahead, hello) connects the caller. Vapi has no
-  way to connect before a person answers: its docs tie `transferSuccessful` to a live operator
-  accepting. (Manager ruling R2; Nour can overrule it.)
+- **What the counter hears when they answer:** "Nick's customer on the line. Connecting you now."
+  The counter is never asked to accept: any live voice (hello, Nick's, yeah) connects the caller; only
+  voicemail, a menu, a busy tone, silence or an outright "can't take it" cancels (Nour 2026-11-06,
+  PR 3555; the earlier "Say yes to take it" wording is retired). Vapi cannot bridge before a person answers.
 - **What the caller hears while it rings:** a US ringback tone (440 + 480 Hz, 2 s on, 4 s off),
   served by the app, never music.
-- **No answer, busy, voicemail, or the counter says no:** the caller hears the one fallback
-  line and is back with the receptionist, which runs CALLBACK CAPTURE: takes what it is about
-  and a best time, calls `escalate` (one `callback_requests` row per call, one crew alert), and
-  says they are on the callback list. A caller who says no gets nothing recorded.
+- **No answer, busy, voicemail, or the counter cannot take it:** the caller hears the one fallback
+  line and is back with the receptionist, which runs NO ANSWER UP FRONT: one line, no callback offer
+  (2026-11-06, PR 3555). The 14-day forwarded-call follow-up text (2026-11-07) applies to the
+  forwarded leg only, never to the fallback.
 - **Witness:** these transfers send no `transfer-update` (Vapi docs); the webhook now records
   `status-update` `forwarding` as `transfer_attempted`.
 - **Rollback still works:** a live plan in any other mode (for example after
