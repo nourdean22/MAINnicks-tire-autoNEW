@@ -210,7 +210,11 @@ async function main() {
   // GRAPH_LOCAL_SERVICES: the config for a hook run from its CONFIGURED command string (hookCommand.test.mjs), where no flag can be added.
   const { hosts, server } = loadConfig(flag("--config") ?? process.env.GRAPH_LOCAL_SERVICES ?? join(REPO, "config", "agent-os", "local-services.json"));
   const host = (process.env.COMPUTERNAME || hostname()).toUpperCase();
-  if (!hosts.includes(host)) return `[graph] mcp: not expected on host ${host}; fallback: graphify-out/GRAPH_REPORT.md + \`graphify query\``;
+  if (!hosts.includes(host)) {
+    return server.remoteUrl
+      ? `[graph] mcp: forwarded from ${new URL(server.remoteUrl).hostname.split(".")[0]} by graph-forward.mjs; the [health] line says whether it is up`
+      : `[graph] mcp: not expected on host ${host}; fallback: graphify-out/GRAPH_REPORT.md + \`graphify query\``;
+  }
 
   const t0 = Date.now();
   const probe = () => mcpProbe(server.port, server.path, server.kind ?? server.name);

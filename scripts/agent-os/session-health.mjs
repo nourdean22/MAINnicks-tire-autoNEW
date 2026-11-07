@@ -322,6 +322,21 @@ function tailnetItem() {
   return okItem(`tailnet: ${present ? "installed" : "not installed"} (optional, docs/agent-os/TAILNET-MCP.md)`);
 }
 
+/**
+ * A PC that does not serve the graph but forwards it from the PC that does (scripts/agent-os/graph-forward.mjs): probe the
+ * loopback address every program uses. WRONG SERVICE here is the forwarder's 502, i.e. the far graph server is off.
+ */
+async function forwarderLine(s) {
+  const far = new URL(s.remoteUrl).hostname.split(".")[0];
+  const st = await mcpProbe(s.port, s.path, s.kind ?? s.name);
+  const item = {
+    up: okItem(`graph up via forwarder to ${far}`),
+    DOWN: failItem("graph forwarder DOWN (nothing on the graph port)", "node scripts/agent-os/graph-forward.mjs (at logon: scripts/register-graph-forward-task.ps1)"),
+    "NO ANSWER": unknownItem("graph via forwarder", "no answer"),
+  }[st] ?? failItem(`graph forwarder answers but not as graphify: the graph server on ${far} is probably off`, `on the PC that serves the graph: ${PS} scripts/local-mcp-servers.ps1 -Start`);
+  return `[health] ${item.text}${item.fix ? ` | FIX FIRST: (1) ${item.fix}` : ""}`;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const flag = (name) => {
@@ -333,7 +348,10 @@ async function main() {
   const appData = homeFlag ? join(homeFlag, "AppData", "Roaming") : process.env.APPDATA || join(home, "AppData", "Roaming");
   const config = loadConfig(flag("--config") ?? join(REPO, "config", "agent-os", "local-services.json"));
   const host = (process.env.COMPUTERNAME || hostname()).toUpperCase();
-  if (!config.hosts.some((h) => String(h).toUpperCase() === host)) return "[health] local services: not expected on this host";
+  if (!config.hosts.some((h) => String(h).toUpperCase() === host)) {
+    const forwarded = config.servers.find((s) => s.remoteUrl);
+    return forwarded ? forwarderLine(forwarded) : "[health] local services: not expected on this host";
+  }
 
   const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
   // Not awaited here: the probes and schtasks start now, beside git rev-parse; only the graph check needs its answer.
