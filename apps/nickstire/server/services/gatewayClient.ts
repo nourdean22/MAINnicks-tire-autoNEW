@@ -238,6 +238,8 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
  * customer paid cost x 4 (100% markup applied to 2x cost). The dealer's
  * true cost is always the LOWER of the two (cost <= retail), so we take the
  * min — correct today and self-correcting if D&K's naming ever shifts.
+ * With no positive `selling_price` the cost is UNKNOWN and we return 0
+ * (every caller drops $0 rows): `cost_price` alone is retail, never cost.
  */
 export function pickWholesaleCost(item: Record<string, unknown>): number {
   const pricing = item.pricing_data;
@@ -245,8 +247,7 @@ export function pickWholesaleCost(item: Record<string, unknown>): number {
     const first = pricing[0] as Record<string, unknown>;
     const selling = typeof first.selling_price === "number" ? first.selling_price : 0;
     const listed = typeof first.cost_price === "number" ? first.cost_price : 0;
-    const positives = [selling, listed].filter((n) => n > 0);
-    if (positives.length > 0) return Math.min(...positives);
+    if (selling > 0) return listed > 0 ? Math.min(selling, listed) : selling;
   }
   return 0;
 }

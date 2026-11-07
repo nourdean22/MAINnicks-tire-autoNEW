@@ -25,10 +25,16 @@ describe("pickWholesaleCost — D&K inverted pricing fields", () => {
     expect(pickWholesaleCost(item([{ cost_price: 470.75, selling_price: 941.5 }]))).toBe(470.75);
   });
 
-  it("falls back to the only positive price when one field is missing or zero", () => {
+  it("uses selling_price alone when cost_price is missing or zero", () => {
     expect(pickWholesaleCost(item([{ selling_price: 470.75 }]))).toBe(470.75);
-    expect(pickWholesaleCost(item([{ cost_price: 941.5 }]))).toBe(941.5);
     expect(pickWholesaleCost(item([{ cost_price: 0, selling_price: 470.75 }]))).toBe(470.75);
+  });
+
+  it("returns 0 (unknown) when only cost_price is present: that field is D&K's RETAIL, never our cost", () => {
+    // Pricing off retail alone would quote about 4x cost (100% markup on 2x cost).
+    expect(pickWholesaleCost(item([{ cost_price: 941.5 }]))).toBe(0);
+    expect(pickWholesaleCost(item([{ cost_price: 941.5, selling_price: 0 }]))).toBe(0);
+    expect(pickWholesaleCost(item([{ cost_price: 941.5, selling_price: "call" }]))).toBe(0);
   });
 
   it("returns 0 (caller filters $0 tires) when pricing is missing, empty, or non-numeric", () => {
