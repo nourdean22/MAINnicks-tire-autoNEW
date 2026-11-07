@@ -37,7 +37,7 @@ const CUE = /\b(?:owed|due|until|before|earliest|re-?read|check|kill|review|next
 const BY_DATE = /\bby\s+$/i;
 // shortcut: a date is a recorded result or a past reference, not a read, when a clock time follows it, merge/merged/deploy follows it, or deploy(s/ed)/merged/merges/landed/posted/since/the leads it; wording-only, revisit if cells get a dated field.
 const NOT_READ_AFTER = /^(?:[T\s]\d{1,2}:\d{2}|\s+(?:merge|merged|deploy)\b)/i;
-const NOT_READ_LEAD = /\b(?:deploys?|deployed|merged|merges|landed|posted|since|the)\s+$/i;
+const NOT_READ_LEAD = /\b(?:deploys?|deployed|merged|merges|landed|posted|since|(?<!\b(?:before|by|until|due)\s+)the)\s+$/i; // "before the <date>" stays a deadline
 const isRead = (text, m) => (BY_DATE.test(text.slice(0, m.index)) || !NOT_READ_AFTER.test(text.slice(m.index + m[0].length))) && !NOT_READ_LEAD.test(text.slice(0, m.index)); // "by <date> <time>" is a deadline, kept
 const DONE = new Set(["LIVE-VERIFIED", "CANCELLED"]);
 const SHIP_LABEL = /kill[- ]criteri(?:on|a)|live[- ]checks?/i;

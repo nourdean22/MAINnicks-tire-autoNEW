@@ -338,3 +338,11 @@ test("the agent-os README carries a registry row for kill-reads.mjs", () => {
   assert.match(readme, /merged PR bodies since 2026-10-29/);
   assert.doesNotMatch(readme, /merged PR bodies since 2026-11-01/);
 });
+
+test("a date led by 'the' is a past reference, but 'before/by/until/due the <date>' is still a deadline", async () => {
+  const { prReads } = await lib();
+  const dates = (kill) => prReads(prs([206, BAR(kill)])).map((r) => r.date);
+  assert.deepEqual(dates("Kill: the 2026-09-16 baseline was 19 clicks."), []);
+  assert.deepEqual(dates("Kill: revert if no lift before the 2026-11-16 cutover."), ["2026-11-16"]);
+  assert.deepEqual(dates("Kill: drop it if unused by the 2026-12-01 review."), ["2026-12-01"]);
+});
