@@ -230,3 +230,35 @@ describe("normalizeTireSize", () => {
 
   it.each(["LT265/70R17", "abc", "22565", "225/65R17/9", ""])("rejects %s", (raw) => expect(normalizeTireSize(raw)).toBeNull());
 });
+
+// Added after the mutation run: deleting the tier sort key, the unknown-window guard or the same-tier tie
+// condition left every earlier test green.
+describe("compareOffers: rules the mutation run showed were unpinned", () => {
+  it("tier ranks before the clock: a shipment stated to land in 10 min still loses Quickest to shelf stock", () => {
+    const r = run([
+      offer("a", "1", { unitPrice: 90 }),
+      offer("b", "2", { unitPrice: 50 }, { arrival: { tier: "ship", at: min(10), orderBy: UNKNOWN }, fulfillmentMode: "ship" }),
+    ]);
+    expect(r.quickest?.key).toBe("a:1:local");
+    expect(r.candidates[0].key).toBe("a:1:local");
+  });
+
+  it.each([
+    ["transfer with no stated time", { tier: "transfer" as const, at: UNKNOWN, orderBy: UNKNOWN }],
+    ["unknown tier", { tier: "unknown" as const, at: UNKNOWN, orderBy: UNKNOWN }],
+  ])("an orderable offer with %s never wins Quickest, but can win price", (_label, arrival) => {
+    const r = run([offer("a", "1", {}, { arrival, fulfillmentMode: "transfer" })]);
+    expect(r.quickest).toBeNull();
+    expect(r.bestPrice?.key).toBe("a:1:local");
+    expect(byKey(r, "a:1:local").canWinQuickest).toBe(false);
+  });
+
+  it("a cheaper transfer whose window overlaps the shelf run is not a speed tie: ties stay inside one tier", () => {
+    const r = run([
+      offer("a", "1", { unitPrice: 90 }),
+      offer("b", "2", { unitPrice: 50 }, { arrival: { tier: "transfer", at: min(0), orderBy: UNKNOWN }, fulfillmentMode: "transfer" }),
+    ]);
+    expect(r.quickest?.key).toBe("a:1:local");
+    expect(r.sameWindow).toEqual([]);
+  });
+});
