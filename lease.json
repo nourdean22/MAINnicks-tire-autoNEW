@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/telegram-cleanup",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\gsc-messaging-receptionist-audit-8884c1\\.worktrees\\telegram-cleanup",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T15:25:39.361Z",
   "expiresAt": "2026-11-08T03:25:39.361Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T16:15:25.451Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "f483b492ef06bc718fad92d42a56fa5074ebc6fb",
+  "releasedBy": "f842366e-4011-4295-b071-702fca9ecce3",
+  "foreignReleaseReason": null
 }
