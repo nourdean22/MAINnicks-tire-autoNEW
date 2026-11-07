@@ -123,7 +123,8 @@ the flag off and the next phase waits.
    2b. Is the D&K login-based client (and O'Reilly's JSON behind the shop login) an approved vendor path, or a
    handoff like the rest. Blocks phase 3's live sourcing.
 3. Capital and Federated: ask each vendor for an export or API, or accept handoffs for now.
-4. Phase order as above, or sourcing before quote.
+4. Phase order as above, or quote before read: doc 31 s.6 leans quote-first (about 70%) because the quote needs no
+   daytime ALG read and makes money through the live declined-work lane. Read-first here only if decision 1b is yes.
 5. Send templates: quote text, approval text, pickup text. Each is a customer send and needs a go, one by one.
 
 Default if he says nothing: 0 buy the core, 1 stay on the list, 1b no daytime probes, 2 wait, 2b handoff until he
