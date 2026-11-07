@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/fast-replies",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\gsc-messaging-receptionist-audit-8884c1\\.worktrees\\fast-replies",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T15:26:12.679Z",
   "expiresAt": "2026-11-08T03:26:12.679Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T16:31:38.740Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "9a0f6f50d567beee9be195c928b7111c990f7ee3",
+  "releasedBy": "f842366e-4011-4295-b071-702fca9ecce3",
+  "foreignReleaseReason": null
 }
