@@ -35,12 +35,16 @@ const ALL_DATES = new RegExp(`(?<![\\w-])${ISO_DATE.source}(?!-[a-z0-9])`, "g");
 // shortcut: a ledger cell is prose, so a date counts as a future read only when one of these words leads it in its clause (`by` only when the date follows it directly); revisit if cells get a dated field.
 const CUE = /\b(?:owed|due|until|before|earliest|re-?read|check|kill|review|next)\b/i;
 const BY_DATE = /\bby\s+$/i;
+// shortcut: a date is a recorded result or a past reference, not a read, when a clock time follows it, merge/merged/deploy follows it, or deploy(s/ed)/merged/merges/landed/posted/since/the leads it; wording-only, revisit if cells get a dated field.
+const NOT_READ_AFTER = /^(?:[T\s]\d{1,2}:\d{2}|\s+(?:merge|merged|deploy)\b)/i;
+const NOT_READ_LEAD = /\b(?:deploys?|deployed|merged|merges|landed|posted|since|the)\s+$/i;
+const isRead = (text, m) => (BY_DATE.test(text.slice(0, m.index)) || !NOT_READ_AFTER.test(text.slice(m.index + m[0].length))) && !NOT_READ_LEAD.test(text.slice(0, m.index)); // "by <date> <time>" is a deadline, kept
 const DONE = new Set(["LIVE-VERIFIED", "CANCELLED"]);
 const SHIP_LABEL = /kill[- ]criteri(?:on|a)|live[- ]checks?/i;
 const ITEM = /^(?:[-*+]|\d+[.)])\s+/;
 const LABEL_BREAK = /^(?:\*\*.*\*\*:?|#{1,6}\s.*)$/; // a bold-only line or a heading ends a label's list
 
-const datesIn = (s) => [...new Set(s.match(ALL_DATES) ?? [])];
+const datesIn = (s) => [...new Set([...s.matchAll(ALL_DATES)].filter((m) => isRead(s, m)).map((m) => m[0]))];
 const tidy = (s) => s.replace(/^\s*(?:[-*>]\s+)+/, "").replace(/\*\*|__/g, "").trim();
 const clip = (s) => (s.length > 110 ? `${s.slice(0, 107)}...` : s);
 const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.source < b.source ? -1 : a.source > b.source ? 1 : 0);
@@ -90,7 +94,7 @@ export function ledgerReads(root, problems = []) {
     for (const clause of cells[6].split(/(?<=[.;])\s+/)) {
       for (const m of clause.matchAll(ALL_DATES)) {
         const lead = clause.slice(0, m.index).slice(-40);
-        if (CUE.test(lead) || BY_DATE.test(lead)) out.push(read(m[0], `ledger ${job.id}`, clause));
+        if ((CUE.test(lead) || BY_DATE.test(lead)) && isRead(clause, m)) out.push(read(m[0], `ledger ${job.id}`, clause));
       }
     }
   }
