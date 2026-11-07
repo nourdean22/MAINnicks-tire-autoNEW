@@ -405,3 +405,60 @@ describe("orchestrateSms · W2 non-customer filter and holding reply", () => {
     expect(res.reason).toMatch(/^intent_not_proven:/);
   });
 });
+
+// Job 2026-11-07-fast-replies asked for a trial flag to let hours_location and
+// same_day_visit auto-send. They already do, with no extra flag: the single-intent
+// text gets its catalog template under smart_sms_auto_reply alone, and a two-question
+// text of only these intents is drafter work that #3393 already proved. Pinned here so
+// a later gate on these two cannot land silently.
+describe("orchestrateSms · hours_location and same_day_visit auto-send today", () => {
+  const flagsOn = (...keys: string[]) => mockIsEnabled.mockImplementation(async (k: string) => keys.includes(k));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb._appSecretKvQueryCount = 0;
+    mockRolloutGlobalMode = undefined;
+    mockRolloutEventMode = undefined;
+    mockDbAvailable = true;
+    mockDb.execute.mockResolvedValue([[]]);
+    mockSendSms.mockResolvedValue({ success: true, sid: "SM_test_123" });
+    mockClassifyIntent.mockResolvedValue({ ok: true, topLabel: "asking about hours or location", topScore: 0.95 });
+  });
+  let nextConversationId = 8000;
+  const inbound = (body: string) => orchestrateSms({ type: "inbound_sms", phone: "2165550077", body, conversationId: nextConversationId++ });
+
+  it.each([
+    ["what time do you close today?", "hours_location"],
+    ["can I stop by this afternoon?", "same_day_visit"],
+  ])("a single-intent text gets its template under smart_sms_auto_reply alone: %s", async (body, event) => {
+    flagsOn("smart_sms_auto_reply");
+    const res = await inbound(body);
+    expect(mockDraftSmsReply).not.toHaveBeenCalled();
+    expect(res.reason).toBe(`deterministic_auto_reply:${event}`);
+    expect(res.shouldAutoSend).toBe(true);
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it("negative control: with smart_sms_auto_reply off the template is a draft, not a text", async () => {
+    flagsOn();
+    const res = await inbound("what time do you close today?");
+    expect(res.shouldAutoSend).toBe(false);
+    expect(mockSendSms.mock.calls.filter((c: any[]) => !/staff member/i.test(c[1]))).toEqual([]);
+  });
+
+  it("a two-question text of only these two intents auto-sends its finished draft", async () => {
+    flagsOn("smart_sms_auto_reply", "nickgpt_low_risk_autosend_enabled");
+    mockDraftSmsReply.mockResolvedValue({ ok: true, draft: "We close at 6 today, and yes, come in any time before then.", source: "fallback-claude", modelName: "m", latencyMs: 100, completion: "complete" });
+    const res = await inbound("what time do you close, can I come in today?");
+    expect(mockDraftSmsReply).toHaveBeenCalledTimes(1);
+    expect(res.reason).toBe("low_risk_auto_send:asking about hours or location");
+    expect(res.shouldAutoSend).toBe(true);
+  });
+
+  it("negative control: the same draft is held when nickgpt_low_risk_autosend_enabled is off", async () => {
+    flagsOn("smart_sms_auto_reply");
+    mockDraftSmsReply.mockResolvedValue({ ok: true, draft: "We close at 6 today, and yes, come in any time before then.", source: "fallback-claude", modelName: "m", latencyMs: 100, completion: "complete" });
+    const res = await inbound("what time do you close, can I come in today?");
+    expect(res.shouldAutoSend).toBe(false);
+    expect(res.requiresHumanApproval).toBe(true);
+  });
+});
