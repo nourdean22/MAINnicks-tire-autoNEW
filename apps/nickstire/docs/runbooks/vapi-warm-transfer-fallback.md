@@ -56,7 +56,7 @@ https://nickstire.org/api/webhooks/vapi/ringback.wav (it must play a ring), then
 **Live check after the tap:** call the shop line, ask for a person, let the counter ring out.
 Expect: ringback, then the fallback line within about 25 s, the callback questions, ONE
 `callback_requests` row for that call id, ONE crew Telegram line, no second call to the shop or
-the caller. Then call again and have the counter answer: the one sentence, a yes, connected.
+the caller. Then call again and have the counter answer: the one line, then any voice connects the caller (nobody is asked to say yes).
 Still open (not confirmed): whether `dialTimeout` is honoured in experimental mode, which
 voice the transfer assistant uses, and whether Vapi loops a hold file shorter than the wait
 (the file is 60 s).
