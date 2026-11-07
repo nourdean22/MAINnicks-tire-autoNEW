@@ -3,9 +3,13 @@
  *
  * What D&K's search states, and what it does not (docs/plans/shop-os/26-VENDOR-SCHEMATICS.md section 5):
  * - on_hand + pricing_data[0].site_name: stock at the branch that serves this account. Orderable, on the route.
- * - total_qty (when present): a regional figure. Orderable online is not confirmed and no transfer time is stated,
- *   so it is a "transfer" with at UNKNOWN: it competes on price only and never ranks for speed.
+ * - trade_region[] {site_id, site_name, on_hand}, or only trade_region_quantity: regional warehouses
+ *   (docs/plans/shop-os/30-PORTAL-NETWORK-SCHEMATICS.md section 3). Whether this account may order them online is
+ *   UNKNOWN and est_delivery_days is a day count, not a time, so each is a "transfer" with at UNKNOWN: price only.
+ * - other_warehouse_quantity: national stock, a "ship" with at UNKNOWN, price only.
+ * - total_qty is the grand total of the three (doc 30 s.3), so it is never a location of its own.
  * - No delivery or cutoff time anywhere, so every arrival.at / orderBy is UNKNOWN; SUPPLIER_SCHEDULES supplies the run.
+ * - A zero away from the local branch is not an option, so it is left out.
  */
 import { normalizeTireSize, UNKNOWN, type Maybe, type OfferLocation, type SupplierOffer } from "@shared/sourcing";
 import { pickWholesaleCost } from "./gatewayClient";
@@ -23,6 +27,27 @@ function toOffer(item: Row, ctx: { size: string; verifiedAt: string }): Supplier
   const size = normalizeTireSize(text(item.invent_size));
   const model = text(item.minor_name).replace(/^[A-Z]+\s*-\s*/, "");
 
+  const away = (branchCode: string, branchName: string, qty: unknown, tier: "transfer" | "ship"): OfferLocation[] => {
+    const n = num(qty);
+    if (n === UNKNOWN || n === 0) return [];
+    return [
+      {
+        branchCode,
+        branchName,
+        kind: "network",
+        qty: n,
+        qtySource: "supplier_live",
+        orderable: UNKNOWN,
+        arrival: { tier, at: UNKNOWN, orderBy: UNKNOWN },
+        fulfillmentMode: tier,
+      },
+    ];
+  };
+  const sites = (Array.isArray(item.trade_region) ? item.trade_region : []).filter((s): s is Row => typeof s === "object" && s !== null);
+  const regional = sites.length
+    ? sites.flatMap((s, i) => away(`regional-${String(s.site_id ?? i)}`, text(s.site_name) || "D&K regional", s.on_hand, "transfer"))
+    : away("regional", "D&K regional", item.trade_region_quantity, "transfer");
+
   const locations: OfferLocation[] = [
     {
       branchCode: "local",
@@ -34,19 +59,9 @@ function toOffer(item: Row, ctx: { size: string; verifiedAt: string }): Supplier
       arrival: { tier: "shelf", at: UNKNOWN, orderBy: UNKNOWN },
       fulfillmentMode: "route",
     },
+    ...regional,
+    ...away("national", "D&K national", item.other_warehouse_quantity, "ship"),
   ];
-  if (typeof item.total_qty === "number") {
-    locations.push({
-      branchCode: "regional",
-      branchName: "D&K regional",
-      kind: "network",
-      qty: num(item.total_qty),
-      qtySource: "supplier_live",
-      orderable: UNKNOWN,
-      arrival: { tier: "transfer", at: UNKNOWN, orderBy: UNKNOWN },
-      fulfillmentMode: "transfer",
-    });
-  }
 
   return {
     supplierId: "gateway_dk",

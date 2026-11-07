@@ -274,3 +274,36 @@ describe("compareOffers: second-reader findings", () => {
     expect(r.quickest?.key).not.toBe(r.bestPrice?.key);
   });
 });
+
+// docs/plans/shop-os/30-PORTAL-NETWORK-SCHEMATICS.md section 8: O'Reilly states the arrival at the shop
+// (nextRoute.estimatedArrivalTime) and the order-by time (nextRoute.cutoffTime) per supplier location.
+describe("compareOffers: a supplier-stated arrival (doc 30 s.8)", () => {
+  const routed = (at: string, orderBy: string): Partial<OfferLocation> => ({
+    branchCode: "dc",
+    arrival: { tier: "transfer", at, orderBy, atIs: "arrival" },
+  });
+
+  it("the stated arrival is the window itself: no run time added, and no schedule row is needed", () => {
+    const r = run([offer("oreilly", "FL-1", {}, routed(min(155), min(10)))]);
+    expect(r.quickest?.key).toBe("oreilly:FL-1:dc");
+    expect(r.quickest?.window).toEqual({ from: min(155), to: min(155) });
+  });
+
+  it("an order-by time that has passed takes it out of Quickest, with the reason", () => {
+    const r = run([offer("oreilly", "FL-1", {}, routed(min(155), min(-1)))]);
+    expect(r.quickest).toBeNull();
+    expect(byKey(r, "oreilly:FL-1:dc").reasons.join(" ")).toMatch(/Order-by time passed/);
+    expect(r.bestPrice?.key).toBe("oreilly:FL-1:dc");
+  });
+
+  it("a stated arrival read 16 minutes ago is stale like shelf stock", () => {
+    const r = run([offer("oreilly", "FL-1", { lastVerifiedAt: min(-16) }, routed(min(155), min(10)))]);
+    expect(r.quickest).toBeNull();
+  });
+
+  it("without the flag, an unscheduled supplier's time is still not trusted", () => {
+    const r = run([offer("oreilly", "FL-1", {}, { branchCode: "dc", arrival: { tier: "transfer", at: min(155), orderBy: min(10) } })]);
+    expect(r.quickest).toBeNull();
+    expect(byKey(r, "oreilly:FL-1:dc").reasons).toContain("No delivery schedule on file for this supplier");
+  });
+});

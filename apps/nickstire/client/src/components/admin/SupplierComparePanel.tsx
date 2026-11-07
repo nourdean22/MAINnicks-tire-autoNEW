@@ -39,8 +39,12 @@ function where(c: Candidate): string {
 }
 
 function arrives(c: Candidate): string {
-  // A window exists only when the supplier has a schedule row, so the label is read from the same row.
   if (c.window === UNKNOWN) return "Arrival time not stated";
+  const { atIs, orderBy } = c.location.arrival;
+  if (atIs === "arrival") {
+    return `Supplier says here by ${clock(c.window.from)}${orderBy === UNKNOWN ? "" : ` · order by ${clock(orderBy)}`}`;
+  }
+  // Any other window comes from the supplier's schedule row, so the label is read from the same row.
   return `Usually here ${clock(c.window.from)} to ${clock(c.window.to)} (run ${SUPPLIER_SCHEDULES[c.offer.supplierId]?.basis})`;
 }
 
@@ -65,7 +69,7 @@ function Reasons({ c }: { c: Candidate }) {
 }
 
 function Offer({ c, qty, hideCost }: { c: Candidate; qty: number; hideCost: boolean }) {
-  const have = c.location.qty === UNKNOWN ? "quantity not stated" : `${c.location.qty} there`;
+  const have = c.location.qty === UNKNOWN ? "quantity not stated" : `${c.location.qty}${c.location.qtyAtLeast ? "+" : ""} there`;
   return (
     <div>
       <p className="font-semibold">{c.offer.description}</p>

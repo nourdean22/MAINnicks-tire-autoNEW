@@ -26,11 +26,17 @@ export interface OfferLocation {
   branchName: string;
   kind: "store" | "warehouse" | "coop" | "network" | Unknown;
   qty: Maybe<number>;
+  /** The supplier caps its count (ATD 99+, Capital 50+), so qty is a floor, not the exact stock. */
+  qtyAtLeast?: true;
   qtySource: SourceTag;
   /** Can THIS account order from this location online? Doc 26: a "no" location is call-to-source, never a pick. */
   orderable: "yes" | "no" | Unknown;
-  /** `at`: when the supplier says it leaves for or reaches the shop (ISO). `orderBy`: the cutoff for that time. */
-  arrival: { tier: AvailabilityTier; at: Maybe<string>; orderBy: Maybe<string> };
+  /**
+   * `at`: when the supplier says it leaves for or reaches the shop (ISO). `orderBy`: the cutoff for that time.
+   * `atIs: "arrival"`: `at` is the supplier's own stated arrival at the shop (O'Reilly nextRoute.estimatedArrivalTime,
+   * doc 30 section 8), so it is the window itself and no schedule row is needed.
+   */
+  arrival: { tier: AvailabilityTier; at: Maybe<string>; orderBy: Maybe<string>; atIs?: "arrival" };
   fulfillmentMode: "route" | "pickup" | "ship" | "transfer" | "courier" | Unknown;
 }
 
@@ -114,6 +120,8 @@ export function normalizeTireSize(raw: string): string | null {
 }
 
 const MINUTE = 60_000;
+/** Shelf limit for a supplier with no schedule row, the same 15 minutes doc 26 sets for Gateway. */
+const DEFAULT_SHELF_MAX_AGE_MINUTES = 15;
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 function landedUnit(o: SupplierOffer): Maybe<number> {
@@ -167,23 +175,31 @@ function rankOne(
   const ageMin = Math.round((nowMs - Date.parse(o.lastVerifiedAt)) / MINUTE);
   const sched = schedules[o.supplierId];
   let window: Candidate["window"] = UNKNOWN;
-  const { tier, at } = l.arrival;
-  if (!sched) {
+  const { tier, at, orderBy, atIs } = l.arrival;
+  const stated = atIs === "arrival";
+  const atMs = at === UNKNOWN ? NaN : Date.parse(at);
+  const orderByMs = orderBy === UNKNOWN ? NaN : Date.parse(orderBy);
+  if (!sched && !stated) {
     reasons.push("No delivery schedule on file for this supplier");
-  } else if (!Number.isFinite(ageMin) || ageMin > sched.shelfMaxAgeMinutes) {
+  } else if (!Number.isFinite(ageMin) || ageMin > (sched?.shelfMaxAgeMinutes ?? DEFAULT_SHELF_MAX_AGE_MINUTES)) {
     reasons.push(`Stock checked ${Number.isFinite(ageMin) ? `${ageMin} min ago` : "at an unknown time"} - call to confirm`);
   } else if (tier === "unknown") {
     reasons.push("No arrival information - call to confirm");
+  } else if (orderByMs < nowMs) {
+    reasons.push("Order-by time passed - call to confirm");
+  } else if (stated || !sched) {
+    if (Number.isFinite(atMs)) window = span(atMs, { min: 0, max: 0 });
+    else reasons.push("Arrival time not stated - call to confirm");
   } else if (tier === "shelf") {
     if (l.qtySource === "supplier_live") {
       window = span(nowMs, sched.runMinutes);
     } else {
       reasons.push("Stock not checked live - call to confirm");
     }
-  } else if (at === UNKNOWN || !Number.isFinite(Date.parse(at))) {
+  } else if (!Number.isFinite(atMs)) {
     reasons.push("Arrival time not stated - call to confirm");
   } else {
-    window = tier === "ship" ? span(Date.parse(at), { min: 0, max: 0 }) : span(Date.parse(at), sched.runMinutes);
+    window = tier === "ship" ? span(atMs, { min: 0, max: 0 }) : span(atMs, sched.runMinutes);
   }
   if (window === UNKNOWN) speed = false;
 

@@ -1,7 +1,9 @@
 /**
  * Gateway/D&K search rows -> SupplierOffer. Rows use the recorded /quicksearch/cache key set
  * (server/__tests__/fixtures/gatewayOrder/dk.json, values invented): on_hand, pricing_data[0].{site_name,
- * selling_price, cost_price, quantity, fet}; total_qty is the regional figure gatewayTire.adminSearch reads.
+ * selling_price, cost_price, quantity, fet}. Regional and national stock follow the captured row shape in
+ * docs/plans/shop-os/30-PORTAL-NETWORK-SCHEMATICS.md section 3: trade_region[] per warehouse, trade_region_quantity,
+ * other_warehouse_quantity; total_qty is the grand total of all three.
  */
 import { describe, expect, it } from "vitest";
 import dk from "../__tests__/fixtures/gatewayOrder/dk.json";
@@ -43,8 +45,41 @@ describe("gatewayItemsToOffers", () => {
     expect([o.priceStatus, o.unitPrice, o.fet, o.core]).toEqual(["priced", 88.5, 1.25, "not_applicable"]);
   });
 
-  it("a regional figure becomes a second location: a transfer, orderable not confirmed", () => {
-    const [o] = gatewayItemsToOffers([row({ on_hand: 1, total_qty: 12 })], CTX);
+  it("total_qty is Gateway's grand total, so it is never shown as a location of its own", () => {
+    const [o] = gatewayItemsToOffers([row({ on_hand: 1, total_qty: 54 })], CTX);
+    expect(o.locations.map((l) => l.qty)).toEqual([1]);
+  });
+
+  it("doc 30 s.3 row: each regional warehouse is its own transfer, national stock ships, neither confirmed orderable", () => {
+    const [o] = gatewayItemsToOffers(
+      [
+        row({
+          on_hand: 0,
+          trade_region_quantity: 14,
+          other_warehouse_quantity: 40,
+          total_qty: 54,
+          trade_region_est_delivery_days: 4,
+          trade_region_splitup: true,
+          trade_region: [
+            { site_id: 21, site_name: "Monroe, OH", on_hand: 9, est_delivery_days: 3 },
+            { site_id: 22, site_name: "Madison, TN", on_hand: 5, est_delivery_days: 4 },
+            { site_id: 23, site_name: "Empty, OH", on_hand: 0, est_delivery_days: 4 },
+          ],
+        }),
+      ],
+      CTX,
+    );
+    expect(o.locations.map((l) => [l.branchCode, l.branchName, l.qty, l.arrival.tier, l.orderable])).toEqual([
+      ["local", "Seville, OH", 0, "shelf", "yes"],
+      ["regional-21", "Monroe, OH", 9, "transfer", UNKNOWN],
+      ["regional-22", "Madison, TN", 5, "transfer", UNKNOWN],
+      ["national", "D&K national", 40, "ship", UNKNOWN],
+    ]);
+    expect(o.locations.every((l) => l.arrival.at === UNKNOWN && l.arrival.orderBy === UNKNOWN)).toBe(true);
+  });
+
+  it("a regional count with no per-warehouse list is one regional location: a transfer, orderable not confirmed", () => {
+    const [o] = gatewayItemsToOffers([row({ on_hand: 1, trade_region_quantity: 12 })], CTX);
     expect(o.locations[1]).toMatchObject({
       branchCode: "regional",
       qty: 12,
@@ -85,7 +120,7 @@ describe("Gateway offers through compareOffers", () => {
   const offers = () =>
     gatewayItemsToOffers(
       [
-        row({ dk_part_number: "CHEAP", on_hand: 2, total_qty: 14 }, { selling_price: 70 }),
+        row({ dk_part_number: "CHEAP", on_hand: 2, trade_region_quantity: 14 }, { selling_price: 70 }),
         row({ dk_part_number: "MID", on_hand: 6 }, { selling_price: 88.5 }),
         row({ dk_part_number: "PRICEY", on_hand: 9 }, { selling_price: 120 }),
       ],
@@ -117,7 +152,7 @@ describe("Gateway offers through compareOffers", () => {
   });
 
   it("regional-only stock: no quickest pick (ETA unknown - call), but it can be the best price", () => {
-    const only = gatewayItemsToOffers([row({ on_hand: 1, total_qty: 12 })], CTX);
+    const only = gatewayItemsToOffers([row({ on_hand: 1, trade_region_quantity: 12 })], CTX);
     const r = compareOffers(only, 4, NOW);
     expect(r.quickest).toBeNull();
     expect(r.bestPrice?.location.branchCode).toBe("regional");

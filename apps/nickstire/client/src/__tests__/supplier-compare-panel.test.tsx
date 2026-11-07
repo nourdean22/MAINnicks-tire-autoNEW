@@ -188,6 +188,28 @@ describe("SupplierComparePanel", () => {
     expect(h.refetch).not.toHaveBeenCalled();
   });
 
+  it("a capped count (99+, 50+) reads as a floor, not an exact number", () => {
+    const capped = offer("CAP", 70, 99);
+    capped.locations[0].qtyAtLeast = true;
+    h.lookup = live([capped]);
+    show();
+    search();
+    expect(screen.getAllByText(/99\+ there/).length).toBeGreaterThan(0);
+  });
+
+  it("a supplier-stated arrival says so and shows the order-by time, not the run schedule", () => {
+    const o = offer("FL-1", 9, 4);
+    const inMin = (m: number) => new Date(Date.now() + m * 60_000).toISOString();
+    o.supplierId = "oreilly_fco";
+    o.locations[0] = { ...o.locations[0], branchCode: "dc", arrival: { tier: "transfer", at: inMin(150), orderBy: inMin(10), atIs: "arrival" } };
+    h.lookup = live([o]);
+    show();
+    search();
+    const text = within(card(/^Quickest/)).getByText(/^Supplier says here by/).textContent ?? "";
+    expect(text).toMatch(/^Supplier says here by \d{1,2}:\d\d [AP]M · order by \d{1,2}:\d\d [AP]M$/);
+    expect(screen.queryByText(/undefined/)).toBeNull();
+  });
+
   it("Re-check asks Gateway again", () => {
     h.lookup = live(THREE());
     show();
