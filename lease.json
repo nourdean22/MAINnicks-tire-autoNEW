@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "nickstire/quiet-line-alarm",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\quiet-line-alarm",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T16:22:22.319Z",
   "expiresAt": "2026-11-08T04:22:22.319Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T16:47:22.060Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "b2439ae461516ab4437bb22cfb651282fb603a14",
+  "releasedBy": "f842366e-4011-4295-b071-702fca9ecce3",
+  "foreignReleaseReason": null
 }
