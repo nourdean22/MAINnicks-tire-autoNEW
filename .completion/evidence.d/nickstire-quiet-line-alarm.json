@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "New cron quiet-line-alarm (scheduler.ts, after overdue-reply-alert): checkQuietLine in server/services/quietLineAlarm.ts reads the flag first (an unreadable flag counts as off: 'off: quiet_line_alarm'), never fires on a failed count read ('count read failed', warn log errorId QUIET_LINE_COUNT_READ, no page), and cannot reach a customer (Telegram incident to Nour only). server/services/quietLineAlarm.test.ts 13 tests (thrown read, empty rows, null count and no DB each give 'count read failed' with no page; flag off and a thrown flag read give 'off'); server/__tests__/cronNoSwallowedFailure.test.ts, cronRethrow2026, cronInventoryParity, cronControlPlane, cronWiringGate green (lane run: 10 files 125 tests; manager re-run quietLineAlarm + cronNoSwallowedFailure 2 files passed 2026-11-07 16:22Z); pnpm run lint:cron-wiring 0 faults."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json gains capabilityId quiet-line-alarm (in_progress / unit_verified / disabled: flag OFF by default until Nour flips it, P2 next-business-day cron_log read) and REALITY-LEDGER.md is re-rendered in the same diff."
+    }
+  }
+}
