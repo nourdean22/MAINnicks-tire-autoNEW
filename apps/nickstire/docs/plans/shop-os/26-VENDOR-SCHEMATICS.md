@@ -177,7 +177,9 @@ is still open is **which locations each account can actually order from and how 
 - Capital Tire: ROUTE schedule, cutoff, how non-Macedonia stock reaches Cleveland. (24)
 - Fisher/Federated: delivery runs and cutoffs from C185OH, transfer time from other Fisher stores and
   warehouses, whether those are orderable online. (25)
-- Gateway: is the Regional bucket orderable and how fast. (22)
+- Gateway: ANSWERED in part by [30](30-PORTAL-NETWORK-SCHEMATICS.md) s.3: each regional warehouse states
+  `est_delivery_days` (3-4) and every row carries `trade_region_splitup = true` (STRONG INFERENCE: orderable,
+  split by site; not tested with a cart). (22, 30)
 Until answered, those suppliers compete on price only and show "ETA unknown - call".
 - Parts Authority: drive time from branch 29 to the shop after "My Branch Departure", how Saturday delivery and
   DoorDash are chosen, and whether IMC will enable the Mitchell 1/ALLDATA-style punchout for Shop OS. (27)
