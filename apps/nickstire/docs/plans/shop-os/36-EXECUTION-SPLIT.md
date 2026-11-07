@@ -31,6 +31,27 @@ Allowlisted PC actions today (all `needsGo: false`, all read-only): `pc-status`,
 the counter PC) adds one named action with fixed argv to `harness-actions.json` in its first PR; Nour approves that
 PR before it is used. No action ever takes a shell or free argv (the file's own `$comment`).
 
+### 1b. Every leg, both ways (Nour, 2026-11-07 14:03Z: "i want all comps n websites n apps talking to each other and can work both ways")
+
+Every computer (NATTYNOUR, MECHANICS, NicksMax), both websites (nickstire.org, bdnick.info) and every app (both PWAs,
+the worker, the PC harness) must be able to talk in both directions. What exists is mostly one-way; the table is the
+map the build fills in, one leg per PR, each with its auth named. "exists" rows are FACT from the merged PR; gaps are
+the plan.
+
+| From | To | Exists today | Auth | Gap |
+|---|---|---|---|---|
+| bdnick | a PC (action) | yes, PR 3563: allowlisted actions in `config/agent-os/harness-actions.json`, poller `harness-poll.mjs` | per-PC key, `needsGo` per action | more actions only by allowlist PR |
+| a PC | bdnick (snapshot) | yes, PR 3546: read-only harness snapshot | same key | a PC raising an EVENT (not a snapshot): missing |
+| a PC | nickstire.org | no | none yet | the shop PC worker leg of doc 18 / doc 38 (job pull, result push) |
+| nickstire.org | bdnick | partial: the bridge contract in `packages/*` | shared secret per the contract | nickstire -> bdnick -> PC round trip: missing |
+| bdnick | nickstire.org | partial: same contract | same | a bdnick-side read of Shop OS state (board, quotes): missing until doc 37 P1 lands |
+| client PC | NATTYNOUR graph | yes, PR 3577 + 3579: forwarder on 127.0.0.1:8765 over tailscale serve | tailnet ACL, loopback Host | read-only by design; stays that way |
+| NATTYNOUR | client PC | no direct leg; goes through bdnick actions | as row 1 | fine: bdnick is the dispatcher, not a gap |
+| iPhone | both sites | yes, the two PWAs | app sign-in | none |
+
+Rule for every new leg: one PR, the auth named in its body, a canary that breaks the leg and asserts it fails
+(AGENTS.md "ship the canary"), and a row update here. The doc 37 brief carries this rule in KNOWN and DESIGN.
+
 ## 2. Lanes per phase
 
 Lane roster and paths are the manager skill's. Every lane gets one brief file (template
@@ -77,6 +98,8 @@ Nothing here needs a schema change that is not already in doc 26; any that appea
 - Doc 32 s.7 decisions 1, 1b, 2b and 5; the defaults in doc 32 apply when he says nothing.
 - A current `heavy.mjs status` read on NATTYNOUR (RAM gate) and a `harness-run.mjs --pc mechanics --action pc-status`
   round trip, so the counter PC is known reachable before phase 1 verification is planned on it.
+- A release receipt per phase landing (doc 39 row 5): running commit contains the merge (`deploy-not-live` step 3),
+  migration applied, one authenticated workflow finished on the running build, rollback commit named.
 - The GitHub repo is public (memory `security-public-repo-credential-leak`): no cloud brief carries a secret, an
   account number or a customer identifier.
 

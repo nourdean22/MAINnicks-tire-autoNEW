@@ -159,6 +159,9 @@ A model running on the shop PC can infer locally without a model API. The curren
 
 ### Model selection gate
 
+Test plan adopted 2026-11-07 (doc 38): first pull `qwen3.5:4b-q4_K_M` as `nicks-prod-8k`, challenger `lfm3-vl:2b-q4_K_M`,
+the 64-case golden set and gates in doc 38 s.3, Windows Ollama settings in its row 11; nothing below is replaced by it.
+
 Do not hard-code Gemma 3 4B or any other model as "best." Gemma 3 4B was a candidate in the October plan, not a verified production choice. Refresh hardware and benchmark a small, legally usable set from publisher sources. Compare CPU and supported iGPU backends, quantizations, real prompt length, concurrent faster-whisper/camera use, RAM headroom, thermal behavior, disk, startup, crash recovery, and license. Choose the smallest model that passes the shop-specific quality and latency gates; if none passes, keep deterministic rules and the approved cloud fallback or no AI for that task.
 
 ### Worker and harness
