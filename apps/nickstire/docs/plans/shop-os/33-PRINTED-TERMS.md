@@ -49,7 +49,7 @@ default, an `Other Authorized Person / Phone` line, and `SIGNED / DATE` under th
 an expected arrival date in that line), which is the strongest argument for doc 26's `Quote` object carrying
 `deposit` and `partsEta` as fields instead of prose.
 
-## 2. Invoice terms (`invoiceDisclaimers`), seven paragraphs
+## 2. Invoice terms (`invoiceDisclaimers`), eight paragraphs
 
 > NO CASH REFUNDS. ALL SALES ARE FINAL EXCEPT FOR APPROVED WARRANTY CLAIMS OR AS REQUIRED BY LAW. APPROVED
 > WARRANTY CLAIMS ARE LIMITED SOLELY TO REPAIR OR REPLACEMENT, AT SHOP OPTION, OF DEFECTIVE COVERED PARTS OR
@@ -113,9 +113,9 @@ Signer block: `MOE'S EUCLID TIRE N AUTO LLC DBA NICK'S TIRE & AUTO`, `17625 EUCL
 
 | Surface (doc 32 screen) | Copies | Not copied |
 |---|---|---|
-| Customer approval page `/approve/:token` (screen 6) | the first six invoice paragraphs in full under the frozen lines, from one `web`-channel constant added to `businessFacts.ts` (seeded from s.2, one place in code); the estimate "known problem" box when a line is declined | the seventh paragraph (payment or acceptance of the invoice acknowledges the work performed): it is a post-service acknowledgment and stays off a pre-work approval, which records consent to the quoted work only; nothing shortened; no summary bullets in place of the text |
-| Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck line (`alignment.warranty`, all channels) when a wheel or tire line is on the ticket | the storage line: `storage.policy` is voice and web only, so it is said on the phone or shown on the page, never texted; the warranty paragraphs (on the printed invoice already) |
-| Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store | road hazard or mileage wording of any kind |
+| Customer approval page `/approve/:token` (screen 6) | invoice paragraphs 1 to 7 (refunds through storage and severability) in full under the frozen lines, from one `web`-channel constant added to `businessFacts.ts` (seeded from s.2, one place in code); the estimate "known problem" box when a line is declined | paragraph 8 (payment or acceptance of the invoice acknowledges the work performed): it is a post-service acknowledgment and stays off a pre-work approval, which records consent to the quoted work only; nothing shortened; no summary bullets in place of the text |
+| Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck sentence from a new fact key `lug_torque.recheck` (seeded from the lug sentence in s.2, all channels) when a wheel or tire line is on the ticket; `alignment.warranty` carries the alignment-setting sentence as well and stays on alignment lines only | the storage line: `storage.policy` is voice and web only, so it is said on the phone or shown on the page, never texted; the warranty paragraphs (on the printed invoice already) |
+| Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store | any wording that offers road hazard or mileage coverage; the closing no-road-hazard sentence inside `used_tire.warranty` stays, because a fact is never shortened |
 | Receptionist (`businessFacts.ts` warranty and policy facts) | its seed facts are checked against s.2 above; quote-only-if-asked stands (doc 32 rule 8); `refund.policy` and `storage.policy` answer on voice and web only | volunteering terms on a routine call; refund or storage terms by SMS |
 | Printed estimate and invoice | stay ALG's; the CRM never prints its own ledger document | a second invoice format |
 
