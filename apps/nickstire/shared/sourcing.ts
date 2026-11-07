@@ -184,7 +184,7 @@ function rankOne(
   if (!sched && !stated) {
     reasons.push("No delivery schedule on file for this supplier");
   } else if (!Number.isFinite(ageMs) || ageMs > (sched?.shelfMaxAgeMinutes ?? DEFAULT_SHELF_MAX_AGE_MINUTES) * MINUTE) {
-    reasons.push(`Stock checked ${Number.isFinite(ageMin) ? `${ageMin} min ago` : "at an unknown time"} - call to confirm`);
+    reasons.push(`Stock and price checked ${Number.isFinite(ageMin) ? `${ageMin} min ago` : "at an unknown time"} - call to confirm`);
   } else if (tier === "unknown") {
     reasons.push("No arrival information - call to confirm");
   } else if (orderByMs < nowMs) {

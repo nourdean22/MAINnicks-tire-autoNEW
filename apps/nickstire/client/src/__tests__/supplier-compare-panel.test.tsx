@@ -184,7 +184,9 @@ describe("SupplierComparePanel", () => {
       vi.advanceTimersByTime(30_000);
     });
     expect(screen.queryByRole("region", { name: /^Quickest/ })).toBeNull();
-    expect(screen.getAllByText(/Stock checked 16 min ago - call to confirm/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Stock and price checked 16 min ago - call to confirm/).length).toBeGreaterThan(0);
+    const bestPrice = screen.getByRole("region", { name: /best price/i });
+    expect(bestPrice.textContent).toMatch(/Stock and price checked 16 min ago/);
     expect(h.refetch).not.toHaveBeenCalled();
   });
 

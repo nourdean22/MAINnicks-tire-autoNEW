@@ -116,6 +116,12 @@ describe("compareOffers: Quickest arrival ranks where the part is first", () => 
     expect(byKey(r, "a:1:local").reasons.join(" ")).toMatch(/16 min ago.*call to confirm/i);
   });
 
+  it("a stale lookup can still be the best price, and its warning says the price is old too", () => {
+    const r = run([offer("a", "1", { lastVerifiedAt: min(-16) })]);
+    expect(r.bestPrice?.key).toBe("a:1:local");
+    expect(r.bestPrice?.reasons).toContain("Stock and price checked 16 min ago - call to confirm");
+  });
+
   it("15 minutes and 10 seconds old is past the limit, even though it rounds to 15", () => {
     const r = run([offer("a", "1", { lastVerifiedAt: new Date(NOW.getTime() - 15 * 60_000 - 10_000).toISOString() })]);
     expect(r.quickest).toBeNull();
