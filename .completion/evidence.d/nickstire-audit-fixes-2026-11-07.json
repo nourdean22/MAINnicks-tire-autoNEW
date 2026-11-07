@@ -2,6 +2,9 @@
   "evidence": {
     "operator-walkthrough": {
       "ref": "Today board: tapping No reply needed on a real customer ask now opens a reason box (ASKED text box, confirm disabled under 4 chars, cancel/Escape leaves the text open); SMS review DISMISS does the same. Pinned by client/src/__tests__/no-reply-reason-dialog.test.tsx (3 arms, red 3/3 before the dialog existed) and server/__tests__/smsNoReplyReason.test.ts. Public pages: /wheel-alignment-cleveland H1, intro and FAQ, homepage and /battery titles, pinned by client/src/__tests__/alignment-near-me-copy.test.ts (11 arms, red 9/11 before the copy). Live admin tap-through on the deployed PWA owed 2026-11-08 by the manager; recorded in the PR body."
+    },
+    "cron-fail-closed": {
+      "ref": "dailyReport.ts mute: server/cron/jobs/dailyReport.mute.test.ts arm 'a failed lead read still texts' (mute only on a confirmed 0/0; a thrown read is not a zero) plus server/__tests__/cronNoSwallowedFailure.test.ts and server/cron/jobs/cronRethrow2026.test.ts green on this tree (verify 2026-11-07 14:32Z). missedCallRecovery.ts: the 14-day hold is checked before the claim through forwardedFollowupHold.shouldHoldForwardedFollowup, whose failed read HOLDS (no send) and is logged; pinned by server/services/forwardedFollowupHold.test.ts and the cooldown arms in server/__tests__/missedCallRecovery.test.ts (red 1 of 28 before the hold)."
     }
   }
 }

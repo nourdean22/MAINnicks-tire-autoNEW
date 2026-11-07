@@ -5950,6 +5950,36 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "audit-fixes-no-intent-left-silent",
+      "name": "No customer ask leaves silently: a real text cannot be closed without a reason, spam leaves the human queue, the counter is paged after 15 min, the receptionist books or texts the counter on intent, forwarded follow-up once per 14 d, daily 0/0 text muted",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "2026-11-07 branch nickstire/audit-fixes-2026-11-07 (audit PR 3576, apps/nickstire/docs/audits/gsc-sms-receptionist-audit-2026-11-07.md): smsResponseJobs.planNoReplyClose refuses markNoReplyNeeded and the SMS review DISMISS on an open inbound body over 25 chars that is not spam unless a 4 to 500 char reason is given (lastError no_reply_reason); ConfirmDialog.promptDialog gives the admin the reason box on the Today board and the review queue. smsIntentRouter.isSpamInbound writes health-insurance, lender, carrier-bounce and URL-only bodies as suppressed/spam_inbound. smsWaitPage runs on the 45 s response-job sweep and texts the on-duty manager once per wait after 15 min in opening hours (claim sms-wait-page:<conv>:<firstJobId>). vapi.ts FLOW 4 close-on-intent prompt line (not pushed to Vapi until Nour taps Push Latest Config) plus voiceIntentSafetyNet.decideIntentHeadsUp in the end-of-call webhook: intent and no closing tool -> ASKED, NOT BOOKED (phone) text to the counter, same per-call claim as bookSlot, shop open only. forwardedFollowupHold: one forwarded-call follow-up text per phone per 14 d and never over the customer's own unanswered text; missedCallRecovery checks the same hold. dailyReport mutes the Daily: 0 bookings, 0 leads text when both are a confirmed zero.",
+        "tests": [
+          "server/__tests__/smsNoReplyReason.test.ts, smsSpamInbound.test.ts (fixture-backed, 12 of 12 mutants killed), smsWaitPage.test.ts; red first 37 of 42 before the fix",
+          "server/services/voiceIntentSafetyNet.test.ts, server/routes/webhooks/vapi.intentSafetyNet.test.ts (through the real route; retry and after-hours arms), server/vapi.prompt-close-on-intent.test.ts, server/services/forwardedFollowupHold.test.ts, server/__tests__/missedCallRecovery.test.ts (cooldown arms), server/cron/jobs/dailyReport.mute.test.ts (a failed lead read still texts); 7 red-first runs quoted in the lane return",
+          "client/src/__tests__/no-reply-reason-dialog.test.tsx (3, red 3 of 3 before promptDialog), client/src/__tests__/alignment-near-me-copy.test.ts (11, red 9 of 11 before the copy)",
+          "combined tree 2026-11-07: server 11 files 129 passed; client 7 files 225 passed; full verify 1305 files passed, 6 red that pass alone (order-dependent on this PC, one exit 134); build exit 0"
+        ],
+        "verifiedAgainst": "Unit and route tests only. Not read against live TiDB: the hold query assumes mysql2 returns MAX(timestamp) as a Date (a string is also handled). No production send happened; every new text goes to the on-duty manager, none to a customer.",
+        "limits": "claimAlertOnce fails open on a DB error (a duplicate page in a blip); a skipped page (no on-duty number) keeps the claim; any outbound counts as a reply; spam regexes are English only. The FLOW 4 prompt line is code only until Push Latest Config. Daily text stays muted on 0/0 even when revenue is non-zero."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Nour: Push Latest Config in Admin > Voice Receptionist after deploy; live check 2026-11-08 (manager taps No reply needed on a real ask, reads one sms-wait-page log line)."
+        }
+      ],
+      "deferredScope": [
+        "SMS_GLOBAL_DAILY_CAP revert to 200",
+        "voice_followups table: kept, neither deleted nor wired"
+      ],
+      "lastVerifiedAt": "2026-11-07",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
