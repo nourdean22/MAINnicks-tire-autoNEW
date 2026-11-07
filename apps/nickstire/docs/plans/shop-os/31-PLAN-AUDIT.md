@@ -1,9 +1,9 @@
 # 31 - Plan audit: every load-bearing claim in 01-30, re-checked
 
 Date: 2026-11-06 ET (2026-11-07 UTC). Code: origin/main 9aa61c8019. Production read 03:20Z: /api/version ok on main,
-/api/health healthy, database up. Doc 30 is read from PR 3570 at head 81fb305f83 (open); this PR merges only after
-3570 lands. No database rows, no vendor portal, no customer data were read. Row counts need the database, so every
-count below is UNKNOWN or HISTORICAL.
+/api/health healthy, database up. Doc 30 is cited as PR 3570 merges it (claims re-checked through head e84293a201);
+this PR merges only after 3570 lands. No database rows, no vendor portal, no customer data were read. Row counts
+need the database, so every count below is UNKNOWN or HISTORICAL.
 Method stolen from doc 30: one receipt per claim, the label says how far the evidence reaches, nothing rounds up.
 
 ## 1. Answer first
