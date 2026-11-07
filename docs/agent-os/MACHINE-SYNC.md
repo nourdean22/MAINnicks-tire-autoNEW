@@ -85,9 +85,12 @@ Nick's `runHarnessAction` enum. v1 holds read-only actions only; an action that 
 
 ## Follow-ups in the repo
 
-1. Per-host client URL for graphify: `local-services.json` grows a hosts map (keyed on NATTYNOUR's tailnet node name,
-   `nattynour-1` today), read by `mcp-adapters.mjs` and `session-health.mjs`, after W9 merges. Then a client PC's
-   `bootstrap-machine.mjs` writes `mcpServers.graphify` with that URL instead of 127.0.0.1.
+1. Graphify on client PCs (2026-11-07, Nour: "interconnected between all 3 comps"): NOT a per-host URL (it would have to be
+   set in every program on every client PC). Done instead: `scripts/agent-os/graph-forward.mjs` listens on the same 127.0.0.1:8765 and passes requests to
+   `remoteUrl` (NATTYNOUR's `tailscale serve` address), so nothing else changes; `scripts/register-graph-forward-task.ps1`
+   starts it at logon. Details: `TAILNET-MCP.md`. On a client PC the `[health]` line now reads
+   `graph up via forwarder to nattynour-1`, or names what to start (the forwarder here, or the graph server on the far
+   PC) and `graph-ensure-mcp.mjs` says the graph is forwarded. Left: no MECHANICS run yet.
 2. `bootstrap-machine.mjs --check` and `session-health.mjs` say nothing when the project half is missing: on a sparse
    clone without `.claude` they reported "ok" for the machine half and "not expected on this host", and the hooks did
    not exist. Add one line: `project: .claude MISSING from sparse checkout, fix: git sparse-checkout add .claude`.

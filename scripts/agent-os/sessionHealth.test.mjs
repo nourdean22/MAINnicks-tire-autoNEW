@@ -365,6 +365,35 @@ test("host gate: a host not in the config prints the not-expected line and nothi
   assert.equal(oneLine(await run(f)), "[health] local services: not expected on this host");
 });
 
+// A client PC: not in `hosts`, but the graphify entry names a remoteUrl, so the loopback port is the forwarder's.
+async function client(label, port) {
+  const server = { name: "graphify", port, path: "/mcp", kind: "graphify", remoteUrl: "https://nattynour-1.tailtest.ts.net/mcp" };
+  return healthy(label, { ports: [port, await listen()], config: { hosts: ["SOME-OTHER-HOST"], servers: [server] } });
+}
+
+test("client PC: a forwarder answering as graphify reads up via the far PC, with no FIX FIRST", async () => {
+  assert.equal(oneLine(await run(await client("client-up", await listen()))), "[health] graph up via forwarder to nattynour-1");
+});
+
+test("client PC: nothing on the graph port is DOWN and the fix is to start the forwarder", async () => {
+  const line = oneLine(await run(await client("client-down", await closedPort())));
+  assert.match(line, /graph forwarder DOWN/);
+  assert.match(line, /FIX FIRST: \(1\) node scripts\/agent-os\/graph-forward\.mjs/);
+});
+
+test("client PC: a 502 from the forwarder (far graph server off) is never up, and names the start command", async () => {
+  const line = oneLine(await run(await client("client-502", await listen("graphify", 502))));
+  assert.doesNotMatch(line, /graph up/);
+  assert.match(line, /graph server on nattynour-1 is probably off/);
+  assert.match(line, /FIX FIRST: \(1\) on the PC that serves the graph: .*local-mcp-servers\.ps1 -Start/);
+});
+
+test("client PC: a forwarder that never answers is UNKNOWN, not DOWN and not up", async () => {
+  const line = oneLine(await run(await client("client-silent", await silent())));
+  assert.match(line, /graph via forwarder UNKNOWN \(no answer\)/);
+  assert.doesNotMatch(line, /DOWN|graph up/);
+});
+
 test("own error: a missing config prints one [health] off: line, exit 0", async () => {
   const f = await healthy("no-config");
   f.configFile = join(SCRATCH, "no-config", "absent.json");

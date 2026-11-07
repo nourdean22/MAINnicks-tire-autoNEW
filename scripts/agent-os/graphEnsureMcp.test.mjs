@@ -27,17 +27,17 @@ after(() => {
 
 const freePort = () => startMcpStub().then(async (s) => { const p = s.port; await s.close(); return p; });
 
-function config(label, port, { hosts = [HOST] } = {}) {
+function config(label, port, { hosts = [HOST], remoteUrl } = {}) {
   const dir = join(SCRATCH, label);
   mkdirSync(join(dir, "scripts"), { recursive: true });
   const file = join(dir, "local-services.json");
-  writeFileSync(file, JSON.stringify({ version: 1, hosts, servers: [{ name: "graphify", port, path: "/mcp", kind: "graphify" }], clients: ["claude"] }));
+  writeFileSync(file, JSON.stringify({ version: 1, hosts, servers: [{ name: "graphify", port, path: "/mcp", kind: "graphify", ...(remoteUrl && { remoteUrl }) }], clients: ["claude"] }));
   return { dir, file };
 }
 
 /** launcher = JSON argv the hook runs instead of local-mcp-servers.ps1 -Start; `state`/`launchLog` plant the previous verdict. */
-function run(label, { port, hosts, launcher, state, launchLog } = {}) {
-  const { dir, file } = config(label, port, { hosts });
+function run(label, { port, hosts, remoteUrl, launcher, state, launchLog } = {}) {
+  const { dir, file } = config(label, port, { hosts, remoteUrl });
   const stateDir = join(dir, "state");
   if (state || launchLog) mkdirSync(stateDir, { recursive: true });
   if (state) writeFileSync(join(stateDir, STATE_FILE), JSON.stringify(state));
@@ -156,6 +156,13 @@ test("host gate: a host not in the config says so and points at the report + CLI
   const r = run("host", { port, hosts: ["SOME-OTHER-HOST"], launcher: [process.execPath, STUB, String(port)] });
   assert.equal(r.code, 0, r.err);
   assert.match(oneLine(r.out), /^\[graph\] mcp: not expected on host .*; fallback: graphify-out\/GRAPH_REPORT\.md \+ `graphify query`$/, r.out);
+});
+
+test("host gate: a client PC (remoteUrl set) is told the graph is forwarded, not pointed at a report it does not have, and never launches", async () => {
+  const port = await freePort();
+  const r = run("client-host", { port, hosts: ["SOME-OTHER-HOST"], remoteUrl: "https://nattynour-1.tailtest.ts.net/mcp", launcher: [process.execPath, STUB, String(port)] });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(oneLine(r.out), "[graph] mcp: forwarded from nattynour-1 by graph-forward.mjs; the [health] line says whether it is up");
 });
 
 // Round-3 reader: two SessionStarts at once both read DOWN and both launched (no lock); session B's launcher then killed

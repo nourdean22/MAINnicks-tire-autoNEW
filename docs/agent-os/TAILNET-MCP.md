@@ -5,6 +5,11 @@ server, `graphify` on `http://127.0.0.1:8765/mcp` (`config/agent-os/local-servic
 This page says how another PC could reach it once Nour signs NATTYNOUR into a tailnet. Serena was trialled and dropped
 the same day (`docs/UPSTREAMS.md`), so there is no second port.
 
+**Update 2026-11-07 (measured from NicksMax):** the serve step is done. `https://nattynour-1.tailae7855.ts.net/mcp` answers
+on 443 and returns 502 while graphify is down on NATTYNOUR (so a 502 means "start the server", not "serve is missing");
+8765 stays closed to the tailnet, as intended. The client side is `scripts/agent-os/graph-forward.mjs` (below), not a
+second URL in every program's config.
+
 `docs/UPSTREAMS.md:65` records Tailscale as ADOPT-CANDIDATE, not adopted, and says exposing anything over it "needs
 the operator's explicit go-ahead and a threat model, not an agent's initiative". This page is that threat model. No
 agent runs these steps; Nour does, after he says go.
@@ -48,13 +53,19 @@ Steps:
 3. Add the ACL rule from threat-model step 3 in the admin console.
 4. `tailscale serve status`, then check from the other device that the URL it prints answers.
 
-## Client config on a second PC
+## Client PCs (NicksMax, MECHANICS): the loopback forwarder
 
-Replace `<url>` with the HTTPS URL `tailscale serve status` prints, plus `/mcp`:
+Every program here already points at `http://127.0.0.1:8765/mcp` (`.mcp.json`, the user MCP entry, the other adapters,
+`graph-recall`, the `[health]` probe); a per-host URL would have to be set in each of them separately. Instead a client
+PC listens on that same loopback address and passes the bytes on:
 
-- Claude Code: `claude mcp add --transport http --scope user graphify <url>`
-- Codex: `codex mcp add graphify --url <url>`
-- VS Code: `code --add-mcp '{"name":"graphify","type":"http","url":"<url>"}'`
+- Run: `node scripts/agent-os/graph-forward.mjs` (reads `remoteUrl` on the graphify entry of `local-services.json`;
+  `--upstream <url>` overrides it). It refuses to run on a PC listed in `hosts`.
+- At logon: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-graph-forward-task.ps1 -RepoRoot <primary>`
+  creates the task `NOURCITY-Graph-Forward`; remove it with `Unregister-ScheduledTask -TaskName NOURCITY-Graph-Forward -Confirm:$false`.
+- It adds no auth and hides no error: an upstream that is down answers 502. Canary: `graphForward.test.mjs`.
+- The `remoteUrl` host is NATTYNOUR's tailnet node name (`nattynour-1` today; an older `nattynour` node is offline). If the
+  node is renamed, change `remoteUrl`.
 
 The iPhone has no MCP client today; it reads the two PWAs over the internet, which this does not change.
 
