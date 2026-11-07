@@ -117,7 +117,7 @@ Signer block: `MOE'S EUCLID TIRE N AUTO LLC DBA NICK'S TIRE & AUTO`, `17625 EUCL
 | Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck sentence from a new fact key `lug_torque.recheck` (seeded from the lug sentence in s.2, all channels) when a wheel or tire line is on the ticket; `alignment.warranty` carries the alignment-setting sentence as well and stays on alignment lines only | the storage line: `storage.policy` is voice and web only, so it is said on the phone or shown on the page, never texted; the warranty paragraphs (on the printed invoice already) |
 | Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store, after the seed fix in s.4 | any wording that offers road hazard or mileage coverage; the closing no-road-hazard sentence inside `used_tire.warranty` stays, because a fact is never shortened |
 | Receptionist (`businessFacts.ts` warranty and policy facts) | its seed facts are checked against s.2 above; quote-only-if-asked stands (doc 32 rule 8); `refund.policy` and `storage.policy` answer on voice and web only | volunteering terms on a routine call; refund or storage terms by SMS |
-| Printed estimate and invoice | stay ALG's; the CRM never prints its own ledger document | a second invoice format |
+| Printed estimate and invoice | superseded 2026-11-07 by doc 37 s.7: our ledger prints both, with s.1 and s.2 text read from fact keys on a `print` channel, signer from `ShopIdentity`; until cutover ALG's print stays the record | a second invoice format beside ALG's during the shadow days |
 
 ## 4. Seed check (2026-11-07)
 
