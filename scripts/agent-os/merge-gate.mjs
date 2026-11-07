@@ -58,6 +58,9 @@ const startMs = (c) => {
   return Number.isFinite(t) && t > Date.UTC(2000, 0, 1) ? t : null;
 };
 /** The Actions run id in a check's detailsUrl (/actions/runs/<runId>/job/<jobId>), or null. */
+// A 400+ file PR (one carrying the weekly prerender refresh) has a file list over the 1 MB default; that crashed the gate with ENOBUFS (PR 3590, 2026-11-07).
+export const GH_EXEC_OPTIONS = { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 512 * 1024 * 1024 };
+
 export const runIdOf = (c) => /\/actions\/runs\/(\d+)(?:\/|$)/.exec(String(c.detailsUrl ?? ""))?.[1] ?? null;
 const groupKey = (c) => `${c.workflowName ?? ""}\u0000${nameOf(c)}`;
 
@@ -584,7 +587,7 @@ if (isMainModule(import.meta.url)) {
   const pass = () =>
     mergeGate({
       codexWait,
-      gh: (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }),
+      gh: (args) => execFileSync("gh", args, GH_EXEC_OPTIONS),
       pr,
       sha,
       wait,
