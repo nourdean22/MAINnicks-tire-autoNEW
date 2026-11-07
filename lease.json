@@ -1,14 +1,16 @@
 {
   "$schema": "agent-os/lease-v1",
   "branch": "chore/merge-gate-maxbuffer",
-  "status": "active",
+  "status": "released",
   "sessionKind": "bridge",
   "sessionId": "fd1a6c4c-6776-4627-bc27-d176ac289715",
   "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\merge-gate-maxbuffer",
   "claimedBy": "worktree-setup.ps1",
   "claimedAt": "2026-11-07T17:50:37.718Z",
   "expiresAt": "2026-11-08T05:50:37.718Z",
-  "releasedAt": null,
+  "releasedAt": "2026-11-07T18:10:30.853Z",
   "releaseReason": null,
-  "priorLeaseSha": null
+  "priorLeaseSha": "1bed1e8359d0db2c0a78f1fc86bab1573a66fda3",
+  "releasedBy": "fd1a6c4c-6776-4627-bc27-d176ac289715",
+  "foreignReleaseReason": null
 }
