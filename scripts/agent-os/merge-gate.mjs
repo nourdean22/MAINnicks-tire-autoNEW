@@ -15,7 +15,7 @@
  *      check finished and each one SUCCESS, SKIPPED or NEUTRAL (an allow-list: a conclusion GitHub adds next year blocks
  *      until someone reads it), in this same process as the merge, so nothing can change in between;
  *      and the Codex review (assessCodex) has completed on that SHA with no unresolved finding and no unresolved Codex
- *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes (default: mergeGate.codexWaitMinutes in config/agent-os/policy.json, else 25) from the push, then merges with a WARN line;
+ *      thread; with no Codex marker for the SHA it waits --codex-wait-minutes (default: mergeGate.codexWaitMinutes in config/agent-os/policy.json, else 25) from the push, then merges with a WARN line (at once, with a quota WARN, when Codex posted that its usage limit is reached);
  *      and a PR touching apps/nickstire/{drizzle,server/cron,server/services}/ carries a DoD evidence fragment (missingDodFragment);
  *   3. merges with --match-head-commit, so GitHub itself refuses if the head moved after step 2;
  *   4. re-reads the PR and deletes the branch through the API ONLY once it reads MERGED. Deleting the head branch of an
@@ -127,6 +127,21 @@ export const blockers = (view, expectedSha, events) => {
 const isCodex = (login) => String(login ?? "").replace(/\[bot\]$/, "") === "chatgpt-codex-connector";
 // Loose on purpose: truncated JSON or a new version must still be SEEN as a marker, so it holds instead of reading as absent.
 const MARKER = /<!--\s*codex-review-state:(\S*)([\s\S]*?)-->/g;
+// Quota-out skip (manager ruling 2026-11-07): Codex answers a push it will not review with this comment and no marker.
+const QUOTA = /reached your Codex usage limits/i;
+// shortcut: 5 h is a guess at Codex's usage window, not a documented figure; widen or narrow it once a quota reset is seen.
+const QUOTA_WINDOW_MS = 5 * 60 * 60_000;
+// A quota comment from BEFORE this push counts only after this grace: Codex posts its marker about 2 min after a push
+// (3581: push 14:27Z, marker 14:29:47Z), so a reset quota's fresh review gets time to show up before the skip fires.
+const QUOTA_GRACE_MS = 5 * 60_000;
+/** A Codex usage-limit comment posted within QUOTA_WINDOW_MS before `nowMs` (none from the future, none without a time). */
+const quotaOut = (comments, nowMs, pushedAtMs) =>
+  (comments ?? []).some((c) => {
+    const t = Date.parse(c.createdAt);
+    if (!isCodex(c.author?.login) || !QUOTA.test(String(c.body ?? "")) || !Number.isFinite(t)) return false;
+    if (t > nowMs || nowMs - t > QUOTA_WINDOW_MS) return false;
+    return t >= pushedAtMs || nowMs - pushedAtMs >= QUOTA_GRACE_MS;
+  });
 
 /**
  * The newest Codex marker that decides `headSha`: `{ review }` for the head's own, `{ malformed: version }` for one that
@@ -168,7 +183,9 @@ export function assessCodex({ comments, threads, headSha, headPushedAtMs, nowMs,
   const waited = (nowMs - headPushedAtMs) / 60_000;
   const verb = merging ? "merging" : "would merge";
   if (!review) {
-    if (waited >= waitMinutes) warn.push(`Codex never reported on ${headSha}; ${verb} without its review`);
+    // Only with NO marker for the head: a running, malformed or finished review of this head is never cut short.
+    if (quotaOut(comments, nowMs, headPushedAtMs)) warn.push(`Codex: not run (quota) on ${headSha}; ${verb} without its review`);
+    else if (waited >= waitMinutes) warn.push(`Codex never reported on ${headSha}; ${verb} without its review`);
     else soft.push(`no Codex review on ${headSha} yet (${Number.isFinite(waited) ? Math.floor(waited) : "?"} of ${waitMinutes} min waited since the push)`);
   } else if (review.status === "running") {
     // Manager decision 2026-10-18: Codex finishes in 3 to 9 min here, so 2 x the wait means it stalled; a stalled reviewer must not hold forever.
@@ -284,7 +301,7 @@ function logBar(bar, pr, log) {
 
 const VIEW_FIELDS = "state,isDraft,mergeStateStatus,headRefOid,headRefName,isCrossRepository,statusCheckRollup,body,author";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
-const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
+const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body createdAt}}}}}";
 const COMMENT_PAGES = 40; // 2,000 comments; past that the gate refuses rather than guess
 // Calibrated 2026-10-18: Codex posted its review 3 to 9 minutes after PR open on #3139 and #3141; 25 leaves room for a slow run.
 const CODEX_WAIT_MINUTES = 25;

@@ -36,7 +36,7 @@ const PUSH_FIELDS = "commits,createdAt";
 const THREADS_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage} nodes{isResolved path comments(first:1){nodes{author{login} url}}}}}}}";
 const threadsArgv = (n) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, "-f", `query=${THREADS_QUERY}`];
 const THREADS = threadsArgv(3100);
-const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body}}}}}";
+const COMMENTS_QUERY = "query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){comments(last:50,before:$before){pageInfo{hasPreviousPage startCursor} nodes{author{login} body createdAt}}}}}"; // createdAt: the quota skip's window
 const commentsArgv = (n, before) => ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-F", `number=${n}`, ...(before === undefined ? [] : ["-f", `before=${before}`]), "-f", `query=${COMMENTS_QUERY}`];
 const COMMENTS = commentsArgv(3100).join(" ");
 const human = (i) => ({ author: { login: "nourdean22" }, body: `comment ${i}`, createdAt: "2026-10-18T10:00:00Z" });
@@ -527,6 +527,49 @@ test("assessCodex: a status other than running or completed is reported-with-no-
 
 test("assessCodex never times out on an unknown push time", () => {
   assert.equal(ac({ comments: [], headPushedAtMs: NaN, nowMs: T0 + 600 * MIN }).soft.length, 1);
+});
+
+// Quota-out skip (manager ruling 2026-11-07, item 2): on PR 3581 Codex answered with only this comment, so the gate sat
+// out the full 25 min for a review that was never coming. Text copied from that PR.
+const QUOTA_BODY = "You have reached your Codex usage limits for code reviews. You can see your limits in the [Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage).";
+const quota = (atMs, login = CODEX) => ({ author: { login }, body: QUOTA_BODY, createdAt: new Date(atMs).toISOString() });
+const QUOTA_WARN = `Codex: not run (quota) on ${SHA}; merging without its review`;
+
+test("assessCodex quota skip: a recent Codex usage-limit comment and no marker for the head proceeds at once with the quota WARN", () => {
+  assert.deepEqual(ac({ comments: [quota(T0 + 2 * MIN)], nowMs: T0 + 3 * MIN }), { soft: [], hard: [], warn: [QUOTA_WARN] });
+  // 3581's shape: the quota comment came with the first push; the second push got no new comment, still in the window.
+  assert.deepEqual(ac({ comments: [codexComment(STATE.stale), quota(T0 - 15 * MIN)], nowMs: T0 + 6 * MIN }).warn, [QUOTA_WARN]);
+  // ...but not inside the grace: a quota that reset may still answer this push with a fresh marker.
+  assert.deepEqual(ac({ comments: [codexComment(STATE.stale), quota(T0 - 15 * MIN)], nowMs: T0 + 3 * MIN }).warn, []);
+  assert.equal(ac({ comments: [codexComment(STATE.stale), quota(T0 - 15 * MIN)], nowMs: T0 + 3 * MIN }).soft.length, 1);
+  assert.match(ac({ comments: [quota(T0 + 2 * MIN)], nowMs: T0 + 3 * MIN, merging: false }).warn[0], /would merge without its review/);
+});
+
+test("assessCodex quota skip control: the same moment with no quota comment still waits (the skip is what moved it)", () => {
+  const r = ac({ comments: [], nowMs: T0 + 3 * MIN });
+  assert.equal(r.soft.length, 1);
+  assert.deepEqual(r.warn, []);
+});
+
+test("assessCodex quota skip never shortens a review that is actually happening: a running, malformed or findings marker for the head wins", () => {
+  const q = quota(T0 + 2 * MIN);
+  assert.equal(ac({ comments: [codexComment(STATE.running), q], nowMs: T0 + 3 * MIN }).soft.length, 1, "running holds");
+  assert.equal(ac({ comments: [codexComment("{not json"), q], nowMs: T0 + 3 * MIN }).soft.length, 1, "malformed holds");
+  assert.equal(ac({ comments: [codexComment(STATE.findings), q], nowMs: T0 + 3 * MIN }).hard.length, 1, "findings block");
+  assert.deepEqual(ac({ comments: [codexComment(STATE.clean), q], nowMs: T0 + 3 * MIN }), NONE, "a clean review is a review, not a quota skip");
+});
+
+test("assessCodex quota skip ignores a quota comment that is not Codex's, is older than the quota window, or has no time", () => {
+  for (const [why, c] of [
+    ["someone quoting it", quota(T0 + 2 * MIN, "nourdean22")],
+    ["older than the window", quota(T0 - 6 * 60 * MIN)],
+    ["from the future (clock skew is not evidence)", quota(T0 + 60 * MIN)],
+    ["no createdAt", { author: { login: CODEX }, body: QUOTA_BODY }],
+  ]) {
+    const r = ac({ comments: [c], nowMs: T0 + 3 * MIN });
+    assert.equal(r.soft.length, 1, why);
+    assert.deepEqual(r.warn, [], why);
+  }
 });
 
 const noMarker = (over = {}) => view({ comments: [], ...over });

@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row owns the merge gate's Codex wait (scripts/agent-os/merge-gate.mjs assessCodex). Change (2026-11-07, manager ruling, Nour approved in session): with no Codex marker for the head, a Codex usage-limit comment within 5 h skips the 25 min wait with the WARN 'Codex: not run (quota)'; a quota comment from before the push counts only 5 min after the push, so a fresh review can post its marker. Running, malformed and finished markers still win. Red first: 57 tests red on the pinned query before createdAt, then 1 red (the skip) before the code. After: node --test scripts/agent-os/mergeGate.test.mjs 112 of 112 pass; mutants (skip removed, grace removed) each 1 fail. Real-data probe on PR 3581's live comments: soft at push+1 min, quota WARN at push+6 min, never-reported WARN past 5 h. NOT CHECKED: a full --merge run of the real binary on a PR (auto-mode check refused a judge-only run on a sibling's PR); the 5 h window is a guess, not documented by OpenAI."
+    }
+  }
+}
