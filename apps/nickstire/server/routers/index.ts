@@ -34,6 +34,7 @@ export { invoicesRouter, portalRouter } from "./advanced";
 export { gatewayTireRouter } from "./gatewayTire";
 export { fitmentRouter } from "./fitment";
 export { gatewayOrderRouter } from "./gatewayOrder";
+export { sourcingRouter } from "./sourcing";
 export { kafeneRouter } from "./kafene";
 export { tireQuoteRouter } from "./tireQuote";
 export { autoLaborRouter } from "./autoLabor";

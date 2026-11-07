@@ -118,6 +118,9 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // 2026-10-18 · gatewayOrder.* places a D&K supplier order: it spends the shop's money, so
   // owner/manager like the refund above, never the shop-floor permission a tech holds.
   if (normalized.startsWith("gatewayorder.")) return "money.manage";
+  // 2026-11-06 · sourcing.* returns dealer cost from every supplier: owner/manager only (doc 26), same tier as an
+  // order. The panel hides itself from other roles, but the procedure is the real guard (Codex on PR 3571).
+  if (normalized.startsWith("sourcing.")) return "money.manage";
   // 2026-10-18 · kafene activate/cancel start or stop lease funding: money, owner/manager.
   if (normalized.startsWith("kafene.")) return type === "mutation" ? "money.manage" : "money.view";
 

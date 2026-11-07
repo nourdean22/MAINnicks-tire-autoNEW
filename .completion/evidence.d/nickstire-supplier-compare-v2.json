@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Admin -> Tires as owner or manager: a 'Compare suppliers' panel sits above the activity strip. Type a size (225/65R17 or 2256517), set tires needed with the - / + buttons (default 4), tap 'Check stock'. One card reads 'Quickest and best price' when one offer wins both, otherwise two cards 'Quickest' and 'Best price'; each shows where the tire is (on the shelf at a named branch, or transfer from D&K regional), the usual 30-60 min run (marked schedule, not live), cost with FET and the total, and amber reasons (short here, regional time unknown, stock checked N min ago - call to confirm). A tie line names other offers in the same run window. 'Hide cost' removes every dollar figure and is remembered. 'Re-check' asks Gateway again. A Gateway that did not answer says so with the portal link; an empty answer says Gateway has no tires in that size. ATD and Capital Tire are named as not checked. Front desk and tech do not see the panel. Nothing orders, carts or writes."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json counter-supplier-compare-v2 added (in_progress, unit_verified, disabled: parked for the CRM build, not deployed); REALITY-LEDGER.md re-rendered with scripts/render-reality-ledger.mjs."
+    }
+  }
+}

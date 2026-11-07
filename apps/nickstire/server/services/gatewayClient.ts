@@ -161,13 +161,24 @@ export async function gatewayFetch(path: string, options: RequestInit = {}): Pro
  * normalize to D&K's "215/60R16" canonical format.
  */
 export async function searchTiresBySize(rawSize: string): Promise<Record<string, unknown>[] | null> {
+  return (await searchTiresWithReason(rawSize)).rows;
+}
+
+/**
+ * The same search, with THIS call's failure as a short code (never account text). lastFailure is one slot shared by
+ * every Gateway caller, so a caller that names its own failure reads it here, not from getLastGatewayFailure().
+ */
+export async function searchTiresWithReason(
+  rawSize: string,
+): Promise<{ rows: Record<string, unknown>[]; reason: null } | { rows: null; reason: string }> {
+  const fail = (reason: string) => ({ rows: null, reason });
   const shipTo = process.env.GATEWAY_TIRE_SHIP_TO;
   if (!shipTo) {
     const reason = "GATEWAY_TIRE_SHIP_TO env var not set";
     const detail = "The /quicksearch/cache endpoint requires the account's global_address_id (UUID). Find it in the b2b.dktire.com dashboard state after sign-in, or contact D&K support. Set GATEWAY_TIRE_SHIP_TO on Railway.";
     log.error(`[gatewayClient] SEARCH BLOCKED — ${reason}`);
     lastFailure = { at: new Date().toISOString(), reason, detail };
-    return null;
+    return fail("ship_to_not_set");
   }
 
   const sizeClean = rawSize.replace(/[\/Rr\s-]/g, "");
@@ -197,7 +208,7 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
     signal: AbortSignal.timeout(15000),
   });
 
-  if (!res) return null;
+  if (!res) return fail(used ? "no_answer" : "login_failed");
   if (!res.ok) {
     log.warn(`[gatewayClient] /quicksearch/cache returned HTTP ${res.status} for ${sizeFormatted}`);
     // Re-auth on 401 in case the JWT was silently revoked; next call retries.
@@ -206,19 +217,19 @@ export async function searchTiresBySize(rawSize: string): Promise<Record<string,
       invalidateGatewaySession(used ?? undefined);
       lastFailure = { at: new Date().toISOString(), reason: "Search 401 — token expired/revoked, retry on next call" };
     }
-    return null;
+    return fail(`search_http_${res.status}`);
   }
 
   try {
     const data = await res.json();
     if (!Array.isArray(data)) {
       log.warn("[gatewayClient] /quicksearch/cache returned non-array shape");
-      return null;
+      return fail("bad_shape");
     }
-    return data as Record<string, unknown>[];
+    return { rows: data as Record<string, unknown>[], reason: null };
   } catch (err) {
     log.error("[gatewayClient] /quicksearch/cache JSON parse failed:", err instanceof Error ? err.message : err);
-    return null;
+    return fail("bad_shape");
   }
 }
 

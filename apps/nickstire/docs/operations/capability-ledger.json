@@ -2,6 +2,26 @@
   "$comment": "Completion Authority capability ledger — THE canonical record of what is actually done. States only advance with evidence; scripts/check-capability-ledger.mjs enforces the gates and CI runs it. 'Merged' is not a state on purpose: code merge and capability promotion are independent events. Render docs/operations/REALITY-LEDGER.md from this file via scripts/render-reality-ledger.mjs — never edit the rendered file by hand.",
   "capabilities": [
     {
+      "capabilityId": "counter-supplier-compare-v2",
+      "name": "Admin > Tires 'Compare suppliers' (v2): Quickest and Best price for one tire size from Gateway/D&K, ranked shelf > transfer > next day > ship > unknown, same-run-window ties on price, stock older than 15 min says call to confirm",
+      "owner": "nickstire",
+      "evidence": {
+        "codeCommit": "Branch nickstire/supplier-compare-v2 (draft rival of PR 3568, not to merge while the feature is parked for the CRM build): shared/sourcing.ts SupplierOffer contract (locations[], arrival {tier, at, orderBy}, priceStatus incl. call_for_price, lastVerifiedAt, fulfillmentMode, sourceTags, fitConfidence) and compareOffers per docs/plans/shop-os/26-VENDOR-SCHEMATICS section 2; SUPPLIER_SCHEDULES table labelled 'schedule, not live' (30-60 min run, 15 min shelf staleness); shared/sourcing.conformance.test.ts adapter conformance rules with the list of registered adapters; server/services/sourcingGateway.ts (local -> shelf, regional -> transfer with orderable UNKNOWN and no invented time); server/routers/sourcing.ts sourcing.compareTires (adminProcedure, read-only, failure detail never sent); client/src/components/admin/SupplierComparePanel.tsx (owner/manager only, ranks on a 30 s clock) mounted in TireOrdersSection.",
+        "tests": "shared/sourcing.test.ts (48), shared/sourcing.conformance.test.ts (27: clean control, 15 broken-adapter canaries, Gateway registered, 10 doc 30 section 11 vendor-shape checks for O'Reilly, ATD, Capital, Parts Authority and the ALG ticket line), server/services/sourcingGateway.test.ts (18), server/routers/sourcing.test.ts (8), server/services/gatewayClient.test.ts (9: 5 for searchTiresWithReason), client/src/__tests__/supplier-compare-panel.test.tsx (17). Doc 30 pass (docs/plans/shop-os/30-PORTAL-NETWORK-SCHEMATICS.md s.3/s.8): Gateway regional stock per trade_region[] warehouse, national stock as ship, total_qty no longer shown as regional; supplier-stated arrival (atIs) and passed order-by; capped counts (qtyAtLeast); 12 new tests red first, 9 of 9 mutations killed. Codex review on PR 3571: sourcing.* needs money.manage (owner/manager), shelf age checked unrounded, rows sharing a part number get distinct keys, the failure reason comes from this call (searchTiresWithReason), all-malformed rows are unavailable; 13 new tests red first, 7 of 7 mutations killed. Each file run red first against a stub (panel 13 failed / 1 passed). Mutation run: 12 of 12 killed (tier order, short qty, unpriced, staleness, unknown arrival, cached qty as shelf, orderable unknown, cross-tier tie; panel role gate, clock tick, hide cost, query before a size). Second reader (silent-failure-hunter) fixes red first: 4 failed / 60 passed before (retail as dealer cost, rows sharing a part number folded into one pick, stale failure reason, non-object row).",
+        "deploymentId": null
+      },
+      "blockers": [],
+      "deferredScope": [
+        "Only Gateway/D&K tires are connected; ATD and Capital Tire are named on screen as not checked. Parts adapters wait on the parts screen.",
+        "Run times are the stated 30-60 min schedule, not measured; regional transfer time stays UNKNOWN until D&K states one.",
+        "LT sizes are refused (gatewayClient size cleaning drops the LT prefix); whether D&K total_qty includes on_hand is UNKNOWN."
+      ],
+      "lastVerifiedAt": "2026-11-06",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
+    },
+    {
       "capabilityId": "site-chat-discount-program",
       "name": "The site chat's get_current_specials states the /discounts program (20% off labor, up to $250) from DISCOUNT_PROGRAMS, not a second copy",
       "owner": "nickstire",
