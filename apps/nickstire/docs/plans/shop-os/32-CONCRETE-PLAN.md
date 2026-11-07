@@ -76,6 +76,7 @@ captures doc 30 already made.
 
 Each phase is one PR series behind a flag (`SHOP_OS_PHASE_1` to `_4`), verified on the counter PC before the next
 starts. A phase's kill read is written in its first PR, not after.
+Who builds each phase, and where (cloud session, this PC, the counter PC, bdnick as dispatch): doc 36.
 
 ## 4. Proof reads and kill criteria
 
