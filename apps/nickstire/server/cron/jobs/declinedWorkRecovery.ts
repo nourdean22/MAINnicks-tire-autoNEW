@@ -11,6 +11,9 @@
  *   - Only rows where matchedInvoiceId IS NULL AND estimateDate >= today-60d
  *   - Send 7d SMS when age > 7d AND follow_up_7d_sent = 0
  *   - Send 30d SMS when age > 30d AND follow_up_30d_sent = 0
+ *   - Flag declined_recovery_2d (OFF by default): the floor drops to 2 days and a P0 estimate gets one
+ *     text at 2 days on the follow_up_3d_* columns (variant declined_2d_P0); see allowedTouches.
+ *   - Never takes the last 40 texts of the shared 24 h cap (replies keep headroom).
  *   - Respect customers.smsOptOut (checked by join against customer phone)
  *   - Business hours only (8am-7pm ET)
  *   - Feature-flag gated: env FEATURE_DECLINED_RECOVERY=1 enables actual
@@ -241,7 +244,12 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   // DECLINED_RECOVERY_WINDOW_DAYS. If these diverge, this job texts people
   // the matcher can no longer clear.
   const sixtyDaysAgo = new Date(now.getTime() - DECLINED_RECOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // declined_recovery_2d (Nour 2026-11-07, OFF by default): one text two days after an unmatched estimate.
+  // OFF keeps today's 7-day floor and touch list exactly. An unreadable flag reads as OFF (isEnabled fails closed).
+  const { isEnabled } = await import("../../services/featureFlags");
+  const twoDayOn = await isEnabled("declined_recovery_2d");
+  const floorDays = twoDayOn ? touchToDays("3d") : 7;
+  const newestEligible = new Date(now.getTime() - floorDays * 24 * 60 * 60 * 1000);
 
   // All unmatched estimates in the recovery window.
   //
@@ -284,7 +292,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       and(
         isNull(algEstimates.matchedInvoiceId),
         gte(algEstimates.estimateDate, sixtyDaysAgo),
-        lte(algEstimates.estimateDate, sevenDaysAgo),
+        lte(algEstimates.estimateDate, newestEligible),
       ),
     )
     .limit(fetchLimit);
@@ -369,7 +377,22 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   // one-shot operator script can clear a backlog in a single run
   // (capped at 500 hard ceiling to keep us under the F25e Verizon
   // daily-throughput safe zone for an SMS Gateway phone number).
-  const MAX_SMS_PER_RUN = Math.min(opts?.maxSends ?? 20, 500);
+  let MAX_SMS_PER_RUN = Math.min(opts?.maxSends ?? 20, 500);
+
+  // Per-run reservation in the shared 24 h cap (sendSms's SMS_GLOBAL_DAILY_CAP, every door counted): this lane
+  // never takes the last 40 texts, so replies to customers who text in keep headroom. An unreadable count leaves
+  // the run as before; sendSms still enforces the cap itself on every text.
+  const REPLY_HEADROOM = 40;
+  const { checkGlobalDailyCap } = await import("../../services/smsControl");
+  const capRead = await checkGlobalDailyCap();
+  let capNote = "";
+  if (capRead.readable) {
+    const room = Math.max(0, capRead.cap - REPLY_HEADROOM - capRead.count);
+    if (room < MAX_SMS_PER_RUN) {
+      MAX_SMS_PER_RUN = room;
+      capNote = ` | shared cap: ${capRead.count}/${capRead.cap} in 24 h, ${REPLY_HEADROOM} kept for replies, room ${room}`;
+    }
+  }
 
   // wave-121 — bulk-load opt-out phones BEFORE the loop. Was: a SELECT
   // against customers per estimate (up to 100 round-trips per run), with
@@ -624,7 +647,12 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       // safety service). 3d/45d retired from sending. TOUCH_ORDER is
       // intersected (not replaced) so priority + attempted-column
       // semantics are unchanged.
-      const allowed = allowedTouches({ profile, amountCents: amount, serviceDescription: est.serviceDescription });
+      const allowed = allowedTouches({
+        profile,
+        amountCents: amount,
+        serviceDescription: est.serviceDescription,
+        twoDay: twoDayOn ? { ageDays, twoDayTouched: Boolean(est.followUp3dSent || est.followUp3dAttemptedAt) } : undefined,
+      });
       for (const touch of TOUCH_ORDER) {
         if (!allowed.includes(touch)) continue;
         const days = touchToDays(touch);
@@ -751,6 +779,6 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
 
   return {
     recordsProcessed: total,
-    details: `${heldMidRun ? `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ` : ""}Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone, ${skippedClosed} closed-signal, ${skippedHoldout} holdout | pool: ${formatMoney(totalRecoverableCents)}`,
+    details: `${heldMidRun ? `Skipped · ${heldMidRun} · not_attempted=${notAttempted} · ` : ""}Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone, ${skippedClosed} closed-signal, ${skippedHoldout} holdout | pool: ${formatMoney(totalRecoverableCents)}${capNote}`,
   };
 }

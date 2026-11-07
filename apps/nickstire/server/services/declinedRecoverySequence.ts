@@ -196,7 +196,8 @@ export function buildSequenceMessage(params: BuildParams): string {
   const serviceClause = buildServiceClause(params.serviceDescription);
   switch (touch) {
     case "3d":
-      return `Hey ${firstName} — Nick's Tire & Auto here. That quote we wrote up is still on file. Questions about it? Call or text and we'll walk you through it. Free re-check anytime, you don't pay until you say yes. Reply STOP to opt out.`;
+      // The 2-day text (declined_recovery_2d, Nour 2026-11-07). Age-neutral on purpose: no price, no deadline.
+      return `Hi ${firstName}, this is Nick's Tire & Auto. The quote we wrote up for your car is on file. If you have questions about it, text back here or call (216) 862-0005 and we'll go over it. We do nothing until you say yes. Reply STOP to opt out.`;
     case "7d":
       return `Hey ${firstName}, Nick's here following up on that quote — it's still on file. Whatever the holdup — cost, timing, or you want a second look — call and we'll sort it out. Free re-check, no charge. (216) 862-0005. Reply STOP to opt out.`;
     case "14d":
@@ -224,7 +225,7 @@ export const TOUCH_ORDER: RecoveryTouch[] = ["30d", "14d", "7d", "45d", "3d"];
 //     AND matched_invoice_id IS NULL
 export function touchToDays(touch: RecoveryTouch): number {
   switch (touch) {
-    case "3d": return 3;
+    case "3d": return 2; // the 3d columns carry the 2-day touch (declined_recovery_2d); no migration
     case "7d": return 7;
     case "14d": return 14;
     case "30d": return 30;
@@ -400,17 +401,25 @@ export function classifyDeclineReply(text: string | null | undefined): ObservedD
 
 const SAFETY_SERVICE_RE = /\b(brake|brakes|caliper|rotor|pad|pads|tire|tires|suspension|strut|struts|shock|shocks|ball joint|tie rod|steering)\b/i;
 
+// 2-day touch (flag declined_recovery_2d, Nour 2026-11-07): one text two days after an unmatched estimate,
+// P0 only, sent on the retired 3d columns. Passed only when the flag is ON; without it the list is unchanged.
+// Under 7 days old the 2-day text is the only touch. An estimate that got it skips the 7-day touch (no second
+// text that week); one already 7+ days old when the flag flips keeps today's list (no late 2-day text).
 export function allowedTouches(args: {
   profile: RecoveryProfile;
   amountCents: number;
   serviceDescription: string | null;
+  twoDay?: { ageDays: number; twoDayTouched: boolean };
 }): RecoveryTouch[] {
   if (args.profile !== "P0") {
     return ["7d", "14d"];
   }
   const highValue = args.amountCents >= 30_000;
   const safety = args.serviceDescription ? SAFETY_SERVICE_RE.test(args.serviceDescription) : false;
-  return highValue || safety ? ["7d", "14d", "30d"] : ["7d", "30d"];
+  const base: RecoveryTouch[] = highValue || safety ? ["7d", "14d", "30d"] : ["7d", "30d"];
+  if (!args.twoDay) return base;
+  if (args.twoDay.ageDays < 7) return ["3d"];
+  return args.twoDay.twoDayTouched ? base.filter((t) => t !== "7d") : base;
 }
 
 // ─── Variant key for sms_messages.variantKey (A/B attribution) ─────
@@ -420,6 +429,7 @@ export function allowedTouches(args: {
 // (sms_variant_idx already indexed at schema.ts). P0 keys are new as of
 // revenue-truth-correction — a fresh variant series, measurable against
 // the legacy P1-P3 series.
+// The day in the key is the day the touch fires, so the 3d columns key as declined_2d_<profile> ("D2").
 export function variantKey(touch: RecoveryTouch, profile: RecoveryProfile): string {
-  return `declined_${touch.replace("d", "")}d_${profile}`;
+  return `declined_${touchToDays(touch)}d_${profile}`;
 }

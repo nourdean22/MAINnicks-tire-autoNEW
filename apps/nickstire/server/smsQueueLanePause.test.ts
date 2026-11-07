@@ -220,7 +220,7 @@ describe("queuedSendPauseLane (class -> lane)", () => {
     expect(queuedSendPauseLane(undefined, CONFIRM)).toBe("customer_confirmations");
   });
   it("maps every declined sequence key to declined_recovery", () => {
-    for (const k of ["declined_3d_P0", "declined_7d_P1", "declined_14d_P2", "declined_30d_P3", "declined_45d_P0"]) {
+    for (const k of ["declined_2d_P0", "declined_3d_P0", "declined_7d_P1", "declined_14d_P2", "declined_30d_P3", "declined_45d_P0"]) {
       expect(queuedSendPauseLane("customer_marketing", k), k).toBe("declined_recovery");
     }
   });

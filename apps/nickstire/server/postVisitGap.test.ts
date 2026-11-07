@@ -197,7 +197,7 @@ describe("the thank-you is no longer blocked by the review cooldown", () => {
     const res = await runLane();
     expect(res).toMatchObject({ processed: 1, sent: 1, skipped: 0, failed: 0 });
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendSms).toHaveBeenCalledWith(PHONE, expect.stringContaining("Thanks for coming in"), { via: "shop" });
+    expect(sendSms).toHaveBeenCalledWith(PHONE, expect.stringContaining("Thanks for coming in"), { via: "shop", variantKey: "post_visit_d7" });
   });
 
   it("control: a customer with no texts at all is texted", async () => {

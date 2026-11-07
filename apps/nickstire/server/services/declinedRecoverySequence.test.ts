@@ -25,6 +25,7 @@ import {
   classifyDeclineReply,
   statedConcernFromDb,
   allowedTouches,
+  touchToDays,
   RECOVERY_CLOSED_SIGNALS,
   type RecoveryProfile,
   type RecoveryTouch,
@@ -129,7 +130,9 @@ describe("buildSequenceMessage · claim discipline across all 20 variants", () =
   });
 
   it("variantKey emits the new P0 series alongside legacy P1-P3", () => {
-    expect(variantKey("3d", "P0")).toBe("declined_3d_P0");
+    // The 3d columns now carry the 2-day touch (declined_recovery_2d), so its key reads D2.
+    expect(variantKey("3d", "P0")).toBe("declined_2d_P0");
+    expect(variantKey("7d", "P0")).toBe("declined_7d_P0");
     expect(variantKey("30d", "P2")).toBe("declined_30d_P2");
   });
 
@@ -164,6 +167,48 @@ describe("allowedTouches · 1-3 adaptive touches, never 5", () => {
       expect(allowed).not.toContain("3d");
       expect(allowed).not.toContain("45d");
     }
+  });
+});
+
+// ─── 2-day touch (flag declined_recovery_2d, Nour 2026-11-07) ──────
+
+describe("2-day touch · one text two days after an unmatched estimate", () => {
+  const P0 = { profile: "P0" as const, amountCents: 20_000, serviceDescription: "oil change" };
+
+  it("flag OFF: the touch list is exactly today's (no twoDay arg)", () => {
+    expect(allowedTouches(P0)).toEqual(["7d", "30d"]);
+    expect(allowedTouches({ ...P0, twoDay: undefined })).toEqual(["7d", "30d"]);
+  });
+
+  it("flag ON, estimate 2-6 days old: only the 2-day touch", () => {
+    expect(allowedTouches({ ...P0, twoDay: { ageDays: 2, twoDayTouched: false } })).toEqual(["3d"]);
+    expect(allowedTouches({ ...P0, twoDay: { ageDays: 6, twoDayTouched: false } })).toEqual(["3d"]);
+  });
+
+  it("flag ON, 7+ days old and never got the 2-day text: today's list, no late 2-day text", () => {
+    expect(allowedTouches({ ...P0, twoDay: { ageDays: 10, twoDayTouched: false } })).toEqual(["7d", "30d"]);
+  });
+
+  it("flag ON, 2-day text already went: the 7-day touch is dropped (no second text that week)", () => {
+    expect(allowedTouches({ ...P0, twoDay: { ageDays: 8, twoDayTouched: true } })).toEqual(["30d"]);
+    expect(allowedTouches({ ...P0, amountCents: 50_000, twoDay: { ageDays: 8, twoDayTouched: true } })).toEqual(["14d", "30d"]);
+  });
+
+  it("flag ON never adds the 2-day touch to an evidence track", () => {
+    expect(allowedTouches({ profile: "P1", amountCents: 50_000, serviceDescription: "brakes", twoDay: { ageDays: 3, twoDayTouched: false } })).toEqual(["7d", "14d"]);
+  });
+
+  it("the 3d columns fire at 2 days", () => {
+    expect(touchToDays("3d")).toBe(2);
+    expect(touchToDays("7d")).toBe(7);
+  });
+
+  it("the P0 2-day text: plain copy, no em dash, no exclamation, opt-out present, no price or timeline", () => {
+    const msg = buildSequenceMessage({ touch: "3d", profile: "P0", name: "Pat Smith", amountCents: 48_700, serviceDescription: "brake pads" });
+    expect(msg).not.toMatch(/—|–|!/);
+    expect(msg).toMatch(/Reply STOP to opt out\.$/);
+    expect(msg).not.toMatch(/\$\d|today|tomorrow|this week|expires|financing/i);
+    expect(msg).toMatch(/^Hi Pat,/);
   });
 });
 

@@ -70,8 +70,11 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       WHERE ws.status = 'pending'
         AND ws.scheduledAt <= NOW()
         AND wc.status = 'active'
-      LIMIT 50
+      ORDER BY ws.scheduledAt, ws.id
+      LIMIT 25
     `);
+    // 25 per tick, oldest due first (audit 2026-11-07: 80 went in one tick on 11-01 and 11-05). The rest stay
+    // pending and go on the next 2-hour ticks of the business day.
 
     const pendingSends = rows as unknown as Array<Record<string, unknown>>;
     if (!pendingSends || pendingSends.length === 0) {

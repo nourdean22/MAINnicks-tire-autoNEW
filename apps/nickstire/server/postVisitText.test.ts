@@ -162,7 +162,7 @@ describe("post-invoice-followup cron (customer-keyed)", () => {
     const res = await run({ id: 9, firstName: "Sam", phone: "2165550123", segment: "recent" });
     expect(res).toMatchObject({ processed: 1, sent: 1, failed: 0 });
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendSms).toHaveBeenCalledWith("2165550123", expected("Sam"), { via: "shop" });
+    expect(sendSms).toHaveBeenCalledWith("2165550123", expected("Sam"), { via: "shop", variantKey: "post_visit_d7" });
   });
 
   it("hands sendSms the same Draft D for a lapsed-segment customer (the visit was 7 days ago either way)", async () => {
@@ -173,6 +173,6 @@ describe("post-invoice-followup cron (customer-keyed)", () => {
   it.each([[null], [""]])("greets 'there' when the customer has no first name (%j), like the invoice lane", async (firstName) => {
     await run({ id: 11, firstName, phone: "2165550125", segment: "recent" });
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendSms).toHaveBeenCalledWith("2165550125", expected("there"), { via: "shop" });
+    expect(sendSms).toHaveBeenCalledWith("2165550125", expected("there"), { via: "shop", variantKey: "post_visit_d7" });
   });
 });

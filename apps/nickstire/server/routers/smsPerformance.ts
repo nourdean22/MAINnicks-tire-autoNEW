@@ -76,6 +76,8 @@ function prettyTier(rollup: string): string {
     // cron emits declined_7d/30d (digit-FIRST), and the 5-touch sequence adds
     // 3d/14d/45d. All five now labeled so the SMS-perf tile shows real touch
     // conversion instead of raw keys.
+    declined_2d: "Declined-recovery · D2",
+    post_visit_d7: "Post-visit text · D7",
     declined_3d: "Declined-recovery · D3",
     declined_7d: "Declined-recovery · D7",
     declined_14d: "Declined-recovery · D14",

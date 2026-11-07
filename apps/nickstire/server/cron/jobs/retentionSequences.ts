@@ -21,6 +21,7 @@ import type { FlagKey } from "../../services/featureFlags";
 
 import { BUSINESS } from "@shared/business";
 import { getBusinessDateKey } from "../../lib/timezoneAssert";
+import { clearOfPostVisitText } from "../../lib/postVisitDripGap";
 const log = createLogger("cron:retention");
 
 // ─── RETENTION TIERS ─────────────────────────────────
@@ -198,6 +199,8 @@ async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: n
           isNull(customers.lastRetentionTier),
           sql`${customers.lastRetentionTier} < ${tier.days}`,
         ),
+        // 2026-11-07: never within 10 days of the 7-day post-visit text (the shared post-visit drip gap).
+        clearOfPostVisitText(customers.phone),
       ),
     )
     .limit(100);
