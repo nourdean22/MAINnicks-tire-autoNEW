@@ -42,21 +42,24 @@ dry run prove it (doc 30 s.10).
 | # | Screen | Route | Reads | Writes | Phase |
 |---|---|---|---|---|---|
 | 1 | Counter search | `/system` | mirror (customers, vehicles, tickets), callback queue | none | 1 |
-| 2 | Board + bay TV | `/system/board`, `/system/tv` | mirror ticket headers + the built work-order and dispatch rows | work-order state (existing tables) | 1 |
+| 2 | Board + bay TV | `/system/board`, `/system/tv` | mirror ticket headers + the built work-order and dispatch rows | work-order state (existing tables), plus a physical `arrivedAt` and one blocker owner per car (doc 34 row 2) | 1 |
 | 3 | Quick tire quote | `/system/quote` | fitment, `SellPriceRule`, supplier stock | `Quote`, `DeclineReason`; one text | 2 |
 | 4 | Sourcing drawer | `/system/ro/:id` (ALT+S) | supplier adapters, `PartCrossRef`, `JobKit` | `SupplierOrderDraft`, `CatalogIssue` | 3 |
-| 5 | Tech phone | `/system/tech` | my cars, promise times (dispatch rows) | found-work line + photo (work-order lines, staff inspection) | 4 |
+| 5 | Tech phone | `/system/tech` | my cars, promise times (dispatch rows) | found-work line + photo (work-order lines, staff inspection), each with a persistent recommendation id that `DeclineReason` and the recovery lane carry to the invoice (doc 34 row 5) | 4 |
 | 6 | Customer approval | `/approve/:token`, extends the live `/inspection/:token` | frozen estimate lines | approve/decline + reason + timestamp | 4 |
 
 Look and keyboard: doc 10 as written (near-black, cards, yellow accent; Barlow Condensed / DM Sans / JetBrains
 Mono; Alt-key map matching the ALG counter). The money bar (cars in, promised, collected, parts due, declined
 open) is pinned on screens 1 to 4 and is the owner's read; no report to open.
 
+Routes: the six screens ship as sections of two routes, Today (screens 1 to 3) and Visit (4 to 6, opened from a
+ticket), with the bay TV a read-only render of Today (doc 34 row 1; a reversible ruling, scope unchanged).
+
 ## 3. The four phases
 
 | Phase | Ships | Needs before start | Build time (not calendar) |
 |---|---|---|---|
-| 0 prep | flip the two approved-by-default code paths (work orders start `approved`, lines approved with no pending state) and add the 10% re-approval gate (Ohio, doc 07; doc 31 item 4); turn the Google Sheet push off for `/system` (`workOrderService.ts:171`); make the adapter return UNKNOWN, not 0, when unpriced (`gatewayClient.ts:251`) | decision 0 | 1 working day |
+| 0 prep | flip the two approved-by-default code paths (work orders start `approved`, lines approved with no pending state) and add the 10% re-approval gate, measured against the originally authorized estimate and never the latest revision (Ohio, doc 07; doc 31 item 4; doc 34 row 12); inventory every path that writes money or sends outside (doc 34 row 8); turn the Google Sheet push off for `/system` (`workOrderService.ts:171`); make the adapter return UNKNOWN, not 0, when unpriced (`gatewayClient.ts:251`) | decision 0 | 1 working day |
 | 1 read | counter search, board, TV, money bar | decisions 1 and 1b | 3 to 4 working days |
 | 2 quote | quick tire quote, text it, 3-day reminder, `Quote`, `SellPriceRule`, `DeclineReason` | decision 5 (quote text template) | about a week |
 | 3 source | sourcing drawer; live JSON behind the shop login (Gateway, O'Reilly) only if decision 2b says yes; ATD, PA, Capital and Federated are handoffs until a feed or vendor-approved export exists; PO draft | doc 30 captures re-run against fixtures; decisions 2b and 3 | depends on captures |
@@ -73,6 +76,7 @@ captures doc 30 already made.
 
 Each phase is one PR series behind a flag (`SHOP_OS_PHASE_1` to `_4`), verified on the counter PC before the next
 starts. A phase's kill read is written in its first PR, not after.
+Who builds each phase, and where (cloud session, this PC, the counter PC, bdnick as dispatch): doc 36.
 
 ## 4. Proof reads and kill criteria
 
@@ -86,6 +90,8 @@ starts. A phase's kill read is written in its first PR, not after.
 Thresholds are set from the baseline read at each phase's start, never after. The baseline is doc 17's
 quote-to-invoice and repeat-customer rates (private figures; read from the mirror, not copied here). A kill turns
 the flag off and the next phase waits.
+A read counts paid outcomes (invoices, repeat visits) or measured minutes; taps, replies and opens alone never
+keep a phase alive. Phase 4 adds one shop day run by the crew with Nour off the counter (doc 34 rows 7, 16).
 
 ## 5. Data: what exists, what is new
 
@@ -102,7 +108,11 @@ the flag off and the next phase waits.
 
 ## 6. Rules the build does not get to relax
 
-1. No ALG write. No supplier order placed by code; a person clicks the PO from `SupplierOrderDraft`.
+1. No ALG write from the CRM. One writer already exists and stays as it is, never extended: the Stripe refund
+   writeback (`server/services/refundWriteback.ts`, called from the webhook at `server/_core/index.ts:1034` and
+   the admin refund at `server/routers/advanced/invoices.ts:1238`); whether it fires in production is UNKNOWN
+   until a log read (doc 34 row 6). No supplier order placed by code; a person clicks the PO from
+   `SupplierOrderDraft`.
 2. No adapter scrapes a logged-in portal page. Live JSON behind the shop login (the D&K client already signs in with
    the shop password, `gatewayClient.ts`; O'Reilly is the same class) is decision 2b, not a given. ATD, PA, Capital
    and Federated are handoffs until a feed or vendor-approved export exists (doc 30 s.10 item 5).
@@ -119,11 +129,14 @@ the flag off and the next phase waits.
    of a quote; the approval page keeps them in a collapsed section the customer opens, the web form of the
    printed footer (doc 33 s.3). Doc 33 is the dated verbatim capture of the
    printed forms; the seeds are checked against it, and a term that differs is fixed in ALG first, then the seed.
+9. A phone number is not a customer: one number can carry several customers and vehicles; no phone-only merge
+   (doc 34 row 13).
 
 ## 7. The six decisions only Nour can make
 
 0. Buy the ledger or build it (doc 05 day 13-14 call). Default: buy the core, keep ALG, build the brain; this
-   whole plan assumes it.
+   whole plan assumes it. The doc 05 bake-off against one full system (Tekmetric, Shopmonkey) is not deleted: it
+   runs only if phase 1 measures ALG duplication the crew feels, in minutes (doc 34 row 10).
 1. Per-ticket ALG fetch for the mirror (collides with the session guard, doc 30 s.2) or stay on the recent-tickets
    list. Blocks phase 1's history card.
 2. CAPTURED 2026-11-07, not yet usable: the lookup is three GETs (doc 30 s.2 "Labor lookup": typeahead -> job id
@@ -149,4 +162,5 @@ says yes, 3 handoffs, 4 as above, 5 drafts only.
 
 Appointment scheduling (first come, first served stays), a second ticket system, inventory management beyond
 `inventoryStockId` pass-through, payroll and time clocks (doc 09 roles only), a local AI node on the shop PC
-(doc 12: not yet), and the AI copilot panel (doc 16) until phases 1 to 4 have two weeks of reads each.
+(doc 12: not yet), the AI copilot panel (doc 16) until phases 1 to 4 have two weeks of reads each, and (doc 34 row
+17) AI-written diagnosis or urgency, predictive wait times, a loyalty program and a second SMS platform.
