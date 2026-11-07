@@ -15,7 +15,7 @@ below is FACT (read directly from the account this session, 2026-11-06) unless m
 - FACT: the portal is branded "Gateway" in the shop's own UI chrome (header wordmark "GATEWAY"), but the legal
   operator is **Dunlap & Kyle Company Inc. ("D&K")** - the site title is "D&K Company Inc." and page titles read
   "... | D&K Company Inc.". This confirms the plan's existing shorthand "D&K/Gateway Tire" is one vendor, not two.
-- FACT: account **#70001887**, ship-to **17625 Euclid Ave, Cleveland, OH 44112** - the shop's real address,
+- FACT: account **#[redacted]**, ship-to **17625 Euclid Ave, Cleveland, OH 44112** - the shop's real address,
   confirming this is the live production account, not a demo.
 - FACT: the account's **store display name on this portal is "MOE'S TIRE"** (Settings > Account, and again as the
   label "MOES" on the shop's own markup rule, section 6). This is a **third confirmed instance** of the stale
@@ -23,7 +23,7 @@ below is FACT (read directly from the account this session, 2026-11-06) unless m
   Euclid Tire And Auto", Advanced > QuickVIN says "Moes Euclid Tire And Auto"). The old "Moe's Tire" name is now
   confirmed baked into a *third* independent system (a vendor portal), not just two screens inside one CRM - this
   is a cross-system identity-hygiene gap, not an ALG-only bug. See [04-DATA-MAP](04-DATA-MAP.md).
-- FACT: sales rep shown on the account: Steve Starosta, mobile 330-241-1074, office in Seville, OH - matches the
+- FACT: sales rep shown on the account: [name and mobile redacted, public repo], office in Seville, OH - matches the
   branch location named in the header's order-countdown banner (section 1).
 
 ## 1. Global structure
@@ -192,7 +192,7 @@ own counter screen: a 20-minute bay-slot grid with Day/Month/Agenda views is a r
 
 ## 8. Open Orders / Order History (Settings menu)
 
-Two tabs, **Open Orders** and **Order History**, both showing real, live production data (account #70001887,
+Two tabs, **Open Orders** and **Order History**, both showing real, live production data (account #[redacted],
 "North Gateway Tire CO., Inc..." shown as the billing-entity dropdown label - a fourth name variant worth
 reconciling alongside "Moe's Tire"/"Nick's Euclid Tire And Auto"/"Nick's Tire & Auto", see section 0). Confirmed
 full column set (scrolled right): Status, Invoice ID / Sales Order ID, Customer PO, Item Description, Qty, Unit
