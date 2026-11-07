@@ -14,7 +14,7 @@ export type Unknown = typeof UNKNOWN;
 export type Maybe<T> = T | Unknown;
 
 /** Rank order, fastest first (doc 26 section 2 table). `unknown` never ranks for speed. */
-export const AVAILABILITY_TIERS = ["shelf", "transfer", "next_day", "ship", "unknown"] as const;
+const AVAILABILITY_TIERS = ["shelf", "transfer", "next_day", "ship", "unknown"] as const;
 export type AvailabilityTier = (typeof AVAILABILITY_TIERS)[number];
 
 /** Where a figure came from (doc 26 `sourceTags`). Only `supplier_live` stock can rank as on the shelf. */

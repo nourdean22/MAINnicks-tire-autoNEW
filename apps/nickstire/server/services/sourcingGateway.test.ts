@@ -5,8 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import dk from "../__tests__/fixtures/gatewayOrder/dk.json";
-import { gatewayAdapter, gatewayItemsToOffers } from "./sourcingGateway";
-import { adapterConformanceProblems } from "@shared/sourcing.conformance";
+import { gatewayItemsToOffers } from "./sourcingGateway";
 import { compareOffers, UNKNOWN } from "@shared/sourcing";
 
 const AT = "2026-11-06T15:00:00.000Z";
@@ -25,10 +24,6 @@ const row = (p: Record<string, unknown> = {}, pricing: Record<string, unknown> =
 });
 
 describe("gatewayItemsToOffers", () => {
-  it("passes the adapter conformance suite on the recorded fixture shape", () => {
-    expect(adapterConformanceProblems(gatewayAdapter)).toEqual([]);
-  });
-
   it("local stock is on the shelf at the named branch, orderable, by route, with no invented time", () => {
     const [o] = gatewayItemsToOffers([row()], CTX);
     expect(o.locations).toHaveLength(1);

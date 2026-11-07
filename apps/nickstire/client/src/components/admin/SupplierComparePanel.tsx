@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { trpc } from "@/lib/trpc";
-import { compareOffers, UNKNOWN, type Candidate } from "@shared/sourcing";
+import { compareOffers, SUPPLIER_SCHEDULES, UNKNOWN, type Candidate } from "@shared/sourcing";
 
 const VIEWERS = new Set(["owner", "manager"]);
 const HIDE_COST_KEY = "nickstire.supplierCompare.hideCost";
@@ -39,8 +39,9 @@ function where(c: Candidate): string {
 }
 
 function arrives(c: Candidate): string {
+  // A window exists only when the supplier has a schedule row, so the label is read from the same row.
   if (c.window === UNKNOWN) return "Arrival time not stated";
-  return `Usually here ${clock(c.window.from)} to ${clock(c.window.to)} (run schedule, not live)`;
+  return `Usually here ${clock(c.window.from)} to ${clock(c.window.to)} (run ${SUPPLIER_SCHEDULES[c.offer.supplierId]?.basis})`;
 }
 
 function Price({ c, qty, hideCost }: { c: Candidate; qty: number; hideCost: boolean }) {

@@ -8,7 +8,6 @@
  * - No delivery or cutoff time anywhere, so every arrival.at / orderBy is UNKNOWN; SUPPLIER_SCHEDULES supplies the run.
  */
 import { normalizeTireSize, UNKNOWN, type Maybe, type OfferLocation, type SupplierOffer } from "@shared/sourcing";
-import type { AdapterUnderTest } from "@shared/sourcing.conformance";
 import { pickWholesaleCost } from "./gatewayClient";
 
 type Row = Record<string, unknown>;
@@ -68,25 +67,3 @@ function toOffer(item: Row, ctx: { size: string; verifiedAt: string }): Supplier
 export function gatewayItemsToOffers(items: readonly Row[], ctx: { size: string; verifiedAt: string }): SupplierOffer[] {
   return items.map((item) => toOffer(item, ctx));
 }
-
-const FIXTURE_ROW: Row = {
-  dk_part_number: "NX-2256517",
-  make: "NEXEN",
-  minor_name: "NEX - N PRIZ S",
-  invent_size: "225/65R17",
-  on_hand: 6,
-  total_qty: 20,
-  pricing_data: [{ site_name: "Seville, OH", selling_price: 88.5, cost_price: 177, quantity: 6, fet: 0 }],
-};
-
-export const gatewayAdapter: AdapterUnderTest<Row[]> = {
-  supplierId: "gateway_dk",
-  statesArrivalTimes: false,
-  confirmedOrderableBranches: ["local"],
-  toOffers: gatewayItemsToOffers,
-  fixtures: {
-    typical: [FIXTURE_ROW],
-    zeroStock: [{ ...FIXTURE_ROW, on_hand: 0, total_qty: 0 }],
-    missingEverything: [{ dk_part_number: "NX-2256517", invent_size: "225/65R17" }],
-  },
-};

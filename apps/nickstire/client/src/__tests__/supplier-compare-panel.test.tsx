@@ -146,6 +146,7 @@ describe("SupplierComparePanel", () => {
     show();
     search();
     expect(screen.getByText(/Checked .*3:05 PM/)).toBeTruthy();
+    expect(within(card(/^Quickest$/)).getByText(/^Usually here .* \(run schedule, not live\)$/)).toBeTruthy();
     expect(within(card(/^Best price$/)).getByText(/\$70\.00 each/)).toBeTruthy();
     expect(within(card(/^Best price$/)).getByText(/\$280\.00 for 4/)).toBeTruthy();
   });
