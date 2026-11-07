@@ -328,6 +328,9 @@ export default function ServicesOverview() {
               </Link>
             ))}
           </div>
+          <p className="mt-6 max-w-3xl text-base leading-relaxed text-foreground/70">
+            Flat tire repair: plug or patch while you wait. {BUSINESS.model.walkIns}.
+          </p>
         </div>
       </section>
 

@@ -50,6 +50,7 @@ const ALTERNATIVES: ComparisonLink[] = [
   { path: "/monro-mr-tire-alternative-cleveland", label: "Monro / Mr. Tire alternative", hook: "The diagnostic-fee trap, undone. Free estimate, every visit." },
   { path: "/big-o-tires-alternative-cleveland", label: "Big O Tires alternative", hook: "Cleveland-rooted vs national franchise, and the math on used tires." },
   { path: "/ntb-alternative-cleveland", label: "NTB alternative", hook: "NTB-now-Mavis switched the sign. The pricing playbook stays the same." },
+  { path: "/tire-choice-alternative-cleveland", label: "Tire Choice alternative", hook: "One local shop with used tires from $25 installed (select 12-inch; most $40-80)." },
 ];
 
 const ROUNDUPS: ComparisonLink[] = [

@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "2026-11-07 GBP vs GSC site adjustments. On the phone the visitor now sees: (1) the homepage Tires tile ends with 'Flat tire repair: plug or patch while you wait.' and no price; (2) /services shows the same line under the service board with the walk-in line; (3) a new page /tire-choice-alternative-cleveland on the Conrad's compare layout, linked from /compare, with Tire Choice facts read from its public Cleveland store page. Pinned by client/src/__tests__/tire-repair-and-tire-choice-copy.test.ts (red 9f/1p before the change, green after). The prerendered artifact for the new route comes from the prerender refresh workflow, not this diff."
+    }
+  }
+}

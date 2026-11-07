@@ -200,7 +200,7 @@ function SideBySide({ a, b, aName, bName }: { a: CompetitorProfile; b: Competito
                 <Row
                   label="Open Sundays"
                   nicks={<YesNo value={a.openSunday} yesLabel="9am–4pm" noLabel="Closed" />}
-                  comp={<YesNo value={b.openSunday} yesLabel="9am–4pm" noLabel="Closed" />}
+                  comp={<YesNo value={b.openSunday} yesLabel="Yes" noLabel="Closed" />}
                   highlight={a.openSunday && !b.openSunday ? "nicks" : undefined}
                 />
                 <Row
@@ -216,7 +216,7 @@ function SideBySide({ a, b, aName, bName }: { a: CompetitorProfile; b: Competito
                     <YesNo
                       value={b.usedTires}
                       yesLabel={b.usedTireFloor ? `From $${b.usedTireFloor} installed` : "Yes"}
-                      noLabel="New only"
+                      noLabel={b.usedTiresLabel ?? "New only"}
                     />
                   }
                   highlight={a.usedTires && !b.usedTires ? "nicks" : undefined}
@@ -229,7 +229,7 @@ function SideBySide({ a, b, aName, bName }: { a: CompetitorProfile; b: Competito
                 <Row
                   label="Drop-off + Uber/Lyft"
                   nicks={<YesNo value={a.dropoffWithRideshare} yesLabel="Yes: leave the car, grab a ride" noLabel="No" />}
-                  comp={<YesNo value={b.dropoffWithRideshare} yesLabel="Yes" noLabel="No" />}
+                  comp={<YesNo value={b.dropoffWithRideshare} yesLabel="Yes" noLabel={b.dropoffLabel ?? "No"} />}
                   highlight={a.dropoffWithRideshare && !b.dropoffWithRideshare ? "nicks" : undefined}
                 />
                 <Row
@@ -441,13 +441,13 @@ function buildDefaultFaqs(format: ComparisonFormat, primary: CompetitorProfile, 
     });
     base.push({
       question: `Is Nick's Tire & Auto really cheaper than ${primary.shortName}?`,
-      answer: `Used tires? Yes. From $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech.`,
+      answer: `Used tires? Yes. From $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.usedTiresLabel ? "" : `${primary.shortName} won't even sell you a used tire. `}New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech.`,
     });
   }
 
   base.push({
     question: `Is Nick's Tire & Auto really open Sundays?`,
-    answer: `Yes. 9am to 4pm. Every Sunday. The chains close. We don't. Most of our customers found us on a Sunday afternoon when their regular shop was locked up, Browns Sunday, salt-on-the-roads Sunday, whatever Sunday it was.`,
+    answer: `Yes. 9am to 4pm. Every Sunday.${primary.openSunday ? "" : " The chains close. We don't."} Most of our customers found us on a Sunday afternoon when their regular shop was locked up, Browns Sunday, salt-on-the-roads Sunday, whatever Sunday it was.`,
   });
 
   base.push({
@@ -457,7 +457,7 @@ function buildDefaultFaqs(format: ComparisonFormat, primary: CompetitorProfile, 
 
   base.push({
     question: `Where is Nick's Tire & Auto located?`,
-    answer: `17625 Euclid Ave, Cleveland, OH 44112. The yellow sign you've driven past a hundred times. Phone (216) 862-0005. Mon to Sat 8a-6p · Sun 9a-4p. The chains close. We don't.`,
+    answer: `17625 Euclid Ave, Cleveland, OH 44112. The yellow sign you've driven past a hundred times. Phone (216) 862-0005. Mon to Sat 8a-6p · Sun 9a-4p.${primary.openSunday ? "" : " The chains close. We don't."}`,
   });
 
   if (format === "third-party" && secondary) {
