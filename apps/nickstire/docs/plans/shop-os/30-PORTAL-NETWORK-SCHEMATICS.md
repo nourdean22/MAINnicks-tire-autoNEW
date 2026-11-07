@@ -162,7 +162,10 @@ attached to a line (`vendorId` + `partCode` are the hooks), decline reasons per 
   `invent_tread_depth`, `invent_tread_wear_warrenty` (sic), `tire_data` (brand, display name, approved rim width,
   diameter, features text, images), `make_logo_url`, `is_site_product`, major/minor category.
 - Cutoff: header "ORDER COUNTDOWN Seville, OH - 1d 19h 23m - Local Delivery 9 November, MONDAY" from
-  `/master/get-cut-off-time` (body shape UNKNOWN: a page-context fetch without the bearer returned `{}`).
+  `/master/get-cut-off-time`. Shape already consumed by `server/services/gatewaySupplierOrder.ts` `readCutoff`:
+  `GET /master/get-cut-off-time?global_ship_to=` returns `{cutofftime[]: {site_id, cut_off_time | cutoff_time}}`;
+  pick the entry by `site_id`, else the first. What that parser does not establish is the value's date and
+  timezone semantics (s.10 item 3); a page-context fetch without the bearer returned `{}`.
   Servicing warehouse = Seville, OH (the shelf tier).
 - Other endpoints: `/master/user-details`, `/order/get-site-list-by-shipto`, `/quicksearch/get-recent-search`,
   `/get-consumer-rebates`, `/dashboard/get-program-dashboard`, `/settings/*`.
@@ -253,7 +256,9 @@ attached to a line (`vendorId` + `partCode` are the hooks), decline reasons per 
   at the store, 1 at the servicing DC (Twinsburg) with `cutoffTime` 14:55Z and `estimatedArrivalTime` 17:35Z the
   same day, plus 1 each at two linked DCs and a surrounding store with no route. This is the exact "In Network -
   In Store By / If Ordered By" pair from doc 28, as data: tier 1 = `quantityFromStore > 0`; tier 2/3 = a
-  `suppliersWithRoutes` entry, arrival = `nextRoute.estimatedArrivalTime`, order-by = `nextRoute.cutoffTime`;
+  `suppliersWithRoutes` entry, in-store time = `nextRoute.estimatedArrivalTime` (kept as `arrival.inStoreBy`; the
+  store-to-shop run is a separate, unmeasured leg, so shop `arrival.at` stays UNKNOWN, s.9), order-by =
+  `nextRoute.cutoffTime`;
   tier 5 = only `suppliersWithoutRoutes`.
 - **Pricing** `api/v1/products/pricing/basket`: `{baskets[]: {basketId, extendedBasketCostPrice,
   extendedBasketCustomerPrice, kitPromoApplied, extendedBasketSavingsAmount, items[]: {productKey, quantity,
@@ -269,10 +274,10 @@ attached to a line (`vendorId` + `partCode` are the hooks), decline reasons per 
 
 | Doc 26 field | Vendor field that feeds it (OBSERVED) |
 |---|---|
-| `locations[].qty` and `orderableByThisAccount` | Only per-location data feeds `locations[]`: Gateway `on_hand` / `trade_region[].on_hand` / `other_warehouse_quantity` (named warehouses); O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (named supplier locations); PA `29 Cleveland` (home branch); Capital `Available` / `Regional`. `orderableByThisAccount` stays UNKNOWN for every vendor until a cart or order response is captured: an O'Reilly route proves a scheduled route exists, not that this account may order from it (`autoSourceBlocked` can be set on a routed source). A capped `99+` / `50+` maps to `qty: {atLeast: n}` (doc 26 s.3, amended), never to the bare number |
-| `availabilityTiers` (new, doc 26 s.3 amended) | ATD's six delivery-time counts and PA `Transfers` / `Shipping` are aggregate fulfillment buckets with no branch code, name, kind or per-location orderability; they are kept as typed tier totals here and never turned into invented `locations[]` rows |
+| `locations[].qty` and `orderableByThisAccount` | Only per-location data feeds `locations[]`: Gateway `on_hand` (the servicing warehouse) and `trade_region[]` rows (named `site_id` / `site_name`); O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (named supplier locations); PA `29 Cleveland` (home branch); Capital `Available` (home branch) and the per-warehouse stock doc 24 describes (s.5 saw only the ten-warehouse facet). Gateway `other_warehouse_quantity` (National) and Capital's grid `Regional` are aggregates with no warehouse identity and go to `availabilityTiers`, never to an invented branch. `orderableByThisAccount` stays UNKNOWN for every vendor until a cart or order response is captured: an O'Reilly route proves a scheduled route exists, not that this account may order from it (`autoSourceBlocked` can be set on a routed source). A capped `99+` / `50+` maps to `qty: {atLeast: n}` (doc 26 s.3, amended), never to the bare number |
+| `availabilityTiers` (new, doc 26 s.3 amended) | ATD's six delivery-time counts, PA `Transfers` / `Shipping`, Gateway `other_warehouse_quantity` (National) and Capital's grid `Regional` are aggregate fulfillment buckets with no branch code, name, kind or per-location orderability; they are kept as typed tier totals here and never turned into invented `locations[]` rows |
 | `arrival.tier` | ATD tier label; O'Reilly `relationshipToStore` + route presence; Gateway local vs `trade_region[]` vs national; PA tier word |
-| `arrival.at`, `arrival.orderBy` | O'Reilly `nextRoute.estimatedArrivalTime`, `nextRoute.cutoffTime` (ISO); ATD named date. PA: `Submit By` is the `orderBy` cutoff and `My Branch Departure` is when the truck leaves the branch, so it feeds a `departureAt` field and `arrival.at` stays UNKNOWN until the branch-to-shop route time is known (doc 27 s.3a). Gateway: UNKNOWN. `est_delivery_days` is a relative integer whose base instant, business-day and timezone rules were not captured, and the `get-cut-off-time` body is UNKNOWN (s.10 item 3), so the adapter keeps `arrival.relativeDays` and leaves `at` / `orderBy` UNKNOWN rather than fabricate a promise for Quickest Arrival |
+| `arrival.at`, `arrival.orderBy`, `arrival.inStoreBy`, `arrival.relativeDays` (the last two added to doc 26 s.3 by this doc) | O'Reilly `nextRoute.cutoffTime` (ISO) feeds `orderBy`; `nextRoute.estimatedArrivalTime` is the time the part reaches the O'Reilly store and feeds `arrival.inStoreBy`, not `at`: the store-to-shop run is a separate leg, so `at` stays UNKNOWN until that run time is measured (doc 26 "Arrival = departure + route time"). ATD named date feeds `at`. PA: `Submit By` is `orderBy` and `My Branch Departure` is doc 26's `departsMyBranchAt` (one name, per location); `arrival.at` stays UNKNOWN until the branch-to-shop route time is known (doc 27 s.3a). Gateway: `est_delivery_days` is a relative integer whose base instant, business-day and timezone rules were not captured, so it feeds `arrival.relativeDays` and `at` stays UNKNOWN; `orderBy` comes from `get-cut-off-time` (shape in s.3, timezone UNKNOWN, s.10 item 3). Quickest Arrival ranks only a known `at` |
 | `orderCutoff` per branch | Gateway `/master/get-cut-off-time`; ATD `fetch-cutofftimes`; PA `Order Cut Off`; O'Reilly `nextRoute.cutoffTime` |
 | `priceStatus` | Gateway `disable_call_for_price`; O'Reilly basket `error`/`errorMessage` keys; Capital/PA DOM |
 | `core` | O'Reilly `corePrice`; PA `core:`; ALG line `coreValue` + `coreTrackingEnabled` |
@@ -288,11 +293,13 @@ to High" as a sort, so the counter will recognise the rule; (2) O'Reilly's `allR
 ## 10. UNKNOWN, with the route to close each
 
 1. ALG labor-time lookup endpoint and its response (low/average/high). Route: Nour opens Edit on any ticket with
-   the hook installed, runs one labor search, nothing saved. Zero writes.
+   the hook installed, runs one labor search, nothing saved. Zero writes. (2026-11-07: one search was run, but in a
+   tab the hook was not on; the hooked tab recorded no labor call. The search has to run in the hooked tab itself.)
 2. ALG `jobLabors[]`, `labors[]`, `ticketPayments[]` shapes (empty on the viewed estimate). Route: view one
    closed invoice with a payment.
-3. Gateway `get-cut-off-time` and ATD `fetch-cutofftimes` bodies (both returned `{}` without the SPA's auth
-   context). Route: hook installed before the dashboard loads, then a reload.
+3. Gateway `get-cut-off-time`: the response shape is known from `gatewaySupplierOrder.ts` `readCutoff` (s.3); what
+   stays UNKNOWN is the value's date and timezone semantics. ATD `fetch-cutofftimes` body: UNKNOWN (returned `{}`
+   without the SPA's auth context). Route for both: hook installed before the dashboard loads, then a reload.
 4. Federated results grid transport (JSON vs HTML). Route: pick a model whose `eng[]` is non-empty, proceed, hook
    first.
 5. Capital and PA: no JSON feed from the catalog pages. Per the plan's portal boundary (doc 03 s."For every
