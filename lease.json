@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/merge-gate-codex-quota",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "58620067-8522-4b8f-bfd2-2c5658484796",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\merge-gate-codex-quota",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-11-07T15:21:37.438Z",
+  "expiresAt": "2026-11-08T03:21:37.438Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
