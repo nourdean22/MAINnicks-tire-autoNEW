@@ -74,6 +74,7 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 | `promo?: {programId, name}` | 24 Spotlights, 23 programs, 25 tracker | Lets the counter filter to rebate-eligible items |
 | `rawDescription` | 24 unparsed strings like `225/65R17~NEX~N Priz S~B/4 BW 102V TL` | Parse as fallback when structured spec fields are missing |
 | `sourceTags[]` per figure: `catalog_fitment / supplier_live / cached / manual`, plus `preferredBrand` | 25 provenance icons ("Item found in Catalog data", "Primary Brand", "Information supplied by Member's System") | Every number on an offer card says where it came from (row 33) |
+| `inventoryMeta?` per offer: the vendor's own stocking and classification flags kept verbatim under the vendor's key (O'Reilly `stockingData` and `relationshipToStore`, Gateway `is_site_product` and `source`; per 30) | 30 s.8, s.3 | Filters and display only; never provenance (`sourceTags`), never an arrival tier, never ranked |
 | `restrictedStates[]` | 25 VOC/EPA page (several chemicals list OH) | Shown on the card; blocks the order line for the shop's state unless overridden with a reason (row 35) |
 | `submitBy`, `departsMyBranchAt` per location | 27 Item Availability (home, Lorain, Huron times; far plants "Shipping") | Arrival = departure + route time; the most precise arrival data seen; refresh near each cutoff (row 36) |
 | `oeRef: {oeNumber, oeListPrice, qtyPerVehicle, note}` per part type | 27 OE header row | Anchors the offer list; pre-fills quantity; gives the quote a dealer-price reference (row 39) |
