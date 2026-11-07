@@ -65,7 +65,7 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 
 | Field | Why (evidence) | Rule |
 |---|---|---|
-| `locations[]` per offer: `{branchCode, branchName, kind: store/warehouse/coop, qty or UNKNOWN, orderableByThisAccount: yes/no/UNKNOWN}` | 24 and 25 show exact stock at 10-12 named locations, only one orderable | Show all; rank only orderable ones; a non-orderable location is "call to source", never the default pick |
+| `locations[]` per offer: `{branchCode, branchName, kind: store/warehouse/coop, qty: number or {atLeast: n} (a capped `99+` / `50+`, per 30) or UNKNOWN, orderableByThisAccount: yes/no/UNKNOWN}` | 24 and 25 show exact stock at 10-12 named locations, only one orderable | Show all; rank only orderable ones; a non-orderable location is "call to source", never the default pick |
 | `arrival: {tier, at?}` with tier in `pickup_now, today, tomorrow, named_date, multi_day, national, unknown` | 23 has six tiers; 24 and 25 have none | `unknown` is a first-class value; Quickest Arrival never ranks an unknown ETA |
 | `fulfillmentMode: route / pickup / ship / UNKNOWN` | 24 checkout | Shown on the offer card next to arrival |
 | `orderCutoff?: datetime` per branch | 22, 23 countdown banners | Drives "order by X to get Y" on the comparison screen |

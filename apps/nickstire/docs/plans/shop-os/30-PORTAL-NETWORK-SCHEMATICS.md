@@ -25,9 +25,10 @@ customer names, phones, VINs or ticket ids. Field NAMES and shapes only; example
    vs linked DC vs surrounding store, with
    `nextRoute.cutoffTime` and `estimatedArrivalTime` per supplier location) and Gateway (`quicksearch/cache`:
    local, regional and national on-hand with a stated `est_delivery_days` per regional warehouse).
-3. ATD, Capital, Federated and Parts Authority render availability server-side (full page loads); their tiers
-   are read from the DOM, not JSON. ATD's six tiers and Capital's `Available` / `Regional` pair are exact counts
-   capped at `99+` / `50+`.
+3. ATD, Capital and Parts Authority render availability server-side (full page loads); their tiers are read
+   from the DOM, not JSON. Federated's results grid was not reached (s.6), so its transport stays UNKNOWN
+   (s.10 item 4). ATD's six tiers and Capital's `Available` / `Regional` pair are counts capped at `99+` /
+   `50+`: a capped figure is a lower bound, never an exact quantity (s.10 item 6).
 4. Doc 26 s.5's Gateway question is half answered: the Regional bucket shows 3-4 `est_delivery_days` per
    warehouse and `trade_region_splitup = true` on every row (FACT). Whether this account may ORDER regional stock
    stays UNKNOWN: no cart or order response was captured and the flag's meaning is not documented. Ranking logic
@@ -78,7 +79,8 @@ field}}` (`smtp/settings`, `smtp/verify`, `signature/get`), so the client has tw
 - `customer: {id, accountsReceivableId, isCommercial, isTaxExempt, firstName, lastName, companyName, email,
   ticketCount, recentTicket, addressLine1, addressLine2, city, state, postalCode, primaryNumber, secondaryNumber,
   ternaryNumber, createdDate, updatedDate, creditLimit, balanceDue, accountNumber, isActive, qboId}`
-- `ticketItems[]` (every line, labor and parts alike): `{id, order, type (numeric enum), description,
+- `ticketItems[]` (every line, labor and parts alike): `{id, order, type (numeric enum; the values that mean
+  labor, part and miscellaneous were NOT observed, so line classification stays UNKNOWN, s.10 item 7), description,
   technicianId, technicianName, partId, partCode, vendorId, jobLaborId, packageJobId, miscellaneousChargeId,
   miscellaneousChargeVersion, unitPrice, partMarkup, quantity, rate, subTotal, taxRate, taxRates[], tax, total,
   isTaxable, inInventory, inventoryStockId, inventoryUsed, coreTrackingEnabled, coreTrackingId, coreValue,
@@ -266,15 +268,15 @@ attached to a line (`vendorId` + `partCode` are the hooks), decline reasons per 
 
 | Doc 26 field | Vendor field that feeds it (OBSERVED) |
 |---|---|
-| `locations[].qty` and `orderableByThisAccount` | Gateway `on_hand` / `trade_region[].on_hand` / `other_warehouse_quantity`; O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (route present = orderable, INFERRED); PA `29 Cleveland / Transfers / Shipping`; Capital `Available` / `Regional`; ATD six tiers |
+| `locations[].qty` and `orderableByThisAccount` | Gateway `on_hand` / `trade_region[].on_hand` / `other_warehouse_quantity`; O'Reilly `quantityFromStore` / `suppliersWithRoutes[].quantityOnHand` / `suppliersWithoutRoutes[]` (route present = orderable, INFERRED); PA `29 Cleveland / Transfers / Shipping`; Capital `Available` / `Regional` and ATD six tiers, where a capped `99+` / `50+` maps to `qty: {atLeast: n}` (doc 26 s.3, amended), never to the bare number |
 | `arrival.tier` | ATD tier label; O'Reilly `relationshipToStore` + route presence; Gateway local vs `trade_region[]` vs national; PA tier word |
-| `arrival.at`, `arrival.orderBy` | O'Reilly `nextRoute.estimatedArrivalTime`, `nextRoute.cutoffTime` (ISO); Gateway `est_delivery_days` per site + `get-cut-off-time`; ATD named date; PA departure times |
+| `arrival.at`, `arrival.orderBy` | O'Reilly `nextRoute.estimatedArrivalTime`, `nextRoute.cutoffTime` (ISO); ATD named date; PA departure times. Gateway: UNKNOWN. `est_delivery_days` is a relative integer whose base instant, business-day and timezone rules were not captured, and the `get-cut-off-time` body is UNKNOWN (s.10 item 3), so the adapter keeps `arrival.relativeDays` and leaves `at` / `orderBy` UNKNOWN rather than fabricate a promise for Quickest Arrival |
 | `orderCutoff` per branch | Gateway `/master/get-cut-off-time`; ATD `fetch-cutofftimes`; PA `Order Cut Off`; O'Reilly `nextRoute.cutoffTime` |
 | `priceStatus` | Gateway `disable_call_for_price`; O'Reilly basket `error`/`errorMessage` keys; Capital/PA DOM |
 | `core` | O'Reilly `corePrice`; PA `core:`; ALG line `coreValue` + `coreTrackingEnabled` |
 | `promo` | Gateway `special_offer_id`, `rebate_*`; O'Reilly `promoApplied`, `promotions/batch`; Capital spotlight facet |
 | `rawDescription` | Capital unparsed `~` strings; Gateway `tire_data` text |
-| `sourceTags` | O'Reilly `stockingData` flags; Gateway `is_site_product`, `source` |
+| `sourceTags` | No vendor field. Provenance (`supplier_live` / `cached` / `manual`) comes from the adapter's own fetch or cache path. O'Reilly `stockingData` and Gateway `is_site_product` / `source` describe stocking and product classification, not how a figure was verified; they go in a separate `inventoryMeta` field |
 | Ticket line hooks | ALG `ticketItems[].vendorId`, `partCode`, `partId`, `inventoryStockId`, `technicianId` |
 
 Ranking stays as doc 26 s.2 wrote it. Two additions from the data: (1) ATD already ships "Availability, Cost Low
@@ -296,6 +298,11 @@ to High" as a sort, so the counter will recognise the rule; (2) O'Reilly's `allR
    documented punchout (doc 20) and Capital through a visible operator handoff or a vendor-approved export (the
    `Download Price List` control exists on Capital; its terms are unread). Whether either vendor offers an API is
    UNKNOWN.
+6. Capped stock (`99+`, `50+`) has no slot in doc 26's `locations[].qty` (number or UNKNOWN). Amended in doc 26
+   s.3: `qty` may be `{atLeast: n}`; it ranks as in stock and never prints as an exact count.
+7. ALG `ticketItems[].type` enum values for labor, part and miscellaneous lines. Route: one viewed ticket that
+   carries all three line kinds, then read `type` per line against the on-screen section. Until then the ALG
+   import and the conformance fixtures classify lines UNKNOWN; the restored labor/part split is not computed.
 
 ## 11. For the supplier-compare build (fixture list)
 
