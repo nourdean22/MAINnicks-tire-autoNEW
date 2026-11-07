@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Not walked through live (2026-11-07, branch nickstire/fast-replies, client half): no admin session or dev server was opened from the lane worktree. What the counter sees on Today: a waiting-text row whose newest text already has a stored AI draft now shows 'Suggested reply' under the row, the draft itself at 16 px clamped to three lines (tap opens the whole draft), and a 'Send draft' button (48 px minimum). One tap sends that exact draft through smsOrchestrator.actionHumanReview { id: draftId, action: 'send' } with no dialog; the button reads 'Sending' and every board action waits while it runs. When the refreshed board no longer lists the customer, the row leaves and a toast says 'Draft sent to <name>'. If the server refuses (sent elsewhere, closed, stale), its own message shows under the button and the row stays. If the server accepts but the customer still shows as waiting (the gateway refused the text), an error toast says so and the row stays. A row with no draft is unchanged: Reply / Open thread, Call, Message, No reply needed. Receipts: client/src/__tests__/today-send-draft.test.tsx red-first 8 failed / 2 passed on the unfixed code, 10 passed after; draftId-guard mutation 2 failed, still-waiting-check mutation 1 failed; 10 sibling Today and ratchet files 183 passed; pnpm run check exit 0; pnpm run lint:source exit 0."
+    }
+  }
+}

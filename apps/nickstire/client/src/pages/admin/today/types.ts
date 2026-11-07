@@ -97,6 +97,9 @@ export interface ActionItem {
   urgency: number; // 1-5
   createdAt: string | Date;
   status: string;
+  /** Text rows: the stored draft answering the newest waiting text (sms_orchestrations.id), when one is live. */
+  draftId?: number | null;
+  draftText?: string | null;
   isVip?: boolean;
   totalVisits?: number;
   totalRevenue?: number;
