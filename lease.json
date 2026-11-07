@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/audit-fixes-2026-11-07",
+  "status": "active",
+  "sessionKind": "unknown",
+  "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.claude\\worktrees\\gsc-messaging-receptionist-audit-8884c1",
+  "claimedBy": "2026-11-07-audit-fixes manager f842366e",
+  "claimedAt": "2026-11-07T13:08:56.735Z",
+  "expiresAt": "2026-11-08T01:08:56.735Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
