@@ -402,6 +402,10 @@ The 25 is `mergeGate.codexWaitMinutes` in `config/agent-os/policy.json` (2026-11
 there in a PR (0 = do not wait) instead of passing the flag on every call, and restore it after; the flag still wins, a
 missing or malformed value means 25 with a `WARN:` line, and nothing but the length of these two timers (no marker, and
 twice that for a review still running) changes.
+Quota skip (2026-11-07): with no marker for the head, a Codex comment saying it "reached your Codex usage limits" posted in
+the last 5 h ends the wait at once with `WARN: Codex: not run (quota) on <sha>; merging without its review`. One posted
+before this push counts only 5 min after the push (Codex posts its marker about 2 min in), so a reset quota still gets
+its review. A running, malformed or finished marker for the head always wins; the 5 h is a guess, not an OpenAI figure.
 Comments are read newest page first through GraphQL, stopping at the marker that decides the head: `gh pr view --json
 comments` returns only the first 100, which hid a later marker (Codex P2 on #3144). Past 2,000 comments it is BLOCKED.
 
