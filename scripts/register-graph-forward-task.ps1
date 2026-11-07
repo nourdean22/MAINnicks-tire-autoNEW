@@ -34,11 +34,17 @@ $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"& '$node' '$script'`""
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+# Also every 10 minutes after logon: three one-minute restarts are all the task gets, so a forwarder that dies a fourth
+# time would stay dead until the next logon. A start while it runs is ignored twice over (IgnoreNew below, and the port
+# is taken), so the repeat costs nothing while it is healthy.
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10) `
+    -RepetitionDuration ([TimeSpan]::MaxValue)).Repetition
 
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
+    -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
