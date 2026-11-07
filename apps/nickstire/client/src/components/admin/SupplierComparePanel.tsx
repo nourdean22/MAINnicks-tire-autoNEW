@@ -134,7 +134,7 @@ export default function SupplierComparePanel() {
   }
 
   const gateway = data?.suppliers[0];
-  const both = !!result?.quickest && result.quickest.key === result.bestPrice?.key;
+  const both = !!result?.quickest && result.quickest === result.bestPrice;
   const rows = result?.candidates ?? [];
 
   return (
@@ -187,7 +187,7 @@ export default function SupplierComparePanel() {
           )}
           {gateway.status === "no_results" && (
             <p className="text-sm">
-              Gateway has no tires in {data.size}.{" "}
+              Gateway returned no tires for {data.size}.{" "}
               <a href={gateway.portalUrl} target="_blank" rel="noopener noreferrer" className="underline">Open the Gateway portal</a>
             </p>
           )}

@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   rows: null as Record<string, unknown>[] | null,
-  failure: null as { at: number; reason: string; detail?: string } | null,
+  failure: null as { at: string; reason: string; detail?: string } | null,
+  /** Set by the search itself, as gatewayClient does when this call fails. */
+  failDuring: null as { reason: string; detail?: string } | null,
   searched: [] as string[],
 }));
 
@@ -16,7 +18,11 @@ vi.mock("../services/gatewayClient", () => ({
     const p = (item.pricing_data as Record<string, number>[] | undefined)?.[0];
     return p && p.selling_price > 0 ? p.selling_price : 0;
   },
-  searchTiresBySize: async (size: string) => (h.searched.push(size), h.rows),
+  searchTiresBySize: async (size: string) => {
+    h.searched.push(size);
+    if (h.failDuring) h.failure = { at: new Date().toISOString(), ...h.failDuring };
+    return h.rows;
+  },
   getLastGatewayFailure: () => h.failure,
 }));
 
@@ -44,6 +50,7 @@ const ROW = {
 beforeEach(() => {
   h.rows = null;
   h.failure = null;
+  h.failDuring = null;
   h.searched = [];
 });
 
@@ -60,11 +67,17 @@ describe("sourcing.compareTires", () => {
   });
 
   it("a failed lookup is 'unavailable' with the reason and the portal link, not an empty list", async () => {
-    h.failure = { at: Date.now(), reason: "login_failed", detail: "account 12345 rejected" };
+    h.failDuring = { reason: "login_failed", detail: "account 12345 rejected" };
     const r = await compare("225/65R17");
     expect(r.suppliers[0]).toMatchObject({ status: "unavailable", reason: "login_failed" });
     expect(r.suppliers[0].portalUrl).toContain("b2b.dktire.com");
     expect(JSON.stringify(r)).not.toContain("12345");
+  });
+
+  it("a failure left over from an earlier call is not given as this call's reason", async () => {
+    h.failure = { at: new Date(Date.now() - 60_000).toISOString(), reason: "Search 401 - token expired/revoked" };
+    const r = await compare("225/65R17");
+    expect(r.suppliers[0]).toMatchObject({ status: "unavailable", reason: "no_answer" });
   });
 
   it("an empty answer is 'no_results'", async () => {

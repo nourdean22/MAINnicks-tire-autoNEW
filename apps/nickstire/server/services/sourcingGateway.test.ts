@@ -134,3 +134,18 @@ describe("Gateway offers through compareOffers", () => {
     expect(r.quickest).not.toBeNull();
   });
 });
+
+describe("gatewayItemsToOffers: second-reader findings", () => {
+  it("no dealer price (selling_price 0 or missing) is not priced, never the retail cost_price", () => {
+    for (const pricing of [{ selling_price: 0, cost_price: 941.5 }, { selling_price: null, cost_price: 941.5 }]) {
+      const [o] = gatewayItemsToOffers([row({}, pricing)], CTX);
+      expect(o.priceStatus).toBe("not_priced");
+      expect(o.unitPrice).toBe(UNKNOWN);
+    }
+  });
+
+  it("a row that is not an object is skipped, not thrown", () => {
+    const rows = [null, "x", row()] as unknown as Record<string, unknown>[];
+    expect(gatewayItemsToOffers(rows, CTX).map((o) => o.sku)).toEqual(["NX-2256517"]);
+  });
+});

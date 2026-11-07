@@ -129,6 +129,7 @@ function rankOne(
   need: number,
   nowMs: number,
   schedules: Readonly<Record<string, SupplierSchedule>>,
+  offerIndex: number,
 ): Candidate {
   const reasons: string[] = [];
   let speed = true;
@@ -187,7 +188,8 @@ function rankOne(
   if (window === UNKNOWN) speed = false;
 
   return {
-    key: `${o.supplierId}:${o.sku}:${l.branchCode}`,
+    // A row with no part number gets its position, so two of them stay apart.
+    key: `${o.supplierId}:${o.sku || `#${offerIndex}`}:${l.branchCode}`,
     offer: o,
     location: l,
     landedUnit: landed,
@@ -228,7 +230,7 @@ export function compareOffers(
 ): Comparison {
   const need = Math.max(1, Math.floor(qtyNeeded));
   const nowMs = now.getTime();
-  const all = offers.flatMap((o) => o.locations.map((l) => rankOne(o, l, need, nowMs, schedules)));
+  const all = offers.flatMap((o, i) => o.locations.map((l) => rankOne(o, l, need, nowMs, schedules, i)));
 
   const fast = all.filter((c) => c.canWinQuickest).sort(bySpeed);
   // Doc 26: offers in one tier whose run windows overlap are a speed tie; price decides between them.

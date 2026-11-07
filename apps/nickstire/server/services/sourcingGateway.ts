@@ -17,7 +17,8 @@ const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 function toOffer(item: Row, ctx: { size: string; verifiedAt: string }): SupplierOffer {
   const pricing = (Array.isArray(item.pricing_data) ? item.pricing_data[0] : undefined) as Row | undefined;
-  const cost = pickWholesaleCost(item);
+  // selling_price is the dealer cost. Without it pickWholesaleCost falls back to cost_price, which is retail (2x).
+  const cost = typeof pricing?.selling_price === "number" && pricing.selling_price > 0 ? pickWholesaleCost(item) : 0;
   const wanted = normalizeTireSize(ctx.size);
   const size = normalizeTireSize(text(item.invent_size));
   const model = text(item.minor_name).replace(/^[A-Z]+\s*-\s*/, "");
@@ -65,5 +66,5 @@ function toOffer(item: Row, ctx: { size: string; verifiedAt: string }): Supplier
 }
 
 export function gatewayItemsToOffers(items: readonly Row[], ctx: { size: string; verifiedAt: string }): SupplierOffer[] {
-  return items.map((item) => toOffer(item, ctx));
+  return items.filter((item) => typeof item === "object" && item !== null).map((item) => toOffer(item, ctx));
 }

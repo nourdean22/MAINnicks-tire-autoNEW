@@ -141,6 +141,15 @@ describe("SupplierComparePanel", () => {
     expect(screen.queryByRole("region", { name: /^Quickest$/ })).toBeNull();
   });
 
+  it("two rows with one part number are still two picks, so the cheaper one is not hidden", () => {
+    const stale = new Date(Date.now() - 20 * 60_000).toISOString();
+    h.lookup = live([offer("DUP", 100, 6), offer("DUP", 70, 6, undefined, stale)]);
+    show();
+    search();
+    expect(screen.queryByRole("region", { name: /^Quickest and best price$/ })).toBeNull();
+    expect(within(card(/^Best price$/)).getByText(/\$70\.00 each/)).toBeTruthy();
+  });
+
   it("says when stock was checked, and shows a cost for each pick", () => {
     h.lookup = live(THREE(), "2026-11-06T20:05:00.000Z");
     show();
@@ -196,14 +205,14 @@ describe("SupplierComparePanel", () => {
     expect(screen.getByText(/Gateway did not answer/)).toBeTruthy();
     expect(screen.getByText(/Auth \/token returned HTTP 500/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Gateway portal/ }).getAttribute("href")).toContain("b2b.dktire.com");
-    expect(screen.queryByText(/has no tires/)).toBeNull();
+    expect(screen.queryByText(/returned no tires/)).toBeNull();
   });
 
-  it("an empty answer says Gateway has no tires in that size", () => {
+  it("an empty answer says Gateway returned no tires for that size", () => {
     h.lookup = { data: { ...live([]).data, suppliers: [{ ...live([]).data.suppliers[0], status: "no_results" }] } };
     show();
     search();
-    expect(screen.getByText(/Gateway has no tires in 225\/65R17/)).toBeTruthy();
+    expect(screen.getByText(/Gateway returned no tires for 225\/65R17/)).toBeTruthy();
   });
 
   it("a refused size shows the server's reason", () => {

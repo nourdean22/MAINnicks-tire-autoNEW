@@ -13,6 +13,11 @@ import { gatewayItemsToOffers } from "../services/sourcingGateway";
 /** Tire suppliers the shop buys from that have no connection here yet: named on screen so a blank is not read as "none". */
 const NOT_CONNECTED = ["ATD", "Capital Tire"];
 
+function failureSince(iso: string): string {
+  const f = getLastGatewayFailure();
+  return f && new Date(f.at).getTime() >= Date.parse(iso) ? f.reason : "no_answer";
+}
+
 export const sourcingRouter = router({
   compareTires: adminProcedure.input(z.object({ size: z.string().max(40) })).query(async ({ input }) => {
     const size = normalizeTireSize(input.size);
@@ -31,8 +36,9 @@ export const sourcingRouter = router({
           id: "gateway_dk",
           name: "Gateway Tire (D&K)",
           status: status as "live" | "no_results" | "unavailable",
-          // The reason code only: the failure detail can carry account text.
-          reason: rows === null ? (getLastGatewayFailure()?.reason ?? "no_answer") : null,
+          // The reason code only: the failure detail can carry account text. Only a failure recorded during this
+          // call counts; most search failures record none, and an older one would name the wrong cause.
+          reason: rows === null ? failureSince(lookedUpAt) : null,
           portalUrl,
         },
       ],

@@ -262,3 +262,15 @@ describe("compareOffers: rules the mutation run showed were unpinned", () => {
     expect(r.sameWindow).toEqual([]);
   });
 });
+
+describe("compareOffers: second-reader findings", () => {
+  it("two offers with no part number stay separate, so a cheaper cached one is not hidden behind the quickest", () => {
+    const fast = offer("a", "", { unitPrice: 100 });
+    const cheap = offer("a", "", { unitPrice: 70 }, { qtySource: "cached" });
+    const r = run([fast, cheap]);
+    expect(new Set(r.candidates.map((c) => c.key)).size).toBe(r.candidates.length);
+    expect(r.quickest?.offer).toBe(fast);
+    expect(r.bestPrice?.offer).toBe(cheap);
+    expect(r.quickest?.key).not.toBe(r.bestPrice?.key);
+  });
+});
