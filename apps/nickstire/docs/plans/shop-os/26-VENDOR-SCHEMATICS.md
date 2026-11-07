@@ -65,15 +65,16 @@ distance, promise semantics, estimated arrival, last-verified time, expiry and w
 
 | Field | Why (evidence) | Rule |
 |---|---|---|
-| `locations[]` per offer: `{branchCode, branchName, kind: store/warehouse/coop, qty or UNKNOWN, orderableByThisAccount: yes/no/UNKNOWN}` | 24 and 25 show exact stock at 10-12 named locations, only one orderable | Show all; rank only orderable ones; a non-orderable location is "call to source", never the default pick |
-| `arrival: {tier, at?}` with tier in `pickup_now, today, tomorrow, named_date, multi_day, national, unknown` | 23 has six tiers; 24 and 25 have none | `unknown` is a first-class value; Quickest Arrival never ranks an unknown ETA |
+| `locations[]` per offer: `{branchCode, branchName, kind: store/warehouse/coop, qty: number or {atLeast: n} (a capped `99+` / `50+`, per 30) or UNKNOWN, orderableByThisAccount: yes/no/UNKNOWN}`; `availabilityTiers[]` per offer: `{tier, count: number or {atLeast: n} or UNKNOWN, orderable: yes/no/UNKNOWN}` for vendors that show fulfillment buckets without named locations (ATD, PA, Gateway National, Capital Regional; per 30); a tier whose `orderable` is UNKNOWN is shown but never ranked | 24 and 25 show exact stock at 10-12 named locations, only one orderable | Show all; rank only orderable ones; a non-orderable location is "call to source", never the default pick |
+| `arrival: {tier, at?, orderBy?, inStoreBy?, relativeDays?, onDate?}` with tier in `pickup_now, today, tomorrow, named_date, multi_day, national, unknown` (`inStoreBy` = O'Reilly's in-store time, `relativeDays` = Gateway's day count, `onDate` = ATD's date-only label with no time or timezone, per 30; none is a shop arrival instant, so `at` stays UNKNOWN until the run time is measured) | 23 has six tiers; 24 and 25 have none; 28 and 30 for the added fields | `unknown` is a first-class value. Ranking (s.3 rules): tier first; inside a tier an exact `at` ranks by time, and a partial promise ranks coarsely by its own field only against the same kind (`onDate` by date, `relativeDays` by count, `inStoreBy` by time) and never against another vendor's exact `at`; an offer with tier `unknown` or no promise field is display-only |
 | `fulfillmentMode: route / pickup / ship / UNKNOWN` | 24 checkout | Shown on the offer card next to arrival |
-| `orderCutoff?: datetime` per branch | 22, 23 countdown banners | Drives "order by X to get Y" on the comparison screen |
+| `orderCutoff?: datetime` per branch; `orderCutoffRaw?: string` when the vendor gives a time with no date or zone (Gateway `get-cut-off-time`, per 30) | 22, 23 countdown banners | Drives "order by X to get Y" on the comparison screen; a raw value is shown as text and never treated as an instant |
 | `core` (per location) | 25 Alt Locations | Part of landed cost (18 already counts core/deposit) |
 | `priceStatus: priced / not_priced` | 25 rows with Cost N/A | Not-priced offers are shown but never win Best Price |
 | `promo?: {programId, name}` | 24 Spotlights, 23 programs, 25 tracker | Lets the counter filter to rebate-eligible items |
 | `rawDescription` | 24 unparsed strings like `225/65R17~NEX~N Priz S~B/4 BW 102V TL` | Parse as fallback when structured spec fields are missing |
 | `sourceTags[]` per figure: `catalog_fitment / supplier_live / cached / manual`, plus `preferredBrand` | 25 provenance icons ("Item found in Catalog data", "Primary Brand", "Information supplied by Member's System") | Every number on an offer card says where it came from (row 33) |
+| `inventoryMeta?` per offer: the vendor's own stocking and classification flags kept verbatim under the vendor's key (O'Reilly `stockingData` and `relationshipToStore`, Gateway `is_site_product` and `source`; per 30) | 30 s.8, s.3 | Filters and display only; never provenance (`sourceTags`), never an arrival tier, never ranked |
 | `restrictedStates[]` | 25 VOC/EPA page (several chemicals list OH) | Shown on the card; blocks the order line for the shop's state unless overridden with a reason (row 35) |
 | `submitBy`, `departsMyBranchAt` per location | 27 Item Availability (home, Lorain, Huron times; far plants "Shipping") | Arrival = departure + route time; the most precise arrival data seen; refresh near each cutoff (row 36) |
 | `oeRef: {oeNumber, oeListPrice, qtyPerVehicle, note}` per part type | 27 OE header row | Anchors the offer list; pre-fills quantity; gives the quote a dealer-price reference (row 39) |
@@ -177,7 +178,9 @@ is still open is **which locations each account can actually order from and how 
 - Capital Tire: ROUTE schedule, cutoff, how non-Macedonia stock reaches Cleveland. (24)
 - Fisher/Federated: delivery runs and cutoffs from C185OH, transfer time from other Fisher stores and
   warehouses, whether those are orderable online. (25)
-- Gateway: is the Regional bucket orderable and how fast. (22)
+- Gateway: half answered by [30](30-PORTAL-NETWORK-SCHEMATICS.md) s.3: each regional warehouse states
+  `est_delivery_days` (3-4) and every row carries `trade_region_splitup = true` (FACT). Whether this account may
+  ORDER regional stock stays UNKNOWN until a cart or order response is captured. (22, 30)
 Until answered, those suppliers compete on price only and show "ETA unknown - call".
 - Parts Authority: drive time from branch 29 to the shop after "My Branch Departure", how Saturday delivery and
   DoorDash are chosen, and whether IMC will enable the Mitchell 1/ALLDATA-style punchout for Shop OS. (27)
