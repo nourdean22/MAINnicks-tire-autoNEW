@@ -5,8 +5,11 @@ Job 2026-11-07-portal-network-schematics. Status: CURRENT (extend after any new 
 schematics ... dont forget real time labor or alg because i want it all based around that too its my crm". This is
 the pass below the UX audits: what each portal's browser actually sends and receives, captured with a fetch/XHR
 hook installed in Nour's own logged-in Chrome tabs (passive runtime observation, REA style), plus static reads of
-the shipped JavaScript bundles. Read-only throughout, with one write-bearing exception on 2026-11-07: the ticket editor wizard PUT `ticket/updateTicketSession/<ticketId>` fired by picking a job (s.0 item 5, s.2 Labor lookup). No visible line was left, but that session is classed write-bearing and is not repeated under read-only authorization: size and part-number searches, one ticket view, no cart, no
-order, no form submit, no credential entry. FACT/OBSERVED = seen in the response or bundle this session.
+the shipped JavaScript bundles. Read-only throughout (size and part-number searches, one ticket view, no cart, no
+order, no form submit, no credential entry), with one write-bearing exception on 2026-11-07: the ticket editor
+wizard PUT `ticket/updateTicketSession/<ticketId>` fired by picking a job (s.0 item 5, s.2 Labor lookup). No
+visible line was left, but that session is classed write-bearing and is not repeated under read-only
+authorization. FACT/OBSERVED = seen in the response or bundle this session.
 INFERRED = reasoning from it. UNKNOWN = not reached, with the route that would reach it.
 
 **Privacy rule for this file (public repo):** no account numbers, ship-to or tenant ids, tokens, cookies,
