@@ -109,11 +109,10 @@ why and the run exits 1 (the task's Last Result shows it). Drift that bootstrap 
 the same as running it by hand. Exit 1 means NOT IN SYNC: the pull was skipped or bootstrap still has an item to fix.
 
 Reading the receipt from inside a Claude desktop session shows a stale copy (MECHANICS, 2026-11-07, cost an hour): the
-app redirects that session's writes under `%LOCALAPPDATA%` into `AppDataLocalPackagesAnthropicPBC.Claude_*LocalCacheLocal`,
+app redirects that session's writes under `%LOCALAPPDATA%` into `AppData\Local\Packages\AnthropicPBC.Claude_*\LocalCache\Local`,
 and its reads see that copy first, so `--status` there reports the session's own last run, not the task's. The task itself
-writes the real file. To see the real one from a session read it through the admin share:
-`\localhostC$Users<user>AppDataLocal
-ourcitymachine-sync.json`, or run `--status` from a plain PowerShell window.
+writes the real file. To see the real one from a session read it through the admin share
+`\\localhost\C$\Users\<user>\AppData\Local\nourcity\machine-sync.json`, or run `--status` from a plain PowerShell window.
 
 Not on the board yet (follow-up B, a second PR where `apps/` exists): `harness-snapshot.mjs` sends the receipt as a `sync`
 field, `harness-status.ts` accepts it (the `.strict()` schema refuses unknown fields today), and both harness cards show
