@@ -1,0 +1,7 @@
+| Job id | Date | Job | Lanes | Status | PR / SHA | Next action or blocker | Lesson |
+|---|---|---|---|---|---|---|---|
+| 2026-11-07-shift-rules | 2026-11-07 | Job 8 of the GSC + texting + receptionist audit follow-ups (people side): one page for the counter on who owns the text line, who picks up forwarded calls and what to do with COMING IN, every system behavior cited to the code that sends it, owners left blank for Nour after he asks Mash and Manny. Also fixes the transfer runbook's last "a yes, connected" line (job 2 remainder: the no-ask transfer line is in the code since PR 3555) | nickstire server, docs only (opus/high) | MERGED | this PR | Nour fills the three Owner lines and taps Push Latest Config so the no-ask transfer line is live; one test call confirms it. Stale comment routes/webhooks/vapi.ts:950 (says COMING IN, the safety net sends ASKED, NOT BOOKED) goes in the next server PR | Cite the string the sender builds, never the comment beside it: the comment at vapi.ts:950 names the wrong text |
+
+| Job id | After the PR opened (Codex, human) | Manager catches before it opened | Red-first (new tests red on unfixed code / new tests) | Mutation (killed / tried) | Cycle time (first dispatch to merge) | Rework pushes | Source |
+|---|---|---|---|---|---|---|---|
+| 2026-11-07-shift-rules | see PR | 0 (manager spot-checked the transfer cites at vapi.ts:606-621) | n/a (docs) | n/a (docs) | dispatch 18:20Z, lane return 18:27Z, merge: see PR | 0 | lane return 2026-11-07 18:27Z |
