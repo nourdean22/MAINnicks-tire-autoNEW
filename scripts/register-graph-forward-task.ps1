@@ -22,7 +22,9 @@ if (@($config.hosts) | Where-Object { $_ -ieq $env:COMPUTERNAME }) {
 
 $script = Join-Path $RepoRoot 'scripts\agent-os\graph-forward.mjs'
 if (-not (Test-Path $script)) { throw "forwarder not found: $script" }
-$node = (Get-Command node -ErrorAction Stop | Select-Object -First 1).Source
+# Quotes doubled, curly ones too: the shop PC checkout sits under a user folder with an apostrophe in its name.
+$node = (Get-Command node -ErrorAction Stop | Select-Object -First 1).Source -replace "['‘’‚‛]", '$0$0'
+$quoted = $script -replace "['‘’‚‛]", '$0$0'
 
 if ($RepoRoot -match '\\\.claude\\worktrees\\|\\\.worktrees\\') {
     Write-Warning "RepoRoot looks like a worktree: $RepoRoot"
@@ -31,7 +33,7 @@ if ($RepoRoot -match '\\\.claude\\worktrees\\|\\\.worktrees\\') {
 
 # The task stays running as long as the forwarder does, so: no time limit, and a restart if it dies.
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"& '$node' '$script'`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"& '$node' '$quoted'`""
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 # Also every 10 minutes after logon: three one-minute restarts are all the task gets, so a forwarder that dies a fourth
