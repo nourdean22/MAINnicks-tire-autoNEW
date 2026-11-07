@@ -12,6 +12,10 @@ Sources: doc 32 (phases, screens, rules), doc 26 (objects), doc 30 (captures), d
 supplier gates), `config/agent-os/harness-actions.json` (allowlist, read 2026-11-07), `docs/agent-os/MACHINE-SYNC.md`,
 `.claude/skills/monorepo-manager/SKILL.md` (lanes, writers at once, RAM gate), root `AGENTS.md` (protected operations).
 
+Ruling after this doc was written (Nour, 2026-11-07 13:30Z): the ledger is built, not bought (doc 37). Section 1
+(where work can run) and section 3 (rules) stand; the lanes-per-phase table in section 2 is reshaped by doc 37's
+phases and is kept here as the first cut, not the plan.
+
 ## 1. Where work can run
 
 | Place | Runs | Cannot | Why (source) |

@@ -12,6 +12,10 @@ Verdicts: BUILT = in code or already in the plan with a receipt; NEW = folded in
 value, missing prerequisite, revisit trigger named; REFUTED = the code contradicts it; CLAIM = external fact not
 read on a primary page this pass.
 
+Ruling after this doc was written (Nour, 2026-11-07 13:30Z): the ledger is BUILT, not bought; ALG is the model to
+beat, not the system of record. Doc 32 s.1 and its phase table are superseded by doc 37; rows here that assume
+ALG stays (board freshness, daytime probes, the mirror as source) are history, kept as the research receipt.
+
 ## 1. Claim by claim
 
 | # | Report claim | Verdict | Receipt and what changed |
