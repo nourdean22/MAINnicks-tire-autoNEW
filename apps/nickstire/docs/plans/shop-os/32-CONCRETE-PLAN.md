@@ -8,8 +8,8 @@ on 2026-11-07: four claims of the first draft were refuted and are fixed below (
 path, the buy-vs-build call, the built repair-order backend).
 
 Deck with the screens as they would look: https://claude.ai/artifact/GFLt89EF5iyvq8kDexfmjC (private until Nour
-shares it; every number on it is a placeholder). The old mockup link in the README (TWqsphTCiJFqigPcxxd1f5) no
-longer opens and should be treated as gone.
+shares it; every number on it is a placeholder). The README now points here; its older mockup link
+(TWqsphTCiJFqigPcxxd1f5) no longer opens.
 
 Receipts this plan stands on: doc 30 (portal captures, FACT/UNKNOWN per field), doc 26 s.3 (shop-owned objects),
 doc 17 (ledger study; figures private), doc 10 (routes and look), doc 05 (kill-switch rule), doc 31 (claim-by-claim
@@ -117,7 +117,8 @@ the flag off and the next phase waits.
 1. Per-ticket ALG fetch for the mirror (collides with the session guard, doc 30 s.2) or stay on the recent-tickets
    list. Blocks phase 1's history card.
 2. Open Edit on one ALG ticket and run one labor search with the hook armed, so the labor lookup can be captured.
-   Without it the labor promise on the board stays UNKNOWN (doc 30 s.10 item 1).
+   Without it the labor promise on the board stays UNKNOWN (doc 30 s.10 item 1); the repo's built-in labor guide
+   (`server/routers/autoLabor.ts`, wired at `IntegrationsSection.tsx:173-186`) is the fallback the board extends, not a rebuild.
    1b. Daytime mirror probes: allow them (the counter gets logged out of ALG on each one) or keep the board on the
    3 AM / 8 PM mirror. Blocks a live board.
    2b. Is the D&K login-based client (and O'Reilly's JSON behind the shop login) an approved vendor path, or a

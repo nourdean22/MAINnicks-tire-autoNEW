@@ -5,8 +5,9 @@ ALG/ShopDriver Elite, with parts vendors, an AI copilot and everything done from
 nickstire.org/system. He approved approach A on 2026-10-26, then paused. ChatGPT and Perplexity each scored the v1
 plan 4/10 on 2026-10-27; after a deep-research round (v2: 6.5/10 and 7/10) and Nour's "more money, easier life" steer,
 the roadmap is v3: find the money leaks, take the free money (PartsTech free plan, pricing, tire packages, finance
-funnel), bake off the real tiers, then "buy the ledger, build the brain" unless the evidence says build. Mockup (sample data):
-https://claude.ai/artifact/TWqsphTCiJFqigPcxxd1f5 (private until Nour shares it).
+funnel), bake off the real tiers, then "buy the ledger, build the brain" unless the evidence says build. The concrete plan is
+[32-CONCRETE-PLAN](32-CONCRETE-PLAN.md); its deck (placeholder numbers): https://claude.ai/artifact/GFLt89EF5iyvq8kDexfmjC
+(private until Nour shares it). The older mockup link (TWqsphTCiJFqigPcxxd1f5) no longer opens.
 
 To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7, then 06-OPEN-QUESTIONS.
 
@@ -14,6 +15,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 
 | File | What it answers |
 |---|---|
+| [32-CONCRETE-PLAN](32-CONCRETE-PLAN.md) | the one plan (2026-11-07): buy the ledger (ALG), build the brain; six screens, four phases behind flags with a kill read each, phase 0 prep, the six decisions only Nour can make, corrected against doc 31 |
 | [31-PLAN-AUDIT](31-PLAN-AUDIT.md) | start here: every load-bearing claim in 01-30 re-checked with a receipt (2026-11-06), what is refuted, what is already built, the open decisions, and a recommended order for the one plan |
 | [11-REVIEW](11-REVIEW.md) | what ChatGPT and Perplexity said (both 4/10), what we changed, where we disagree |
 | [06-OPEN-QUESTIONS](06-OPEN-QUESTIONS.md) | the decisions waiting on Nour, the unknowns, and the vendor email to send |
