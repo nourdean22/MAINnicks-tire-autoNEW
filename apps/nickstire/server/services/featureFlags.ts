@@ -197,6 +197,8 @@ export const FLAG_DEFINITIONS = [
   // Retention for the derived revenue_reconciliation_candidates table (JOB 2026-10-18-recon-candidates-retention).
   // The nightly cleanup always logs the superseded-row count; this flag only opens the delete path.
   { key: "revenue_recon_retention", description: "Nightly cleanup deletes SUPERSEDED rows of revenue_reconciliation_candidates (a row with a newer sibling for the same call; the newest row per call is never deleted), up to 200 calls and about 60 s per run (the time budget is checked between statements). Derived data, readers see only the newest row. Sends nothing. OFF = the cleanup only logs the counts. Enable after reading the nightly count in cron_log." },
+  // JOB 2026-11-07-quiet-line-alarm: the first live page is the operator's flip, not the merge.
+  { key: "quiet_line_alarm", description: "Page Nour on Telegram when the receptionist line takes 0 calls for 2 open hours. OFF by default; turn ON after the deploy." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
