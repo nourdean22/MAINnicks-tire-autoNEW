@@ -5,8 +5,11 @@ Job 2026-11-07-portal-network-schematics. Status: CURRENT (extend after any new 
 schematics ... dont forget real time labor or alg because i want it all based around that too its my crm". This is
 the pass below the UX audits: what each portal's browser actually sends and receives, captured with a fetch/XHR
 hook installed in Nour's own logged-in Chrome tabs (passive runtime observation, REA style), plus static reads of
-the shipped JavaScript bundles. Read-only throughout: size and part-number searches, one ticket view, no cart, no
-order, no form submit, no credential entry. FACT/OBSERVED = seen in the response or bundle this session.
+the shipped JavaScript bundles. Read-only throughout (size and part-number searches, one ticket view, no cart, no
+order, no form submit, no credential entry), with one write-bearing exception on 2026-11-07: the ticket editor
+wizard PUT `ticket/updateTicketSession/<ticketId>` fired by picking a job (s.0 item 5, s.2 Labor lookup). No
+visible line was left, but that session is classed write-bearing and is not repeated under read-only
+authorization. FACT/OBSERVED = seen in the response or bundle this session.
 INFERRED = reasoning from it. UNKNOWN = not reached, with the route that would reach it.
 
 **Privacy rule for this file (public repo):** no account numbers, ship-to or tenant ids, tokens, cookies,
@@ -33,10 +36,11 @@ customer names, phones, VINs or ticket ids. Field NAMES and shapes only; example
    warehouse and `trade_region_splitup = true` on every row (FACT). Whether this account may ORDER regional stock
    stays UNKNOWN: no cart or order response was captured and the flag's meaning is not documented. Ranking logic
    must not present regional rows as actionable until an order flow or vendor documentation says so.
-5. The one thing still UNKNOWN that the CRM needs most: the ALG **labor-time lookup endpoint** (the bundle names
-   `laborTimes` with low/average/high, `getLaborItem`, `laborGuideDetail`; the path lives in the ticket editor's
-   lazy chunk, which only loads on Edit). Route to close: Nour opens one ticket's Edit, the hook captures one
-   labor search, zero writes.
+5. SHAPE CAPTURED 2026-11-07, read-only path still UNKNOWN: the ALG **labor-time lookup** is three calls in the ticket editor (s.2 "Labor lookup"):
+   `job/searchDsiJobs` (typeahead, returns job ids), then `jobLabor/getJobLabor?Year&model&jobId&engine`
+   (`lowTime`, `averageTime`, `highTime`) and `Parts/getSuggestedParts/<jobId>`. Keyed by year, model, engine and
+   job id; no VIN needed. Picking a job PUTs the editing session (`ticket/updateTicketSession/<ticketId>`) before
+   anything is added to the ticket, so even a read of the time page is one draft write in ALG's eyes.
 
 ## 1. Cross-portal wire matrix (OBSERVED unless marked)
 
@@ -92,6 +96,48 @@ field}}` (`smtp/settings`, `smtp/verify`, `signature/get`), so the client has tw
 - Technician settings: `technicianTrackingEnabled`, `technicianPartsTrackingEnabled` (both exist; per-line
   `technicianId` is where tech attribution lands).
 
+**Labor lookup (FACT, captured 2026-11-07 in the ticket editor, hook on, Add never clicked):**
+- Route: `ticket/view/<id>` -> Edit (client-side) -> `ticket/jobCategory/<id>/true` -> Job Search box -> pick ->
+  `ticket/time/<id>/true`. Opening Edit fires about 40 settings reads first (`SettingsTicketWorkflow`,
+  `SettingsQuickVin`, `SettingsTicketDefaults`, `SettingsVendor`, `client/getSettingsVersion`, `SettingsTaxRates`
+  x2, `SettingsLaborRates/listSettingsLaborRatesDropdown`, `SettingsTicketNumber`, `MiscellaneousCharge` x3,
+  `SettingsPayTypes`, `ticket/getTicketSessions`, `SettingsPricing/getSettingsPricing`).
+- `GET job/searchDsiJobs?model&engine&year&jobName` -> `[{key, text, value}]` (`value` = job id; "exhaust" 10 rows,
+  "exhaust pipe" 2, "exhaust pipes" 0: plain substring match, no stemming; DSI = Dowell Systems).
+- Picking a result: `PUT ticket/updateTicketSession/<ticketId>` (the wizard's draft; the ticket line is not added
+  until the Add button), then `GET settingsPricing/getActiveLaborRates/` -> `number[]`,
+  `GET job/getJobRequiresEngine/<jobId>` -> `boolean`,
+  `GET jobLabor/getJobLabor?Year&model&jobId&engine` -> `{id, lowTime, averageTime, highTime, laborHash,
+  hasJobAddon, hasJobComment, shopTimeId, customTime, customRate, jobAddons[], comments[]}`,
+  `GET Parts/getSuggestedParts/<jobId>` -> `[{partCode, partDesc, quantity, unitPrice, retailPrice, markup,
+  vendorId, vendorName, partId, quantityInStock, coreTrackingEnabled, coreValue, inventoryPart}]`.
+- The time page shows High / Average / Low / Custom cards (hours x the chosen rate type = amount) with an Add
+  button each; on a 2007 3.5L sedan, intermediate exhaust pipe: 0.9 / 0.7 / 0.6 h at the shop's primary rate.
+- For the CRM: the labor key is (year, model, engine, jobId) and the job id comes only from the typeahead, so a
+  board that promises hours must carry the job id per line or re-search by name; suggested parts ride with the job.
+  Whether the three GETs answer without the wizard's `updateTicketSession` PUT is UNKNOWN: they were only seen
+  after it. Until a standalone GET is proven, this is a captured shape, not a read-only path, and the no-write rule
+  (doc 32 s.6 rule 1) means the board shows no ALG hours: a line's hours stay UNKNOWN and non-promissory. The
+  repo's `server/routers/autoLabor.ts` is a hard-coded range per repair category (no year, model or engine), a
+  rough aid and not a vehicle-specific source.
+- Trap: a full page load of `/recent` in the logged-in tab ended the session (06:33 ET); the in-app buttons
+  (View/Manage, Edit, the wizard steps) are client-side routing and keep it. Every probe from code is the former.
+
+**Printed documents (FACT, one estimate and one invoice PDF downloaded 2026-11-07, customer fields not kept):**
+the estimate PDF carries the `estimateDisclaimers` copy (a sales pitch: "you left with a known problem", "we do
+not guess, we verify", no terms); the invoice PDF carries `invoiceDisclaimers`, eight paragraphs that are the
+shop's policy constants: 1 year limited parts warranty, 90 day limited labor warranty, used tires 7 day replacement
+against a defect at sale, new tires manufacturer warranty only, no road hazard or mileage warranty unless written,
+alignment is a setting service, lug torque recheck within 24 hours or 25-50 miles, customer checks fluids after
+pickup, no liability for theft, weather or consequential costs, storage $25.00 per day on unclaimed vehicles,
+payment equals acceptance. Signer "Moe's Euclid Tire N Auto LLC dba Nick's Tire & Auto"; the logo on both forms
+is still the Moe's one. Labor lines print a price with no hours on both forms. Any receptionist, quote, approval
+or pickup copy that mentions them reads the warranty and policy fact keys in `server/services/businessFacts.ts`
+(the runtime source; SHOP-SOUL rule 1: linked, never retyped), each on the channels its `channels` list allows:
+`refund.policy` and `storage.policy` are voice and web only, so no text message quotes them. Routine sends do not
+raise terms unasked (quote-only-if-asked rule). Doc 33 is the dated verbatim capture the seeds are checked
+against; this paragraph is the summary.
+
 **What the mirror is missing and where it is (FACT):** doc 17 s.2 says line items, hours, margin and declined
 lines are not in our database. `ticketItems[]` has unit price, markup, quantity, rate and tech per line;
 `showLaborHours` and `rate` give hours = `subTotal / rate` on labor lines (INFERRED); `taxItems` gives the tax
@@ -130,11 +176,13 @@ decision with a price, not a mapper-only change.
   server job exists or is enabled for this account is UNKNOWN until a schedule, request or run is observed);
   integrations named: QuickBooks Online (`syncQuickbooks`, `qboId` on ticket and customer), Authorize.Net
   (`authorizeNetRegistry`, `getAuthorizeNetReport`), "Motor" (the labor-data source, INFERRED from the name).
-- Labor guide (names only, FACT; endpoint path UNKNOWN): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
+- Labor guide (bundle names, FACT): `RealTimeLaborGuide`, `RTLaborGuide`, `laborTimes`,
   `laborTimeLowIsActive / laborTimeAverageIsActive / laborTimeHighIsActive`, `getLaborItem`, `laborGuideDetail`,
-  `laborGuideMessage`, `getLaborReport`. The three `...IsActive` names may be shop configuration flags rather
-  than three values per lookup; the response shape is UNKNOWN until a labor lookup is captured (s.10 item 1). The
-  CRM's labor line contract waits for that capture.
+  `laborGuideMessage`, `getLaborReport`. The endpoints and the response shape were captured 2026-11-07 (s.2
+  "Labor lookup": `job/searchDsiJobs`, `jobLabor/getJobLabor`, `Parts/getSuggestedParts`; low, average and high
+  hours per job); the three `...IsActive` names most likely mark which of the three time cards is selected
+  (INFERRED, not verified). Still UNKNOWN: whether those GETs answer without the editor's PUT (s.10 item 1), so the
+  CRM's labor line contract is shaped but has no read-only path yet.
 
 **For the CRM (INFERRED from the above):** model the ticket exactly as `getTicket` does (one `ticketItems[]`
 with a type enum, totals on the header, tax split, history rows with staff), keep ALG's `estimate -> invoice`
@@ -292,9 +340,11 @@ to High" as a sort, so the counter will recognise the rule; (2) O'Reilly's `allR
 
 ## 10. UNKNOWN, with the route to close each
 
-1. ALG labor-time lookup endpoint and its response (low/average/high). Route: Nour opens Edit on any ticket with
-   the hook installed, runs one labor search, nothing saved. Zero writes. (2026-11-07: one search was run, but in a
-   tab the hook was not on; the hooked tab recorded no labor call. The search has to run in the hooked tab itself.)
+1. SHAPE CAPTURED 2026-11-07 (s.2 "Labor lookup"): `job/searchDsiJobs` + `jobLabor/getJobLabor` +
+   `Parts/getSuggestedParts`. Still UNKNOWN: whether those GETs answer standalone (they were only seen after the
+   wizard's `updateTicketSession` PUT, so no read-only path is proven yet; route: one GET replayed with the
+   session's headers and no PUT, on Nour's go), what `laborHash`, `shopTimeId` and `jobAddons[]` hold on a job
+   with add-ons, and whether the PUT left a visible draft on the counter's screen (un-added; check the ticket).
 2. ALG `jobLabors[]`, `labors[]`, `ticketPayments[]` shapes (empty on the viewed estimate). Route: view one
    closed invoice with a payment.
 3. Gateway `get-cut-off-time`: the response shape is known from `gatewaySupplierOrder.ts` `readCutoff` (s.3); what

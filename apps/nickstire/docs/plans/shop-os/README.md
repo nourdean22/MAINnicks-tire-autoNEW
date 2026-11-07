@@ -16,6 +16,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 | File | What it answers |
 |---|---|
 | [32-CONCRETE-PLAN](32-CONCRETE-PLAN.md) | the one plan (2026-11-07): buy the ledger (ALG), build the brain; six screens, four phases behind flags with a kill read each, phase 0 prep, the six decisions only Nour can make, corrected against doc 31 |
+| [33-PRINTED-TERMS](33-PRINTED-TERMS.md) | the exact estimate and invoice text ALG prints (2026-11-07, customer fields not kept); the approval page, pickup text and quote card read the `businessFacts.ts` fact keys; this is the dated capture the seeds are checked against, and it records the one seed that differs |
 | [31-PLAN-AUDIT](31-PLAN-AUDIT.md) | start here: every load-bearing claim in 01-30 re-checked with a receipt (2026-11-06), what is refuted, what is already built, the open decisions, and a recommended order for the one plan |
 | [11-REVIEW](11-REVIEW.md) | what ChatGPT and Perplexity said (both 4/10), what we changed, where we disagree |
 | [06-OPEN-QUESTIONS](06-OPEN-QUESTIONS.md) | the decisions waiting on Nour, the unknowns, and the vendor email to send |

@@ -109,6 +109,14 @@ the flag off and the next phase waits.
 5. Every customer send is a protected operation: preview first, live only on Nour's go, inside the daily cap.
 6. Written estimate on file before work (Ohio rule, doc 07); the approval page is that record.
 7. Customer data stays on the ticket; no phone numbers, names or VINs in logs, PRs or docs.
+8. When copy mentions warranty, storage or refunds it reads the fact keys in `server/services/businessFacts.ts`
+   (the runtime source; SHOP-SOUL rule 1: linked, never retyped) with their qualifiers, never a shortened form,
+   and only on the channels each fact allows: `refund.policy` and `storage.policy` are voice and web only, so no
+   text message quotes them. Routine quotes, approvals, pickups and receptionist replies do not raise terms
+   unasked (`buildWarrantyFactsPreamble`, quote-only-if-asked): no terms sentence in a text, a call or the body
+   of a quote; the approval page keeps them in a collapsed section the customer opens, the web form of the
+   printed footer (doc 33 s.3). Doc 33 is the dated verbatim capture of the
+   printed forms; the seeds are checked against it, and a term that differs is fixed in ALG first, then the seed.
 
 ## 7. The six decisions only Nour can make
 
@@ -116,9 +124,13 @@ the flag off and the next phase waits.
    whole plan assumes it.
 1. Per-ticket ALG fetch for the mirror (collides with the session guard, doc 30 s.2) or stay on the recent-tickets
    list. Blocks phase 1's history card.
-2. Open Edit on one ALG ticket and run one labor search with the hook armed, so the labor lookup can be captured.
-   Without it the labor promise on the board stays UNKNOWN (doc 30 s.10 item 1); the repo's built-in labor guide
-   (`server/routers/autoLabor.ts`, wired at `IntegrationsSection.tsx:173-186`) is the fallback the board extends, not a rebuild.
+2. CAPTURED 2026-11-07, not yet usable: the lookup is three GETs (doc 30 s.2 "Labor lookup": typeahead -> job id
+   -> low / average / high hours plus suggested parts, keyed by year, model, engine, job id), but the only path seen
+   runs them after the editor's `PUT ticket/updateTicketSession`, which rule 1 forbids. Whether the GETs answer on
+   their own is UNKNOWN until a standalone call is proven (doc 30 s.10 item 1). Until then the board promises no hours:
+   a line's hours are UNKNOWN and non-promissory, and the repo's built-in guide (`server/routers/autoLabor.ts`,
+   wired at `IntegrationsSection.tsx:173-186`) is a hard-coded range per repair category with no year, model or
+   engine, a rough aid and not a source. Any path through the editor is an ALG write that needs its own decision.
    1b. Daytime mirror probes: allow them (the counter gets logged out of ALG on each one) or keep the board on the
    3 AM / 8 PM mirror. Blocks a live board.
    2b. Is the D&K login-based client (and O'Reilly's JSON behind the shop login) an approved vendor path, or a
