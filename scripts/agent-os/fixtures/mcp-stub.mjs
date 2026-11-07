@@ -61,11 +61,13 @@ const sse = (res, payload, headers = {}) => {
 };
 const text = (id, t) => ({ jsonrpc: "2.0", id, result: { content: [{ text: t, type: "text" }], isError: false } });
 
-export function startMcpStub({ port = 0, name = "graphify", mode = "" } = {}) {
+export function startMcpStub({ port = 0, name = "graphify", mode = "", requireHost = "" } = {}) {
   const calls = [];
   const slowMs = Number(/^slow:(\d+)$/.exec(mode)?.[1] ?? 0);
   let sessions = 0;
   const server = createServer((req, res) => {
+    // The real server's DNS-rebinding guard (measured 2026-11-07): any other Host is 421 "Invalid Host header".
+    if (requireHost && req.headers.host !== requireHost) { req.resume(); res.writeHead(421, { "content-type": "text/plain" }); return res.end("Invalid Host header"); }
     if (mode === "hang") { req.resume(); return; } // a listener that never answers: the NO ANSWER arm
     let body = "";
     req.on("data", (c) => { body += c; });

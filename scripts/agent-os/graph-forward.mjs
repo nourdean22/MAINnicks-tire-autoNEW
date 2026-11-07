@@ -11,7 +11,10 @@
  * the upstream is the `tailscale serve` HTTPS address, tailnet-only (docs/agent-os/TAILNET-MCP.md). Refuses to run on a
  * PC listed in `hosts`: that PC serves the graph itself and this would fight it for the port. Bytes pass through
  * untouched (SSE and the mcp-session-id header included), so it adds no auth and hides no error: an upstream that is
- * down answers 502. Canary: graphForward.test.mjs.
+ * down answers 502. One header is rewritten: Host, to `remoteHost` (default: the upstream's own host). The graph
+ * server only accepts loopback Host values (the MCP library's DNS-rebinding guard) and answers 421 "Invalid Host
+ * header" to its tailnet name; measured 2026-11-07, Host 127.0.0.1:8765 over the same tailnet address answered 200.
+ * The browser protection that guard gives moves to this forwarder's own Host/Origin check below. Canary: graphForward.test.mjs.
  */
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -25,9 +28,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const UPSTREAM_IDLE_MS = 30_000;
 
 /** Start the forwarder. Resolves { port, close }; rejects with the listen error (EADDRINUSE). */
-export function startForward({ upstream, port = 0 }) {
+export function startForward({ upstream, upstreamHost, port = 0, transport }) {
   const base = new URL(upstream);
-  const send = base.protocol === "https:" ? httpsRequest : httpRequest;
+  const secure = base.protocol === "https:";
+  // `transport` is the request function; a test passes a recorder to see exactly what would go on the wire.
+  const send = transport ?? (secure ? httpsRequest : httpRequest);
   const server = createServer((req, res) => {
     // Local programs only: a web page can POST to a loopback port (DNS rebinding sends a foreign Host, a cross-origin fetch sends Origin); the graph holds PR data from Nour's gh login.
     if (!/^(127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(req.headers.host ?? "") || req.headers.origin) {
@@ -35,7 +40,9 @@ export function startForward({ upstream, port = 0 }) {
       return res.end("graph-forward: local programs only\n");
     }
     const target = new URL(req.url, base);
-    const up = send(target, { method: req.method, headers: { ...req.headers, host: target.host }, timeout: UPSTREAM_IDLE_MS }, (upRes) => {
+    // servername: Node takes the TLS name (SNI) from the Host header, so a rewritten Host would break the handshake (EPROTO, measured 2026-11-07).
+    const tls = secure ? { servername: target.hostname } : {};
+    const up = send(target, { method: req.method, headers: { ...req.headers, host: upstreamHost ?? target.host }, timeout: UPSTREAM_IDLE_MS, ...tls }, (upRes) => {
       res.writeHead(upRes.statusCode, upRes.headers);
       upRes.pipe(res);
     });
@@ -73,7 +80,7 @@ async function main(argv) {
   const upstream = flag("--upstream") ?? server.remoteUrl;
   if (!upstream) { process.stderr.write("[graph-forward] no upstream: set remoteUrl on the graphify entry of local-services.json or pass --upstream\n"); return 2; }
   try {
-    const { port } = await startForward({ upstream, port: Number(flag("--port") ?? server.port) });
+    const { port } = await startForward({ upstream, upstreamHost: flag("--upstream-host") ?? server.remoteHost, port: Number(flag("--port") ?? server.port) });
     process.stdout.write(`[graph-forward] listening 127.0.0.1:${port} -> ${upstream}\n`);
     return null;
   } catch (err) {
