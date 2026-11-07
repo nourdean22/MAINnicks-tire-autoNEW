@@ -6036,6 +6036,34 @@
       "codeState": "in_progress",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "declined-recovery-2day-text",
+      "name": "Declined-quote text two days after a mirrored estimate with no matching invoice (declined-recovery lane, variant declined_2d_P0), behind flag declined_recovery_2d, OFF by default; plus a 40-text reply headroom on the 200/day cap, a 10-day gap between the 7-day post-visit text and the retention texts, and winback capped at 25 per tick oldest first",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "2026-11-07 branch nickstire/declined-2d-text (audit follow-up job 3, Nour: 'dont Pause retention, winback and but make them better too'): server/cron/jobs/declinedWorkRecovery.ts reads isEnabled('declined_recovery_2d'); ON lowers the age floor to touchToDays('3d') (now 2) and passes twoDay {ageDays, twoDayTouched} to allowedTouches, which returns ['3d'] under 7 days and drops '7d' once the 2-day text went; checkGlobalDailyCap() leaves REPLY_HEADROOM=40 of the daily cap and caps MAX_SMS_PER_RUN. Template in declinedRecoverySequence.ts: 'Hi {firstName}, this is Nick's Tire & Auto. The quote we wrote up for your car is on file. If you have questions about it, text back here or call (216) 862-0005 and we'll go over it. We do nothing until you say yes. Reply STOP to opt out.' lib/postVisitDripGap.ts: clearOfRetentionText (postInvoiceFollowUp eligibility) and clearOfPostVisitText (retentionSequences eligibility, reads sms_messages.variantKey post_visit_d7, which postInvoiceFollowUp now writes). winbackProcessor: ORDER BY scheduledAt, id LIMIT 25 (was 50 unordered). smsPerformance labels declined_2d and post_visit_d7.",
+        "tests": [
+          "lane: red first 14 failed / 65 passed; green 22 files 380 passed; mutations 11 of 79 and 5 of 12 killed; cap boundary 159 sends 1, 160 and 161 send 0; pnpm run check 0",
+          "manager re-run 2026-11-07 on the cherry-picked tree: declinedWorkRecovery.twoDay, declinedRecoverySequence, postVisitDripGap, winbackTickCap, postInvoiceFollowUp, smsQueueLanePause, declinedWorkRecovery.sendPause, cronNoSwallowedFailure: 8 files 125 passed; featureFlagReaders, featureFlagsListKnownOnly, featureFlagsSeedDescription, routers/featureFlags, rawSqlTablesExist, failOpenSliceGate, postVisitGap, postVisitText, recoveryReplyCapture: 9 files 75 passed; pnpm run check 0; lint:orphans 0 NEW; lint:source 0; lint:sql 0"
+        ],
+        "verifiedAgainst": "Unit tests only; no production read. Not checked: UTC end to end on the age math against TiDB, and that the 40-text headroom also applies when the CLI runs the job. No text was sent.",
+        "limits": "Post-visit texts sent before this deploy carry no variantKey, so for the first 10 days the retention side of the gap sees none of them (one-sided gap). The reply headroom is a fixed 40. Nothing sends on the 2-day path until Nour reads the template and flips declined_recovery_2d ON; FEATURE_DECLINED_RECOVERY=1 and the 15% holdout still apply."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Nour: read the template and flip declined_recovery_2d ON in Admin > Feature Flags after the deploy. Manager: 2026-11-10 read sms_messages for variantKey declined_2d_P0 (count, opt-outs, replies) and cron_log for declined-work-recovery; move the row to internal in that PR."
+        }
+      ],
+      "deferredScope": [
+        "a reply-headroom value read from config instead of the fixed 40",
+        "backfill variantKey on post-visit texts sent before the deploy"
+      ],
+      "lastVerifiedAt": "2026-11-07",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

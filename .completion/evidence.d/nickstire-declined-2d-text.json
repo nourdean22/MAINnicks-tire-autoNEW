@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "declined-work-recovery cron (declinedWorkRecovery.ts): the new declined_recovery_2d flag read fails closed (services/featureFlags.ts isEnabled returns false on a failed read, so an unreadable flag = OFF = today's 7-day first text; flag OFF and ON paths pinned in declinedWorkRecovery.twoDay.test.ts; an unreadable daily count runs as today, CONTROL test); the 40-text reply headroom caps sends at 0 when the day is at 160+ of 200 (cap tests 159 -> 1, 160 -> 0, 161 -> 0); winbackProcessor LIMIT 25 oldest first (winbackTickCap.test.ts); retention and post-visit eligibility gain the 10-day gap (postVisitDripGap.test.ts). Manager re-run 2026-11-07: 8 files 125 passed incl. cronNoSwallowedFailure and declinedWorkRecovery.sendPause; 9 more files 75 passed incl. failOpenSliceGate and rawSqlTablesExist."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json gains capabilityId declined-recovery-2day-text (in_progress / unit_verified / disabled: flag declined_recovery_2d OFF until Nour reads the template and flips it; P2 read on 2026-11-10) and REALITY-LEDGER.md is re-rendered in the same diff."
+    }
+  }
+}
