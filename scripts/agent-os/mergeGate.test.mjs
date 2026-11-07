@@ -1125,3 +1125,13 @@ test("a branch delete that fails after MERGED (exit 6) still queued the rebuild 
   assert.equal(code, 6);
   assert.equal(called, 1);
 });
+
+test("the real gh runner reads a file list over 1 MB (a 400+ file PR crashed the gate with ENOBUFS, PR 3590)", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const big = ["-e", "process.stdout.write('x'.repeat(2 * 1024 * 1024))"];
+  // positive control: the old options (no maxBuffer) overflow on the same 2 MB output
+  const { maxBuffer, ...old } = gate.GH_EXEC_OPTIONS;
+  assert.ok(maxBuffer >= 64 * 1024 * 1024, "maxBuffer must cover a several-MB file list");
+  assert.throws(() => execFileSync(process.execPath, big, old), (e) => e.code === "ENOBUFS");
+  assert.equal(execFileSync(process.execPath, big, gate.GH_EXEC_OPTIONS).length, 2 * 1024 * 1024);
+});

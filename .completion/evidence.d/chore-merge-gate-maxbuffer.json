@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row owns the merge gate's gh runner (scripts/agent-os/merge-gate.mjs). Change (2026-11-07, Nour's go in chat: GO on 'fix the merge-gate buffer'): the gh call options move to the exported GH_EXEC_OPTIONS with maxBuffer 512 MB. Cause: PR 3590 (429 files, the weekly prerender refresh) crashed the gate with ENOBUFS on the file list (1 MB default). No check is loosened; the same gh calls run with a larger output buffer. Test: a child writing 2 MB overflows the old options (ENOBUFS, positive control) and reads whole with the new ones. Live proof owed: the gate on PR 3590 head e06ceb9dec runs past the file list."
+    }
+  }
+}
