@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   selects: 0,
 }));
 
+// declined_recovery_2d stays OFF here (its own arms live in declinedWorkRecovery.twoDay.test.ts); the real flag read would take a select from the queue below.
+vi.mock("../../services/featureFlags", () => ({ isEnabled: async () => false }));
 vi.mock("../../db", () => ({
   getDb: async () => ({
     execute: async (q: unknown) => {

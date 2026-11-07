@@ -93,7 +93,7 @@ describe("Post-Invoice Follow-Up", () => {
       const { processPostInvoiceFollowUps } = await import("./postInvoiceFollowUp");
       await processPostInvoiceFollowUps();
       expect(sendSms).toHaveBeenCalledTimes(1);
-      expect(sendSms).toHaveBeenCalledWith("2165550199", expected(greeting), { via: "shop" });
+      expect(sendSms).toHaveBeenCalledWith("2165550199", expected(greeting), { via: "shop", variantKey: "post_visit_d7" });
     }, 10_000);
   });
 

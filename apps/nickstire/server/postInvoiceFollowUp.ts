@@ -22,6 +22,7 @@ async function getDatabase() {
 import { sendSms } from "./sms";
 import { postVisitText } from "@shared/postVisitText";
 import { greetingName } from "./services/invoiceReviewRequests";
+import { clearOfRetentionText, POST_VISIT_VARIANT_KEY } from "./lib/postVisitDripGap";
 
 import { createLogger } from "./lib/logger";
 
@@ -102,7 +103,9 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           // check below never marks a skipped customer, so without this they would refill this
           // .limit(20) every run and crowd out the customers who are still due. Both phone columns
           // are bare 10 digits (probe 2026-10-25: 100% of rows), so the equality join is exact.
-          sql`NOT EXISTS (SELECT 1 FROM sms_messages m JOIN sms_conversations c ON m.conversationId = c.id WHERE c.phone = ${customers.phone} AND m.direction = 'outbound' AND m.status <> 'failed' AND m.createdAt >= NOW() - INTERVAL ${POST_VISIT_TEXT_GAP_DAYS} DAY)`
+          sql`NOT EXISTS (SELECT 1 FROM sms_messages m JOIN sms_conversations c ON m.conversationId = c.id WHERE c.phone = ${customers.phone} AND m.direction = 'outbound' AND m.status <> 'failed' AND m.createdAt >= NOW() - INTERVAL ${POST_VISIT_TEXT_GAP_DAYS} DAY)`,
+          // 2026-11-07: never within 10 days of a retention text (the shared post-visit drip gap).
+          clearOfRetentionText(customers.lastRetentionDate),
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits
@@ -152,7 +155,8 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
 
         // Wave-108: post-invoice review request via shop gateway so the
         // customer recognizes the sender (same line they paid through).
-        const smsResult = await sendSms(customer.phone, message, { via: "shop" });
+        // variantKey: the retention side of the 10-day post-visit drip gap reads it (lib/postVisitDripGap.ts).
+        const smsResult = await sendSms(customer.phone, message, { via: "shop", variantKey: POST_VISIT_VARIANT_KEY });
 
         // 2026-09-01 (audit F-3): success:true covers a text parked for the
         // 8 AM window; count it as queued, never as sent. The claim above is

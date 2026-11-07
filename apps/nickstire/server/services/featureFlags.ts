@@ -199,6 +199,8 @@ export const FLAG_DEFINITIONS = [
   { key: "revenue_recon_retention", description: "Nightly cleanup deletes SUPERSEDED rows of revenue_reconciliation_candidates (a row with a newer sibling for the same call; the newest row per call is never deleted), up to 200 calls and about 60 s per run (the time budget is checked between statements). Derived data, readers see only the newest row. Sends nothing. OFF = the cleanup only logs the counts. Enable after reading the nightly count in cron_log." },
   // JOB 2026-11-07-quiet-line-alarm: the first live page is the operator's flip, not the merge.
   { key: "quiet_line_alarm", description: "Page Nour on Telegram when the receptionist line takes 0 calls for 2 open hours. OFF by default; turn ON after the deploy." },
+  // JOB 2026-11-07-declined-2day-text: nothing sends until Nour reads the template and flips it.
+  { key: "declined_recovery_2d", description: "One text two days after a mirrored estimate with no matching invoice (declined-recovery lane, variant declined_2d_P0). An estimate that gets it skips the 7-day text. Still needs FEATURE_DECLINED_RECOVERY=1, keeps the 15% holdout and leaves the last 40 of the 200/day text cap for replies. OFF = today's 7-day first text." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
