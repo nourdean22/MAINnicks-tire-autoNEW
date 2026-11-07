@@ -14,10 +14,10 @@ clicking through Nour's own paying/ordering account; no cart, quote, order, or p
   legacy name surfacing across systems (ALG's two prior instances, Gateway/D&K's "MOE'S TIRE" display name,
   now ATD's own login handle) - worth a single global rename sweep across every vendor account, not a
   per-vendor fix.
-- Location# 2400971, ship-to **17625 Euclid Ave, Cleveland, OH** - the same address Gateway/D&K uses, confirming
+- Location# [redacted], ship-to **17625 Euclid Ave, Cleveland, OH** - the same address Gateway/D&K uses, confirming
   this is the same real shop account across both tire vendors.
 - Distribution center: **DC #225** ("View DC #225 Details" link in the header).
-- Sales/account context: not captured this pass (no rep-name equivalent to Gateway's Steve Starosta was surfaced
+- Sales/account context: not captured this pass (no rep-name equivalent to Gateway's account rep was surfaced
   in the header; may exist inside a gated account page - see section 9).
 
 ## 1. Global structure
@@ -289,7 +289,7 @@ the dealer without being asked," worth treating as one family of mechanisms:
 
 - **Marketing Programs** widget: a specific, named, dated incentive program card - **"Hercules Open Market
   2026"**, labeled a **"Quarterly Program"** "As of: 11/05/26" - rendered as a **half-donut goal gauge**
-  ("3 Units to Goal", currently 0/3), a side-by-side breakdown of **"Location #2400971: 0 Units Purchased"**
+  ("3 Units to Goal", currently 0/3), a side-by-side breakdown of **"Location #[redacted]: 0 Units Purchased"**
   vs. **"All Locations: 0 Units Purchased"**, a countdown ("55 days left to fulfill program period, Program
   started 01/01/26 and ends 12/31/26"), and a "Click here! Program & Incentive Details" link. This is the
   live, fully-working version of what Gateway's "Specials" tab was clearly meant to be but is confirmed broken

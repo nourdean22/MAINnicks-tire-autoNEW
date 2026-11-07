@@ -14,6 +14,7 @@ To pick it back up: read 11-REVIEW (round 2 first), then 05-ROADMAP v3 days 1-7,
 
 | File | What it answers |
 |---|---|
+| [31-PLAN-AUDIT](31-PLAN-AUDIT.md) | start here: every load-bearing claim in 01-30 re-checked with a receipt (2026-11-06), what is refuted, what is already built, the open decisions, and a recommended order for the one plan |
 | [11-REVIEW](11-REVIEW.md) | what ChatGPT and Perplexity said (both 4/10), what we changed, where we disagree |
 | [06-OPEN-QUESTIONS](06-OPEN-QUESTIONS.md) | the decisions waiting on Nour, the unknowns, and the vendor email to send |
 | [01-DESIGN](01-DESIGN.md) | what we build, the three options and what each costs, the counter screen, parts, copilot |
