@@ -113,7 +113,9 @@ the flag off and the next phase waits.
    (the runtime source; SHOP-SOUL rule 1: linked, never retyped) with their qualifiers, never a shortened form,
    and only on the channels each fact allows: `refund.policy` and `storage.policy` are voice and web only, so no
    text message quotes them. Routine quotes, approvals, pickups and receptionist replies do not raise terms
-   unasked (`buildWarrantyFactsPreamble`, quote-only-if-asked). Doc 33 is the dated verbatim capture of the
+   unasked (`buildWarrantyFactsPreamble`, quote-only-if-asked): no terms sentence in a text, a call or the body
+   of a quote; the approval page keeps them in a collapsed section the customer opens, the web form of the
+   printed footer (doc 33 s.3). Doc 33 is the dated verbatim capture of the
    printed forms; the seeds are checked against it, and a term that differs is fixed in ALG first, then the seed.
 
 ## 7. The six decisions only Nour can make

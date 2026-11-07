@@ -46,8 +46,8 @@ Small print, right column:
 Also on the estimate: `Rate Type: Flat & Hourly`, `Estimate Charge: $0.00`, a `Parts: Do Not Return Old Parts`
 default, an `Other Authorized Person / Phone` line, and `SIGNED / DATE` under the total. The counter's free-text
 `Notes:` line is where a deposit and a parts-arrival date get written today (one estimate carried a deposit and
-an expected arrival date in that line), which is the strongest argument for doc 26's `Quote` object carrying
-`deposit` and `partsEta` as fields instead of prose.
+an expected arrival date in that line). Doc 26's `Quote` object now carries `deposit` and `partsEta` as fields
+(added 2026-11-07 from this capture) so neither value is buried in prose again.
 
 ## 2. Invoice terms (`invoiceDisclaimers`), eight paragraphs
 
@@ -113,11 +113,19 @@ Signer block: `MOE'S EUCLID TIRE N AUTO LLC DBA NICK'S TIRE & AUTO`, `17625 EUCL
 
 | Surface (doc 32 screen) | Copies | Not copied |
 |---|---|---|
-| Customer approval page `/approve/:token` (screen 6) | invoice paragraphs 1 to 7 (refunds through storage and severability) in full under the frozen lines, from one `web`-channel constant added to `businessFacts.ts` (seeded from s.2, one place in code); the estimate "known problem" box when a line is declined | paragraph 8 (payment or acceptance of the invoice acknowledges the work performed): it is a post-service acknowledgment and stays off a pre-work approval, which records consent to the quoted work only; nothing shortened; no summary bullets in place of the text |
+| Customer approval page `/approve/:token` (screen 6) | invoice paragraphs 1 to 7 (refunds through storage and severability) in full, inside one collapsed "Terms" section under the frozen lines (closed by default, one tap to open), from one `web`-channel constant added to `businessFacts.ts` (seeded from s.2, one place in code). The collapsed section is the web form of the printed footer: it is on the record the customer signs, and it is not raised unasked (doc 32 rule 8) | paragraph 8 (payment or acceptance of the invoice acknowledges the work performed): it is a post-service acknowledgment and stays off a pre-work approval, which records consent to the quoted work only; the estimate "known problem" box: its headline says the customer left, which a pre-work approval cannot claim, so a declined line shows only "Declined" with the reason, and the box copy waits for the declined-work follow-up after the invoice closes (phase 4, needs Nour's go); nothing shortened; no summary bullets in place of the text |
 | Pickup text (phase 4 template, needs Nour's go) | the lug torque recheck sentence from a new fact key `lug_torque.recheck` (seeded from the lug sentence in s.2, all channels) when a wheel or tire line is on the ticket; `alignment.warranty` carries the alignment-setting sentence as well and stays on alignment lines only | the storage line: `storage.policy` is voice and web only, so it is said on the phone or shown on the page, never texted; the warranty paragraphs (on the printed invoice already) |
-| Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store | any wording that offers road hazard or mileage coverage; the closing no-road-hazard sentence inside `used_tire.warranty` stays, because a fact is never shortened |
+| Quick tire quote (screen 3) | one line each for new tires (`new_tire.warranty`) and used tires (`used_tire.warranty`) on the card, read from the fact store, after the seed fix in s.4 | any wording that offers road hazard or mileage coverage; the closing no-road-hazard sentence inside `used_tire.warranty` stays, because a fact is never shortened |
 | Receptionist (`businessFacts.ts` warranty and policy facts) | its seed facts are checked against s.2 above; quote-only-if-asked stands (doc 32 rule 8); `refund.policy` and `storage.policy` answer on voice and web only | volunteering terms on a routine call; refund or storage terms by SMS |
 | Printed estimate and invoice | stay ALG's; the CRM never prints its own ledger document | a second invoice format |
+
+## 4. Seed check (2026-11-07)
+
+Each warranty and policy fact key in `businessFacts.ts` was read against s.2. One differs: `used_tire.warranty`
+ends "No road-hazard or mileage warranty." while the printed paragraph ends "... UNLESS EXPRESSLY STATED IN
+WRITING". The printed form is right (a written shop warranty on a tire sale is real, and the seed denies it), so the
+seed gains the qualifier, in the same words, before any CRM surface reads the key (phase 2 of doc 32, a seed edit,
+no copy change elsewhere). The other keys match their paragraphs.
 
 Open: both forms still print the MOE'S logo and the `MOESEUCLID@GMAIL.COM` address; whether that stays is Nour's
 call (brand, not code). Labor lines print a price and no hours on both forms; the board's hours stay UNKNOWN until
