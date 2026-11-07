@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "chore/kill-reads-date-rule",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "f842366e-4011-4295-b071-702fca9ecce3",
+  "worktree": "C:\\Users\\nourd\\NattyNour\\nicks-tire\\.worktrees\\kill-reads-sweep",
+  "claimedBy": "worktree-setup.ps1",
+  "claimedAt": "2026-11-07T17:10:51.047Z",
+  "expiresAt": "2026-11-08T05:10:51.047Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
