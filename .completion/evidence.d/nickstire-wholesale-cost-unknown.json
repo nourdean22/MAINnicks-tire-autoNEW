@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability-ledger row owns D&K wholesale-cost parsing (pickWholesaleCost in apps/nickstire/server/services/gatewayClient.ts); the nearest rows (tire-finder-vehicle-fitment, tire-order-dk-supplier-order, tires-text-me-quote) are about fitment, supplier ordering and the text-me quote, not the cost field. Change (PR 3581, 2026-11-07): a D&K row with no positive selling_price now returns 0 (cost unknown, dropped by every caller) instead of cost_price, which is D&K's suggested retail (2x cost) and priced such a tire at about 4x cost. Red first: new test got 941.5, expected 0 (1 failed / 4 passed); after: 91 tests across 5 files and the 3 files that build pricing_data fixtures pass, tsc exit 0. NOT CHECKED: how often the live D&K feed omits selling_price; live check 2026-11-08 that /tires still lists tires for common sizes."
+    }
+  }
+}
